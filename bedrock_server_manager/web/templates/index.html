@@ -1,0 +1,105 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Bedrock Server Manager</h1>
+        </header>
+
+        {% if request.args.message %}
+        <div class="message-box">{{ request.args.message }}</div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                    {% for category, message in messages %}
+                      <div class="message-box message-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
+        <section class="server-selection-section">
+            <form id="server-action-form" method="post">
+                <div class="select-server-group">
+                    <label for="server-select" class="select-label">Select Server:</label>
+                    <select id="server-select" name="server_name" class="server-dropdown">
+                        {% if servers and servers|length > 0 %}
+                            {% for server in servers %}
+                                {% if server.server_name not in ('Error', 'Info') %}
+                                    <option value="{{ server.server_name }}">{{ server.server_name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <option value="" disabled selected>No servers available</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="action-buttons-group">
+                    <button type="submit" class="action-button start-button" onclick="setAction('/start')">Start</button>
+                    <button type="submit" class="action-button stop-button" onclick="setAction('/stop')">Stop</button>
+                    <button type="submit" class="action-button restart-button" onclick="setAction('/restart')">Restart</button>
+                    <button type="submit" class="action-button update-button" onclick="setAction('/update')">Update</button>
+                </div>
+            </form>
+            <script>
+                function setAction(action) {
+                    const serverSelect = document.getElementById('server-select');
+                    const selectedServer = serverSelect.value;
+                    const form = document.getElementById('server-action-form');
+
+                    if (selectedServer) {
+                        form.action = `/server/${selectedServer}${action}`;
+                    } else {
+                        alert("Please select a server.");
+                        event.preventDefault();
+                    }
+                }
+            </script>
+        </section>
+
+        <section class="server-list-section">
+            <table class="server-table">
+                <thead>
+                    <tr>
+                        <th>Server Name</th>
+                        <th>Status</th>
+                        <th>Version</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for server in servers %}
+                    <tr>
+                        <td>{{ server.server_name }}</td>
+                        <td>{{ server.status }}</td>
+                        <td>{{ server.version }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not servers %}
+                    <tr>
+                        <td colspan="3" class="no-servers">{{ servers[0].status if servers else 'No servers found.' }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="main-menu-buttons">
+            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+
+            <a href="#" class="main-button advanced-button">Advanced Options</a>
+            <a href="#" class="main-button exit-button">Exit</a>
+        </section>
+    </div>
+</body>
+</html>

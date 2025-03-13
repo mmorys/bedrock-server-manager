@@ -31,6 +31,7 @@ This script requires Python 3.10 or later. You also need to install the followin
 *   colorama
 *   requests
 *   psutil
+*   flask
 
 On Linux, you'll also need:
 
