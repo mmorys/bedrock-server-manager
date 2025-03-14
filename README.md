@@ -49,8 +49,9 @@ On Linux, you'll also need:
 
 bedrock-server-manager will use the enviroment variable `BEDROCK_SERVER_MANAGER_DATA_DIR` for setting the default config/data location, if this variable does not exist it will default to `$HOME/bedrock-server-manager`
 
+Follow your platforms documentation for setting Enviroment Variables
 
-The script will create `./server`,`./backups`,`./.downloads` `./.config`  `./content/worlds`, and `./content/addons` folders in its current folder. This is where servers will be installed to and where the script will look when managing various server aspects.
+The script will create its data folders ( `./server`,`./backups`,`./.downloads` `./.config` `./.logs`  `./content/worlds`, and `./content/addons` ) in this location. This is where servers will be installed to and where the script will look when managing various server aspects. Most of these locations can be changed in the script_config.json
 
 ### Run the script:
 
