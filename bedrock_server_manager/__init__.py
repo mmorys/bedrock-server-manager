@@ -2,6 +2,7 @@
 import sys
 import argparse
 import logging
+import os
 from importlib.metadata import version, PackageNotFoundError
 from bedrock_server_manager.config import settings
 from bedrock_server_manager.core import logging as core_logging
@@ -13,7 +14,7 @@ from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
-logger = core_logging.setup_logging()
+logger = core_logging.setup_logging(log_dir=settings.LOG_DIR)
 
 try:
     __version__ = version("bedrock-server-manager")
@@ -404,8 +405,8 @@ def main():
         "configure-permissions": lambda: cli.select_player_for_permission(
             args.server, base_dir, config_dir
         ),
-        "configure-properties": lambda: cli.configure_server_properties(
-            args.server, base_dir
+        "configure-properties": lambda: server_base.modify_server_properties(
+            server_properties=os.path.join(base_dir, args.server, "server.properties"), property_name=args.property, property_value=args.value
         ),
         "install-server": lambda: cli.install_new_server(base_dir),
         "update-server": lambda: cli.update_server(args.server, base_dir),

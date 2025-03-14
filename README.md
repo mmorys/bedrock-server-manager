@@ -1,6 +1,6 @@
 # Bedrock Server Manager
 
-Bedrock Server Manager is a comprehensive python script designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease. The script is Linux and Windows compatable.
+Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease. The script is Linux and Windows compatable.
 
 ## Features
 
@@ -26,12 +26,7 @@ View Resource Usage: View how much CPU and RAM your server is using.
 
 ## Prerequisites
 
-This script requires Python 3.10 or later. You also need to install the following Python packages:
-
-*   colorama
-*   requests
-*   psutil
-*   flask
+This script requires `Python 3.10` or later, and you will need `pip` installed
 
 On Linux, you'll also need:
 
@@ -41,27 +36,26 @@ On Linux, you'll also need:
 
 ## Usage
 
-### Download the script:
+### Download & Install The Package:
 
-Download the script to your desired folder
+1. Go to the release section and download the latest release zip file to a folder on your device
+2. Extract the `.zip` file on your device, you should see a `tar.gz` and `.whl` file
+3. Open your command prompt and `cd` to the folder that contains the two extracted files
+   - e.g. `cd /path/to/files`
+4. Run the command `pip install .`
+   - This will install the package and requirements (see requirements.txt)
 
-```
-curl -o /path/to/your/directory/bedrock-server-manager.py https://raw.githubusercontent.com/DMedina559/minecraft/main/scripts/bedrock-server-manager.py # Downloads the script to the path you choose
+### Setup The Configuration:
 
-chmod +x /path/to/your/directory/bedrock-server-manager.py # Makes the script executable IMPORTANT (Linux only)
-```
-Its recommened to download the server to a folder just for the minecraft servers
+bedrock-server-manager will use the enviroment variable `BEDROCK_SERVER_MANAGER_DATA_DIR` for setting the default config/data location, if this variable does not exist it will default to `$HOME/bedrock-server-manager`
 
-For example:
-
-`/home/user/minecraft-servers/`
 
 The script will create `./server`,`./backups`,`./.downloads` `./.config`  `./content/worlds`, and `./content/addons` folders in its current folder. This is where servers will be installed to and where the script will look when managing various server aspects.
 
 ### Run the script:
 
 ```
-python bedrock-server-manager.py <command> [options]
+bedrock-server-manager <command> [options]
 ```
 
 #### Available commands:
@@ -73,7 +67,6 @@ python bedrock-server-manager.py <command> [options]
 | **main**        | Open Bedrock Server Manager menu                  | None                                                                                                          | All           |
 | **list-servers**     | List all servers and their statuses               | `-l, --loop`: Continuously list servers (optional)                                                          | All           |
 | **get-status**       | Get the status of a specific server               | `-s, --server`: Server name (required)                                                                       | All           |
-| **update-script**    | Update the script                                 | None                                                                                                          | All           |
 | **configure-allowlist** | Configure the allowlist for a server            | `-s, --server`: Server name (required)                                                                       | All           |
 | **configure-permissions**| Configure permissions for a server             | `-s, --server`: Server name (required)                                                                       | All           |
 | **configure-properties**| Configure individual server.properties           | `-s, --server`: Server name (required) <br> `-p, --property`: Name of the property to modify (required) <br> `-v, --value`: New value for the property (required) | All           |
@@ -120,71 +113,33 @@ python bedrock-server-manager.py <command> [options]
 | **send-command**     | Sends a command to the server (Linux only)        | `-s, --server`: Server name (required) <br> `-c, --command`: Command to send (required)                        | Linux only    |
 
 
-##### Windows-Specific Commands
-
-| Command             | Description                                       | Arguments                                                               |
-|----------------------|---------------------------------------------------|-------------------------------------------------------------------------|
-| **windows-stop**     | Stop a server (Windows only)                      | `-s, --server`: Server name (required)                                |
-| **windows-start**    | Start a server (Windows only)                     | `-s, --server`: Server name (required)                                |
-
 ###### Examples:
 
 Open Main Menu:
 
 ```
-python /path/to/script/bedrock-server-manager.py main
+bedrock-server-manager main
 ```
 
 Send Command:
 ```
-python /path/to/script/bedrock-server-manager.py send-command --server server_name --command "tell @a hello"
+bedrock-server-manager send-command --server server_name --command "tell @a hello"
 ```
 
 Update Server:
 
 ```
-python /path/to/script/bedrock-server-manager.py update-server --server server_name
+bedrock-server-manager update-server --server server_name
 ```
 
 
 ### Install Content:
 
-With the bedrock-server-manager.sh script you can easily import .mcworld and .mcpack files into your server. The script will look in `./content/worlds` and `./content/addons` respectively. 
+With bedrock-server-manager you can easily import .mcworld and .mcpack files into your server. The script will look in `./content/worlds` and `./content/addons` respectively. 
 
 For .mcworlds the script will scan the server.properties files for the `level-name` and extract the file to that folder.
 
 For .mcpacks the script will extract them to a tmp folder and scan the manifest.json, looking for the pack type, name, version, and uuid. The script will then move the pack to it respective world folder (resource_packs, or behaviour_packs) with the name+verison used as the folder name, and the script will update the `world_behavior_packs.json` and `world_resource_packs.json` as needed with the packs uuid and version.
-
-### Optional:
-
-#### LINUX:
-For convenient access from any directory, you can create a symbolic link to the bedrock-server-manager.py script in a directory within your $PATH.
-
-1. Find your $PATH:
-
-```
-echo $PATH
-```
-
-This will output a list of directories, similar to:
-
-```
-/home/USER/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
-```
-
-2. Create the symbolic link:
-
-```
-sudo ln -s /path/to/script/bedrock-server-manager.py /path/in/your/$PATH/bedrock-server-manager
-```
-
-Replace `/path/to/script/bedrock-server-manager.py` with the actual path to your script and `/path/in/your/$PATH` with one of the directories from your `$PATH` (e.g., `/home/USER/bin`).
-
-After creating a symlink you can just use the below command without having to cd or specify the script directory
-
-```
-bedrock-server-manager <command>
-```
 
 ### Tested on these systems:
 - Debian 12 (bookworm)
