@@ -17,9 +17,7 @@ def parse_player_argument(player_string):
         if len(player_data) != 2:
             raise ValueError(f"Invalid player data format: {pair}")
         player_name, player_id = player_data
-        player_list.append(
-            {"name": player_name.strip(), "xuid": player_id.strip()}
-        )
+        player_list.append({"name": player_name.strip(), "xuid": player_id.strip()})
     return player_list
 
 

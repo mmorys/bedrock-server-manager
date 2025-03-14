@@ -227,6 +227,22 @@ def handle_configure_allowlist(server_name, base_dir=None):
 
 
 def handle_add_players(players, config_dir):
+    """Handles the user interaction and logic for adding players to the players.json file.
+
+    This function parses a string of player data (in the format "playername:playerid, player2:player2id")
+    into a list of dictionaries, and then saves this list to the players.json file.
+    It interacts with the player.parse_player_argument and player.save_players_to_json functions.
+
+    Args:
+        players (list): A list of strings, where each string represents a player in the format "playername:playerid".
+                        This is the player data parsed from the command-line arguments.
+        config_dir (str): The directory where the players.json file is located.
+
+    Raises:
+        ValueError: If the player data string is incorrectly formatted.
+        Exception: If any other unexpected error occurs during parsing or saving.
+    """
+    logger.info("Adding players...")
     try:
         player_string = ",".join(players)  # Join the list into a comma-separated string
         player_list = player.parse_player_argument(player_string)
@@ -235,6 +251,8 @@ def handle_add_players(players, config_dir):
         print(f"Error: {e}")
     except Exception as e:
         logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")
+
+    logger.info("Players added.")
 
 
 def select_player_for_permission(server_name, base_dir=None, config_dir=None):

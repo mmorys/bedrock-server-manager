@@ -132,16 +132,12 @@ def main():
         "install-world", help="Install a world from a .mcworld file"
     )
     add_server_arg(install_world_parser)
-    install_world_parser.add_argument(
-        "-f", "--file", help="Path to the .mcworld file"
-    )
+    install_world_parser.add_argument("-f", "--file", help="Path to the .mcworld file")
     addon_parser = subparsers.add_parser(
         "install-addon", help="Install an addon (.mcaddon or .mcpack)"
     )
     add_server_arg(addon_parser)
-    addon_parser.add_argument(
-        "-f", "--file", help="Path to the addon file"
-    )
+    addon_parser.add_argument("-f", "--file", help="Path to the addon file")
 
     # attach-console
     attach_parser = subparsers.add_parser(
