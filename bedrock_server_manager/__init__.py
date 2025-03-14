@@ -10,7 +10,10 @@ from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager import cli
 from bedrock_server_manager.utils.general import startup_checks
-from bedrock_server_manager.core.system import base as system_base, linux as system_linux
+from bedrock_server_manager.core.system import (
+    base as system_base,
+    linux as system_linux,
+)
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
