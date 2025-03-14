@@ -2,6 +2,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from bedrock_server_manager.web.utils import server_list_utils, server_actions
 from bedrock_server_manager.utils.general import get_base_dir
+from bedrock_server_manager.core.server import server as server_base
+from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.config import settings
 import os
 
@@ -23,7 +25,7 @@ def start_server_route(server_name):
     base_dir = get_base_dir()
     message = server_actions.start_server_action(
         server_name, base_dir
-    )  # Call start_server_action from utils  <--- UPDATED CALL
+    )  # Call start_server_action from utils
     return redirect(
         url_for("server_routes.index", message=message)
     )  # Blueprint-aware url_for
@@ -131,21 +133,21 @@ def configure_properties_route(server_name):
         try:
             # Iterate through form data and update properties
             for key, value in request.form.items():
-                server_core.modify_server_properties(server_properties_path, key, value)
+                server_base.modify_server_properties(server_properties_path, key, value)
 
             # Write Config after properties are set
             config_dir = settings.CONFIG_DIR
-            server_core.manage_server_config(
+            server_base.manage_server_config(
                 server_name, "server_name", "write", server_name, config_dir
             )
             # Use level-name for write config:
             target_version = server_actions.get_server_properties(
                 server_name, base_dir
             ).get("level-name", settings.DEFAULT_CONFIG["RELEASE_TYPE"])
-            server_core.manage_server_config(
+            server_base.manage_server_config(
                 server_name, "target_version", "write", target_version, config_dir
             )  # Corrected line
-            server_core.manage_server_config(
+            server_base.manage_server_config(
                 server_name, "status", "write", "INSTALLED", config_dir
             )
 
