@@ -396,7 +396,16 @@ def main():
             property_value=args.value,
         ),
         "install-server": lambda: cli.install_new_server(base_dir),
-        "update-server": lambda: cli.update_server(args.server, base_dir),
+        "update-server": lambda: (
+            (
+                server_base.manage_server_config(
+                    args.server, "target_version", "write", args.version
+                )
+                if args.version
+                else None
+            ),
+            cli.update_server(args.server, base_dir),
+        ),
         "start-server": lambda: cli.handle_start_server(args.server, base_dir),
         "stop-server": lambda: cli.handle_stop_server(args.server, base_dir),
         "install-world": lambda: (
