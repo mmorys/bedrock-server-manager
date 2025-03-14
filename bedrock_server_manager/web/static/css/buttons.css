@@ -1,0 +1,158 @@
+/* bedrock-server-manager/bedrock_server_manager/bedrock_server_manager/web/static/css/buttons.css */
+
+/* Action Buttons - Pixel Art Style */
+.actions button.action-button {
+    padding: 4px 10px; /* Slightly reduced padding for tighter look */
+    margin: 2px;
+    border-width: 3px; /* Increased border width for more pronounced effect */
+    border-style: solid;
+    border-top-color: #b8f0b8;      /* Even lighter green highlight - Top */
+    border-left-color: #b8f0b8;     /* Even lighter green highlight - Left */
+    border-bottom-color: #228B22;   /* Deeper green shadow - Bottom */
+    border-right-color: #228B22;    /* Deeper green shadow - Right */
+    border-radius: 0;
+    background-color: #4CAF50;      /*  Material Design Green - adjusted to be brighter */
+    color: #fff;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    text-shadow: 1px 1px 0 #114411; /* Darker text shadow */
+    /* More pronounced pixelated button shadow - Increased Offset and Darkness */
+    box-shadow: 3px 3px 0 #225522,
+                5px 5px 0 #225522,
+                7px 7px 0 #225522;
+    transition: background-color 0.1s ease;
+}
+
+.actions button.action-button:hover {
+    background-color: #5cb85c;      /* Slightly lighter green on hover (Bootstrap success color) */
+    border-top-color: #c0ffc0;      /* Even lighter highlight on hover - Top */
+    border-left-color: #c0ffc0;     /* Even lighter highlight on hover - Left */
+    border-bottom-color: #339933;   /* Lighter shadow on hover - Bottom */
+    border-right-color: #339933;    /* Lighter shadow on hover - Right */
+    box-shadow: 3px 3px 0 #336633,  /* Adjusted hover shadows - Lighter */
+                5px 5px 0 #336633,
+                7px 7px 0 #336633;
+}
+
+/* Specific button color variations - Further Adjusted Greens */
+.actions button.start-button {
+    background-color: #3CB371; /* Medium Sea Green - darker start green */
+    border-top-color: #98FB98; /* Pale Green - lighter highlight */
+    border-left-color: #98FB98; /* Pale Green - lighter highlight */
+    border-bottom-color: #008000; /* Green - even darker shadow */
+    border-right-color: #008000; /* Green - even darker shadow */
+    box-shadow: 3px 3px 0 #005500, /* Even darker shadow */
+                5px 5px 0 #005500,
+                7px 7px 0 #005500;
+}
+
+.actions button.start-button:hover {
+    background-color: #4CAF50; /* Material Design Green - slightly lighter on hover */
+    border-top-color: #b8f0b8; /* Lighter highlight on hover */
+    border-left-color: #b8f0b8; /* Lighter highlight on hover */
+    border-bottom-color: #228B22; /* Slightly lighter shadow on hover */
+    border-right-color: #228B22; /* Slightly lighter shadow on hover */
+    box-shadow: 3px 3px 0 #225522, /* Lighter shadow on hover */
+                5px 5px 0 #225522,
+                7px 7px 0 #225522;
+}
+
+.actions button.stop-button,
+.actions button.restart-button,
+.actions button.update-button {
+    background-color: #777; /* Gray for "Stop", "Restart", "Update" - no change */
+    border-color: #555;      /* - no change */
+    box-shadow: 3px 3px 0 #444, /* - increased shadow offset */
+                5px 5px 0 #444,
+                7px 7px 0 #444;
+}
+
+.actions button.stop-button:hover,
+.actions button.restart-button:hover,
+.actions button.update-button:hover {
+    background-color: #888; /* - no change */
+    border-color: #666;      /* - no change */
+    box-shadow: 3px 3px 0 #555, /* - increased shadow offset */
+                5px 5px 0 #555,
+                7px 7px 0 #555;
+}
+
+
+/* Main Menu Buttons - Pixel Art Style */
+.main-menu-buttons {
+    text-align: center; /* Center buttons */
+}
+
+.main-menu-buttons button.main-button,
+.main-menu-buttons a.main-button { /* Style both buttons and links with .main-button */
+    padding: 8px 16px;
+    margin: 5px;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #ddd;
+    border-left-color: #ddd;
+    border-bottom-color: #777;
+    border-right-color: #777;
+    border-radius: 0; /* Sharp corners */
+    background-color: #bbb;
+    color: #222;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    text-shadow: 1px 1px 0 #ccc;
+    box-shadow: 2px 2px 0 #999;
+    transition: background-color 0.1s ease;
+    text-decoration: none; /* Remove underline from links */
+    display: inline-block; /* Ensure links can have padding/margin/etc. */
+}
+
+.main-menu-buttons button.main-button:hover,
+.main-menu-buttons a.main-button:hover {
+    background-color: #ccc;
+    border-top-color: #eee;
+    border-left-color: #eee;
+    border-bottom-color: #888;
+    border-right-color: #888;
+    box-shadow: 2px 2px 0 #aaa;
+}
+
+/* Specific styles for Install New Server as a button (if needed later) */
+/* You can add specific styles here if you need to override defaults */
+/*
+.main-menu-buttons button.install-button {
+}
+.main-menu-buttons button.install-button:hover {
+}
+*/
+
+.main-menu-buttons a.install-button {
+     padding: 8px 16px; /* Adjust padding as needed */
+    margin: 5px;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #ddd;      /* Light gray highlight - Top */
+    border-left-color: #ddd;     /* Light gray highlight - Left */
+    border-bottom-color: #777;   /* Medium gray shadow - Bottom */
+    border-right-color: #777;    /* Medium gray shadow - Right */
+    border-radius: 0; /* Sharp corners - adjust if you want slight roundness */
+    background-color: #bbb;      /* Light gray background */
+    color: #222;               /* Dark text color */
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    text-shadow: 1px 1px 0 #ccc; /* Subtle light text shadow */
+    box-shadow: 2px 2px 0 #999;  /* Subtle gray button shadow */
+    transition: background-color 0.1s ease;
+    text-decoration: none; /* Remove underline from links */
+    display: inline-block; /* Ensure links can have padding/margin/etc. */
+}
+
+.main-menu-buttons a.install-button:hover{
+    background-color: #ccc;      /* Slightly lighter gray on hover */
+    border-top-color: #eee;      /* Even lighter highlight on hover - Top */
+    border-left-color: #eee;     /* Even lighter highlight on hover - Left */
+    border-bottom-color: #888;   /* Slightly lighter shadow on hover - Bottom */
+    border-right-color: #888;    /* Slightly lighter shadow on hover - Right */
+    box-shadow: 2px 2px 0 #aaa;  /* Adjusted hover shadow - Lighter */
+}
