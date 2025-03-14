@@ -226,6 +226,17 @@ def handle_configure_allowlist(server_name, base_dir=None):
         )
 
 
+def handle_add_players(players, config_dir):
+    try:
+        player_string = ",".join(players)  # Join the list into a comma-separated string
+        player_list = player.parse_player_argument(player_string)
+        player.save_players_to_json(player_list, config_dir)
+    except ValueError as e:
+        print(f"Error: {e}")
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")
+
+
 def select_player_for_permission(server_name, base_dir=None, config_dir=None):
     """Selects a player and permission level, then calls configure_permissions.
 

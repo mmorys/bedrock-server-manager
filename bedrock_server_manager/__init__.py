@@ -134,14 +134,14 @@ def main():
     add_server_arg(install_world_parser)
     install_world_parser.add_argument(
         "-f", "--file", help="Path to the .mcworld file"
-    )  # Optional now
+    )
     addon_parser = subparsers.add_parser(
         "install-addon", help="Install an addon (.mcaddon or .mcpack)"
     )
     add_server_arg(addon_parser)
     addon_parser.add_argument(
         "-f", "--file", help="Path to the addon file"
-    )  # Optional now
+    )
 
     # attach-console
     attach_parser = subparsers.add_parser(
@@ -406,7 +406,9 @@ def main():
             args.server, base_dir, config_dir
         ),
         "configure-properties": lambda: server_base.modify_server_properties(
-            server_properties=os.path.join(base_dir, args.server, "server.properties"), property_name=args.property, property_value=args.value
+            server_properties=os.path.join(base_dir, args.server, "server.properties"),
+            property_name=args.property,
+            property_value=args.value,
         ),
         "install-server": lambda: cli.install_new_server(base_dir),
         "update-server": lambda: cli.update_server(args.server, base_dir),
@@ -438,7 +440,7 @@ def main():
             args.server, base_dir, args.change_status
         ),
         "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
-        "add-players": lambda: player.save_players_to_json(args.players, config_dir),
+        "add-players": lambda: cli.handle_add_players(args.players, config_dir),
         "monitor-usage": lambda: cli.monitor_service_usage(args.server, base_dir),
         "manage-log-files": lambda: core_logging.setup_logging(
             log_dir=args.log_dir, log_level=settings.LOG_LEVEL
