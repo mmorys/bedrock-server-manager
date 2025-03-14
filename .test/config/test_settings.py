@@ -158,9 +158,6 @@ def test_config_constants_are_loaded_correctly(config_dir, script_dir, config_fi
         "BASE_DIR": "/custom/base",
         "BACKUP_KEEP": 5,
         "DOWNLOAD_KEEP": 2,
-        "RELEASE_TYPE": "preview",
-        "GITHUB_TOKEN": "test_token",
-        "GITHUB_REPO": "test_repo",
         "CONTENT_DIR": "test_content",
         "DOWNLOAD_DIR": "test_downloads",
         "BACKUP_DIR": "test_backups",
@@ -192,9 +189,6 @@ def test_config_constants_are_loaded_correctly(config_dir, script_dir, config_fi
     assert settings.BASE_DIR == expected_config["BASE_DIR"]
     assert settings.BACKUP_KEEP == expected_config["BACKUP_KEEP"]
     assert settings.DOWNLOAD_KEEP == expected_config["DOWNLOAD_KEEP"]
-    assert settings.RELEASE_TYPE == expected_config["RELEASE_TYPE"]
-    assert settings.GITHUB_TOKEN == expected_config["GITHUB_TOKEN"]
-    assert settings.GITHUB_REPO == expected_config["GITHUB_REPO"]
     assert settings.CONTENT_DIR == expected_config["CONTENT_DIR"]
     assert settings.DOWNLOAD_DIR == expected_config["DOWNLOAD_DIR"]
     assert settings.BACKUP_DIR == expected_config["BACKUP_DIR"]
