@@ -36,14 +36,9 @@ On Linux, you'll also need:
 
 ## Usage
 
-### Download & Install The Package:
+### Install The Package:
 
-1. Go to the release section and download the latest release zip file to a folder on your device
-2. Extract the `.zip` file on your device, you should see a `tar.gz` and `.whl` file
-3. Open your command prompt and `cd` to the folder that contains the two extracted files
-   - e.g. `cd /path/to/files`
-4. Run the command `pip install .`
-   - This will install the package and requirements (see requirements.txt)
+1. Run the command `pip install bedrock-server-manager`
 
 ### Setup The Configuration:
 
@@ -51,7 +46,22 @@ bedrock-server-manager will use the enviroment variable `BEDROCK_SERVER_MANAGER_
 
 Follow your platforms documentation for setting Enviroment Variables
 
-The script will create its data folders ( `./server`,`./backups`,`./.downloads` `./.config` `./.logs`  `./content/worlds`, and `./content/addons` ) in this location. This is where servers will be installed to and where the script will look when managing various server aspects. Most of these locations can be changed in the script_config.json
+The script will create its data folders ( `./server`,`./backups`,`./.downloads` `./.config` `./.logs`  `./content/worlds`, and `./content/addons` ) in this location. This is where servers will be installed to and where the script will look when managing various server aspects. 
+
+Certain drttings can can be changed directly in the `./config/script_config.json` or with the `manage-script-config` command
+
+#### The following variables are configurable via json
+
+* BASE_DIR
+* CONTENT_DIR
+* DOWNLOAD_DIR
+* BACKUP_DIR
+* LOG_DIR
+* BACKUP_KEEP
+* DOWNLOAD_KEEP
+* LOGS_KEEP
+* LOG_LEVEL
+
 
 ### Run the script:
 
