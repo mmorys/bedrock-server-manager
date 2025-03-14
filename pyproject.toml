@@ -16,7 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 	"Environment :: Console",
-	"Topic :: Games/Entertainment :: Game Servers"
+	"Topic :: Games/Entertainment",
 ]
 
 dependencies = [
