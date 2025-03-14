@@ -4,9 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-
 version = "3.1.0b2"
-
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
