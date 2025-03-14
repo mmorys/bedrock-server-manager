@@ -10,7 +10,7 @@ from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager import cli
 from bedrock_server_manager.utils.general import startup_checks
-from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.system import base as system_base, linux as system_linux
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
@@ -462,7 +462,7 @@ def main():
             server_base.get_world_name(args.server, base_dir)
         ),
         "check-service-exists": lambda: print(
-            system_base.check_service_exists(args.server)
+            system_linux.check_service_exists(args.server)
         ),
         "create-service": lambda: cli.create_service(args.server, base_dir),
         "enable-service": lambda: cli.enable_service(args.server),
