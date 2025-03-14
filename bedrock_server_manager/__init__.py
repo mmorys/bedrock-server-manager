@@ -13,7 +13,7 @@ from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
-logger = core_logging.setup_logging()
+logger = core_logging.setup_logging(log_dir=settings.LOG_DIR)
 
 try:
     __version__ = version("bedrock-server-manager")
