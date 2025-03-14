@@ -106,7 +106,6 @@ bedrock-server-manager <command> [options]
 |----------------------|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | **systemd-start**    | systemd start command (Linux only)                | `-s, --server`: Server name (required)                                                                       | Linux only    |
 | **systemd-stop**     | systemd stop command (Linux only)                 | `-s, --server`: Server name (required)                                                                       | Linux only    |
-| **attach-console**   | Attach to the server console (Linux only)         | `-s, --server`: Server Name (required)                                                                      | Linux only    |
 | **check-service-exists**| Checks if a systemd service file exists (Linux only)| `-s, --server`: Server name (required)                                                                       | Linux only    |
 | **enable-service**   | Enables a systemd service(Linux only)             | `-s, --server`: Server name (required)                                                                       | Linux only    |
 | **disable-service**  | Disables a systemd service (Linux only)            | `-s, --server`: Server name (required)                                                                       | Linux only    |

@@ -150,4 +150,5 @@ The switch to python allows cross platform support, standardized processes, and 
 3. Logging refactored to use standard python logging
    - Most functions now raise Exceptions instead of returning an error code
    - LOG_DIR and LOG_LEVEL added to script_config.json
-4. 
+4. Removed windows-start/stop command
+5. Added new commands
