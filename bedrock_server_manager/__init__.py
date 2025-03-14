@@ -227,20 +227,6 @@ def main():
     add_server_arg(monitor_parser)
 
     # manage-log-files, prune-old-backups, prune-old-downloads (utility commands)
-    manage_log_files_parser = subparsers.add_parser(
-        "manage-log-files", help="Manage log files"
-    )
-    # Use defaults from config.py
-    manage_log_files_parser.add_argument(
-        "--log-dir", default=settings.LOG_DIR, help="Log directory."
-    )
-    manage_log_files_parser.add_argument(
-        "--max-files", type=int, default=10, help="Max log files to keep."
-    )
-    manage_log_files_parser.add_argument(
-        "--max-size-mb", type=int, default=15, help="Max total log size (MB)."
-    )
-
     prune_old_backups_parser = subparsers.add_parser(
         "prune-old-backups", help="Prune old backups"
     )
@@ -438,9 +424,6 @@ def main():
         "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
         "add-players": lambda: cli.handle_add_players(args.players, config_dir),
         "monitor-usage": lambda: cli.monitor_service_usage(args.server, base_dir),
-        "manage-log-files": lambda: core_logging.setup_logging(
-            log_dir=args.log_dir, log_level=settings.LOG_LEVEL
-        ),
         "prune-old-backups": lambda: cli.handle_prune_old_backups(
             args.server,
             file_name=args.file_name,
