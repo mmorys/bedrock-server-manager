@@ -10,7 +10,7 @@ from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager import cli
 from bedrock_server_manager.utils.general import startup_checks
-from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.system import base as system_base, linux as system_linux
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
@@ -132,16 +132,12 @@ def main():
         "install-world", help="Install a world from a .mcworld file"
     )
     add_server_arg(install_world_parser)
-    install_world_parser.add_argument(
-        "-f", "--file", help="Path to the .mcworld file"
-    )  # Optional now
+    install_world_parser.add_argument("-f", "--file", help="Path to the .mcworld file")
     addon_parser = subparsers.add_parser(
         "install-addon", help="Install an addon (.mcaddon or .mcpack)"
     )
     add_server_arg(addon_parser)
-    addon_parser.add_argument(
-        "-f", "--file", help="Path to the addon file"
-    )  # Optional now
+    addon_parser.add_argument("-f", "--file", help="Path to the addon file")
 
     # attach-console
     attach_parser = subparsers.add_parser(
@@ -231,20 +227,6 @@ def main():
     add_server_arg(monitor_parser)
 
     # manage-log-files, prune-old-backups, prune-old-downloads (utility commands)
-    manage_log_files_parser = subparsers.add_parser(
-        "manage-log-files", help="Manage log files"
-    )
-    # Use defaults from config.py
-    manage_log_files_parser.add_argument(
-        "--log-dir", default=settings.LOG_DIR, help="Log directory."
-    )
-    manage_log_files_parser.add_argument(
-        "--max-files", type=int, default=10, help="Max log files to keep."
-    )
-    manage_log_files_parser.add_argument(
-        "--max-size-mb", type=int, default=15, help="Max total log size (MB)."
-    )
-
     prune_old_backups_parser = subparsers.add_parser(
         "prune-old-backups", help="Prune old backups"
     )
@@ -406,7 +388,9 @@ def main():
             args.server, base_dir, config_dir
         ),
         "configure-properties": lambda: server_base.modify_server_properties(
-            server_properties=os.path.join(base_dir, args.server, "server.properties"), property_name=args.property, property_value=args.value
+            server_properties=os.path.join(base_dir, args.server, "server.properties"),
+            property_name=args.property,
+            property_value=args.value,
         ),
         "install-server": lambda: cli.install_new_server(base_dir),
         "update-server": lambda: cli.update_server(args.server, base_dir),
@@ -438,11 +422,8 @@ def main():
             args.server, base_dir, args.change_status
         ),
         "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
-        "add-players": lambda: player.save_players_to_json(args.players, config_dir),
+        "add-players": lambda: cli.handle_add_players(args.players, config_dir),
         "monitor-usage": lambda: cli.monitor_service_usage(args.server, base_dir),
-        "manage-log-files": lambda: core_logging.setup_logging(
-            log_dir=args.log_dir, log_level=settings.LOG_LEVEL
-        ),
         "prune-old-backups": lambda: cli.handle_prune_old_backups(
             args.server,
             file_name=args.file_name,
@@ -481,7 +462,7 @@ def main():
             server_base.get_world_name(args.server, base_dir)
         ),
         "check-service-exists": lambda: print(
-            system_base.check_service_exists(args.server)
+            system_linux.check_service_exists(args.server)
         ),
         "create-service": lambda: cli.create_service(args.server, base_dir),
         "enable-service": lambda: cli.enable_service(args.server),

@@ -8,6 +8,19 @@ from bedrock_server_manager.core.error import FileOperationError, InvalidInputEr
 logger = logging.getLogger("bedrock_server_manager")
 
 
+def parse_player_argument(player_string):
+    """Parses a player string like 'playername:playerid, player2:player2id' into a list of dictionaries."""
+    player_pairs = player_string.split(",")
+    player_list = []
+    for pair in player_pairs:
+        player_data = pair.split(":")
+        if len(player_data) != 2:
+            raise ValueError(f"Invalid player data format: {pair}")
+        player_name, player_id = player_data
+        player_list.append({"name": player_name.strip(), "xuid": player_id.strip()})
+    return player_list
+
+
 def scan_log_for_players(log_file):
     """Scans a single server_output.txt file for player data.
 

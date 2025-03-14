@@ -48,11 +48,9 @@ DEFAULT_CONFIG = {
     "DOWNLOAD_DIR": os.path.join(APP_DATA_DIR, ".downloads"),
     "BACKUP_DIR": os.path.join(APP_DATA_DIR, "backups"),
     "LOG_DIR": os.path.join(APP_DATA_DIR, ".logs"),
-    "GITHUB_REPO": "DMedina559/bedrock-server-manager",
-    "GITHUB_TOKEN": "",  # USE ENV
-    "RELEASE_TYPE": "latest",
     "BACKUP_KEEP": 3,
     "DOWNLOAD_KEEP": 3,
+    "LOGS_KEEP": 3,
     "LOG_LEVEL": logging.INFO,
     "BEDROCK_SERVER_MANAGER_PORT": 5000,
 }
@@ -114,14 +112,12 @@ _settings = load_settings()
 BASE_DIR = _settings["BASE_DIR"]
 BACKUP_KEEP = _settings["BACKUP_KEEP"]
 DOWNLOAD_KEEP = _settings["DOWNLOAD_KEEP"]
-RELEASE_TYPE = _settings["RELEASE_TYPE"]
-GITHUB_TOKEN = _settings["GITHUB_TOKEN"]
-GITHUB_REPO = _settings["GITHUB_REPO"]
 CONTENT_DIR = _settings["CONTENT_DIR"]
 DOWNLOAD_DIR = _settings["DOWNLOAD_DIR"]
 BACKUP_DIR = _settings["BACKUP_DIR"]
 LOG_DIR = _settings["LOG_DIR"]
 LOG_LEVEL = _settings["LOG_LEVEL"]
+LOGS_KEEP = _settings["LOGS_KEEP"]
 BEDROCK_SERVER_MANAGER_PORT = _settings["BEDROCK_SERVER_MANAGER_PORT"]
 
 
@@ -132,7 +128,7 @@ def get(key):
 
 def set(key, value):
     """Sets a configuration setting and saves it to the config file."""
-    global _settings, BASE_DIR, BACKUP_KEEP, DOWNLOAD_KEEP, RELEASE_TYPE, GITHUB_TOKEN, GITHUB_REPO, CONTENT_DIR, DOWNLOAD_DIR, BACKUP_DIR, LOG_DIR, LOG_LEVEL, BEDROCK_SERVER_MANAGER_PORT
+    global _settings, BASE_DIR, BACKUP_KEEP, DOWNLOAD_KEEP, LOGS_KEEP, CONTENT_DIR, DOWNLOAD_DIR, BACKUP_DIR, LOG_DIR, LOG_LEVEL, BEDROCK_SERVER_MANAGER_PORT
     # Load the *existing* configuration from the file.
     config = load_settings()
 
@@ -151,9 +147,7 @@ def set(key, value):
     BASE_DIR = _settings["BASE_DIR"]
     BACKUP_KEEP = _settings["BACKUP_KEEP"]
     DOWNLOAD_KEEP = _settings["DOWNLOAD_KEEP"]
-    RELEASE_TYPE = _settings["RELEASE_TYPE"]
-    GITHUB_TOKEN = _settings["GITHUB_TOKEN"]
-    GITHUB_REPO = _settings["GITHUB_REPO"]
+    LOGS_KEEP = _settings["LOGS_KEEP"]
     CONTENT_DIR = _settings["CONTENT_DIR"]
     DOWNLOAD_DIR = _settings["DOWNLOAD_DIR"]
     BACKUP_DIR = _settings["BACKUP_DIR"]
