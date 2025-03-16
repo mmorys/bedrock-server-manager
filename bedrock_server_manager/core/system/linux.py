@@ -411,9 +411,7 @@ def get_server_cron_jobs(server_name):
                 filtered_jobs.append(line)
 
         if not filtered_jobs:
-            logger.warning(
-                f"No scheduled cron jobs found for {server_name}."
-            )
+            logger.warning(f"No scheduled cron jobs found for {server_name}.")
             return "undefined"  # No jobs found for this server
 
         return filtered_jobs
