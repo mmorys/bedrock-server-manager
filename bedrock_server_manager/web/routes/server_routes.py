@@ -118,7 +118,7 @@ def install_server_route():
         return render_template("install.html")
 
 
-@server_bp.route("/server/<server_name>/configure", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/configure", methods=['GET', 'POST'])
 def configure_properties_route(server_name):
     base_dir = get_base_dir()
     server_dir = os.path.join(base_dir, server_name)
@@ -126,63 +126,51 @@ def configure_properties_route(server_name):
 
     if not os.path.exists(server_properties_path):
         flash(f"server.properties not found for server: {server_name}", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for('server_routes.index'))
 
-    if request.method == "POST":
+    if request.method == 'POST':
         # Handle form submission (save properties)
         try:
-            # Iterate through form data and update properties
-            for key, value in request.form.items():
-                server_base.modify_server_properties(server_properties_path, key, value)
+            # List of allowed keys from the form
+            allowed_keys = [
+                "server-name", "level-name", "gamemode", "difficulty", "allow-cheats",
+                "server-port", "server-portv6", "enable-lan-visibility", "allow-list",
+                "max-players", "default-player-permission-level", "view-distance",
+                "tick-distance", "level-seed", "online-mode", "texturepack-required"
+            ]
+
+            # Iterate through ALLOWED keys and update properties
+            for key in allowed_keys:
+                value = request.form.get(key)  # Use .get() to handle missing keys
+                if value is not None:  # Only modify if the key exists in the form data
+                    server_core.modify_server_properties(server_properties_path, key, value)
 
             # Write Config after properties are set
             config_dir = settings.CONFIG_DIR
-            server_base.manage_server_config(
-                server_name, "server_name", "write", server_name, config_dir
-            )
-            # Use level-name for write config:
-            target_version = server_actions.get_server_properties(
-                server_name, base_dir
-            ).get("level-name", settings.DEFAULT_CONFIG["RELEASE_TYPE"])
-            server_base.manage_server_config(
-                server_name, "target_version", "write", target_version, config_dir
-            )  # Corrected line
-            server_base.manage_server_config(
-                server_name, "status", "write", "INSTALLED", config_dir
-            )
+            server_core.manage_server_config(server_name, "server_name", "write", server_name, config_dir)
+            level_name = request.form.get('level-name') # Get from form
+            server_core.manage_server_config(server_name, "target_version", "write", level_name, config_dir)
+            server_core.manage_server_config(server_name, "status", "write", "INSTALLED", config_dir)
 
             # Create a service (using core logic).
             try:
-                system_base.create_service(
-                    server_name, base_dir, autoupdate=False
-                )  # Call core create service
+                system_base.create_service(server_name, base_dir, autoupdate=False) # Call core create service
             except Exception as e:
-                return f"Failed to create service: {e}"
+                flash(f"Failed to create service: {e}", 'error') # Don't prevent continuation
 
-            flash(
-                f"Server properties for '{server_name}' updated successfully!",
-                "success",
-            )
-            return redirect(url_for("server_routes.index"))
+            flash(f"Server properties for '{server_name}' updated successfully!", "success")
+            return redirect(url_for('server_routes.index'))
 
         except Exception as e:
             flash(f"Error updating server properties: {e}", "error")
-            # Re-render form with current values
+            # Re-render form with current values AND current properties
             properties = server_actions.get_server_properties(server_name, base_dir)
-            return render_template(
-                "configure_properties.html",
-                server_name=server_name,
-                properties=properties,
-            )
+            return render_template("configure_properties.html", server_name=server_name, properties=properties)
 
     else:  # GET request
         # Load and pass existing properties
         properties = server_actions.get_server_properties(server_name, base_dir)
         if not properties:
-            flash(
-                f"Error: Could not load properties for server {server_name}.", "error"
-            )
-            return redirect(url_for("server_routes.index"))
-        return render_template(
-            "configure_properties.html", server_name=server_name, properties=properties
-        )
+             flash(f"Error: Could not load properties for server {server_name}.", "error")
+             return redirect(url_for('server_routes.index'))
+        return render_template("configure_properties.html", server_name=server_name, properties=properties)
