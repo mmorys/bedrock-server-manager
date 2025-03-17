@@ -1,9 +1,4 @@
 # bedrock-server-manager/bedrock_server_manager/core/error.py
-import logging
-
-logger = logging.getLogger("bedrock_server_manager")
-
-
 class BedrockManagerError(Exception):
     """Base class for all custom exceptions in this project."""
 
