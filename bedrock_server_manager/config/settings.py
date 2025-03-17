@@ -8,7 +8,7 @@ from bedrock_server_manager.utils import package_finder
 logger = logging.getLogger("bedrock_server_manager")
 
 package_name = "bedrock-server-manager"
-executable_name = "bedrock-server-manager"
+executable_name = package_name
 
 # Find bin/exe
 EXPATH = package_finder.find_executable(package_name, executable_name)
@@ -29,7 +29,11 @@ def get_app_data_dir():
 
     if data_dir:
 
+        logger.debug(f"Data Dir: {data_dir}")
         return data_dir
+
+    logger.debug(f"{env_var_name} doesn't exist defaulting to home directory")
+    logger.debug(f"Data Dir: {data_dir}")
 
     # Default to the user's home directory
     return os.path.expanduser("~")
@@ -87,7 +91,7 @@ def _write_default_config():
     try:
         with open(CONFIG_PATH, "w") as f:
             json.dump(DEFAULT_CONFIG, f, indent=4)
-        logger.info(f"Default configuration written to {CONFIG_PATH}")
+        logger.debug(f"Default configuration written to {CONFIG_PATH}")
     except OSError as e:
         raise ConfigError(f"Failed to write default config: {e}") from e
 
