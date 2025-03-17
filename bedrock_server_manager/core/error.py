@@ -65,6 +65,10 @@ class DownloadExtractError(BedrockManagerError):
     pass
 
 
+class AddonExtractError(BedrockManagerError):
+    pass
+
+
 class DirectoryError(BedrockManagerError):
     pass
 

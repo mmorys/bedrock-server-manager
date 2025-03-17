@@ -6,16 +6,16 @@ import zipfile
 import tempfile
 import json
 import logging
+from bedrock_server_manager.core.server import server
 from bedrock_server_manager.core.server import world
 from bedrock_server_manager.core.error import (
     MissingArgumentError,
     FileOperationError,
     InvalidAddonPackTypeError,
     InvalidServerNameError,
-    DownloadExtractError,
+    AddonExtractError,
     DirectoryError,
 )
-from bedrock_server_manager.core.server import server
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -44,8 +44,10 @@ def process_addon(addon_file, server_name, base_dir):
         )
 
     if addon_file.lower().endswith(".mcaddon"):
+        logger.debug(f"Processing .mcaddon file: {os.path.basename(addon_file)}...")
         process_mcaddon(addon_file, server_name, base_dir)  # Let it raise exceptions
     elif addon_file.lower().endswith(".mcpack"):
+        logger.debug(f"Processing .mcpack file: {os.path.basename(addon_file)}...")
         process_mcpack(addon_file, server_name, base_dir)  # Let it raise exceptions
     else:
         raise InvalidAddonPackTypeError(f"Unsupported addon file type: {addon_file}")
@@ -63,7 +65,7 @@ def process_mcaddon(addon_file, server_name, base_dir):
         MissingArgumentError: If addon_file or server_name is empty.
         InvalidServerNameError: If server_name is invalid
         FileOperationError: If addon_file doesn't exist or extraction fails.
-        DownloadExtractError: If addon_file is not a zip file
+        AddonExtractError: If addon_file is not a zip file
         # Other exceptions might be raised by _process_mcaddon_files
     """
     if not addon_file:
@@ -83,7 +85,7 @@ def process_mcaddon(addon_file, server_name, base_dir):
             zip_ref.extractall(temp_dir)
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
-        raise DownloadExtractError(
+        raise AddonExtractError(
             f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
         ) from None
     except OSError as e:
@@ -159,7 +161,7 @@ def process_mcpack(pack_file, server_name, base_dir):
         MissingArgumentError: If pack_file or server_name is empty.
         InvalidServerNameError: If server name is invalid.
         FileOperationError: If pack_file doesn't exist or extraction fails.
-        DownloadExtractError: If pack_file is not a zip file
+        AddonExtractError: If pack_file is not a zip file
         # Other exceptions might be raised by _process_manifest
     """
     if not pack_file:
@@ -179,7 +181,7 @@ def process_mcpack(pack_file, server_name, base_dir):
             zip_ref.extractall(temp_dir)
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
-        raise DownloadExtractError(
+        raise AddonExtractError(
             f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
         ) from None
     except OSError as e:
