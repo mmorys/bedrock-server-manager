@@ -1,10 +1,9 @@
 # bedrock-server-manager/bedrock_server_manager/__init__.py
 import sys
 import argparse
-import logging
 import os
 from importlib.metadata import version, PackageNotFoundError
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core import logging as core_logging
 from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
@@ -17,7 +16,7 @@ from bedrock_server_manager.core.system import (
 from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
-logger = core_logging.setup_logging(log_dir=settings.LOG_DIR)
+logger = core_logging.setup_logging(log_dir=settings.get("LOG_DIR"))
 
 try:
     __version__ = version("bedrock-server-manager")
@@ -51,8 +50,8 @@ def main():
     """
     startup_checks()
     system_base.check_prerequisites()
-    config_dir = settings.CONFIG_DIR
-    base_dir = settings.BASE_DIR
+    config_dir = settings.get("CONFIG_DIR")
+    base_dir = settings.get("BASE_DIR")
 
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(description="Bedrock Server Manager")
@@ -359,7 +358,7 @@ def main():
         "-l", "--logs", action="store_true", help="Clean up log files"
     )
     cleanup_parser.add_argument(
-        "--log-dir", default=settings.LOG_DIR, help="Log directory."
+        "--log-dir", default=settings.get("LOG_DIR"), help="Log directory."
     )
 
     # systemd-stop
