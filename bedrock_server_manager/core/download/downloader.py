@@ -259,9 +259,7 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
     try:
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             if in_update:
-                logger.info(
-                    "Extracting server files..."
-                )
+                logger.info("Extracting server files...")
                 files_to_exclude = {
                     "worlds/",
                     "allowlist.json",
@@ -275,9 +273,7 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
 
                     for exclude_item in files_to_exclude:
                         if normalized_filename.startswith(exclude_item):
-                            logger.debug(
-                                f"Skipping extraction: {normalized_filename}"
-                            )
+                            logger.debug(f"Skipping extraction: {normalized_filename}")
                             extract = False
                             break
 
