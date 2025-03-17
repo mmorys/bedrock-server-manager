@@ -6,7 +6,7 @@ import logging
 import glob
 import os
 import zipfile
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.error import (
     DownloadExtractError,
@@ -329,7 +329,7 @@ def download_bedrock_server(server_dir, target_version="LATEST"):
     system_base.check_internet_connectivity()  # Raises exception on failure
     logger.info(f"Requested server version: {target_version}")
 
-    download_dir = settings.DOWNLOAD_DIR
+    download_dir = settings.get("DOWNLOAD_DIR")
 
     try:
         os.makedirs(server_dir, exist_ok=True)

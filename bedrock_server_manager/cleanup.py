@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 from bedrock_server_manager.core import SCRIPT_DIR
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 
 logger = logging.getLogger("bedrock_server_manager.cleanup")
 
@@ -26,7 +26,7 @@ def cleanup_cache(verbose=False):
     return deleted_count
 
 
-def cleanup_logs(log_dir=settings.LOG_DIR, verbose=False):
+def cleanup_logs(log_dir=settings.get("LOG_DIR"), verbose=False):
     # added feature to clear the logs folder.
     deleted_count = 0
     logger = logging.getLogger("bedrock_server_manager")

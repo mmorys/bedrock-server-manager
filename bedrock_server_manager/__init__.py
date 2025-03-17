@@ -50,7 +50,7 @@ def main():
     """
     startup_checks()
     system_base.check_prerequisites()
-    config_dir = settings.get("CONFIG_DIR")
+    config_dir = settings._config_dir
     base_dir = settings.get("BASE_DIR")
 
     # --- Argument Parsing ---

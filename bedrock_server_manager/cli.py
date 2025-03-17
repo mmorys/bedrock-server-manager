@@ -13,7 +13,7 @@ from colorama import Fore, Style
 import logging
 import xml.etree.ElementTree as ET
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import linux as system_linux
 from bedrock_server_manager.core.system import windows as system_windows
 from bedrock_server_manager.utils.general import (
@@ -95,7 +95,7 @@ def list_servers_status(base_dir=None, config_dir=None):
 
     base_dir = get_base_dir(base_dir)
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     print(f"{Fore.YELLOW}Servers Status:{Style.RESET_ALL}")
     print("---------------------------------------------------")
@@ -274,7 +274,7 @@ def select_player_for_permission(server_name, base_dir=None, config_dir=None):
     """
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     base_dir = get_base_dir(base_dir)
 
@@ -880,7 +880,7 @@ def handle_enable_user_lingering():
 def create_service(server_name, base_dir=None):
     """Creates a systemd service (Linux) or sets autoupdate config (Windows)."""
     if base_dir is None:
-        base_dir = settings.BASE_DIR
+        base_dir = settings.get("BASE_DIR")
 
     if not server_name:
         raise InvalidServerNameError("create_service: server_name is empty.")
@@ -1345,7 +1345,7 @@ def handle_export_world(server_name, base_dir=None):
         return
 
     timestamp = get_timestamp()
-    backup_dir = settings.BACKUP_DIR
+    backup_dir = settings.get("BACKUP_DIR")
     backup_file = os.path.join(backup_dir, f"{world_folder}_backup_{timestamp}.mcworld")
 
     logger.info(f"Backing up world folder '{world_folder}'...")
@@ -1369,13 +1369,13 @@ def handle_prune_old_backups(
         # Other exceptions may be raised by backup.prune_old_backups, get_world_name
     """
     base_dir = get_base_dir(base_dir)
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
 
     if not server_name:
         raise InvalidServerNameError("prune_old_backups: server_name is empty.")
 
     if backup_keep is None:
-        backup_keep = settings.BACKUP_KEEP  # Get from config
+        backup_keep = settings.get("BACKUP_KEEP")  # Get from config
         try:
             backup_keep = int(backup_keep)
         except ValueError:
@@ -1440,7 +1440,7 @@ def handle_backup_server(
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
 
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
 
     if not server_name:
         raise InvalidServerNameError("backup_server: server_name is empty.")
@@ -1486,7 +1486,7 @@ def handle_backup_server(
     if change_status:
         server_base.start_server_if_was_running(server_name, base_dir, was_running)
     handle_prune_old_backups(
-        server_name, file_to_backup, settings.BACKUP_KEEP, base_dir
+        server_name, file_to_backup, settings.get("BACKUP_KEEP"), base_dir
     )
 
 
@@ -1654,7 +1654,7 @@ def handle_restore_all(server_name, base_dir, change_status=True):
     """
     if not server_name:
         raise InvalidServerNameError("restore_all: server_name is empty.")
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
 
     if not os.path.isdir(backup_dir):
         logger.debug(f"No backups found for {server_name}.")
@@ -1685,7 +1685,7 @@ def restore_menu(server_name, base_dir):
 
     if not server_name:
         raise InvalidServerNameError("restore_menu: server_name is empty.")
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
     if not os.path.isdir(backup_dir):
         logger.warning(f"No backups found for {server_name}.")
         return  # Not an error if no backups exist
@@ -1814,7 +1814,7 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
     base_dir = get_base_dir(base_dir)
 
     if content_dir is None:
-        content_dir = settings.CONTENT_DIR
+        content_dir = settings.get("CONTENT_DIR")
         content_dir = os.path.join(content_dir, "worlds")
 
     if not server_name:
@@ -1896,7 +1896,7 @@ def install_addons(server_name, base_dir, content_dir=None):
     """
 
     if content_dir is None:
-        content_dir = os.path.join(settings.CONTENT_DIR, "addons")
+        content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
 
     if not server_name:
         raise InvalidServerNameError("install_addons: server_name is empty.")
@@ -1983,7 +1983,7 @@ def scan_player_data(base_dir=None, config_dir=None):
 
     base_dir = get_base_dir(base_dir)
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
     logger.info("Scanning for Players")
     all_players_data = []
 
@@ -2446,7 +2446,7 @@ def delete_cron_job(server_name):
 def _windows_scheduler(server_name, base_dir, config_dir=None):
     """Displays the Windows Task Scheduler menu and handles user interaction."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     if not server_name:
         raise InvalidServerNameError("windows_task_scheduler: server_name is empty.")
@@ -2530,7 +2530,7 @@ def add_windows_task(server_name, base_dir, config_dir=None):
         raise OSError("This function is for Windows only.")
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     print(
         f"{Fore.MAGENTA}Adding task for {Fore.YELLOW}{server_name}{Fore.MAGENTA}:{Style.RESET_ALL}"
@@ -2780,7 +2780,7 @@ def get_trigger_details():
 def modify_windows_task(server_name, base_dir, config_dir=None):
     """Modifies an existing Windows scheduled task."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     if not server_name:
         raise InvalidServerNameError("modify_windows_task: server_name is empty.")
@@ -2875,7 +2875,7 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
 def delete_windows_task(server_name, config_dir=None):
     """Deletes a Windows scheduled task."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     if not server_name:
         raise InvalidServerNameError("delete_windows_task: server_name is empty.")
@@ -3000,7 +3000,7 @@ def main_menu(base_dir, config_dir):
 def manage_server(base_dir, config_dir=None):
     """Displays the manage server menu and handles user interaction."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
@@ -3061,7 +3061,7 @@ def manage_server(base_dir, config_dir=None):
 def install_content(base_dir, config_dir=None):
     """Displays the install content menu and handles user interaction."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(
@@ -3097,7 +3097,7 @@ def install_content(base_dir, config_dir=None):
 def advanced_menu(base_dir, config_dir=None):
     """Displays the advanced menu and handles user interaction."""
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
@@ -3179,7 +3179,7 @@ def backup_restore(base_dir, config_dir=None):
     """Displays the backup/restore menu and handles user interaction."""
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:

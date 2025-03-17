@@ -1689,7 +1689,7 @@ def test_install_server_successful_install(
     )  # All to string
 
     mock_prune.assert_called_once_with(
-        os.path.dirname(zip_file), settings.DOWNLOAD_KEEP
+        os.path.dirname(zip_file), settings.get("DOWNLOAD_KEEP")
     )
     mock_stop.assert_not_called()  # Should not be called during install
     mock_backup.assert_not_called()
@@ -1735,7 +1735,7 @@ def test_install_server_successful_update(
         server_name, str(base_dir), current_version, zip_file, server_dir, in_update
     )
     mock_prune.assert_called_once_with(
-        os.path.dirname(zip_file), settings.DOWNLOAD_KEEP
+        os.path.dirname(zip_file), settings.get("DOWNLOAD_KEEP")
     )
     mock_stop.assert_called_once_with(
         server_name, str(base_dir)

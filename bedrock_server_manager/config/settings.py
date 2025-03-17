@@ -116,15 +116,3 @@ class Settings:
 
 # --- Initialize Settings ---
 settings = Settings()
-
-# --- Access Settings as Attributes *TODO Migrate modules to settings.get()* ---
-BASE_DIR = settings.get("BASE_DIR")
-CONFIG_DIR = settings._config_dir
-BACKUP_KEEP = settings.get("BACKUP_KEEP")
-DOWNLOAD_KEEP = settings.get("DOWNLOAD_KEEP")
-CONTENT_DIR = settings.get("CONTENT_DIR")
-DOWNLOAD_DIR = settings.get("DOWNLOAD_DIR")
-BACKUP_DIR = settings.get("BACKUP_DIR")
-LOG_DIR = settings.get("LOG_DIR")
-LOG_LEVEL = settings.get("LOG_LEVEL")
-LOGS_KEEP = settings.get("LOGS_KEEP")

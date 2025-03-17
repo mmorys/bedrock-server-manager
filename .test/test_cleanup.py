@@ -32,7 +32,7 @@ def mock_log_dir(tmp_path):
     (log_dir / "log1.txt").touch()
     (log_dir / "log2.txt").touch()
 
-    with patch("bedrock_server_manager.cleanup.settings.LOG_DIR", str(log_dir)):
+    with patch("bedrock_server_manager.cleanup.settings.settings", str(log_dir)):
         yield log_dir
 
 

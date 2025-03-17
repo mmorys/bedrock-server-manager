@@ -3,7 +3,7 @@ import os
 import glob
 import shutil
 import logging
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.server import world
 from bedrock_server_manager.core.error import (
     MissingArgumentError,
@@ -153,7 +153,7 @@ def backup_server(server_name, backup_type, base_dir, file_to_backup=None):
     if not backup_type:
         raise MissingArgumentError("backup_server: backup_type is empty.")
 
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
     os.makedirs(backup_dir, exist_ok=True)
 
     if backup_type == "world":
@@ -186,13 +186,13 @@ def backup_all(server_name, base_dir=None):
 
     Args:
         server_name (str): The name of the server.
-        base_dir (str, optional): The base directory for servers. Defaults to settings.BASE_DIR.
+        base_dir (str, optional): The base directory for servers. Defaults to settings.get("BASE_DIR").
     Raises:
         MissingArgumentError: If server name is empty.
         BackupWorldError: If any backup fails.
     """
     if base_dir is None:
-        base_dir = settings.BASE_DIR
+        base_dir = settings.get("BASE_DIR")
 
     if not server_name:
         raise MissingArgumentError("backup_all: server_name is empty.")
@@ -298,7 +298,7 @@ def restore_all(server_name, base_dir):
         RestoreError: If any restore operations fail
         FileOperationError: If backup directory does not exist.
     """
-    backup_dir = os.path.join(settings.BACKUP_DIR, server_name)
+    backup_dir = os.path.join(settings.get(BACKUP_DIR), server_name)
 
     if not server_name:
         raise MissingArgumentError("restore_all: server_name is empty.")

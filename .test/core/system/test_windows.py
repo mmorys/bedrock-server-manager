@@ -604,7 +604,7 @@ def test_get_server_task_names_success(tmp_path):
     (task_dir / "not_an_xml.txt").touch()
 
     with patch(
-        "bedrock_server_manager.config.settings.CONFIG_DIR",
+        "bedrock_server_manager.config.settings.settings.settings._config_dir",
         str(config_dir),
     ):
         result = windows.get_server_task_names(server_name, str(config_dir))
@@ -629,7 +629,7 @@ def test_get_server_task_names_no_tasks(tmp_path):
     task_dir.mkdir(parents=True)  # Create the directory, but no XML files
 
     with patch(
-        "bedrock_server_manager.config.settings.CONFIG_DIR",
+        "bedrock_server_manager.config.settings.settings._config_dir",
         str(config_dir),
     ):
         result = windows.get_server_task_names(server_name, str(config_dir))
@@ -643,7 +643,7 @@ def test_get_server_task_names_task_dir_not_found(tmp_path):
     # Don't create the task directory
 
     with patch(
-        "bedrock_server_manager.config.settings.CONFIG_DIR",
+        "bedrock_server_manager.config.settings.settings._config_dir",
         str(config_dir),
     ):
         result = windows.get_server_task_names(server_name, str(config_dir))
@@ -660,7 +660,7 @@ def test_get_server_task_names_xml_parse_error(tmp_path):
     # Create an invalid XML file
     (task_dir / "invalid.xml").write_text("This is not valid XML")
     with patch(
-        "bedrock_server_manager.config.settings.CONFIG_DIR",
+        "bedrock_server_manager.config.settings.settings._config_dir",
         str(config_dir),
     ):
         result = windows.get_server_task_names(server_name, str(config_dir))
@@ -675,7 +675,7 @@ def test_get_server_task_names_listdir_error(mock_listdir, tmp_path):
     task_dir = config_dir / server_name
     task_dir.mkdir(parents=True)
     with patch(
-        "bedrock_server_manager.config.settings.CONFIG_DIR",
+        "bedrock_server_manager.config.settings.settings_config_dir",
         str(config_dir),
     ):
         with pytest.raises(TaskError, match="Error reading tasks"):
