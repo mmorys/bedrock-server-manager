@@ -298,7 +298,7 @@ def restore_all(server_name, base_dir):
         RestoreError: If any restore operations fail
         FileOperationError: If backup directory does not exist.
     """
-    backup_dir = os.path.join(settings.get(BACKUP_DIR), server_name)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
 
     if not server_name:
         raise MissingArgumentError("restore_all: server_name is empty.")

@@ -2,18 +2,18 @@
 import sys
 import argparse
 import os
-from importlib.metadata import version, PackageNotFoundError
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core import logging as core_logging
+from bedrock_server_manager import cli
 from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager import cli
+from bedrock_server_manager.config.settings import settings
+from importlib.metadata import version, PackageNotFoundError
+from bedrock_server_manager.core import logging as core_logging
 from bedrock_server_manager.utils.general import startup_checks
+from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
 )
-from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
 logger = core_logging.setup_logging(log_dir=settings.get("LOG_DIR"))
@@ -423,14 +423,14 @@ def main():
         "backup-server": lambda: cli.handle_backup_server(
             args.server, args.type, args.file, args.change_status, base_dir
         ),
-        "backup-all": lambda: cli.handle_backup_all(
-            args.server, base_dir, args.change_status
+        "backup-all": lambda: cli.handle_backup_server(
+            args.server, "all", None, args.change_status, base_dir
         ),
         "restore-server": lambda: cli.handle_restore_server(
             args.server, args.file, args.type, args.change_status, base_dir
         ),
-        "restore-all": lambda: cli.handle_restore_all(
-            args.server, base_dir, args.change_status
+        "restore-all": lambda: cli.handle_restore_server(
+            args.server, None, "all", args.change_status, base_dir
         ),
         "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
         "add-players": lambda: cli.handle_add_players(args.players, config_dir),

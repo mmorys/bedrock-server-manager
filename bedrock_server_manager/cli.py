@@ -1,19 +1,21 @@
 # bedrock-server-manager/bedrock_server_manager/cli.py
 import os
+import re
 import sys
-import getpass
-import subprocess
 import time
-import platform
 import glob
 import json
-from datetime import datetime
-import re
-from colorama import Fore, Style
 import logging
+import getpass
+import platform
+import subprocess
+from datetime import datetime
+from colorama import Fore, Style
 import xml.etree.ElementTree as ET
-from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.player import player
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.system import linux as system_linux
 from bedrock_server_manager.core.system import windows as system_windows
 from bedrock_server_manager.utils.general import (
@@ -47,8 +49,6 @@ from bedrock_server_manager.core.server import (
     backup,
     addon,
 )
-from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.core.player import player
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -97,13 +97,13 @@ def list_servers_status(base_dir=None, config_dir=None):
     if config_dir is None:
         config_dir = settings._config_dir
 
-    print(f"{Fore.YELLOW}Servers Status:{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}Servers Status:{Style.RESET_ALL}")
     print("---------------------------------------------------")
     print(f"{'SERVER NAME':<20} {'STATUS':<20} {'VERSION':<10}")
     print("---------------------------------------------------")
 
     if not os.path.isdir(base_dir):
-        print(f"{_ERROR_PREFIX}Error: {base_dir} does not exist or is not a directory.")
+        print(f"{_ERROR_PREFIX}{base_dir} does not exist or is not a directory.")
         return
 
     found_servers = False
@@ -127,7 +127,7 @@ def list_servers_status(base_dir=None, config_dir=None):
 
             version = server_base.get_installed_version(server_name, config_dir)
             version_str = (
-                f"{Fore.YELLOW}{version}{Style.RESET_ALL}"
+                f"{Fore.WHITE}{version}{Style.RESET_ALL}"
                 if version != "UNKNOWN"
                 else f"{Fore.RED}UNKNOWN{Style.RESET_ALL}"
             )
@@ -174,7 +174,7 @@ def handle_configure_allowlist(server_name, base_dir=None):
         server_dir
     )  # exceptions are handled in configure_allowlist
     if not existing_players:
-        logger.info("No existing allowlist.json found.  A new one will be created.")
+        logger.debug("No existing allowlist.json found.  A new one will be created.")
     new_players_data = []
     logger.info("Configuring allowlist.json")
 
@@ -186,17 +186,15 @@ def handle_configure_allowlist(server_name, base_dir=None):
         if player_name.lower() == "done":
             break
         if not player_name:
-            logger.warning("Player name cannot be empty. Please try again.")
+            print("Player name cannot be empty. Please try again.")
             continue
 
         # Check for duplicates (only among newly added, not existing)
         if any(player["name"] == player_name for player in new_players_data):
-            logger.warning(f"Player '{player_name}' was already entered. Skipping.")
+            logger.info(f"Player {player_name} was already entered. Skipping.")
             continue
         if any(player["name"] == player_name for player in existing_players):
-            logger.warning(
-                f"Player '{player_name}' is already in the allowlist. Skipping."
-            )
+            logger.info(f"Player {player_name} is already in the allowlist. Skipping.")
             continue
 
         while True:  # Loop to ensure valid input
@@ -210,7 +208,7 @@ def handle_configure_allowlist(server_name, base_dir=None):
                 ignore_limit = False
                 break
             else:
-                logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
         new_players_data.append(
             {"ignoresPlayerLimit": ignore_limit, "name": player_name}
@@ -242,7 +240,7 @@ def handle_add_players(players, config_dir):
         ValueError: If the player data string is incorrectly formatted.
         Exception: If any other unexpected error occurs during parsing or saving.
     """
-    logger.info("Adding players...")
+    logger.info("Adding players to players.json...")
     try:
         player_string = ",".join(players)  # Join the list into a comma-separated string
         player_list = player.parse_player_argument(player_string)
@@ -387,7 +385,7 @@ def configure_server_properties(server_name, base_dir=None):
     ).strip()
     input_server_name = input_server_name or current_properties.get("server-name", "")
     while ";" in input_server_name:
-        logger.error("Server name cannot contain semicolons.")
+        print(f"{_WARN_PREFIX}Server name cannot contain semicolons.")
         input_server_name = input(
             f"{Fore.CYAN}Enter server name [Default: {Fore.YELLOW}{current_properties.get('server-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
         ).strip()
@@ -401,8 +399,8 @@ def configure_server_properties(server_name, base_dir=None):
     input_level_name = input_level_name or current_properties.get("level-name", "")
     input_level_name = input_level_name.replace(" ", "_")
     while not re.match(r"^[a-zA-Z0-9_-]+$", input_level_name):
-        logger.error(
-            "Invalid level-name. Only alphanumeric characters, hyphens, and underscores are allowed (spaces converted to underscores)."
+        print(
+            f"{_WARN_PREFIX}Invalid level-name. Only alphanumeric characters, hyphens, and underscores are allowed."
         )
         input_level_name = input(
             f"{Fore.CYAN}Enter level name [Default: {Fore.YELLOW}{current_properties.get('level-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
@@ -439,8 +437,8 @@ def configure_server_properties(server_name, base_dir=None):
         input_port = input_port or current_properties.get("server-port", DEFAULT_PORT)
         if re.match(r"^[0-9]+$", input_port) and 1024 <= int(input_port) <= 65535:
             break
-        logger.error(
-            "Invalid port number. Please enter a number between 1024 and 65535."
+        print(
+            f"{_WARN_PREFIX}Invalid port number. Please enter a number between 1024 and 65535."
         )
 
     while True:
@@ -452,8 +450,8 @@ def configure_server_properties(server_name, base_dir=None):
         )
         if re.match(r"^[0-9]+$", input_port_v6) and 1024 <= int(input_port_v6) <= 65535:
             break
-        logger.error(
-            "Invalid IPV6 port number. Please enter a number between 1024 and 65535."
+        print(
+            f"{_WARN_PREFIX}Invalid IPV6 port number. Please enter a number between 1024 and 65535."
         )
 
     input_lan_visibility = select_option(
@@ -478,7 +476,7 @@ def configure_server_properties(server_name, base_dir=None):
         )
         if re.match(r"^[0-9]+$", input_max_players):
             break
-        logger.error("Invalid number for max players.")
+        print(f"{_WARN_PREFIX}Invalid number for max players.")
 
     input_permission_level = select_option(
         "Select default permission level:",
@@ -500,8 +498,8 @@ def configure_server_properties(server_name, base_dir=None):
             and int(input_render_distance) >= 5
         ):
             break
-        logger.error(
-            "Invalid render distance. Please enter a number greater than or equal to 5."
+        print(
+            f"{_WARN_PREFIX}Invalid render distance. Please enter a number greater than or equal to 5."
         )
 
     while True:
@@ -516,7 +514,9 @@ def configure_server_properties(server_name, base_dir=None):
             and 4 <= int(input_tick_distance) <= 12
         ):
             break
-        logger.error("Invalid tick distance. Please enter a number between 4 and 12.")
+        print(
+            f"{_WARN_PREFIX}Invalid tick distance. Please enter a number between 4 and 12."
+        )
 
     input_level_seed = input(
         f"{Fore.CYAN}Enter level seed:{Style.RESET_ALL} "
@@ -642,8 +642,8 @@ def install_new_server(base_dir=None, config_dir=None):
         if re.match(r"^[a-zA-Z0-9_-]+$", server_name):
             break
         else:
-            logger.warning(
-                "Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed."
+            print(
+                f"{_WARN_PREFIX}Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed."
             )
 
     server_dir = os.path.join(base_dir, server_name)
@@ -666,10 +666,10 @@ def install_new_server(base_dir=None, config_dir=None):
                     ) from e
                 break
             elif continue_response in ("no", "n", ""):
-                logger.info("Exiting")
+                print(f"{_WARN_PREFIX}Exiting")
                 return  # User cancelled
             else:
-                logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
     target_version = input(
         f"{Fore.CYAN}Enter server version (e.g., {Fore.YELLOW}LATEST{Fore.CYAN} or {Fore.YELLOW}PREVIEW{Fore.CYAN}):{Style.RESET_ALL} "
@@ -726,7 +726,7 @@ def install_new_server(base_dir=None, config_dir=None):
             logger.info("Skipping allow-list configuration.")
             break
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
     # Permissions configuration
     while True:
@@ -745,7 +745,7 @@ def install_new_server(base_dir=None, config_dir=None):
             logger.info("Skipping permissions configuration.")
             break
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
     # Create a service
     try:
@@ -757,7 +757,7 @@ def install_new_server(base_dir=None, config_dir=None):
     while True:
         start_choice = (
             input(
-                f"{Fore.CYAN}Do you want to start the server {Fore.YELLOW}{server_name}{Fore.CYAN} now? (y/n):{Style.RESET_ALL} "
+                f"{Fore.CYAN}Do you want to start {Fore.YELLOW}{server_name}{Fore.CYAN}? (y/n):{Style.RESET_ALL} "
             )
             .lower()
             .strip()
@@ -769,10 +769,10 @@ def install_new_server(base_dir=None, config_dir=None):
                 logger.error(f"Failed to start server: {e}")
             break
         elif start_choice in ("no", "n", ""):
-            logger.info(f"Server {server_name} not started.")
+            logger.info(f"{server_name} not started.")
             break
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
 
 def update_server(server_name, base_dir=None):
@@ -789,7 +789,7 @@ def update_server(server_name, base_dir=None):
     """
     base_dir = get_base_dir(base_dir)
 
-    logger.info(f"Starting update process for server: {server_name}")
+    logger.info(f"Starting update process for: {server_name}")
 
     if not server_name:
         raise InvalidServerNameError("update_server: server_name is empty.")
@@ -804,7 +804,9 @@ def update_server(server_name, base_dir=None):
 
     installed_version = server_base.get_installed_version(server_name)
     if installed_version == "UNKNOWN":
-        logger.warning("Failed to get the installed version. Attempting update anyway.")
+        logger.warning(
+            "Failed to get the installed version. Proceeding with update ..."
+        )
 
     target_version = server_base.manage_server_config(
         server_name, "target_version", "read"
@@ -814,7 +816,7 @@ def update_server(server_name, base_dir=None):
         target_version = "LATEST"
 
     if server_base.no_update_needed(server_name, installed_version, target_version):
-        logger.info(f"No update needed for server {server_name}.")
+        logger.info(f"No update needed for {server_name}.")
         return  # No update required
 
     # Download and install the update
@@ -822,9 +824,9 @@ def update_server(server_name, base_dir=None):
         handle_download_bedrock_server(
             server_name, base_dir, target_version=target_version, in_update=True
         )
-        logger.info(f"Server {server_name} updated successfully.")
+        logger.info(f"{server_name} updated successfully.")
     except Exception as e:
-        raise InstallUpdateError(f"Failed to update server {server_name}: {e}") from e
+        raise InstallUpdateError(f"Failed to update {server_name}: {e}") from e
 
 
 def handle_enable_user_lingering():
@@ -874,7 +876,7 @@ def handle_enable_user_lingering():
             )
             break  # Exit loop.
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
 
 def create_service(server_name, base_dir=None):
@@ -902,12 +904,12 @@ def create_service(server_name, base_dir=None):
                 autoupdate = False
                 break
             else:
-                logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
         while True:
             response = (
                 input(
-                    f"{Fore.CYAN}Do you want to enable autostart on boot for {Fore.YELLOW}{server_name}{Fore.CYAN}? (y/n):{Style.RESET_ALL} "
+                    f"{Fore.CYAN}Do you want to enable autostart for {Fore.YELLOW}{server_name}{Fore.CYAN}? (y/n):{Style.RESET_ALL} "
                 )
                 .lower()
                 .strip()
@@ -919,7 +921,7 @@ def create_service(server_name, base_dir=None):
                 autostart = False
                 break
             else:
-                logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
         try:
             system_linux._create_systemd_service(server_name, base_dir, autoupdate)
         except Exception as e:
@@ -948,7 +950,7 @@ def create_service(server_name, base_dir=None):
                 autoupdate_value = "false"
                 break
             else:
-                logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
         try:
             server_base.manage_server_config(
                 server_name, "autoupdate", "write", autoupdate_value
@@ -1018,10 +1020,10 @@ def handle_start_server(server_name, base_dir=None):
         raise InvalidServerNameError("start_server: server_name is empty.")
 
     if system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Server {server_name} is already running.")
+        logger.warning(f"{server_name} is already running.")
         return  # Already running
 
-    logger.info(f"Starting server {server_name}...")
+    logger.info(f"Starting {server_name}...")
     try:
         bedrock_server = server_base.BedrockServer(
             server_name, os.path.join(base_dir, server_name)
@@ -1044,10 +1046,10 @@ def handle_systemd_start(server_name, base_dir=None):
         raise InvalidServerNameError("start_server: server_name is empty.")
 
     if system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Server {server_name} is already running.")
+        logger.warning(f"{server_name} is already running.")
         return  # Already running
 
-    logger.info(f"Starting server {server_name}...")
+    logger.info(f"Starting {server_name}...")
     try:
         system_linux._systemd_start_server(
             server_name, os.path.join(base_dir, server_name)
@@ -1074,10 +1076,10 @@ def handle_stop_server(server_name, base_dir=None):
         raise InvalidServerNameError("stop_server: server_name is empty.")
 
     if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Server {server_name} is not running.")
+        logger.warning(f"{server_name} is not running.")
         return  # Already stopped
 
-    logger.info(f"Stopping server {server_name}...")
+    logger.info(f"Stopping {server_name}...")
     try:
         bedrock_server = server_base.BedrockServer(
             server_name, os.path.join(base_dir, server_name)
@@ -1089,21 +1091,21 @@ def handle_stop_server(server_name, base_dir=None):
 
 
 def handle_systemd_stop(server_name, base_dir=None):
-    """Starts the Bedrock server (UI).
+    """Stops the Bedrock server (UI).
 
     Raises:
         InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by is_server_running and start
+        # Other exceptions may be raised by is_server_running and stop
     """
     base_dir = get_base_dir(base_dir)
     if not server_name:
         raise InvalidServerNameError("start_server: server_name is empty.")
 
     if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Server {server_name} is not running.")
+        logger.warning(f"{server_name} is not running.")
         return  # Already stopped
 
-    logger.info(f"Starting server {server_name}...")
+    logger.info(f"Starting {server_name}...")
     try:
         system_linux._systemd_stop_server(
             server_name, os.path.join(base_dir, server_name)
@@ -1129,13 +1131,13 @@ def restart_server(server_name, base_dir=None):
         raise InvalidServerNameError("restart_server: server_name is empty.")
 
     if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Server {server_name} is not running. Starting it instead.")
+        logger.warning(f"{server_name} is not running...")
         handle_start_server(
             server_name, base_dir
         )  # Let handle_start_server raise exceptions
         return
 
-    logger.info(f"Restarting server {server_name}...")
+    logger.info(f"Restarting {server_name}...")
 
     # Send restart warning
     try:
@@ -1166,7 +1168,7 @@ def _monitor(server_name, base_dir):
     if not server_name:
         raise InvalidServerNameError("_monitor: server_name is empty.")
 
-    logger.info(f"Monitoring resource usage for server: {server_name}")
+    print(f"{_INFO_PREFIX}Monitoring resource usage for: {server_name}")
     try:
         while True:
             process_info = system_base._get_bedrock_process_info(server_name, base_dir)
@@ -1189,7 +1191,7 @@ def _monitor(server_name, base_dir):
             time.sleep(1)  # Update interval
 
     except KeyboardInterrupt:
-        logger.info("Monitoring stopped.")
+        print(f"{_OK_PREFIX}Monitoring stopped.")
 
 
 def monitor_service_usage(server_name, base_dir=None):
@@ -1207,8 +1209,8 @@ def attach_console(server_name, base_dir=None):
 
     if platform.system() == "Linux":
         if not system_base.is_server_running(server_name, base_dir):
-            raise ServerNotRunningError(f"Server {server_name} is not running.")
-        logger.info(f"Attaching to server {server_name} console...")
+            raise ServerNotRunningError(f"{server_name} is not running.")
+        logger.info(f"Attaching to {server_name} console...")
         try:
             subprocess.run(["screen", "-r", f"bedrock-{server_name}"], check=True)
         except subprocess.CalledProcessError:
@@ -1216,7 +1218,7 @@ def attach_console(server_name, base_dir=None):
             # is_server_running returned True.  This could happen in a race
             # condition, or if the server crashed immediately after the check.
             raise ServerNotRunningError(
-                f"Failed to attach to screen session for server: {server_name}"
+                f"Failed to attach to screen session for: {server_name}"
             ) from None
         except FileNotFoundError:
             raise CommandNotFoundError(
@@ -1425,7 +1427,7 @@ def handle_backup_server(
 
     Args:
         server_name (str): The name of the server.
-        backup_type (str): "world" or "config".
+        backup_type (str): "all" "world" or "config".
         file_to_backup (str, optional): The file to back up if backup_type is "config".
         change_status (bool): Whether to stop the server before backup.
         base_dir (str): The base directory for servers.
@@ -1480,6 +1482,13 @@ def handle_backup_server(
             backup.backup_config_file(full_file_path, backup_dir)
         except Exception as e:
             raise FileOperationError(f"Config file backup failed: {e}") from e
+    elif backup_type == "all":
+        logger.info("Performing full backup...")
+        try:
+            backup.backup_all(server_name, base_dir)
+            logger.info("All files backed up successfully.")
+        except Exception as e:
+            raise e
     else:
         raise InvalidInputError(f"Invalid backup type: {backup_type}")
 
@@ -1488,26 +1497,6 @@ def handle_backup_server(
     handle_prune_old_backups(
         server_name, file_to_backup, settings.get("BACKUP_KEEP"), base_dir
     )
-
-
-def handle_backup_all(server_name, base_dir=None, change_status=True):
-    """Performs backup of all files (UI).
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-        change_status (bool): Whether to stop the server before backup.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty
-        # Exceptions from backup.backup_all will propagate
-    """
-    base_dir = get_base_dir(base_dir)
-    if not server_name:
-        raise InvalidServerNameError("backup_all: server_name is empty.")
-    logger.info("Performing full backup...")
-    backup.backup_all(server_name, base_dir)
-    logger.info("All files backed up successfully.")
 
 
 def backup_menu(server_name, base_dir):
@@ -1571,7 +1560,7 @@ def backup_menu(server_name, base_dir):
                 raise e
             break  # Exit menu
         elif choice == "3":
-            handle_backup_all(server_name, base_dir)  # Let handle_backup_all raise
+            handle_backup_server(server_name, "all", base_dir)
             break  # Exit menu
         elif choice == "4":
             logger.info("Backup operation canceled.")
@@ -1588,7 +1577,7 @@ def handle_restore_server(
     Args:
         server_name (str): The name of the server.
         backup_file (str): Path to the backup file.
-        restore_type (str): "world" or "config".
+        restore_type (str): "all", "world" or "config".
         change_status (bool): Whether to stop the server before restoring and restart afterwards.
         base_dir (str): The base directory for servers.
 
@@ -1603,19 +1592,18 @@ def handle_restore_server(
 
     if not server_name:
         raise InvalidServerNameError("restore_server: server_name is empty.")
-    if not backup_file:
-        raise MissingArgumentError("restore_server: backup_file is empty.")
     if not restore_type:
         raise MissingArgumentError("restore_server: restore_type is empty.")
-
-    if not os.path.exists(backup_file):
-        raise FileOperationError(f"Backup file '{backup_file}' not found!")
 
     was_running = False
     if change_status:
         was_running = server_base.stop_server_if_running(server_name, base_dir)
 
     if restore_type == "world":
+        if not backup_file:
+            raise MissingArgumentError("restore_server: backup_file is empty.")
+        if not os.path.exists(backup_file):
+            raise FileOperationError(f"Backup file '{backup_file}' not found!")
         logger.info(f"Restoring world from {backup_file}...")
         try:
             backup.restore_server(
@@ -1625,11 +1613,22 @@ def handle_restore_server(
             raise e
 
     elif restore_type == "config":
+        if not backup_file:
+            raise MissingArgumentError("restore_server: backup_file is empty.")
+        if not os.path.exists(backup_file):
+            raise FileOperationError(f"Backup file '{backup_file}' not found!")
         logger.info(f"Restoring config file: {os.path.basename(backup_file)}")
         try:
             backup.restore_server(
                 server_name, backup_file, restore_type, base_dir
             )  # core function
+        except Exception as e:
+            raise e
+    elif restore_type == "all":
+        logger.info("Restoring all files...")
+        try:
+            backup.restore_all(server_name, base_dir)
+            logger.info("All restore operations completed.")
         except Exception as e:
             raise e
     else:
@@ -1638,40 +1637,6 @@ def handle_restore_server(
         )
 
     if change_status:
-        server_base.start_server_if_was_running(server_name, base_dir, was_running)
-
-
-def handle_restore_all(server_name, base_dir, change_status=True):
-    """Restores all newest files (world and configuration files). (UI)
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-        change_status (bool): Whether to stop the server before restoring and restart afterwards.
-    Raises:
-        InvalidServerNameError: If server name is empty
-        # Other exceptions may be raised by called functions
-    """
-    if not server_name:
-        raise InvalidServerNameError("restore_all: server_name is empty.")
-    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-
-    if not os.path.isdir(backup_dir):
-        logger.debug(f"No backups found for {server_name}.")
-        return  # Not an error if no backups exist
-
-    was_running = False
-    if change_status:
-        was_running = server_base.stop_server_if_running(server_name, base_dir)
-
-    logger.info("Restoring all files...")
-    try:
-        backup.restore_all(server_name, base_dir)
-        logger.info("All restore operations completed.")
-    except Exception as e:
-        raise e
-
-    if change_status and was_running:
         server_base.start_server_if_was_running(server_name, base_dir, was_running)
 
 
@@ -1720,7 +1685,9 @@ def restore_menu(server_name, base_dir):
                 logger.warning("No configuration backups found.")
                 return  # Return to main menu
         elif choice == "3":
-            handle_restore_all(server_name, base_dir)  # Let it raise exceptions
+            handle_restore_server(
+                server_name, None, "all", base_dir
+            )  # Let it raise exceptions
             return
         elif choice == "4":
             logger.info("Restore operation canceled.")
@@ -1876,7 +1843,7 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
             logger.info("World installation canceled.")
             return  # User canceled
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
     handle_extract_world(server_name, selected_file, base_dir)  # raise errors
 
