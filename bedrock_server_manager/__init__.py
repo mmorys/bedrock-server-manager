@@ -16,7 +16,7 @@ from bedrock_server_manager.core.system import (
 )
 
 # Configure logging
-logger = core_logging.setup_logging(log_dir=settings.get("LOG_DIR"))
+logger = core_logging.setup_logging(log_dir=settings.get("LOG_DIR"),log_keep=settings.get("LOGS_KEEP"),log_level=settings.get("LOG_LEVEL"))
 
 try:
     __version__ = version("bedrock-server-manager")
