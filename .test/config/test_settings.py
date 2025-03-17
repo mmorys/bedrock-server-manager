@@ -1,241 +1,186 @@
 import json
 import os
 import pytest
-import importlib
-import logging
-import sys
 from unittest.mock import patch, mock_open
-from bedrock_server_manager.config import settings
-from bedrock_server_manager.core.error import ConfigError
-from bedrock_server_manager.config.settings import (
-    load_settings,
-    _write_default_config,
-    DEFAULT_CONFIG,
-    CONFIG_PATH,
-    CONFIG_DIR,
-    APP_DATA_DIR,
-)
+from bedrock_server_manager.config.settings import Settings, ConfigError
+import logging
 
-# --- Helper Functions ---
+# Use a consistent logger name
+logger = logging.getLogger("bedrock_server_manager")
+
+# --- Fixtures ---
 
 
 @pytest.fixture
-def config_dir(tmp_path):
-    """Creates a temporary config directory for testing."""
-    return tmp_path / ".config"
+def tmp_config_dir(tmp_path):
+    """
+    Provides a temporary directory and patches _get_app_data_dir.
+    """
+    app_data_dir = tmp_path / "bedrock-server-manager"
+    config_dir = app_data_dir / ".config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"tmp_config_dir: app_data_dir = {app_data_dir}")  # DEBUG
+
+    with patch.object(Settings, "_get_app_data_dir", return_value=str(app_data_dir)):
+        yield app_data_dir
 
 
 @pytest.fixture
-def script_dir(tmp_path):
-    """Creates a temporary config directory for testing."""
-    return tmp_path / "script_dir"
+def settings_obj(tmp_config_dir):
+    """Provides a fresh Settings object."""
+    print(f"settings_obj: tmp_config_dir = {tmp_config_dir}")  # DEBUG
+    return Settings()
 
 
 @pytest.fixture
-def config_file(config_dir):
-    return config_dir / "script_config.json"
+def settings_obj_custom_env(tmp_path):
+    custom_app_data_dir = tmp_path / "custom_app_data"
+
+    with patch.dict(
+        os.environ, {"BEDROCK_SERVER_MANAGER_DATA_DIR": str(custom_app_data_dir)}
+    ):
+        return Settings()
 
 
-# --- Tests for _write_default_config ---
+def test_settings_initialization(settings_obj, tmp_config_dir):
+    """
+    Tests that a Settings object is initialized correctly.
+    """
+    config_file_name = "script_config.json"
+    assert settings_obj.config_path == str(
+        os.path.join(tmp_config_dir, ".config", config_file_name)
+    )
+    assert settings_obj._settings == settings_obj.default_config
+    assert os.path.exists(settings_obj.config_path)
 
 
-def test_write_default_config_creates_file(config_file, config_dir):
-    """Test that _write_default_config creates the config file."""
-    config_dir.mkdir(parents=True, exist_ok=True)  # Create the directory
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
+def test_settings_load_from_file(settings_obj, tmp_config_dir):
+    """
+    Tests loading from an existing config file.
+    """
+    custom_config = {"BASE_DIR": "/custom/base", "BACKUP_KEEP": 5}
+    with open(settings_obj.config_path, "w") as f:
+        json.dump(custom_config, f)
+
+    # Create a *new* Settings object to force a reload.  No patching here.
+    settings2 = Settings()
+
+    expected_config = settings_obj.default_config.copy()
+    expected_config.update(custom_config)
+    assert settings2._settings == expected_config
+
+
+def test_settings_get(settings_obj):
+    """Tests the get() method."""
+    assert settings_obj.get("BASE_DIR") == settings_obj.default_config["BASE_DIR"]
+    assert settings_obj.get("NON_EXISTENT_KEY") is None
+
+
+def test_settings_set(settings_obj, tmp_config_dir):
+    """Tests the set() method."""
+    settings_obj.set("BACKUP_KEEP", 12)
+    assert settings_obj.get("BACKUP_KEEP") == 12
+
+    with open(settings_obj.config_path, "r") as f:
+        config_from_file = json.load(f)
+    assert config_from_file["BACKUP_KEEP"] == 12
+
+    # New Settings object to check reloading.  No patching here.
+    settings2 = Settings()
+    assert settings2.get("BACKUP_KEEP") == 12
+
+
+def test_settings_set_invalid_json(settings_obj, tmp_config_dir):
+    """Test set() with invalid JSON in the config file."""
+    with open(settings_obj.config_path, "w") as f:
+        f.write("{invalid json")
+    settings_obj.set("BASE_DIR", "/new/path")
+    with open(settings_obj.config_path, "r") as f:
+        config = json.load(f)
+    assert config["BASE_DIR"] == "/new/path"
+
+
+def test_settings_set_oserror(settings_obj):
+    """Test set() with a write error."""
+    with patch("builtins.open", side_effect=OSError("Mock write error")):
+        with pytest.raises(ConfigError, match="Failed to write"):
+            settings_obj.set("BASE_DIR", "testdir")
+
+
+def test_default_config_values(settings_obj):
+    """Checks default_config property values."""
+    defaults = settings_obj.default_config
+    assert defaults["BASE_DIR"].endswith("servers")
+    assert defaults["BACKUP_KEEP"] == 3
+
+
+def test_environment_variable_override(tmp_path):
+    """Tests BEDROCK_SERVER_MANAGER_DATA_DIR."""
+    custom_data_dir = tmp_path / "custom_data"
+    with patch.dict(
+        os.environ, {"BEDROCK_SERVER_MANAGER_DATA_DIR": str(custom_data_dir)}
+    ):
+        settings = Settings()
+        expected_config_dir = str(
+            custom_data_dir / "bedrock-server-manager" / ".config"
+        )
+        assert settings._config_dir == expected_config_dir
+        assert os.path.exists(settings.config_path)
+
+
+def test_no_environment_variable_override(tmp_path):
+    """Tests behavior without the environment variable."""
+    expected_app_data_dir = os.path.join(str(tmp_path), "bedrock-server-manager")
+    expected_config_dir = os.path.join(expected_app_data_dir, ".config")
+    with patch.dict(os.environ, {}, clear=True):
+        # Patch _get_app_data_dir to return the *app data* directory
+        with patch.object(
+            Settings, "_get_app_data_dir", return_value=expected_app_data_dir
         ):
-            _write_default_config()
-            assert config_file.exists()
+            settings = Settings()  # Create inside the patch
+
+        assert settings._config_dir == expected_config_dir
+        assert os.path.exists(settings.config_path)
 
 
-def test_write_default_config_writes_correct_content(config_file, config_dir):
-    """Test that _write_default_config writes the correct JSON content."""
-    config_dir.mkdir(parents=True, exist_ok=True)  # Create the directory
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-        ):
-            _write_default_config()
-            with open(config_file, "r") as f:
-                written_config = json.load(f)
-            assert written_config == DEFAULT_CONFIG
+def test_get_config_dir(settings_obj_custom_env, tmp_path):
+    """Verifies _config_dir with a custom environment."""
+    custom_app_data_dir = tmp_path / "custom_app_data"
+    expected_config_dir = os.path.join(
+        custom_app_data_dir, "bedrock-server-manager", ".config"
+    )
+    assert settings_obj_custom_env._config_dir == expected_config_dir
 
 
-def test_write_default_config_raises_error_on_write_failure(config_dir):
-    """Test that _write_default_config raises ConfigError on write failure."""
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch("builtins.open", side_effect=OSError("Mocked write error")):
-            with pytest.raises(ConfigError, match="Failed to write default config"):
-                _write_default_config()
+def test_settings_load_file_not_found(tmp_config_dir, caplog):
+    """Tests file-not-found scenario."""
+    config_file = os.path.join(
+        tmp_config_dir, ".config", "script_config.json"
+    )  # Correct path
+    if os.path.exists(config_file):
+        os.remove(config_file)
+    with caplog.at_level(logging.INFO):
+        settings_obj = Settings()  # No patching needed, already handled
+    assert "Configuration file not found" in caplog.text
+    assert os.path.exists(config_file)
+    assert settings_obj._settings == settings_obj.default_config
 
 
-# --- Tests for load_settings ---
+def test_settings_invalid_json_file(tmp_config_dir, caplog):
+    """Tests handling of invalid JSON."""
+    config_file = os.path.join(tmp_config_dir, "script_config.json")
+    with open(config_file, "w") as f:
+        f.write("This is not valid JSON")
+    with caplog.at_level(logging.WARNING):
+        settings_obj = Settings()  # No patching needed
+    assert "Configuration file is not valid JSON" in caplog.text
+    assert settings_obj._settings == settings_obj.default_config
 
 
-def test_load_settings_returns_default_config_if_file_not_found(
-    config_dir, config_file, script_dir
-):
-    """Test that load_settings returns default config if file not found."""
-    config_dir.mkdir(parents=True, exist_ok=True)
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.APP_DATA_DIR", str(script_dir)
-        ):
-            with patch(
-                "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-            ):
-                config = load_settings()
-                assert config == DEFAULT_CONFIG
-                assert config_file.exists()
-
-
-def test_load_settings_overrides_defaults_with_user_config(
-    config_file, script_dir, config_dir
-):
-    """Test that load_settings overrides defaults with user-provided config."""
-    user_config = {"BASE_DIR": "/custom/base/dir", "BACKUP_KEEP": 10}
-    config_dir.mkdir(parents=True, exist_ok=True)
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.APP_DATA_DIR", str(script_dir)
-        ):
-            with patch(
-                "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-            ):
-                with open(config_file, "w") as f:
-                    json.dump(user_config, f)
-
-                config = load_settings()
-                expected_config = DEFAULT_CONFIG.copy()
-                expected_config.update(user_config)
-                assert config == expected_config
-
-
-def test_load_settings_handles_invalid_json(config_file, script_dir, config_dir):
-    """Test load_settings handles invalid JSON in the config file."""
-    config_dir.mkdir(parents=True, exist_ok=True)
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.APP_DATA_DIR", str(script_dir)
-        ):
-            with patch(
-                "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-            ):
-                with open(config_file, "w") as f:
-                    f.write("This is not valid JSON")  # Write invalid JSON
-
-                config = load_settings()
-                assert config == DEFAULT_CONFIG  # Should fall back to defaults
-                assert config_file.exists()
-
-
-def test_load_settings_raises_error_on_read_failure(config_dir, config_file):
-    """Test that load_settings raises ConfigError on a file read error."""
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-        ):
-            with patch("builtins.open", side_effect=OSError("Mocked read error")):
-                with pytest.raises(ConfigError, match="Error reading config file"):
-                    load_settings()
-
-
-def test_load_settings_creates_config_directory(config_dir, script_dir):
-    """Ensures config directory is created if it doesn't exist"""
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.APP_DATA_DIR", str(script_dir)
-        ):
-            load_settings()
-            assert config_dir.exists()
-
-
-def test_config_constants_are_loaded_correctly(config_dir, script_dir, config_file):
-    # Custom configuration values you want to override
-    user_config = {
-        "BASE_DIR": "/custom/base",
-        "BACKUP_KEEP": 5,
-        "DOWNLOAD_KEEP": 2,
-        "CONTENT_DIR": "test_content",
-        "DOWNLOAD_DIR": "test_downloads",
-        "BACKUP_DIR": "test_backups",
-        "LOG_DIR": "test_logs",
-        "LOG_LEVEL": "DEBUG",
-    }
-    config_dir.mkdir(parents=True, exist_ok=True)
-    with patch("bedrock_server_manager.config.settings.CONFIG_DIR", str(config_dir)):
-        with patch(
-            "bedrock_server_manager.config.settings.APP_DATA_DIR", str(script_dir)
-        ):
-            with patch(
-                "bedrock_server_manager.config.settings.CONFIG_PATH", str(config_file)
-            ):
-                with patch(
-                    "builtins.open", mock_open(read_data=json.dumps(user_config))
-                ):
-                    # Reload settings *AFTER* patching open, *BEFORE* calling load_settings
-                    importlib.reload(settings)  # Reload is crucial here
-                    loaded_config = load_settings()  # Call load_settings after reload
-
-    # The expected configuration should be the defaults overridden by the user config.
-    expected_config = {**settings.DEFAULT_CONFIG, **user_config}
-
-    # Assert that the loaded configuration matches our expectation.
-    assert loaded_config == expected_config
-
-    # Check if module-level constants reflect the loaded settings.
-    assert settings.BASE_DIR == expected_config["BASE_DIR"]
-    assert settings.BACKUP_KEEP == expected_config["BACKUP_KEEP"]
-    assert settings.DOWNLOAD_KEEP == expected_config["DOWNLOAD_KEEP"]
-    assert settings.CONTENT_DIR == expected_config["CONTENT_DIR"]
-    assert settings.DOWNLOAD_DIR == expected_config["DOWNLOAD_DIR"]
-    assert settings.BACKUP_DIR == expected_config["BACKUP_DIR"]
-    assert settings.LOG_DIR == expected_config["LOG_DIR"]
-    assert settings.LOG_LEVEL == expected_config["LOG_LEVEL"]
-
-
-# --- Tests for appdir ---
-
-
-def test_app_data_and_config_dirs(tmp_path):
-    """Test APP_DATA_DIR and APP_CONFIG_DIR with environment variable patching."""
-    # Patch os.path.expanduser so that it returns tmp_path, isolating file system effects.
-    with patch("os.path.expanduser", return_value=str(tmp_path)):
-        # --- Test 1: No environment variable (defaults now to a tmp folder) ---
-        expected_app_data_dir = os.path.join(str(tmp_path), "bedrock-server-manager")
-        expected_app_config_dir = os.path.join(expected_app_data_dir, ".config")
-
-        with patch.dict(os.environ, {}, clear=True):  # Clear all environment variables
-            with patch(
-                "bedrock_server_manager.config.settings.APP_DATA_DIR",
-                expected_app_data_dir,
-            ):
-                with patch(
-                    "bedrock_server_manager.config.settings.CONFIG_DIR",
-                    expected_app_config_dir,
-                ):
-                    importlib.reload(settings)
-                    assert settings.APP_DATA_DIR == expected_app_data_dir
-                    assert settings.APP_CONFIG_DIR == expected_app_config_dir
-
-        # --- Test 2: With environment variable ---
-        custom_data_dir = str(tmp_path / "custom_data")
-        expected_app_data_dir = os.path.join(custom_data_dir, "bedrock-server-manager")
-        expected_app_config_dir = os.path.join(expected_app_data_dir, ".config")
-
-        with patch.dict(
-            os.environ, {"BEDROCK_SERVER_MANAGER_DATA_DIR": custom_data_dir}
-        ):
-            with patch(
-                "bedrock_server_manager.config.settings.APP_DATA_DIR",
-                expected_app_data_dir,
-            ):
-                with patch(
-                    "bedrock_server_manager.config.settings.CONFIG_DIR",
-                    expected_app_config_dir,
-                ):
-                    importlib.reload(settings)
-                    assert settings.APP_DATA_DIR == expected_app_data_dir
-                    assert settings.APP_CONFIG_DIR == expected_app_config_dir
+def test_settings_read_error(tmp_config_dir):
+    """Tests for read errors."""
+    config_file = os.path.join(tmp_config_dir, "script_config.json")
+    with patch("builtins.open", side_effect=OSError("Mock read error")):
+        with pytest.raises(ConfigError, match="Error reading config file"):
+            settings_obj = Settings()  # No patching needed
