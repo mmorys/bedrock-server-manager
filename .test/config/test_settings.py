@@ -1,3 +1,4 @@
+# bedrock-server-manager/tests/config/test_settings.py
 import json
 import os
 import pytest
