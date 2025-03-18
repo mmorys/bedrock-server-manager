@@ -3,23 +3,14 @@ import os
 import re
 import sys
 import time
-import glob
-import json
 import logging
-import getpass
 import platform
-import subprocess
 from datetime import datetime
 from colorama import Fore, Style
 import xml.etree.ElementTree as ET
-from bedrock_server_manager.core.player import player
+from bedrock_server_manager import handlers
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.system import linux as system_linux
-from bedrock_server_manager.core.system import windows as system_windows
 from bedrock_server_manager.utils.general import (
-    get_timestamp,
     select_option,
     get_base_dir,
     _INFO_PREFIX,
@@ -30,25 +21,9 @@ from bedrock_server_manager.utils.general import (
 from bedrock_server_manager.core.error import (
     MissingArgumentError,
     InvalidServerNameError,
-    InstallUpdateError,
-    ServerStartError,
-    ServerStopError,
-    CommandNotFoundError,
-    ServerNotRunningError,
-    FileOperationError,
-    BackupWorldError,
     InvalidInputError,
-    DirectoryError,
-    ScheduleError,
-    TaskError,
-    InvalidCronJobError,
 )
-from bedrock_server_manager.core.server import (
-    server as server_base,
-    world,
-    backup,
-    addon,
-)
+from bedrock_server_manager.core.server import server as server_base
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -62,7 +37,6 @@ def get_server_name(base_dir=None):
     Returns:
         str: The validated server name, or None if the user cancels.
     """
-    base_dir = get_base_dir(base_dir)
 
     while True:
         server_name = input(
@@ -72,49 +46,38 @@ def get_server_name(base_dir=None):
         if server_name.lower() == "exit":
             print(f"{_OK_PREFIX}Operation canceled.")
             return None  # User canceled
-        if not server_name:
-            print(f"{_WARN_PREFIX}Server name cannot be empty.")
-            continue
 
-        try:
-            if server_base.validate_server(server_name, base_dir):
-                print(f"{_OK_PREFIX}Server {server_name} found.")
-                return server_name
-        except Exception as e:
-            print(f"{_ERROR_PREFIX}{e}")
-            #  allowing user to try again
-            continue
+        response = handlers.validate_server_name_handler(server_name, base_dir)
 
-        print(
-            f"{_WARN_PREFIX}Please enter a valid server name or type 'exit' to cancel."
-        )
+        if response["status"] == "success":
+            print(f"{_OK_PREFIX}Server {server_name} found.")
+            return server_name
+        else:
+            print(f"{_ERROR_PREFIX}{response['message']}")
 
 
 def list_servers_status(base_dir=None, config_dir=None):
     """Lists the status and version of all servers."""
 
-    base_dir = get_base_dir(base_dir)
-    if config_dir is None:
-        config_dir = settings._config_dir
+    response = handlers.get_all_servers_status_handler(base_dir, config_dir)
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+        return
+
+    servers = response["servers"]
 
     print(f"{Fore.MAGENTA}Servers Status:{Style.RESET_ALL}")
     print("---------------------------------------------------")
     print(f"{'SERVER NAME':<20} {'STATUS':<20} {'VERSION':<10}")
     print("---------------------------------------------------")
 
-    if not os.path.isdir(base_dir):
-        print(f"{_ERROR_PREFIX}{base_dir} does not exist or is not a directory.")
-        return
-
-    found_servers = False
-    for server_path in glob.glob(os.path.join(base_dir, "*")):  # Find directories
-        if os.path.isdir(server_path):
-            server_name = os.path.basename(server_path)
-
-            status = Fore.RED + "UNKNOWN" + Style.RESET_ALL
-            version = Fore.RED + "UNKNOWN" + Style.RESET_ALL
-
-            status = server_base.get_server_status_from_config(server_name, config_dir)
+    if not servers:
+        print("No servers found.")
+    else:
+        for server_data in servers:
+            status = server_data["status"]
+            version = server_data["version"]
 
             if status == "RUNNING":
                 status_str = f"{Fore.GREEN}{status}{Style.RESET_ALL}"
@@ -125,20 +88,14 @@ def list_servers_status(base_dir=None, config_dir=None):
             else:
                 status_str = f"{Fore.RED}UNKNOWN{Style.RESET_ALL}"
 
-            version = server_base.get_installed_version(server_name, config_dir)
             version_str = (
                 f"{Fore.WHITE}{version}{Style.RESET_ALL}"
                 if version != "UNKNOWN"
                 else f"{Fore.RED}UNKNOWN{Style.RESET_ALL}"
             )
-
             print(
-                f"{Fore.CYAN}{server_name:<20}{Style.RESET_ALL} {status_str:<20}  {version_str:<10}"
+                f"{Fore.CYAN}{server_data['name']:<20}{Style.RESET_ALL} {status_str:<20}  {version_str:<10}"
             )
-            found_servers = True
-
-    if not found_servers:
-        print("No servers found.")
 
     print("---------------------------------------------------")
     print()
@@ -167,17 +124,20 @@ def handle_configure_allowlist(server_name, base_dir=None):
         raise InvalidServerNameError(
             "handle_configure_allowlist: server_name is empty."
         )
+    # Get existing players
+    response = handlers.configure_allowlist_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+        return  # Exit if there's an error getting existing players.
 
-    server_dir = os.path.join(base_dir, server_name)
-
-    existing_players = server_base.configure_allowlist(
-        server_dir
-    )  # exceptions are handled in configure_allowlist
+    existing_players = response["existing_players"]  # Get the existing players
     if not existing_players:
-        logger.debug("No existing allowlist.json found.  A new one will be created.")
-    new_players_data = []
-    logger.info("Configuring allowlist.json")
+        print(
+            f"{_INFO_PREFIX}No existing allowlist.json found.  A new one will be created."
+        )
 
+    new_players_data = []
+    print(f"{_INFO_PREFIX}Configuring allowlist.json")
     # Ask for new players
     while True:
         player_name = input(
@@ -186,15 +146,7 @@ def handle_configure_allowlist(server_name, base_dir=None):
         if player_name.lower() == "done":
             break
         if not player_name:
-            print("Player name cannot be empty. Please try again.")
-            continue
-
-        # Check for duplicates (only among newly added, not existing)
-        if any(player["name"] == player_name for player in new_players_data):
-            logger.info(f"Player {player_name} was already entered. Skipping.")
-            continue
-        if any(player["name"] == player_name for player in existing_players):
-            logger.info(f"Player {player_name} is already in the allowlist. Skipping.")
+            print(f"{_WARN_PREFIX}Player name cannot be empty. Please try again.")
             continue
 
         while True:  # Loop to ensure valid input
@@ -214,96 +166,63 @@ def handle_configure_allowlist(server_name, base_dir=None):
             {"ignoresPlayerLimit": ignore_limit, "name": player_name}
         )
 
-    if new_players_data:
-        server_base.add_players_to_allowlist(
-            server_dir, new_players_data
-        )  # exceptions are handled
+    # Call the handler with the new player data
+    response = handlers.configure_allowlist_handler(
+        server_name, base_dir, new_players_data
+    )
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+        return
+
+    if response["added_players"]:  # Use the returned data
+        print(f"{_OK_PREFIX}The following players were added to the allowlist:")
+        for player in response["added_players"]:
+            print(f"{Fore.CYAN}  - {player['name']}{Style.RESET_ALL}")
     else:
-        logger.info(
-            "No new players were added. Existing allowlist.json was not modified."
+        print(
+            f"{_INFO_PREFIX}No new players were added. Existing allowlist.json was not modified."
         )
 
 
 def handle_add_players(players, config_dir):
-    """Handles the user interaction and logic for adding players to the players.json file.
+    """Handles the user interaction and logic for adding players to the players.json file."""
 
-    This function parses a string of player data (in the format "playername:playerid, player2:player2id")
-    into a list of dictionaries, and then saves this list to the players.json file.
-    It interacts with the player.parse_player_argument and player.save_players_to_json functions.
+    response = handlers.add_players_handler(players, config_dir)
 
-    Args:
-        players (list): A list of strings, where each string represents a player in the format "playername:playerid".
-                        This is the player data parsed from the command-line arguments.
-        config_dir (str): The directory where the players.json file is located.
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+        return
 
-    Raises:
-        ValueError: If the player data string is incorrectly formatted.
-        Exception: If any other unexpected error occurs during parsing or saving.
-    """
-    logger.info("Adding players to players.json...")
-    try:
-        player_string = ",".join(players)  # Join the list into a comma-separated string
-        player_list = player.parse_player_argument(player_string)
-        player.save_players_to_json(player_list, config_dir)
-    except ValueError as e:
-        print(f"Error: {e}")
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")
-
-    logger.info("Players added.")
+    print("Players added successfully.")  # Only print on success
 
 
 def select_player_for_permission(server_name, base_dir=None, config_dir=None):
-    """Selects a player and permission level, then calls configure_permissions.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-        config_dir (str, optional): Config directory. Defaults to main config.
-
-    Returns:
-        None
-
-    Raises:
-        MissingArgumentError: If server_name is empty.
-        InvalidServerNameError: If server_name is invalid
-        FileOperationError: if players.json is missing or invalid
-        # Other exceptions may be raised by server.configure_permissions
-    """
-
-    if config_dir is None:
-        config_dir = settings._config_dir
-
-    base_dir = get_base_dir(base_dir)
-
-    players_file = os.path.join(config_dir, "players.json")
+    """Selects a player and permission level, then calls configure_permissions."""
 
     if not server_name:
         raise InvalidServerNameError(
             "select_player_for_permission: server_name is empty."
         )
 
-    server_dir = os.path.join(base_dir, server_name)
+    # Get player data from the handler
+    player_response = handlers.get_players_from_json_handler(config_dir)
+    if player_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{player_response['message']}")
+        return
 
-    if not os.path.exists(players_file):
-        raise FileOperationError(f"No players.json file found at: {players_file}")
+    players_data = player_response["players"]
 
-    try:
-        with open(players_file, "r") as f:
-            players_data = json.load(f)
-    except (OSError, json.JSONDecodeError) as e:
-        raise FileOperationError(f"Failed to read or parse players.json: {e}") from e
-
-    if not players_data.get("players"):
-        logger.warning("No players found in players.json!")
-        return  # Return (not an error, just no players)
+    if not players_data:
+        print(f"{_INFO_PREFIX}No players found in players.json!")
+        return
 
     # Create lists for player names and XUIDs
-    player_names = [player["name"] for player in players_data["players"]]
-    xuids = [player["xuid"] for player in players_data["players"]]
+    player_names = [player["name"] for player in players_data]
+    xuids = [player["xuid"] for player in players_data]
 
     # Display player selection menu
-    logger.info("Select a player to add to permissions.json:")
+    print(f"{_INFO_PREFIX}Select a player to add to permissions.json:")
     for i, name in enumerate(player_names):
         print(f"{i + 1}. {name}")
     print(f"{len(player_names) + 1}. Cancel")
@@ -318,95 +237,69 @@ def select_player_for_permission(server_name, base_dir=None, config_dir=None):
                 selected_xuid = xuids[choice - 1]
                 break
             elif choice == len(player_names) + 1:
-                logger.info("Operation canceled.")
+                print(f"{_OK_PREFIX}Operation canceled.")
                 return  # User canceled
             else:
-                logger.warning("Invalid choice. Please select a valid number.")
+                print(f"{_WARN_PREFIX}Invalid choice. Please select a valid number.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     # Prompt for permission level
     permission = select_option(
         "Select a permission level:", "member", "operator", "member", "visitor"
     )
 
-    # Call the function to add/update the player in permissions.json
-    server_base.configure_permissions(
-        server_dir, selected_xuid, selected_name, permission
-    )  # Let it raise
+    # Call the handler to configure permissions
+    perm_response = handlers.configure_player_permission_handler(
+        server_name, selected_xuid, selected_name, permission, base_dir, config_dir
+    )
+
+    if perm_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{perm_response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Permission updated successfully for {selected_name}.")
 
 
 def configure_server_properties(server_name, base_dir=None):
-    """Configures common server properties interactively.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory where servers are stored.
-    Raises:
-        MissingArgumentError: If server_name is empty.
-        InvalidServerNameError: if the server name is invalid
-        FileOperationError: If server.properties cannot be read/written.
-        # Other exceptions may be raised by server.modify_server_properties
-    """
-    base_dir = get_base_dir(base_dir)
-
-    logger.info(f"Configuring server properties for {server_name}")
+    """Configures common server properties interactively."""
 
     if not server_name:
         raise InvalidServerNameError(
             "configure_server_properties: server_name is empty."
         )
 
-    server_dir = os.path.join(base_dir, server_name)
+    print(f"Configuring server properties for {server_name}")
 
-    server_properties = os.path.join(server_dir, "server.properties")
-    if not os.path.exists(server_properties):
-        raise FileOperationError(f"server.properties not found in: {server_properties}")
+    # --- Get Existing Properties ---
+    properties_response = handlers.read_server_properties_handler(server_name, base_dir)
+    if properties_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{properties_response['message']}")
+        return
 
-    # Default values
+    current_properties = properties_response["properties"]
+
+    # --- Gather User Input ---
     DEFAULT_PORT = "19132"
     DEFAULT_IPV6_PORT = "19133"
+    properties_to_update = {}
 
-    # Read existing properties
-    current_properties = {}
-    try:
-        with open(server_properties, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line and "=" in line:
-                    key, value = line.split("=", 1)
-                    current_properties[key] = value
-    except OSError as e:
-        raise FileOperationError(f"Failed to read server.properties {e}") from e
-
-    # Prompts with validation and defaults
+    # --- Prompts with validation ---
     input_server_name = input(
         f"{Fore.CYAN}Enter server name [Default: {Fore.YELLOW}{current_properties.get('server-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
     ).strip()
-    input_server_name = input_server_name or current_properties.get("server-name", "")
-    while ";" in input_server_name:
-        print(f"{_WARN_PREFIX}Server name cannot contain semicolons.")
-        input_server_name = input(
-            f"{Fore.CYAN}Enter server name [Default: {Fore.YELLOW}{current_properties.get('server-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
-        ).strip()
-        input_server_name = input_server_name or current_properties.get(
-            "server-name", ""
-        )
+    properties_to_update["server-name"] = input_server_name or current_properties.get(
+        "server-name", ""
+    )
 
     input_level_name = input(
         f"{Fore.CYAN}Enter level name [Default: {Fore.YELLOW}{current_properties.get('level-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
     ).strip()
-    input_level_name = input_level_name or current_properties.get("level-name", "")
-    input_level_name = input_level_name.replace(" ", "_")
-    while not re.match(r"^[a-zA-Z0-9_-]+$", input_level_name):
-        print(
-            f"{_WARN_PREFIX}Invalid level-name. Only alphanumeric characters, hyphens, and underscores are allowed."
-        )
-        input_level_name = input(
-            f"{Fore.CYAN}Enter level name [Default: {Fore.YELLOW}{current_properties.get('level-name', '')}{Fore.CYAN}]:{Style.RESET_ALL} "
-        ).strip()
-        input_level_name = input_level_name or current_properties.get("level-name", "")
-        input_level_name = input_level_name.replace(" ", "_")
+    properties_to_update["level-name"] = input_level_name or current_properties.get(
+        "level-name", ""
+    )
+    properties_to_update["level-name"] = properties_to_update["level-name"].replace(
+        " ", "_"
+    )  # Clean input
 
     input_gamemode = select_option(
         "Select gamemode:",
@@ -415,6 +308,8 @@ def configure_server_properties(server_name, base_dir=None):
         "creative",
         "adventure",
     )
+    properties_to_update["gamemode"] = input_gamemode
+
     input_difficulty = select_option(
         "Select difficulty:",
         current_properties.get("difficulty", "easy"),
@@ -423,24 +318,28 @@ def configure_server_properties(server_name, base_dir=None):
         "normal",
         "hard",
     )
+    properties_to_update["difficulty"] = input_difficulty
+
     input_allow_cheats = select_option(
         "Allow cheats:",
         current_properties.get("allow-cheats", "false"),
         "true",
         "false",
     )
+    properties_to_update["allow-cheats"] = input_allow_cheats
 
     while True:
         input_port = input(
             f"{Fore.CYAN}Enter IPV4 Port [Default: {Fore.YELLOW}{current_properties.get('server-port', DEFAULT_PORT)}{Fore.CYAN}]:{Style.RESET_ALL} "
         ).strip()
         input_port = input_port or current_properties.get("server-port", DEFAULT_PORT)
-        if re.match(r"^[0-9]+$", input_port) and 1024 <= int(input_port) <= 65535:
-            break
-        print(
-            f"{_WARN_PREFIX}Invalid port number. Please enter a number between 1024 and 65535."
+        validation_result = handlers.validate_property_value_handler(
+            "server-port", input_port
         )
-
+        if validation_result["status"] == "success":
+            properties_to_update["server-port"] = input_port
+            break
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     while True:
         input_port_v6 = input(
             f"{Fore.CYAN}Enter IPV6 Port [Default: {Fore.YELLOW}{current_properties.get('server-portv6', DEFAULT_IPV6_PORT)}{Fore.CYAN}]:{Style.RESET_ALL} "
@@ -448,25 +347,28 @@ def configure_server_properties(server_name, base_dir=None):
         input_port_v6 = input_port_v6 or current_properties.get(
             "server-portv6", DEFAULT_IPV6_PORT
         )
-        if re.match(r"^[0-9]+$", input_port_v6) and 1024 <= int(input_port_v6) <= 65535:
-            break
-        print(
-            f"{_WARN_PREFIX}Invalid IPV6 port number. Please enter a number between 1024 and 65535."
+        validation_result = handlers.validate_property_value_handler(
+            "server-portv6", input_port_v6
         )
-
+        if validation_result["status"] == "success":
+            properties_to_update["server-portv6"] = input_port_v6
+            break
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     input_lan_visibility = select_option(
         "Enable LAN visibility:",
         current_properties.get("enable-lan-visibility", "true"),
         "true",
         "false",
     )
+    properties_to_update["enable-lan-visibility"] = input_lan_visibility
+
     input_allow_list = select_option(
         "Enable allow list:",
         current_properties.get("allow-list", "false"),
         "true",
         "false",
     )
-
+    properties_to_update["allow-list"] = input_allow_list
     while True:
         input_max_players = input(
             f"{Fore.CYAN}Enter max players [Default: {Fore.YELLOW}{current_properties.get('max-players', '10')}{Fore.CYAN}]:{Style.RESET_ALL} "
@@ -474,10 +376,13 @@ def configure_server_properties(server_name, base_dir=None):
         input_max_players = input_max_players or current_properties.get(
             "max-players", "10"
         )
-        if re.match(r"^[0-9]+$", input_max_players):
+        validation_result = handlers.validate_property_value_handler(
+            "max-players", input_max_players
+        )
+        if validation_result["status"] == "success":
+            properties_to_update["max-players"] = input_max_players
             break
-        print(f"{_WARN_PREFIX}Invalid number for max players.")
-
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     input_permission_level = select_option(
         "Select default permission level:",
         current_properties.get("default-player-permission-level", "member"),
@@ -485,7 +390,7 @@ def configure_server_properties(server_name, base_dir=None):
         "member",
         "operator",
     )
-
+    properties_to_update["default-player-permission-level"] = input_permission_level
     while True:
         input_render_distance = input(
             f"{Fore.CYAN}Default render distance [Default: {Fore.YELLOW}{current_properties.get('view-distance', '10')}{Fore.CYAN}]:{Style.RESET_ALL} "
@@ -493,15 +398,13 @@ def configure_server_properties(server_name, base_dir=None):
         input_render_distance = input_render_distance or current_properties.get(
             "view-distance", "10"
         )
-        if (
-            re.match(r"^[0-9]+$", input_render_distance)
-            and int(input_render_distance) >= 5
-        ):
-            break
-        print(
-            f"{_WARN_PREFIX}Invalid render distance. Please enter a number greater than or equal to 5."
+        validation_result = handlers.validate_property_value_handler(
+            "view-distance", input_render_distance
         )
-
+        if validation_result["status"] == "success":
+            properties_to_update["view-distance"] = input_render_distance
+            break
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     while True:
         input_tick_distance = input(
             f"{Fore.CYAN}Default tick distance [Default: {Fore.YELLOW}{current_properties.get('tick-distance', '4')}{Fore.CYAN}]:{Style.RESET_ALL} "
@@ -509,146 +412,80 @@ def configure_server_properties(server_name, base_dir=None):
         input_tick_distance = input_tick_distance or current_properties.get(
             "tick-distance", "4"
         )
-        if (
-            re.match(r"^[0-9]+$", input_tick_distance)
-            and 4 <= int(input_tick_distance) <= 12
-        ):
-            break
-        print(
-            f"{_WARN_PREFIX}Invalid tick distance. Please enter a number between 4 and 12."
+        validation_result = handlers.validate_property_value_handler(
+            "tick-distance", input_tick_distance
         )
-
+        if validation_result["status"] == "success":
+            properties_to_update["tick-distance"] = input_tick_distance
+            break
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     input_level_seed = input(
         f"{Fore.CYAN}Enter level seed:{Style.RESET_ALL} "
     ).strip()  # No default or validation
-
+    properties_to_update["level-seed"] = input_level_seed
     input_online_mode = select_option(
         "Enable online mode:",
         current_properties.get("online-mode", "true"),
         "true",
         "false",
     )
+    properties_to_update["online-mode"] = input_online_mode
     input_texturepack_required = select_option(
         "Require texture pack:",
         current_properties.get("texturepack-required", "false"),
         "true",
         "false",
     )
+    properties_to_update["texturepack-required"] = input_texturepack_required
+    # --- Update Properties ---
+    update_response = handlers.modify_server_properties_handler(
+        server_name, properties_to_update, base_dir
+    )
 
-    # Update properties, accumulating any errors.
-    server_base.modify_server_properties(
-        server_properties, "server-name", input_server_name
-    )
-    server_base.modify_server_properties(
-        server_properties, "level-name", input_level_name
-    )
-    server_base.modify_server_properties(server_properties, "gamemode", input_gamemode)
-    server_base.modify_server_properties(
-        server_properties, "difficulty", input_difficulty
-    )
-    server_base.modify_server_properties(
-        server_properties, "allow-cheats", input_allow_cheats
-    )
-    server_base.modify_server_properties(server_properties, "server-port", input_port)
-    server_base.modify_server_properties(
-        server_properties, "server-portv6", input_port_v6
-    )
-    server_base.modify_server_properties(
-        server_properties, "enable-lan-visibility", input_lan_visibility
-    )
-    server_base.modify_server_properties(
-        server_properties, "allow-list", input_allow_list
-    )
-    server_base.modify_server_properties(
-        server_properties, "max-players", input_max_players
-    )
-    server_base.modify_server_properties(
-        server_properties, "default-player-permission-level", input_permission_level
-    )
-    server_base.modify_server_properties(
-        server_properties, "view-distance", input_render_distance
-    )
-    server_base.modify_server_properties(
-        server_properties, "tick-distance", input_tick_distance
-    )
-    server_base.modify_server_properties(
-        server_properties, "level-seed", input_level_seed
-    )
-    server_base.modify_server_properties(
-        server_properties, "online-mode", input_online_mode
-    )
-    server_base.modify_server_properties(
-        server_properties, "texturepack-required", input_texturepack_required
-    )
-    logger.info("Server properties configured")
+    if update_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{update_response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server properties configured successfully.")
 
 
 def handle_download_bedrock_server(
     server_name, base_dir=None, target_version="LATEST", in_update=False
 ):
-    """Handles downloading and installing the Bedrock server, including UI.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-        target_version (str): "LATEST", "PREVIEW", or a specific version.
-        in_update (bool): True if this is an update, False for new install.
-
-    Raises:
-        MissingArgumentError: If server_name is empty.
-        InvalidServerNameError: if the server name is not valid
-        # Other exceptions may be raised by download_bedrock_server, install_server
-    """
-    base_dir = get_base_dir(base_dir)
-
-    server_dir = os.path.join(base_dir, server_name)
+    """Handles downloading and installing the Bedrock server, including UI."""
 
     if not server_name:
         raise InvalidServerNameError(
             "handle_download_bedrock_server: server_name is empty."
         )
 
-    logger.info("Starting Bedrock server download process...")
-    current_version, zip_file, download_dir = downloader.download_bedrock_server(
-        server_dir, target_version
-    )
-    server_base.install_server(
-        server_name, base_dir, current_version, zip_file, server_dir, in_update
+    response = handlers.download_and_install_server_handler(
+        server_name, base_dir, target_version, in_update
     )
 
-    logger.info(f"Installed Bedrock server version: {current_version}")
-    logger.info("Bedrock server download process finished")
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Installed Bedrock server version: {response['version']}")
+        print(f"{_OK_PREFIX}Bedrock server download process finished")
 
 
 def install_new_server(base_dir=None, config_dir=None):
-    """Installs a new server.
-
-    Args:
-        base_dir (str): The base directory for servers.
-        config_dir (str, optional): Config directory.
-
-    Raises:
-        InvalidServerNameError: If server name provided contains invalid characters
-        InstallUpdateError: If there are errors deleting/creating server files or installing
-    """
+    """Installs a new server."""
     base_dir = get_base_dir(base_dir)
 
-    logger.info("Installing new server...")
+    print("Installing new server...")
 
     while True:
         server_name = input(
             f"{Fore.MAGENTA}Enter server folder name:{Style.RESET_ALL} "
         ).strip()
-        if re.match(r"^[a-zA-Z0-9_-]+$", server_name):
+        validation_result = handlers.validate_server_name_format_handler(server_name)
+        if validation_result["status"] == "success":
             break
-        else:
-            print(
-                f"{_WARN_PREFIX}Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed."
-            )
-
+        print(f"{_ERROR_PREFIX}{validation_result['message']}")
     server_dir = os.path.join(base_dir, server_name)
     if os.path.exists(server_dir):
-        logger.warning(f"Folder {server_name} already exists")
+        print(f"{_WARN_PREFIX}Folder {server_name} already exists")
         while True:
             continue_response = (
                 input(
@@ -658,12 +495,12 @@ def install_new_server(base_dir=None, config_dir=None):
                 .strip()
             )
             if continue_response in ("yes", "y"):
-                try:
-                    delete_server(server_name, base_dir, config_dir)
-                except Exception as e:
-                    raise InstallUpdateError(
-                        f"Failed to delete existing server {server_name}: {e}"
-                    ) from e
+                delete_response = handlers.delete_server_data_handler(
+                    server_name, base_dir, config_dir
+                )
+                if delete_response["status"] == "error":
+                    print(f"{_ERROR_PREFIX}{delete_response['message']}")
+                    return  # Exit if deletion failed.
                 break
             elif continue_response in ("no", "n", ""):
                 print(f"{_WARN_PREFIX}Exiting")
@@ -674,43 +511,19 @@ def install_new_server(base_dir=None, config_dir=None):
     target_version = input(
         f"{Fore.CYAN}Enter server version (e.g., {Fore.YELLOW}LATEST{Fore.CYAN} or {Fore.YELLOW}PREVIEW{Fore.CYAN}):{Style.RESET_ALL} "
     ).strip()
-
     if not target_version:
         target_version = "LATEST"
 
-    # Write server name and target version to config
-    try:
-        server_base.manage_server_config(
-            server_name, "server_name", "write", server_name, config_dir
-        )
-        server_base.manage_server_config(
-            server_name, "target_version", "write", target_version, config_dir
-        )
-    except Exception as e:
-        raise InstallUpdateError(f"Failed to write server config: {e}") from e
-
-    # Download and install the server
-    try:
-        handle_download_bedrock_server(
-            server_name, base_dir, target_version=target_version, in_update=False
-        )
-    except Exception as e:
-        raise InstallUpdateError(f"Failed to install server: {e}") from e
-
-    # Write status after install
-    try:
-        server_base.manage_server_config(
-            server_name, "status", "write", "INSTALLED", config_dir
-        )
-    except Exception as e:
-        raise InstallUpdateError(f"Failed to write server config: {e}") from e
+    # Main installation handler call
+    install_result = handlers.install_new_server_handler(
+        server_name, target_version, base_dir, config_dir, create_service_bool=False
+    )
+    if install_result["status"] == "error":
+        print(f"{_ERROR_PREFIX}{install_result['message']}")
+        return
 
     # Configure server properties
-    try:
-        configure_server_properties(server_name, base_dir)
-    except Exception as e:
-        logger.warning(f"Failed to configure server properties: {e}")
-        # This isn't *critical* enough to raise InstallUpdateError
+    configure_server_properties(server_name, base_dir)
 
     # Allowlist configuration
     while True:
@@ -723,12 +536,11 @@ def install_new_server(base_dir=None, config_dir=None):
             handle_configure_allowlist(server_name, base_dir)  # call new function
             break
         elif allowlist_response in ("no", "n", ""):
-            logger.info("Skipping allow-list configuration.")
+            print(f"{_INFO_PREFIX}Skipping allow-list configuration.")
             break
         else:
             print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
-
-    # Permissions configuration
+    # Permissions configuration (interactive)
     while True:
         permissions_response = (
             input(f"{Fore.MAGENTA}Configure permissions? (y/n):{Style.RESET_ALL} ")
@@ -739,21 +551,31 @@ def install_new_server(base_dir=None, config_dir=None):
             try:
                 select_player_for_permission(server_name, base_dir)
             except Exception as e:
-                logger.warning(f"Failed to configure permissions: {e}")
+                print(f"{_ERROR_PREFIX}Failed to configure permissions: {e}")
             break
         elif permissions_response in ("no", "n", ""):
-            logger.info("Skipping permissions configuration.")
+            print(f"{_INFO_PREFIX}Skipping permissions configuration.")
             break
         else:
             print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
-    # Create a service
-    try:
-        create_service(server_name, base_dir)
-    except Exception as e:
-        logger.warning(f"Failed to create service: {e}")
+    # Create a service (interactive)
+    while True:
+        service_response = (
+            input(f"{Fore.MAGENTA}Create a service? (y/n):{Style.RESET_ALL} ")
+            .lower()
+            .strip()
+        )
+        if service_response in ("yes", "y"):
+            create_service(server_name, base_dir)
+            break
+        elif service_response in ("no", "n", ""):
+            print(f"{_INFO_PREFIX}Skipping service configuration.")
+            break
+        else:
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
-    # Start the server
+    # Start the server (interactive)
     while True:
         start_choice = (
             input(
@@ -766,92 +588,50 @@ def install_new_server(base_dir=None, config_dir=None):
             try:
                 handle_start_server(server_name, base_dir)
             except Exception as e:
-                logger.error(f"Failed to start server: {e}")
+                print(f"{_ERROR_PREFIX}Failed to start server: {e}")
             break
         elif start_choice in ("no", "n", ""):
-            logger.info(f"{server_name} not started.")
+            print(f"{_INFO_PREFIX}{server_name} not started.")
             break
         else:
             print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
+    print(f"{_OK_PREFIX}Server installation complete.")  # Success message
 
 
-def update_server(server_name, base_dir=None):
-    """Updates an existing server.
-
-    Args:
-        server_name (str): The name of the server to update.
-        base_dir (str): The base directory for servers.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty
-        InstallUpdateError: If any part of the update process fails.
-        # Other exceptions may be raised by the called functions.
-    """
-    base_dir = get_base_dir(base_dir)
-
-    logger.info(f"Starting update process for: {server_name}")
+def update_server(server_name, base_dir=None, config_dir=None):
+    """Updates an existing server."""
 
     if not server_name:
         raise InvalidServerNameError("update_server: server_name is empty.")
 
-    # Check if the server is running, if so display in game message
-    if system_base.is_server_running(server_name, base_dir):
-        try:
-            bedrock_server = server_base.BedrockServer(server_name)
-            bedrock_server.send_command("say Checking for server updates..")
-        except Exception as e:
-            logger.warning(f"Failed to send message to server: {e}")
+    response = handlers.update_server_handler(server_name, base_dir, config_dir)
 
-    installed_version = server_base.get_installed_version(server_name)
-    if installed_version == "UNKNOWN":
-        logger.warning(
-            "Failed to get the installed version. Proceeding with update ..."
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    elif response["updated"]:
+        print(
+            f"{_OK_PREFIX}{server_name} updated successfully to version {response['new_version']}."
         )
-
-    target_version = server_base.manage_server_config(
-        server_name, "target_version", "read"
-    )
-    if target_version is None:
-        logger.warning("Failed to read target_version from config. Using 'LATEST'.")
-        target_version = "LATEST"
-
-    if server_base.no_update_needed(server_name, installed_version, target_version):
-        logger.info(f"No update needed for {server_name}.")
-        return  # No update required
-
-    # Download and install the update
-    try:
-        handle_download_bedrock_server(
-            server_name, base_dir, target_version=target_version, in_update=True
-        )
-        logger.info(f"{server_name} updated successfully.")
-    except Exception as e:
-        raise InstallUpdateError(f"Failed to update {server_name}: {e}") from e
+    else:
+        print(f"{_OK_PREFIX}No update needed for {server_name}.")
 
 
 def handle_enable_user_lingering():
     """Handles enabling user lingering, with user interaction."""
 
     if platform.system() != "Linux":
-        return  # Not applicable, just return
+        print(f"{_INFO_PREFIX}User lingering is only applicable on Linux systems.")
+        return
 
-    username = getpass.getuser()
     # Check if lingering is already enabled
-    try:
-        result = subprocess.run(
-            ["loginctl", "show-user", username],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if "Linger=yes" in result.stdout:
-            logger.debug(f"Lingering is already enabled for {username}")
-            return  # Already enabled
-    except FileNotFoundError:
-        logger.warning(
-            "loginctl command not found.  Lingering cannot be checked/enabled."
-        )
-        return  # command not found
+    check_response = handlers.check_user_lingering_enabled_handler()
+    if check_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{check_response['message']}")
+        return  # Exit if we can't check the status.
+
+    if check_response["enabled"]:
+        print(f"{_INFO_PREFIX}Lingering is already enabled for the current user.")
+        return  # Already enabled
 
     while True:
         response = (
@@ -862,17 +642,17 @@ def handle_enable_user_lingering():
             .strip()
         )
         if response in ("yes", "y"):
-            try:
-                system_linux.enable_user_lingering()
+            enable_response = handlers.enable_user_lingering_handler()
+            if enable_response["status"] == "success":
+                print(f"{_OK_PREFIX}Lingering enabled successfully.")
                 break  # Success
-            except Exception as e:
-                logger.error(f"Failed to enable lingering: {e}")
-                # We *don't* re-raise the exception here.  This is a user-interaction
-                # function; we want to give the user a chance to try again, or to
-                # choose not to enable lingering.  We log the error, but continue.
+            else:
+                print(f"{_ERROR_PREFIX}{enable_response['message']}")
+                # We *don't* return here. This gives the user a chance to try again
+                # or to cancel.
         elif response in ("no", "n", ""):
-            logger.info(
-                "Lingering not enabled. User services might not start automatically."
+            print(
+                f"{_INFO_PREFIX}Lingering not enabled. User services might not start automatically."
             )
             break  # Exit loop.
         else:
@@ -883,10 +663,8 @@ def create_service(server_name, base_dir=None):
     """Creates a systemd service (Linux) or sets autoupdate config (Windows)."""
     if base_dir is None:
         base_dir = settings.get("BASE_DIR")
-
     if not server_name:
         raise InvalidServerNameError("create_service: server_name is empty.")
-
     if platform.system() == "Linux":
         # Ask user if they want auto-update
         while True:
@@ -922,17 +700,22 @@ def create_service(server_name, base_dir=None):
                 break
             else:
                 print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
-        try:
-            system_linux._create_systemd_service(server_name, base_dir, autoupdate)
-        except Exception as e:
-            raise Exception(f"Failed to create systemd service: {e}") from e
 
-        if autostart:
-            enable_service(server_name)
-        else:
-            disable_service(server_name)
+        response = handlers.create_systemd_service_handler(
+            server_name, base_dir, autoupdate, autostart
+        )
+        if response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{response['message']}")
+            return
 
-        handle_enable_user_lingering()  # Call the handler
+        # Call the *handler* for enabling user lingering
+        lingering_response = handlers.check_user_lingering_enabled_handler()
+        if lingering_response["status"] == "error":
+            print(
+                f"{_ERROR_PREFIX}Error checking lingering status: {lingering_response['message']}"
+            )
+        elif not lingering_response["enabled"]:
+            handle_enable_user_lingering()  # Call the CLI function for interaction
 
     elif platform.system() == "Windows":
         while True:
@@ -951,215 +734,117 @@ def create_service(server_name, base_dir=None):
                 break
             else:
                 print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
-        try:
-            server_base.manage_server_config(
-                server_name, "autoupdate", "write", autoupdate_value
+
+        response = handlers.set_windows_autoupdate_handler(
+            server_name, autoupdate_value, base_dir
+        )
+        if response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{response['message']}")
+        else:
+            print(
+                f"{_OK_PREFIX}Successfully updated autoupdate in config.json for server: {server_name}"
             )
-            logger.info(
-                f"Successfully updated autoupdate in config.json for server: {server_name}"
-            )
-        except Exception as e:
-            raise Exception(f"Failed to update autoupdate config: {e}") from e
 
     else:
-        logger.error("Unsupported operating system for service creation.")
+        print(f"{_ERROR_PREFIX}Unsupported operating system for service creation.")
         raise OSError("Unsupported operating system for service creation.")
 
 
-def enable_service(server_name):
+def enable_service(server_name, base_dir=None):
     """Enables a systemd service (Linux) or handles the Windows case."""
-    if platform.system() == "Linux":
-        if not server_name:
-            raise InvalidServerNameError(
-                "_enable_systemd_service: server_name is empty."
-            )
-        try:
-            system_linux._enable_systemd_service(server_name)
-        except Exception as e:
-            raise e
+    if not server_name:
+        raise InvalidServerNameError("enable_service: server_name is empty.")
+
+    response = handlers.enable_service_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
     elif platform.system() == "Windows":
-        logger.info(
+        print(
             "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
         )
-        # Not an error on Windows
-    else:
-        logger.error("Unsupported operating system for service enabling.")
+    elif platform.system() != "Linux":
         raise OSError("Unsupported OS")
+    else:
+        print(f"{_OK_PREFIX}Service enabled successfully.")
 
 
-def disable_service(server_name):
+def disable_service(server_name, base_dir=None):
     """Disables a systemd service (Linux) or handles the Windows case."""
-    if platform.system() == "Linux":
-        if not server_name:
-            raise InvalidServerNameError(
-                "_disable_systemd_service: server_name is empty."
-            )
-        try:
-            system_linux._disable_systemd_service(server_name)
-        except Exception as e:
-            raise e
+    if not server_name:
+        raise InvalidServerNameError("disable_service: server_name is empty.")
+
+    response = handlers.disable_service_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
     elif platform.system() == "Windows":
-        logger.info(
+        print(
             "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
         )
-        # Not an error on Windows
-    else:
-        logger.error("Unsupported operating system for service disabling.")
+    elif platform.system() != "Linux":
         raise OSError("Unsupported OS")
+    else:
+        print(f"{_OK_PREFIX}Service disabled successfully.")
 
 
 def handle_start_server(server_name, base_dir=None):
-    """Starts the Bedrock server (UI).
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by is_server_running and start
-    """
-    base_dir = get_base_dir(base_dir)
+    """Starts the Bedrock server."""
     if not server_name:
         raise InvalidServerNameError("start_server: server_name is empty.")
 
-    if system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"{server_name} is already running.")
-        return  # Already running
-
-    logger.info(f"Starting {server_name}...")
-    try:
-        bedrock_server = server_base.BedrockServer(
-            server_name, os.path.join(base_dir, server_name)
-        )
-        bedrock_server.start()  # Call start method
-        logger.info("Server started successfully.")
-    except Exception as e:
-        logger.exception(f"Failed to start server: {e}")
+    response = handlers.start_server_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server started successfully.")
 
 
 def handle_systemd_start(server_name, base_dir=None):
-    """Starts the Bedrock server (UI).
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by is_server_running and start
-    """
-    base_dir = get_base_dir(base_dir)
+    """Starts the Bedrock server."""
     if not server_name:
         raise InvalidServerNameError("start_server: server_name is empty.")
 
-    if system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"{server_name} is already running.")
-        return  # Already running
-
-    logger.info(f"Starting {server_name}...")
-    try:
-        system_linux._systemd_start_server(
-            server_name, os.path.join(base_dir, server_name)
-        )
-        logger.info("Server started successfully.")
-    except Exception as e:
-        logger.exception(f"Failed to start server: {e}")
+    response = handlers.systemd_start_server_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server started successfully.")
 
 
 def handle_stop_server(server_name, base_dir=None):
-    """Stops the Bedrock server (UI).
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by is_server_running and BedrockServer.stop
-    """
-    base_dir = get_base_dir(base_dir)
-
+    """Stops the Bedrock server."""
     if not server_name:
         raise InvalidServerNameError("stop_server: server_name is empty.")
 
-    if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"{server_name} is not running.")
-        return  # Already stopped
-
-    logger.info(f"Stopping {server_name}...")
-    try:
-        bedrock_server = server_base.BedrockServer(
-            server_name, os.path.join(base_dir, server_name)
-        )
-        bedrock_server.stop()  # Stop the server
-        logger.info("Server stopped successfully.")
-    except Exception as e:
-        logger.exception(f"Failed to stop server: {e}")
+    response = handlers.stop_server_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server stopped successfully.")
 
 
 def handle_systemd_stop(server_name, base_dir=None):
-    """Stops the Bedrock server (UI).
+    """Stops the Bedrock server."""
 
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by is_server_running and stop
-    """
-    base_dir = get_base_dir(base_dir)
     if not server_name:
         raise InvalidServerNameError("start_server: server_name is empty.")
 
-    if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"{server_name} is not running.")
-        return  # Already stopped
-
-    logger.info(f"Starting {server_name}...")
-    try:
-        system_linux._systemd_stop_server(
-            server_name, os.path.join(base_dir, server_name)
-        )
-        logger.info("Server stoped successfully.")
-    except Exception as e:
-        logger.exception(f"Failed to stop server: {e}")
+    response = handlers.systemd_stop_server_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server stopped successfully.")
 
 
 def restart_server(server_name, base_dir=None):
-    """Restarts the Bedrock server.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
-    Raises:
-        InvalidServerNameError: if the server name is empty
-        # Other exceptions will be raised by handle_start_server and handle_stop_server
-    """
-    base_dir = get_base_dir(base_dir)
-
+    """Restarts the Bedrock server."""
     if not server_name:
         raise InvalidServerNameError("restart_server: server_name is empty.")
 
-    if not system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"{server_name} is not running...")
-        handle_start_server(
-            server_name, base_dir
-        )  # Let handle_start_server raise exceptions
-        return
-
-    logger.info(f"Restarting {server_name}...")
-
-    # Send restart warning
-    try:
-        bedrock_server = server_base.BedrockServer(server_name)
-        bedrock_server.send_command("say Restarting server in 10 seconds..")
-        time.sleep(10)
-    except Exception as e:
-        logger.warning(f"Failed to send message to server: {e}")
-
-    # Stop and then start the server.
-    try:
-        handle_stop_server(server_name, base_dir)  # Use core functions.
-    except Exception as e:
-        raise ServerStopError(f"Failed to stop server during restart: {e}") from e
-
-    # Small delay before restarting
-    time.sleep(2)
-
-    try:
-        handle_start_server(server_name, base_dir)  # Use core functions
-    except Exception as e:
-        raise ServerStartError(f"Failed to start server during restart: {e}") from e
+    response = handlers.restart_server_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server restarted successfully.")
 
 
 def _monitor(server_name, base_dir):
@@ -1171,12 +856,14 @@ def _monitor(server_name, base_dir):
     print(f"{_INFO_PREFIX}Monitoring resource usage for: {server_name}")
     try:
         while True:
-            process_info = system_base._get_bedrock_process_info(server_name, base_dir)
-            if not process_info:
-                logger.warning("Server process information not found. Exiting monitor.")
-                return
+            response = handlers.get_bedrock_process_info_handler(server_name, base_dir)
+            if response["status"] == "error":
+                print(f"{_ERROR_PREFIX}{response['message']}")
+                return  # Exit if process not found
 
-            # Clear screen and display output
+            process_info = response["process_info"]
+
+            # Clear screen and display output (CLI-specific)
             os.system("cls" if platform.system() == "Windows" else "clear")
             print("---------------------------------")
             print(f" Monitoring:  {server_name} ")
@@ -1188,7 +875,7 @@ def _monitor(server_name, base_dir):
             print("---------------------------------")
             print("Press CTRL + C to exit")
 
-            time.sleep(1)  # Update interval
+            time.sleep(2)  # Update interval
 
     except KeyboardInterrupt:
         print(f"{_OK_PREFIX}Monitoring stopped.")
@@ -1197,45 +884,29 @@ def _monitor(server_name, base_dir):
 def monitor_service_usage(server_name, base_dir=None):
     """Monitors the CPU and memory usage of the Bedrock server."""
     base_dir = get_base_dir(base_dir)
-    _monitor(server_name, base_dir)  # Call monitor
+    _monitor(server_name, base_dir)
 
 
 def attach_console(server_name, base_dir=None):
     """Attaches to the server console."""
-    base_dir = get_base_dir(base_dir)
-
     if not server_name:
         raise InvalidServerNameError("attach_console: server_name is empty.")
 
     if platform.system() == "Linux":
-        if not system_base.is_server_running(server_name, base_dir):
-            raise ServerNotRunningError(f"{server_name} is not running.")
-        logger.info(f"Attaching to {server_name} console...")
-        try:
-            subprocess.run(["screen", "-r", f"bedrock-{server_name}"], check=True)
-        except subprocess.CalledProcessError:
-            # This likely means the screen session doesn't exist, even though
-            # is_server_running returned True.  This could happen in a race
-            # condition, or if the server crashed immediately after the check.
-            raise ServerNotRunningError(
-                f"Failed to attach to screen session for: {server_name}"
-            ) from None
-        except FileNotFoundError:
-            raise CommandNotFoundError(
-                "screen", message="screen command not found. Is screen installed?"
-            ) from None
-
+        response = handlers.attach_to_screen_session_handler(server_name, base_dir)
+        if response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{response['message']}")
     elif platform.system() == "Windows":
-        logger.info(
+        print(
             "Windows doesn't currently support attaching to the console. You may want to look into Windows Subsystem for Linux (WSL)."
         )
     else:
-        logger.error("attach_console not supported on this platform")
+        print("attach_console not supported on this platform")
         raise OSError("Unsupported operating system")
 
 
 def delete_server(server_name, base_dir=None, config_dir=None):
-    """Deletes a Bedrock server (UI interaction)."""
+    """Deletes a Bedrock server."""
     base_dir = get_base_dir(base_dir)
 
     if not server_name:
@@ -1250,270 +921,111 @@ def delete_server(server_name, base_dir=None, config_dir=None):
         .strip()
     )
     if confirm not in ("y", "yes"):
-        logger.info("Server deletion canceled.")
+        print(f"{_INFO_PREFIX}Server deletion canceled.")
         return
 
-    # Stop the server if it's running
-    if system_base.is_server_running(server_name, base_dir):
-        logger.warning(f"Stopping server {server_name} before deletion...")
-        try:
-            handle_stop_server(server_name, base_dir)  # Stop the server
-        except Exception as e:
-            logger.exception(f"Error stopping server before deletion: {e}")
-    try:
-        server_base.delete_server_data(
-            server_name, base_dir, config_dir
-        )  # core function
-    except Exception as e:
-        raise e
+    # Call handler to delete server data
+    response = handlers.delete_server_data_handler(server_name, base_dir, config_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Server {server_name} deleted successfully.")
 
 
 def handle_extract_world(server_name, selected_file, base_dir=None, from_addon=False):
-    """Handles extracting a world, including stopping/starting the server.
-
-    Args:
-        server_name (str): The name of the server.
-        selected_file (str): Path to the .mcworld file.
-        base_dir (str): The base directory for servers.
-        from_addon (bool): True if called from addon installation, False otherwise.
-    Raises:
-        InvalidServerNameError: If the server name is empty
-        FileOperationError: If world_name could not be found
-        # Other exceptions may be raised by extract_world, stop_server_if_running or start_server_if_was_running
-    """
-    base_dir = get_base_dir(base_dir)
+    """Handles extracting a world, including stopping/starting the server."""
 
     if not server_name:
-        raise InvalidServerNameError("extract_world: server_name is empty.")
+        raise InvalidServerNameError("extract_world: server_name is empty")
 
-    server_dir = os.path.join(base_dir, server_name)
-    try:
-        world_name = server_base.get_world_name(server_name, base_dir)
-        if world_name is None or not world_name:  # Check for None or empty string
-            raise FileOperationError("Failed to get world name from server.properties.")
-    except Exception as e:
-        raise FileOperationError(f"Error getting world name: {e}") from e
-
-    extract_dir = os.path.join(server_dir, "worlds", world_name)
-
-    was_running = False
-    if not from_addon:
-        was_running = server_base.stop_server_if_running(server_name, base_dir)
-
-    logger.info(f"Installing world {os.path.basename(selected_file)}...")
-
-    try:
-        world.extract_world(selected_file, extract_dir)  # Let it raise
-    except Exception as e:
-        raise e
-
-    # Start the server after world install if it was running and not from an addon
-    if not from_addon:
-        server_base.start_server_if_was_running(server_name, base_dir, was_running)
-
-    logger.info(f"Installed world to {extract_dir}")
+    # Call the handler, controlling stop/start based on from_addon
+    response = handlers.extract_world_handler(
+        server_name, selected_file, base_dir, stop_start_server=not from_addon
+    )
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}World extracted successfully.")
 
 
 def handle_export_world(server_name, base_dir=None):
-    """Handles exporting the world, including getting the world name and backup path.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): Server base directory.
-
-    Raises:
-        MissingArgumentError: If server_name is empty.
-        InvalidServerNameError: If server name is not valid.
-        FileOperationError: If world name could not be retrived.
-        DirectoryError: If world directory doesn't exist
-        # Other exceptions may be raised by world.export_world
-    """
-    base_dir = get_base_dir(base_dir)
-
+    """Handles exporting the world."""
     if not server_name:
         raise InvalidServerNameError("export_world: server_name is empty.")
 
-    try:
-        world_folder = server_base.get_world_name(server_name, base_dir)
-        if world_folder is None or not world_folder:  # check for empty
-            raise FileOperationError("Could not find level-name in server.properties")
-    except Exception as e:
-        raise FileOperationError(f"Failed to get world name: {e}") from e
-    world_path = os.path.join(base_dir, server_name, "worlds", world_folder)
-    if not os.path.isdir(world_path):
-        logger.warning(
-            f"World directory '{world_folder}' does not exist. Skipping world backup."
-        )
-        return
-
-    timestamp = get_timestamp()
-    backup_dir = settings.get("BACKUP_DIR")
-    backup_file = os.path.join(backup_dir, f"{world_folder}_backup_{timestamp}.mcworld")
-
-    logger.info(f"Backing up world folder '{world_folder}'...")
-    world.export_world(world_path, backup_file)  # use core function
+    response = handlers.export_world_handler(server_name, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}World exported successfully to: {response['backup_file']}")
 
 
 def handle_prune_old_backups(
     server_name, file_name=None, backup_keep=None, base_dir=None
 ):
-    """Prunes old backups, keeping only the most recent ones. (UI and setup)
-
-    Args:
-        server_name (str): The name of the server.
-        file_name (str, optional): Specific file name to prune (for config files).
-        backup_keep (int, optional): How many backups to keep, defaults to config value
-        base_dir (str, optional): base directory
-
-    Raises:
-        InvalidServerNameError: if server_name is empty
-        ValueError: if backup_keep is not an int
-        # Other exceptions may be raised by backup.prune_old_backups, get_world_name
-    """
-    base_dir = get_base_dir(base_dir)
-    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-
+    """Prunes old backups, keeping only the most recent ones. (UI and setup)"""
     if not server_name:
         raise InvalidServerNameError("prune_old_backups: server_name is empty.")
 
-    if backup_keep is None:
-        backup_keep = settings.get("BACKUP_KEEP")  # Get from config
-        try:
-            backup_keep = int(backup_keep)
-        except ValueError:
-            raise ValueError(
-                "Invalid value for BACKUP_KEEP in config file, must be an integer"
-            ) from None
-
-    logger.info("Pruning old backups...")
-
-    # Prune world backups (*.mcworld)
-    try:
-        level_name = server_base.get_world_name(server_name, base_dir)
-    except Exception as e:
-        level_name = None  # handle exception from get_world_name, prun all files
-        logger.warning(
-            f"Failed to get world name. Pruning world backups may be inaccurate: {e}"
-        )
-
-    if not level_name:  # Still attempt to prune with just extention
-        backup.prune_old_backups(backup_dir, backup_keep, file_extension="mcworld")
+    response = handlers.prune_old_backups_handler(
+        server_name, file_name, backup_keep, base_dir
+    )
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
     else:
-        backup.prune_old_backups(
-            backup_dir,
-            backup_keep,
-            file_prefix=f"{level_name}_backup_",
-            file_extension="mcworld",
-        )
-
-    # Prune config file backups (if file_name is provided)
-    if file_name:
-        try:
-            backup.prune_old_backups(
-                backup_dir,
-                backup_keep,
-                file_prefix=f"{os.path.splitext(file_name)[0]}_backup_",
-                file_extension=file_name.split(".")[-1],
-            )
-        except Exception as e:
-            raise e  # Re-raise for consistent error reporting
-    logger.info("Done.")
+        print(f"{_OK_PREFIX}Old backups pruned successfully.")
 
 
 def handle_backup_server(
     server_name, backup_type, file_to_backup=None, change_status=True, base_dir=None
 ):
-    """Backs up a server's world or a specific configuration file (UI).
-
-    Args:
-        server_name (str): The name of the server.
-        backup_type (str): "all" "world" or "config".
-        file_to_backup (str, optional): The file to back up if backup_type is "config".
-        change_status (bool): Whether to stop the server before backup.
-        base_dir (str): The base directory for servers.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        MissingArgumentError: If backup_type is empty or file_to_backup is
-            missing for config backups.
-        InvalidInputError: if backup type is not world or config.
-        # Other exceptions may be raised by called functions.
-    """
-    base_dir = get_base_dir(base_dir)
-    server_dir = os.path.join(base_dir, server_name)
-
-    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-
+    """Backs up a server's world or a specific configuration file."""
     if not server_name:
         raise InvalidServerNameError("backup_server: server_name is empty.")
     if not backup_type:
         raise MissingArgumentError("backup_server: backup_type is empty.")
 
-    # Ensure the backup directory exists.
-    os.makedirs(backup_dir, exist_ok=True)
-
-    was_running = False
-    if change_status:
-        was_running = server_base.stop_server_if_running(server_name, base_dir)
-
     if backup_type == "world":
-        try:
-            world_name = server_base.get_world_name(server_name, base_dir)
-            if world_name is None or not world_name:
-                raise FileOperationError(
-                    "Could not determine world name; backup may not function"
-                )
-            world_path = os.path.join(server_dir, "worlds", world_name)
-
-            logger.info("Backing up world...")
-            backup.backup_world(server_name, world_path, backup_dir)
-        except Exception as e:
-            raise BackupWorldError(f"World backup failed {e}") from e
-
+        response = handlers.backup_world_handler(
+            server_name, base_dir, stop_start_server=change_status
+        )
     elif backup_type == "config":
         if not file_to_backup:
             raise MissingArgumentError(
                 "backup_server: file_to_backup is empty when backup_type is config."
             )
-
-        full_file_path = os.path.join(server_dir, file_to_backup)
-        logger.info(f"Backing up config file: {file_to_backup}")
-        try:
-            backup.backup_config_file(full_file_path, backup_dir)
-        except Exception as e:
-            raise FileOperationError(f"Config file backup failed: {e}") from e
+        response = handlers.backup_config_file_handler(
+            server_name, file_to_backup, base_dir, stop_start_server=change_status
+        )
     elif backup_type == "all":
-        logger.info("Performing full backup...")
-        try:
-            backup.backup_all(server_name, base_dir)
-            logger.info("All files backed up successfully.")
-        except Exception as e:
-            raise e
+        response = handlers.backup_all_handler(
+            server_name, base_dir, stop_start_server=change_status
+        )
     else:
         raise InvalidInputError(f"Invalid backup type: {backup_type}")
 
-    if change_status:
-        server_base.start_server_if_was_running(server_name, base_dir, was_running)
-    handle_prune_old_backups(
-        server_name, file_to_backup, settings.get("BACKUP_KEEP"), base_dir
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Backup completed successfully.")
+
+    # Prune old backups after the backup is complete.
+    prune_response = handlers.prune_old_backups_handler(
+        server_name, file_to_backup, base_dir=base_dir
     )
+    if prune_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}Error pruning old backups: {prune_response['message']}")
 
 
 def backup_menu(server_name, base_dir):
-    """Displays the backup menu and handles user input.
-
-    Raises:
-    InvalidServerNameError: If server_name is empty.
-    # Other exceptions may be raised by handle_backup_server or handle_backup_all
-
-    """
+    """Displays the backup menu and handles user input."""
 
     if not server_name:
         raise InvalidServerNameError("backup_menu: server_name is empty.")
 
     while True:
         print(f"{Fore.MAGENTA}What do you want to backup:{Style.RESET_ALL}")
-        print("1. Backup World")  # Using print for menu options.
+        print("1. Backup World")
         print("2. Backup Configuration File")
         print("3. Backup All")
         print("4. Cancel")
@@ -1523,13 +1035,10 @@ def backup_menu(server_name, base_dir):
         ).strip()
 
         if choice == "1":
-            try:
-                handle_backup_server(
-                    server_name, "world", "", True, base_dir
-                )  # change status true, let it raise
-            except Exception as e:
-                raise e
-            break  # Exit after backup
+            handle_backup_server(
+                server_name, "world", change_status=True, base_dir=base_dir
+            )  # Stop/start server
+            break
         elif choice == "2":
             print(
                 f"{Fore.MAGENTA}Select configuration file to backup:{Style.RESET_ALL}"
@@ -1547,113 +1056,71 @@ def backup_menu(server_name, base_dir):
             elif config_choice == "3":
                 file_to_backup = "server.properties"
             elif config_choice == "4":
-                logger.info("Backup operation canceled.")
+                print(f"{_INFO_PREFIX}Backup operation canceled.")
                 return  # User canceled
             else:
-                logger.warning("Invalid selection, please try again.")
+                print(f"{_WARN_PREFIX}Invalid selection, please try again.")
                 continue
-            try:
-                handle_backup_server(
-                    server_name, "config", file_to_backup, True, base_dir
-                )  # change status to true
-            except Exception as e:
-                raise e
-            break  # Exit menu
+            handle_backup_server(
+                server_name,
+                "config",
+                file_to_backup,
+                change_status=True,
+                base_dir=base_dir,
+            )  # Stop/Start
+            break
         elif choice == "3":
-            handle_backup_server(server_name, "all", base_dir)
-            break  # Exit menu
+            handle_backup_server(
+                server_name, "all", change_status=True, base_dir=base_dir
+            )  # Stop/Start
+            break
         elif choice == "4":
-            logger.info("Backup operation canceled.")
-            return  # User canceled
+            print(f"{_INFO_PREFIX}Backup operation canceled.")
+            return
         else:
-            logger.warning("Invalid selection, please try again.")
+            print(f"{_WARN_PREFIX}Invalid selection, please try again.")
 
 
 def handle_restore_server(
     server_name, backup_file, restore_type, change_status=True, base_dir=None
 ):
-    """Restores a server from a backup file (UI and workflow).
-
-    Args:
-        server_name (str): The name of the server.
-        backup_file (str): Path to the backup file.
-        restore_type (str): "all", "world" or "config".
-        change_status (bool): Whether to stop the server before restoring and restart afterwards.
-        base_dir (str): The base directory for servers.
-
-    Raises:
-        MissingArgumentError: If server_name, backup_file, or restore_type is empty.
-        InvalidServerNameError: if the server name is not valid.
-        InvalidInputError: If restore_type is invalid.
-        FileOperationError: If backup file does not exist.
-        # Other exceptions may be raised by called functions.
-    """
-    base_dir = get_base_dir(base_dir)
+    """Restores a server from a backup file."""
 
     if not server_name:
         raise InvalidServerNameError("restore_server: server_name is empty.")
     if not restore_type:
         raise MissingArgumentError("restore_server: restore_type is empty.")
 
-    was_running = False
-    if change_status:
-        was_running = server_base.stop_server_if_running(server_name, base_dir)
-
     if restore_type == "world":
         if not backup_file:
             raise MissingArgumentError("restore_server: backup_file is empty.")
-        if not os.path.exists(backup_file):
-            raise FileOperationError(f"Backup file '{backup_file}' not found!")
-        logger.info(f"Restoring world from {backup_file}...")
-        try:
-            backup.restore_server(
-                server_name, backup_file, restore_type, base_dir
-            )  # core function
-        except Exception as e:
-            raise e
-
+        response = handlers.restore_world_handler(
+            server_name, backup_file, base_dir, stop_start_server=change_status
+        )
     elif restore_type == "config":
         if not backup_file:
             raise MissingArgumentError("restore_server: backup_file is empty.")
-        if not os.path.exists(backup_file):
-            raise FileOperationError(f"Backup file '{backup_file}' not found!")
-        logger.info(f"Restoring config file: {os.path.basename(backup_file)}")
-        try:
-            backup.restore_server(
-                server_name, backup_file, restore_type, base_dir
-            )  # core function
-        except Exception as e:
-            raise e
-    elif restore_type == "all":
-        logger.info("Restoring all files...")
-        try:
-            backup.restore_all(server_name, base_dir)
-            logger.info("All restore operations completed.")
-        except Exception as e:
-            raise e
-    else:
-        raise InvalidInputError(
-            f"Invalid restore type in restore_server: {restore_type}"
+        response = handlers.restore_config_file_handler(
+            server_name, backup_file, base_dir, stop_start_server=change_status
         )
+    elif restore_type == "all":
+        response = handlers.restore_all_handler(
+            server_name, base_dir, stop_start_server=change_status
+        )
+    else:
+        raise InvalidInputError(f"Invalid restore type: {restore_type}")
 
-    if change_status:
-        server_base.start_server_if_was_running(server_name, base_dir, was_running)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Restoration completed successfully.")
 
 
 def restore_menu(server_name, base_dir):
-    """Displays the restore menu and handles user interaction.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        # Other exceptions may be raised by handle_restore_server or handle_restore_all
-    """
+    """Displays the restore menu and handles user interaction."""
 
     if not server_name:
         raise InvalidServerNameError("restore_menu: server_name is empty.")
-    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-    if not os.path.isdir(backup_dir):
-        logger.warning(f"No backups found for {server_name}.")
-        return  # Not an error if no backups exist
 
     while True:
         print(f"{Fore.MAGENTA}Select the type of backup to restore:{Style.RESET_ALL}")
@@ -1665,149 +1132,99 @@ def restore_menu(server_name, base_dir):
         choice = input(
             f"{Fore.CYAN}What do you want to restore:{Style.RESET_ALL} "
         ).strip()
-
         if choice == "1":
             restore_type = "world"
-            # Gather world backups
-            backup_files = glob.glob(os.path.join(backup_dir, "*.mcworld"))
-            if not backup_files:
-                logger.warning("No world backups found.")
-                return  # Return to main menu
-
         elif choice == "2":
             restore_type = "config"
-            # Gather config backups
-            backup_files = glob.glob(os.path.join(backup_dir, "*_backup_*.json"))
-            backup_files += glob.glob(
-                os.path.join(backup_dir, "server_backup_*.properties")
-            )
-            if not backup_files:
-                logger.warning("No configuration backups found.")
-                return  # Return to main menu
         elif choice == "3":
-            handle_restore_server(
-                server_name, None, "all", base_dir
-            )  # Let it raise exceptions
+            handle_restore_server(server_name, None, "all", base_dir=base_dir)
             return
         elif choice == "4":
-            logger.info("Restore operation canceled.")
+            print(f"{_INFO_PREFIX}Restore operation canceled.")
             return  # User canceled
         else:
-            logger.warning("Invalid selection. Please choose again.")
-            continue  # Invalid option for restore type, go back to the menu
+            print(f"{_WARN_PREFIX}Invalid selection. Please choose again.")
+            continue
 
-        # Valid option, ask for specific file.
-        break  # Valid option to proceed
+        # List available backups (using the handler)
+        list_response = handlers.list_backups_handler(
+            server_name, restore_type, base_dir
+        )
+        if list_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{list_response['message']}")
+            return  # Exit if no backups found
 
-    # Create a numbered list of backup files
-    backup_map = {}
-    print(f"{Fore.MAGENTA}Available backups:{Style.RESET_ALL}")
-    for i, file in enumerate(backup_files):
-        backup_map[i + 1] = file
-        print(f"{i + 1}. {os.path.basename(file)}")
-    print(f"{len(backup_map) + 1}. Cancel")  # Add a cancel option
+        backup_files = list_response["backups"]
 
-    while True:
-        try:
-            choice = int(
-                input(
-                    f"{Fore.CYAN}Select a backup to restore (1-{len(backup_map) + 1}):{Style.RESET_ALL} "
-                ).strip()
-            )
-            if 1 <= choice <= len(backup_map):
-                selected_file = backup_map[choice]
-                handle_restore_server(
-                    server_name, selected_file, restore_type, True, base_dir
-                )  # Let it raise
-                return
-            elif choice == len(backup_map) + 1:
-                logger.info("Restore operation canceled.")
-                return  # User canceled
+        # Create a numbered list of backup files (CLI-specific)
+        backup_map = {}
+        print(f"{Fore.MAGENTA}Available backups:{Style.RESET_ALL}")
+        for i, file in enumerate(backup_files):
+            backup_map[i + 1] = file
+            print(f"{i + 1}. {os.path.basename(file)}")
+        print(f"{len(backup_map) + 1}. Cancel")  # Add a cancel option
 
-            else:
-                logger.warning("Invalid selection. Please choose again.")
-        except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+        while True:
+            try:
+                choice = int(
+                    input(
+                        f"{Fore.CYAN}Select a backup to restore (1-{len(backup_map) + 1}):{Style.RESET_ALL} "
+                    ).strip()
+                )
+                if 1 <= choice <= len(backup_map):
+                    selected_file = backup_map[choice]
+                    handle_restore_server(
+                        server_name, selected_file, restore_type, True, base_dir
+                    )  # Stop/Start
+                    return
+                elif choice == len(backup_map) + 1:
+                    print(f"{_INFO_PREFIX}Restore operation canceled.")
+                    return  # User canceled
+                else:
+                    print(f"{_WARN_PREFIX}Invalid selection. Please choose again.")
+            except ValueError:
+                print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
 
 def handle_install_addon(server_name, addon_file, base_dir=None):
-    """Handles the installation of an addon, including stopping/starting the server.
-
-    Args:
-        server_name (str): The name of the server.
-        addon_file (str): The path to the addon file.  Can be None if the user
-                         is selecting from the content directory.
-        base_dir (str): The base directory for servers.
-    Raises:
-        InvalidServerNameError: If server name is empty.
-        MissingArgumentError: If add_on file is empty.
-        # Other exceptions may be raised by called functions.
-    """
-    base_dir = get_base_dir(base_dir)
+    """Handles the installation of an addon, including stopping/starting the server."""
 
     if not server_name:
         raise InvalidServerNameError("handle_install_addon: server_name is empty.")
 
-    if not addon_file:
-        raise MissingArgumentError("Addon file cannot be None")
-
-    logger.info(f"Installing addon {addon_file}...")
-
-    was_running = server_base.stop_server_if_running(server_name, base_dir)
-
-    try:
-        addon.process_addon(addon_file, server_name, base_dir)
-    except Exception as e:
-        raise e
-
-    server_base.start_server_if_was_running(server_name, base_dir, was_running)
-
-    logger.info(f"Installed addon to {server_name}")
+    response = handlers.install_addon_handler(server_name, addon_file, base_dir)
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Addon installed successfully.")
 
 
 def install_worlds(server_name, base_dir=None, content_dir=None):
-    """Provides a menu to select and install .mcworld files.
+    """Provides a menu to select and install .mcworld files."""
+    if not server_name:
+        raise InvalidServerNameError("install_worlds: server_name is empty.")
 
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory where servers are stored.
-        content_dir (str): The directory where the content is located.
-    Raises:
-        InvalidServerNameError: if server_name is empty.
-        DirectoryError: If content_dir does not exist
-        # Other exceptions may be raised by handle_extract_world
-
-    """
     base_dir = get_base_dir(base_dir)
-
     if content_dir is None:
         content_dir = settings.get("CONTENT_DIR")
         content_dir = os.path.join(content_dir, "worlds")
 
-    if not server_name:
-        raise InvalidServerNameError("install_worlds: server_name is empty.")
-
-    if not os.path.isdir(content_dir):
-        logger.warning(
-            f"Content directory not found: {content_dir}.  No worlds to install."
-        )
+    # Use the handler to list files
+    list_response = handlers.list_content_files_handler(content_dir, ["mcworld"])
+    if list_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{list_response['message']}")
         return
 
-    # Use glob to find .mcworld files.
-    mcworld_files = glob.glob(os.path.join(content_dir, "*.mcworld"))
+    mcworld_files = list_response["files"]
 
-    if not mcworld_files:
-        logger.warning(f"No .mcworld files found in {content_dir}")
-        return
-
-    # Create a list of base file names.
+    # Create a list of base file names
     file_names = [os.path.basename(file) for file in mcworld_files]
 
     # Display the menu and get user selection
-    print(f"{Fore.MAGENTA}Available worlds to install:{Style.RESET_ALL}")
+    print(f"{_INFO_PREFIX}Available worlds to install:{Style.RESET_ALL}")
     for i, file_name in enumerate(file_names):
         print(f"{i + 1}. {file_name}")
-    print(f"{len(file_names) + 1}. Cancel")  # Add a cancel option
+    print(f"{len(file_names) + 1}. Cancel")
 
     while True:
         try:
@@ -1820,15 +1237,15 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
                 selected_file = mcworld_files[choice - 1]
                 break  # Valid choice
             elif choice == len(file_names) + 1:
-                logger.info("World installation canceled.")
+                print(f"{_INFO_PREFIX}World installation canceled.")
                 return  # User canceled
             else:
-                logger.warning("Invalid selection. Please choose a valid option.")
+                print(f"{_WARN_PREFIX}Invalid selection. Please choose a valid option.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     # Confirm deletion of existing world.
-    logger.warning("Installing a new world will DELETE the existing world!")
+    print(f"{_WARN_PREFIX}Installing a new world will DELETE the existing world!")
     while True:
         confirm_choice = (
             input(
@@ -1840,69 +1257,48 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
         if confirm_choice in ("yes", "y"):
             break
         elif confirm_choice in ("no", "n"):
-            logger.info("World installation canceled.")
+            print(f"{_INFO_PREFIX}World installation canceled.")
             return  # User canceled
         else:
             print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
-    handle_extract_world(server_name, selected_file, base_dir)  # raise errors
+    # Use handler to extract the world
+    extract_response = handlers.extract_world_handler(
+        server_name, selected_file, base_dir
+    )  # Always stop/start
+    if extract_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{extract_response['message']}")
+    else:
+        print(f"{_OK_PREFIX}World extracted successfully.")
 
 
 def install_addons(server_name, base_dir, content_dir=None):
-    """Installs addons (.mcaddon or .mcpack files) to the server.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): Base directory
-        content_dir (str): The directory where the content is located.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        DirectoryError: If content_dir does not exist
-        # Other exceptions may be raised by show_addon_selection_menu
-    """
-
-    if content_dir is None:
-        content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
+    """Installs addons (.mcaddon or .mcpack files) to the server."""
 
     if not server_name:
         raise InvalidServerNameError("install_addons: server_name is empty.")
 
-    if not os.path.isdir(content_dir):
-        logger.warning(
-            f"Addon directory not found: {content_dir}.  No addons to install."
-        )
-        return
+    base_dir = get_base_dir(base_dir)
+    if content_dir is None:
+        content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
 
-    # Use glob to find .mcaddon and .mcpack files
-    addon_files = glob.glob(os.path.join(content_dir, "*.mcaddon")) + glob.glob(
-        os.path.join(content_dir, "*.mcpack")
+    # Use handler to list files
+    list_response = handlers.list_content_files_handler(
+        content_dir, ["mcaddon", "mcpack"]
     )
-
-    if not addon_files:
-        logger.warning(f"No .mcaddon or .mcpack files found in {content_dir}")
+    if list_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{list_response['message']}")
         return
 
-    show_addon_selection_menu(server_name, addon_files, base_dir)  # Let it raise
+    addon_files = list_response["files"]
+    show_addon_selection_menu(server_name, addon_files, base_dir)
 
 
 def show_addon_selection_menu(server_name, addon_files, base_dir):
-    """Displays the addon selection menu and processes the selected addon.
-
-    Args:
-        server_name (str): The name of the server.
-        addon_files (list): A list of paths to addon files.
-        base_dir (str): Base directory.
-
-    Raises:
-        InvalidServerNameError: If server_name is empty.
-        MissingArgumentError: If addon_files is empty.
-        # Other exceptions may be raised by process_addon
-    """
+    """Displays the addon selection menu and processes the selected addon."""
 
     if not server_name:
         raise InvalidServerNameError("show_addon_selection_menu: server_name is empty.")
-
     if not addon_files:
         raise MissingArgumentError(
             "show_addon_selection_menu: addon_files array is empty."
@@ -1910,7 +1306,7 @@ def show_addon_selection_menu(server_name, addon_files, base_dir):
 
     addon_names = [os.path.basename(file) for file in addon_files]
 
-    print(f"{Fore.MAGENTA}Available addons to install:{Style.RESET_ALL}")
+    print(f"{_INFO_PREFIX}Available addons to install:{Style.RESET_ALL}")
     for i, addon_name in enumerate(addon_names):
         print(f"{i + 1}. {addon_name}")
     print(f"{len(addon_names) + 1}. Cancel")  # Add cancel option
@@ -1926,78 +1322,38 @@ def show_addon_selection_menu(server_name, addon_files, base_dir):
                 selected_addon = addon_files[choice - 1]  # Use passed in files
                 break  # Valid choice
             elif choice == len(addon_names) + 1:
-                logger.info("Addon installation canceled.")
+                print(f"{_INFO_PREFIX}Addon installation canceled.")
                 return  # User canceled
             else:
-                logger.warning("Invalid selection. Please choose a valid option.")
+                print(f"{_WARN_PREFIX}Invalid selection. Please choose a valid option.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
-    logger.info(f"Processing addon: {addon_names[choice-1]}")
-
-    was_running = server_base.stop_server_if_running(server_name, base_dir)  # use core
-    try:
-        addon.process_addon(selected_addon, server_name, base_dir)  # Call core
-    except Exception as e:
-        raise e
-    server_base.start_server_if_was_running(
-        server_name, base_dir, was_running
-    )  # use core
+    # Use the *handler* to install the addon
+    install_response = handlers.install_addon_handler(
+        server_name, selected_addon, base_dir
+    )  # Always stop/start
+    if install_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{install_response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Addon installed successfully.")
 
 
 def scan_player_data(base_dir=None, config_dir=None):
     """Scans server_output.txt files for player data and saves it to players.json."""
 
-    base_dir = get_base_dir(base_dir)
-    if config_dir is None:
-        config_dir = settings._config_dir
-    logger.info("Scanning for Players")
-    all_players_data = []
+    response = handlers.scan_player_data_handler(base_dir, config_dir)
 
-    if not os.path.isdir(base_dir):
-        raise DirectoryError(f"Error: {base_dir} does not exist or is not a directory.")
-
-    for server_folder in glob.glob(os.path.join(base_dir, "*/")):
-        server_name = os.path.basename(os.path.normpath(server_folder))
-        logger.info(f"Processing {server_name}")
-        log_file = os.path.join(server_folder, "server_output.txt")
-
-        if not os.path.exists(log_file):
-            logger.warning(f"Log file not found for {server_name}, skipping.")
-            continue
-
-        players_data = player.scan_log_for_players(log_file)  # Call core function
-        if players_data:
-            logger.info(f"Found Players in {server_name}")
-            all_players_data.extend(players_data)
-        else:
-            logger.info(f"No players found in {server_name}, skipping.")
-
-    if all_players_data:
-        try:
-            player.save_players_to_json(
-                all_players_data, config_dir
-            )  # Call core function
-        except Exception as e:
-            raise FileOperationError(f"Error saving player data: {e}") from e
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    elif response["players_found"]:
+        print(f"{_OK_PREFIX}Player data scanned and saved successfully.")
     else:
-        logger.info("No player data found across all servers.")
+        print(f"{_OK_PREFIX}No player data found.")
 
 
 def task_scheduler(server_name, base_dir=None):
-    """Displays the task scheduler menu and handles user interaction.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
-
-    Returns:
-        None
-
-    Raises:
-        InvalidServerNameError: If the server name is empty.
-        # Other exceptions may be raised by the called functions.
-    """
+    """Displays the task scheduler menu and handles user interaction."""
     base_dir = get_base_dir(base_dir)
 
     if not server_name:
@@ -2008,23 +1364,12 @@ def task_scheduler(server_name, base_dir=None):
     elif platform.system() == "Windows":
         _windows_scheduler(server_name, base_dir, config_dir=None)
     else:
-        logger.error("Unsupported operating system for task scheduling.")
+        print(f"{_ERROR_PREFIX}Unsupported operating system for task scheduling.")
         raise OSError("Unsupported operating system for task scheduling")
 
 
 def _cron_scheduler(server_name, base_dir):
-    """Displays the cron scheduler menu and handles user interaction.
-
-    Args:
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
-
-    Returns:
-        None
-    Raises:
-        InvalidServerNameError, if server_name is empty
-        # Other exceptions may be raised by the called functions.
-    """
+    """Displays the cron scheduler menu and handles user interaction."""
     if not server_name:
         raise InvalidServerNameError("cron_scheduler: server_name is empty.")
 
@@ -2035,19 +1380,22 @@ def _cron_scheduler(server_name, base_dir):
             f"{Fore.CYAN}Current scheduled task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
 
-        try:
-            cron_jobs = system_linux.get_server_cron_jobs(server_name)  # core function
-        except Exception as e:
-            logger.exception(f"Failed to retrieve cron jobs for {server_name}: {e}")
+        # Get cron jobs using the handler
+        cron_jobs_response = handlers.get_server_cron_jobs_handler(server_name)
+        if cron_jobs_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{cron_jobs_response['message']}")
             time.sleep(2)
             continue
 
+        cron_jobs = cron_jobs_response["cron_jobs"]
+
+        # Display cron jobs using the handler to format the table
         if display_cron_job_table(cron_jobs) != 0:
-            logger.error("Failed to display cron job table")
+            print(f"{_ERROR_PREFIX}Failed to display cron jobs.")
             time.sleep(2)
             continue
 
-        print(f"{Fore.MAGENTA}What would you like to do?{Style.RESET_ALL}")
+        print(f"{_INFO_PREFIX}What would you like to do?{Style.RESET_ALL}")
         print("1) Add Job")
         print("2) Modify Job")
         print("3) Delete Job")
@@ -2056,57 +1404,46 @@ def _cron_scheduler(server_name, base_dir):
         choice = input(f"{Fore.CYAN}Enter the number (1-4):{Style.RESET_ALL} ").strip()
 
         if choice == "1":
-            try:
-                add_cron_job(server_name, base_dir)  # call core
-            except Exception as e:
-                logger.exception(f"Error adding cron job: {e}")
+            add_cron_job(server_name, base_dir)
         elif choice == "2":
-            try:
-                modify_cron_job(server_name)  # Call core function
-            except Exception as e:
-                logger.exception(f"Error modifying cron job: {e}")
+            modify_cron_job(server_name, base_dir)
         elif choice == "3":
-            try:
-                delete_cron_job(server_name)  # call core function
-            except Exception as e:
-                logger.exception(f"Error deleting cron job: {e}")
+            delete_cron_job(server_name, base_dir)
         elif choice == "4":
             return  # Exit the menu
         else:
-            logger.warning("Invalid choice. Please try again.")
+            print(f"{_WARN_PREFIX}Invalid choice. Please try again.")
 
 
 def display_cron_job_table(cron_jobs):
     """Displays a table of cron jobs.  Returns 0 on success, non-zero on failure."""
+    # Use the handler to get formatted table data
+    table_response = handlers.get_cron_jobs_table_handler(cron_jobs)
 
-    if not cron_jobs:
-        logger.info("No cron jobs to display.")
-        return 0  # Return 0 for success (no jobs is still a valid state)
-
-    try:
-        table_data = system_linux.get_cron_jobs_table(cron_jobs)
-        if not table_data:
-            logger.info("No valid cron jobs to display.")
-            return 0  # Return 0 (no *valid* jobs, but not an error)
-
-        print("-------------------------------------------------------")
-        print(f"{'CRON JOBS':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
-        print("-------------------------------------------------------")
-
-        for job in table_data:
-            print(
-                f"{Fore.GREEN}{job['minute']} {job['hour']} {job['day_of_month']} {job['month']} {job['day_of_week']}{Style.RESET_ALL}".ljust(
-                    15
-                )
-                + f"{Fore.CYAN}{job['schedule_time']:<25}{Style.RESET_ALL} {Fore.YELLOW}{job['command']}{Style.RESET_ALL}"
-            )
-
-        print("-------------------------------------------------------")
-        return 0  # Success
-
-    except Exception as e:
-        logger.exception(f"Error displaying cron job table: {e}")
+    if table_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{table_response['message']}")
         return 1  # Indicate failure
+
+    table_data = table_response["table_data"]
+
+    if not table_data:
+        print(f"{_INFO_PREFIX}No cron jobs to display.")
+        return 0
+
+    print("-------------------------------------------------------")
+    print(f"{'CRON JOBS':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
+    print("-------------------------------------------------------")
+
+    for job in table_data:
+        print(
+            f"{Fore.GREEN}{job['minute']} {job['hour']} {job['day_of_month']} {job['month']} {job['day_of_week']}{Style.RESET_ALL}".ljust(
+                15
+            )
+            + f"{Fore.CYAN}{job['schedule_time']:<25}{Style.RESET_ALL} {Fore.YELLOW}{job['command']}{Style.RESET_ALL}"
+        )
+
+    print("-------------------------------------------------------")
+    return 0
 
 
 def add_cron_job(server_name, base_dir):
@@ -2115,10 +1452,11 @@ def add_cron_job(server_name, base_dir):
         raise InvalidServerNameError("add_cron_job: server_name is empty.")
 
     if platform.system() != "Linux":
-        raise OSError("Cron jobs are only supported on Linux.")
+        print(f"{_ERROR_PREFIX}Cron jobs are only supported on Linux.")
+        return
 
     print(
-        f"{Fore.MAGENTA}Choose the command for {Fore.YELLOW}{server_name}{Fore.MAGENTA}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Choose the command for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
     print("1) Update Server")
     print("2) Backup Server")
@@ -2135,9 +1473,9 @@ def add_cron_job(server_name, base_dir):
             if 1 <= choice <= 6:
                 break
             else:
-                logger.warning("Invalid choice, please try again.")
+                print(f"{_WARN_PREFIX}Invalid choice, please try again.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     if choice == 1:
         command = f"{settings.EXPATH} update-server --server {server_name}"
@@ -2152,48 +1490,58 @@ def add_cron_job(server_name, base_dir):
     elif choice == 6:
         command = f"{settings.EXPATH} scan-players"
 
-    # Get cron timing details. Use a single loop.
+    # Get cron timing details
     while True:
-        try:
-            month = input(f"{Fore.CYAN}Month (1-12 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(month, 1, 12)
+        month = input(f"{Fore.CYAN}Month (1-12 or *):{Style.RESET_ALL} ").strip()
+        month_response = handlers.validate_cron_input_handler(month, 1, 12)
+        if month_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{month_response['message']}")
+            continue
 
-            day = input(
-                f"{Fore.CYAN}Day of Month (1-31 or *):{Style.RESET_ALL} "
-            ).strip()
-            system_linux.validate_cron_input(day, 1, 31)
+        day = input(f"{Fore.CYAN}Day of Month (1-31 or *):{Style.RESET_ALL} ").strip()
+        day_response = handlers.validate_cron_input_handler(day, 1, 31)
+        if day_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{day_response['message']}")
+            continue
 
-            hour = input(f"{Fore.CYAN}Hour (0-23 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(hour, 0, 23)
+        hour = input(f"{Fore.CYAN}Hour (0-23 or *):{Style.RESET_ALL} ").strip()
+        hour_response = handlers.validate_cron_input_handler(hour, 0, 23)
+        if hour_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{hour_response['message']}")
+            continue
 
-            minute = input(f"{Fore.CYAN}Minute (0-59 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(minute, 0, 59)
+        minute = input(f"{Fore.CYAN}Minute (0-59 or *):{Style.RESET_ALL} ").strip()
+        minute_response = handlers.validate_cron_input_handler(minute, 0, 59)
+        if minute_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{minute_response['message']}")
+            continue
 
-            weekday = input(
-                f"{Fore.CYAN}Day of Week (0-7, 0 or 7 for Sunday or *):{Style.RESET_ALL} "
-            ).strip()
-            system_linux.validate_cron_input(weekday, 0, 7)
+        weekday = input(
+            f"{Fore.CYAN}Day of Week (0-7, 0 or 7 for Sunday or *):{Style.RESET_ALL} "
+        ).strip()
+        weekday_response = handlers.validate_cron_input_handler(weekday, 0, 7)
+        if weekday_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{weekday_response['message']}")
+            continue
 
-        except InvalidCronJobError as e:  # Catch the specific exception
-            logger.warning(e)
-            continue  # Go back to the beginning of the input loop
-        except Exception as e:  # Catch any other unexpected exceptions
-            logger.exception(f"Unexpected error during input: {e}")
-            return  # Or handle more gracefully
+        break  # All inputs are valid
 
-        break  # If no exceptions, break out of the input loop
-
-    schedule_time = system_linux.convert_to_readable_schedule(
+    # Get readable schedule time
+    schedule_response = handlers.convert_to_readable_schedule_handler(
         month, day, hour, minute, weekday
     )
-    if schedule_time is None:
-        schedule_time = "Error Converting"
-        logger.error("Error Converting Schedule")
+    if schedule_response["status"] == "error":
+        schedule_time = "ERROR CONVERTING"
+        print(
+            f"{_ERROR_PREFIX}Error converting schedule: {schedule_response['message']}"
+        )
+    else:
+        schedule_time = schedule_response["schedule_time"]
 
     display_command = command.replace(os.path.join(settings.EXPATH), "").strip()
     display_command = display_command.split("--", 1)[0].strip()
     print(
-        f"{Fore.MAGENTA}Your cron job will run with the following schedule:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Your cron job will run with the following schedule:{Style.RESET_ALL}"
     )
     print("-------------------------------------------------------")
     print(f"{'CRON JOB':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
@@ -2212,36 +1560,38 @@ def add_cron_job(server_name, base_dir):
         )
         if confirm in ("yes", "y"):
             new_cron_job = f"{minute} {hour} {day} {month} {weekday} {command}"
-            try:
-                system_linux._add_cron_job(new_cron_job)
-                logger.info("Cron job added successfully!")
-                return  # Exit after adding
-            except Exception as e:
-                logger.exception(f"Error adding cron job: {e}")
-                return
+            # Call the handler to add the cron job
+            add_response = handlers.add_cron_job_handler(new_cron_job)
+            if add_response["status"] == "error":
+                print(f"{_ERROR_PREFIX}{add_response['message']}")
+            else:
+                print(f"{_OK_PREFIX}Cron job added successfully!")
+            return
         elif confirm in ("no", "n", ""):
-            logger.info("Cron job not added.")
+            print(f"{_INFO_PREFIX}Cron job not added.")
             return
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
 
-def modify_cron_job(server_name):
+def modify_cron_job(server_name, base_dir):
     """Modifies an existing cron job."""
 
     if not server_name:
         raise InvalidServerNameError("modify_cron_job: server_name is empty.")
 
     print(
-        f"{Fore.MAGENTA}Current scheduled cron jobs for {Fore.YELLOW}{server_name}{Fore.MAGENTA}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Current scheduled cron jobs for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
+    # Get cron jobs (use handler)
+    cron_jobs_response = handlers.get_server_cron_jobs_handler(server_name)
+    if cron_jobs_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{cron_jobs_response['message']}")
+        return
 
-    try:
-        cron_jobs = system_linux.get_server_cron_jobs(server_name)
-    except Exception as e:
-        raise e
+    cron_jobs = cron_jobs_response["cron_jobs"]
     if not cron_jobs:
-        logger.info("No scheduled cron jobs found to modify.")
+        print(f"{_INFO_PREFIX}No scheduled cron jobs found to modify.")
         return
 
     for i, line in enumerate(cron_jobs):
@@ -2258,58 +1608,69 @@ def modify_cron_job(server_name):
                 job_to_modify = cron_jobs[job_number - 1]
                 break
             else:
-                logger.warning("Invalid selection. Please choose a valid number.")
+                print(f"{_WARN_PREFIX}Invalid selection. Please choose a valid number.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     # Extract the command part
     job_command = " ".join(job_to_modify.split()[5:])
 
     print(
-        f"{Fore.MAGENTA}Modify the timing details for this cron job:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Modify the timing details for this cron job:{Style.RESET_ALL}"
     )
-    while True:  # Single Loop
-        try:
-            month = input(f"{Fore.CYAN}Month (1-12 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(month, 1, 12)
+    # Get cron timing details (UI)
+    while True:
+        month = input(f"{Fore.CYAN}Month (1-12 or *):{Style.RESET_ALL} ").strip()
+        month_response = handlers.validate_cron_input_handler(month, 1, 12)
+        if month_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{month_response['message']}")
+            continue
 
-            day = input(
-                f"{Fore.CYAN}Day of Month (1-31 or *):{Style.RESET_ALL} "
-            ).strip()
-            system_linux.validate_cron_input(day, 1, 31)
+        day = input(f"{Fore.CYAN}Day of Month (1-31 or *):{Style.RESET_ALL} ").strip()
+        day_response = handlers.validate_cron_input_handler(day, 1, 31)
+        if day_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{day_response['message']}")
+            continue
 
-            hour = input(f"{Fore.CYAN}Hour (0-23 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(hour, 0, 23)
+        hour = input(f"{Fore.CYAN}Hour (0-23 or *):{Style.RESET_ALL} ").strip()
+        hour_response = handlers.validate_cron_input_handler(hour, 0, 23)
+        if hour_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{hour_response['message']}")
+            continue
 
-            minute = input(f"{Fore.CYAN}Minute (0-59 or *):{Style.RESET_ALL} ").strip()
-            system_linux.validate_cron_input(minute, 0, 59)
+        minute = input(f"{Fore.CYAN}Minute (0-59 or *):{Style.RESET_ALL} ").strip()
+        minute_response = handlers.validate_cron_input_handler(minute, 0, 59)
+        if minute_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{minute_response['message']}")
+            continue
 
-            weekday = input(
-                f"{Fore.CYAN}Day of Week (0-7, 0 or 7 for Sunday or *):{Style.RESET_ALL} "
-            ).strip()
-            system_linux.validate_cron_input(weekday, 0, 7)
+        weekday = input(
+            f"{Fore.CYAN}Day of Week (0-7, 0 or 7 for Sunday or *):{Style.RESET_ALL} "
+        ).strip()
+        weekday_response = handlers.validate_cron_input_handler(weekday, 0, 7)
+        if weekday_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{weekday_response['message']}")
+            continue
 
-        except InvalidCronJobError as e:
-            logger.warning(e)
-            continue  # Go back to the beginning of the input loop
-        except Exception as e:  # Catch all other errors
-            logger.exception(f"Unexpected error: {e}")
-            return
+        break  # All inputs are valid
 
-        break  # Break if all inputs are valid
-
-    schedule_time = system_linux.convert_to_readable_schedule(
+    # Get readable schedule time
+    schedule_response = handlers.convert_to_readable_schedule_handler(
         month, day, hour, minute, weekday
     )
-    if schedule_time is None:
+    if schedule_response["status"] == "error":
         schedule_time = "ERROR CONVERTING"
-        logger.error("Error Converting Schedule")
+        print(
+            f"{_ERROR_PREFIX}Error converting schedule: {schedule_response['message']}"
+        )
+    else:
+        schedule_time = schedule_response["schedule_time"]
 
-    # Format command
+    # Format command (UI-specific formatting)
     display_command = job_command.replace(os.path.join(settings.EXPATH), "").strip()
     display_command = display_command.split("--", 1)[0].strip()
     print(
-        f"{Fore.MAGENTA}Your modified cron job will run with the following schedule:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Your modified cron job will run with the following schedule:{Style.RESET_ALL}"
     )
     print("-------------------------------------------------------")
     print(f"{'CRON JOB':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
@@ -2324,44 +1685,44 @@ def modify_cron_job(server_name):
 
     while True:
         confirm = (
-            input(
-                f"{Fore.CYAN}Do you want to modify this job? (y/n):{Style.RESET_ALL} "
-            )
-            .lower()
-            .strip()
+            input(f"{Fore.CYAN}Do you want to modify this job? (y/n): ").lower().strip()
         )
         if confirm in ("yes", "y"):
             new_cron_job = f"{minute} {hour} {day} {month} {weekday} {job_command}"
-            try:
-                system_linux._modify_cron_job(job_to_modify, new_cron_job)
-                logger.info("Cron job modified successfully!")
-                return  # Success and exit
-            except Exception as e:
-                logger.exception(f"Error modifying cron job: {e}")
-                return  # Exit if fail
+            # Call the handler to modify the cron job
+            modify_response = handlers.modify_cron_job_handler(
+                job_to_modify, new_cron_job
+            )
+            if modify_response["status"] == "error":
+                print(f"{_ERROR_PREFIX}{modify_response['message']}")
+            else:
+                print(f"{_OK_PREFIX}Cron job modified successfully!")
+            return
+
         elif confirm in ("no", "n", ""):
-            logger.info("Cron job not modified.")
+            print(f"{_INFO_PREFIX}Cron job not modified.")
             return
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
 
-def delete_cron_job(server_name):
-    """Deletes a cron job for the specified server. (UI)"""
+def delete_cron_job(server_name, base_dir):
+    """Deletes a cron job for the specified server."""
 
     if not server_name:
         raise InvalidServerNameError("delete_cron_job: server_name is empty.")
 
     print(
-        f"{Fore.CYAN}Current scheduled cron jobs for {Fore.YELLOW}{server_name}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Current scheduled cron jobs for {Fore.YELLOW}{server_name}:{Style.RESET_ALL}"
     )
 
-    try:
-        cron_jobs = system_linux.get_server_cron_jobs(server_name)
-    except Exception as e:
-        logger.exception(f"Failed to retrieve cron jobs for {server_name}: {e}")
+    # Get cron jobs (use handler)
+    cron_jobs_response = handlers.get_server_cron_jobs_handler(server_name)
+    if cron_jobs_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{cron_jobs_response['message']}")
         return
 
+    cron_jobs = cron_jobs_response["cron_jobs"]
     if not cron_jobs:
         print(f"{_INFO_PREFIX}No scheduled cron jobs found to delete.")
         return
@@ -2381,7 +1742,7 @@ def delete_cron_job(server_name):
                 job_to_delete = cron_jobs[job_number - 1]
                 break
             elif job_number == len(cron_jobs) + 1:
-                print(f"{_OK_PREFIX}Cron job deletion canceled.")
+                print(f"{_INFO_PREFIX}Cron job deletion canceled.")
                 return  # User canceled
             else:
                 print(f"{_WARN_PREFIX}Invalid selection. No matching cron job found.")
@@ -2397,17 +1758,18 @@ def delete_cron_job(server_name):
             .strip()
         )
         if confirm_delete in ("y", "yes"):
-            try:
-                system_linux._delete_cron_job(job_to_delete)  # use core function
-            except Exception as e:
-                raise e
-            logger.info("Cron job deleted successfully!")
-            return  # Return the result.
+            # Call the handler to delete the cron job
+            delete_response = handlers.delete_cron_job_handler(job_to_delete)
+            if delete_response["status"] == "error":
+                print(f"{_ERROR_PREFIX}{delete_response['message']}")
+            else:
+                print(f"{_OK_PREFIX}Cron job deleted successfully!")
+            return
         elif confirm_delete in ("n", "no", ""):
-            logger.info("Cron job not deleted.")
+            print(f"{_INFO_PREFIX}Cron job not deleted.")
             return  # User canceled
         else:
-            logger.warning("Invalid input. Please answer 'yes' or 'no'.")
+            print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
 
 def _windows_scheduler(server_name, base_dir, config_dir=None):
@@ -2428,13 +1790,23 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
             f"{Fore.CYAN}Current scheduled tasks for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
 
-        task_names = system_windows.get_server_task_names(server_name, config_dir)
+        # Get task names using the handler
+        task_names_response = handlers.get_server_task_names_handler(
+            server_name, config_dir
+        )
+        if task_names_response["status"] == "error":
+            print(f"{_ERROR_PREFIX}{task_names_response['message']}")
+            time.sleep(2)
+            continue  # go back to main menu
+
+        task_names = task_names_response["task_names"]
+
         if not task_names:
-            print("No scheduled tasks found.")
+            print(f"{_INFO_PREFIX}No scheduled tasks found.")
         else:
             display_windows_task_table(task_names)
 
-        print(f"{Fore.MAGENTA}What would you like to do?{Style.RESET_ALL}")
+        print(f"{_INFO_PREFIX}What would you like to do?{Style.RESET_ALL}")
         print("1) Add Task")
         print("2) Modify Task")
         print("3) Delete Task")
@@ -2447,28 +1819,27 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
             elif choice == "2":
                 modify_windows_task(server_name, base_dir, config_dir)
             elif choice == "3":
-                delete_windows_task(server_name, config_dir)
+                delete_windows_task(server_name, base_dir, config_dir)
             elif choice == "4":
                 return  # Exit the menu
             else:
-                logger.warning("Invalid choice. Please try again.")
+                print(f"{_WARN_PREFIX}Invalid choice. Please try again.")
         except Exception as e:
-            logger.exception(f"An error has occurred: {e}")
+            print(f"{_ERROR_PREFIX}An error has occurred: {e}")
 
 
 def display_windows_task_table(task_names):
-    """Displays a table of Windows scheduled tasks.
+    """Displays a table of Windows scheduled tasks."""
 
-     Args:
-        task_names (list): A list of task names,
-                          as returned by get_server_task_names
-    Raises:
-        TypeError: if task_names is not a list
-    """
-    if not isinstance(task_names, list):
-        raise TypeError("task_names must be a list")
+    # Use the handler to get detailed task information
+    task_info_response = handlers.get_windows_task_info_handler(
+        [task[0] for task in task_names]
+    )
+    if task_info_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{task_info_response['message']}")
+        return
 
-    task_info = system_windows.get_windows_task_info([task[0] for task in task_names])
+    task_info = task_info_response["task_info"]
 
     print(
         "-------------------------------------------------------------------------------"
@@ -2480,7 +1851,7 @@ def display_windows_task_table(task_names):
 
     for task in task_info:
         print(
-            f"{Fore.GREEM}{task['task_name']:<30}{Fore.YELLOW}{task['command']:<25}{Fore.CYAN}{task['schedule']:<20}{Style.RESET_ALL}"
+            f"{Fore.GREEN}{task['task_name']:<30}{Fore.YELLOW}{task['command']:<25}{Fore.CYAN}{task['schedule']:<20}{Style.RESET_ALL}"
         )
     print(
         "-------------------------------------------------------------------------------"
@@ -2494,18 +1865,17 @@ def add_windows_task(server_name, base_dir, config_dir=None):
         raise InvalidServerNameError("add_windows_task: server_name is empty.")
 
     if platform.system() != "Windows":
-        raise OSError("This function is for Windows only.")
+        print(f"{_ERROR_PREFIX}This function is for Windows only.")
+        return
 
     if config_dir is None:
         config_dir = settings._config_dir
 
     print(
-        f"{Fore.MAGENTA}Adding task for {Fore.YELLOW}{server_name}{Fore.MAGENTA}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Adding task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
 
-    print(
-        f"{Fore.MAGENTA}Choose the command:{Style.RESET_ALL}"
-    )  # Keep print for direct user prompts
+    print(f"{_INFO_PREFIX}Choose the command:{Style.RESET_ALL}")
     print("1) Update Server")
     print("2) Backup Server")
     print("3) Start Server")
@@ -2522,18 +1892,18 @@ def add_windows_task(server_name, base_dir, config_dir=None):
             if 1 <= choice <= 6:
                 break
             elif choice == 7:
-                logger.info("Add task cancelled.")
+                print(f"{_INFO_PREFIX}Add task cancelled.")
                 return  # User cancelled
             else:
-                logger.warning("Invalid choice, please try again.")
+                print(f"{_WARN_PREFIX}Invalid choice, please try again.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     if choice == 1:
         command = "update-server"
         command_args = f"--server {server_name}"
     elif choice == 2:
-        command = "backup-all"  # Use backup-all
+        command = "backup-all"
         command_args = f"--server {server_name}"
     elif choice == 3:
         command = "start-server"
@@ -2552,25 +1922,24 @@ def add_windows_task(server_name, base_dir, config_dir=None):
         f"bedrock_{server_name}_{command.replace('-', '_')}"  # Create a task name
     )
 
-    # Get trigger information from the user *here*
+    # Get trigger information from the user
     triggers = get_trigger_details()
 
-    # Call core function to create the task XML
-    try:
-        xml_file_path = system_windows.create_windows_task_xml(
-            server_name, command, command_args, task_name, config_dir, triggers
-        )
-        system_windows.import_task_xml(xml_file_path, task_name)  # core function
-        logger.info(f"Task '{task_name}' added successfully!")
-    except Exception as e:
-        raise e  # Re-raise any exception
+    # Call the handler to create the task
+    create_response = handlers.create_windows_task_handler(
+        server_name, command, command_args, task_name, config_dir, triggers, base_dir
+    )
+    if create_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{create_response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Task '{task_name}' added successfully!")
 
 
 def get_trigger_details():
     """Gets trigger information from the user interactively."""
     triggers = []
     while True:
-        print(f"{Fore.MAGENTA}Choose a trigger type:{Style.RESET_ALL}")
+        print(f"{_INFO_PREFIX}Choose a trigger type:{Style.RESET_ALL}")
         print("1) One Time")
         print("2) Daily")
         print("3) Weekly")
@@ -2595,7 +1964,9 @@ def get_trigger_details():
                     trigger_data["start"] = start_boundary_dt.isoformat()
                     break  # Valid input
                 except ValueError:
-                    logger.error("Incorrect format, please use YYYY-MM-DD HH:MM")
+                    print(
+                        f"{_ERROR_PREFIX}Incorrect format, please use YYYY-MM-DD HH:MM"
+                    )
             triggers.append(trigger_data)
 
         elif trigger_choice == "2":  # Daily
@@ -2611,7 +1982,9 @@ def get_trigger_details():
                     trigger_data["start"] = start_boundary_dt.isoformat()
                     break  # Valid input
                 except ValueError:
-                    logger.error("Incorrect format, please use YYYY-MM-DD HH:MM")
+                    print(
+                        f"{_ERROR_PREFIX}Incorrect format, please use YYYY-MM-DD HH:MM"
+                    )
             while True:
                 try:
                     days_interval = int(
@@ -2623,9 +1996,9 @@ def get_trigger_details():
                         trigger_data["interval"] = days_interval
                         break  # Valid input
                     else:
-                        logger.warning("Enter a value greater than or equal to 1")
+                        print(f"{_WARN_PREFIX}Enter a value greater than or equal to 1")
                 except ValueError:
-                    logger.error("Must be a valid integer.")
+                    print(f"{_ERROR_PREFIX}Must be a valid integer.")
             triggers.append(trigger_data)
 
         elif trigger_choice == "3":  # Weekly
@@ -2641,7 +2014,9 @@ def get_trigger_details():
                     trigger_data["start"] = start_boundary_dt.isoformat()
                     break  # Valid input
                 except ValueError:
-                    logger.error("Incorrect format, please use YYYY-MM-DD HH:MM")
+                    print(
+                        f"{_ERROR_PREFIX}Incorrect format, please use YYYY-MM-DD HH:MM"
+                    )
 
             while True:  # Loop for days of the week input
                 days_of_week_str = input(
@@ -2650,17 +2025,18 @@ def get_trigger_details():
                 days_of_week = [day.strip() for day in days_of_week_str.split(",")]
                 valid_days = []
                 for day_input in days_of_week:
-                    if system_windows._get_day_element_name(
-                        day_input
-                    ):  # use core function
+                    day_response = handlers.get_day_element_name_handler(day_input)
+                    if day_response["status"] == "success":  # use core function
                         valid_days.append(day_input)
                     else:
-                        logger.warning(f"Invalid day of week: {day_input}. Skipping.")
+                        print(
+                            f"{_WARN_PREFIX}Invalid day of week: {day_input}. Skipping."
+                        )
                 if valid_days:
                     trigger_data["days"] = valid_days
                     break  # Exit if at least one valid day is entered
                 else:
-                    logger.error("You must enter at least one valid day.")
+                    print(f"{_ERROR_PREFIX}You must enter at least one valid day.")
 
             while True:
                 try:
@@ -2673,9 +2049,9 @@ def get_trigger_details():
                         trigger_data["interval"] = weeks_interval
                         break  # Valid input
                     else:
-                        logger.warning("Enter a value greater than or equal to 1")
+                        print(f"{_WARN_PREFIX}Enter a value greater than or equal to 1")
                 except ValueError:
-                    logger.error("Must be a valid integer.")
+                    print(f"{_ERROR_PREFIX}Must be a valid integer.")
             triggers.append(trigger_data)
 
         elif trigger_choice == "4":  # Monthly
@@ -2691,7 +2067,9 @@ def get_trigger_details():
                     trigger_data["start"] = start_boundary_dt.isoformat()
                     break  # Valid input
                 except ValueError:
-                    logger.error("Incorrect date format, please use YYYY-MM-DD HH:MM")
+                    print(
+                        f"{_ERROR_PREFIX}Incorrect date format, please use YYYY-MM-DD HH:MM"
+                    )
 
             while True:  # Loop for days input
                 days_of_month_str = input(
@@ -2705,14 +2083,16 @@ def get_trigger_details():
                         if 1 <= day_int <= 31:
                             valid_days.append(day_int)
                         else:
-                            logger.warning(f"Invalid day of month: {day}. Skipping.")
+                            print(
+                                f"{_WARN_PREFIX}Invalid day of month: {day}. Skipping."
+                            )
                     except ValueError:
-                        logger.warning(f"Invalid day of month: {day}. Skipping.")
+                        print(f"{_WARN_PREFIX}Invalid day of month: {day}. Skipping.")
                 if valid_days:
                     trigger_data["days"] = valid_days
                     break
                 else:
-                    logger.error("You must enter at least one valid day")
+                    print(f"{_ERROR_PREFIX}You must enter at least one valid day")
 
             while True:  # Loop for months input
                 months_str = input(
@@ -2721,17 +2101,18 @@ def get_trigger_details():
                 months = [month.strip() for month in months_str.split(",")]
                 valid_months = []
                 for month_input in months:
-                    if system_windows._get_month_element_name(
+                    month_response = handlers.get_month_element_name_handler(
                         month_input
-                    ):  # use core function
+                    )
+                    if month_response["status"] == "success":  # Use core function
                         valid_months.append(month_input)
                     else:
-                        logger.warning(f"Invalid month: {month_input}. Skipping.")
+                        print(f"{_WARN_PREFIX}Invalid month: {month_input}. Skipping.")
                 if valid_months:
                     trigger_data["months"] = valid_months
                     break  # Exit loop
                 else:
-                    logger.error("You must enter at least one valid month.")
+                    print(f"{_ERROR_PREFIX}You must enter at least one valid month.")
             triggers.append(trigger_data)
 
         elif trigger_choice == "5":
@@ -2739,31 +2120,36 @@ def get_trigger_details():
         elif trigger_choice == "6":
             break  # Done adding triggers
         else:
-            logger.warning("Invalid choice.")
+            print(f"{_WARN_PREFIX}Invalid choice.")
 
     return triggers
 
 
 def modify_windows_task(server_name, base_dir, config_dir=None):
-    """Modifies an existing Windows scheduled task."""
-    if config_dir is None:
-        config_dir = settings._config_dir
-
+    """Modifies an existing Windows scheduled task (UI)."""
     if not server_name:
         raise InvalidServerNameError("modify_windows_task: server_name is empty.")
 
     if platform.system() != "Windows":
-        raise OSError("This function is for Windows only.")
+        print(f"{_ERROR_PREFIX}This function is for Windows only.")
+        return
+    # Get task names using handler
+    task_names_response = handlers.get_server_task_names_handler(
+        server_name, config_dir
+    )
+    if task_names_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{task_names_response['message']}")
+        return
 
-    task_names = system_windows.get_server_task_names(server_name, config_dir)
+    task_names = task_names_response["task_names"]
     if not task_names:
-        logger.info("No scheduled tasks found to modify.")
+        print(f"{_INFO_PREFIX}No scheduled tasks found to modify.")
         return
 
     print(
-        f"{Fore.MAGENTA}Select the task to modify for {Fore.YELLOW}{server_name}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Select the task to modify for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
-    for i, (task_name) in enumerate(task_names):
+    for i, (task_name, file_path) in enumerate(task_names):  # Unpack tuple
         print(f"{i + 1}. {task_name}")
     print(f"{len(task_names) + 1}. Cancel")
 
@@ -2778,87 +2164,86 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
                 - 1
             )
             if 0 <= task_index < len(task_names):
-                selected_task_name, selected_file_path = task_names[task_index]
+                selected_task_name, selected_file_path = task_names[
+                    task_index
+                ]  # Unpack here
                 break
             elif task_index == len(task_names):
-                logger.info("Modify task cancelled.")
+                print(f"{_INFO_PREFIX}Modify task cancelled.")
                 return  # Cancelled
             else:
-                logger.warning("Invalid selection.")
+                print(f"{_WARN_PREFIX}Invalid selection.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
-    # Load existing XML (for command/args extraction)
+    # --- Get existing command and arguments ---
     try:
-        tree = ET.parse(selected_file_path)
-        root = tree.getroot()
+        with open(selected_file_path, "r") as file:
+            xml_content = file.read()
 
-        # Get the existing command and arguments
-        actions = root.find(
-            ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Actions"
-        )
-        command = ""  # Default to empty string
-        command_args = ""  # Initialize command_args
-        if actions is not None:
-            exec_action = actions.find(
-                ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Exec"
-            )
-            if exec_action is not None:
-                arguments_element = exec_action.find(
-                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Arguments"
-                )
-                if arguments_element is not None and arguments_element.text is not None:
-                    command_args = arguments_element.text.strip()
+        # Use a regular expression to find the <Command> and <Arguments> tags and extract their content
+        command_match = re.search(r"<Command>(.*?)</Command>", xml_content)
+        arguments_match = re.search(r"<Arguments>(.*?)</Arguments>", xml_content)
 
-        # --- Get NEW trigger information from the user ---
-        triggers = get_trigger_details()
+        # Extract the command and arguments, remove extra spaces
+        command = command_match.group(1).strip() if command_match else ""
+        command_args = arguments_match.group(1).strip() if arguments_match else ""
 
-    except (ET.ParseError, FileNotFoundError) as e:
-        raise FileOperationError(f"Error loading or parsing XML: {e}") from e
+    except (FileNotFoundError, ET.ParseError) as e:
+        print(f"{_ERROR_PREFIX}Error loading task XML: {e}")
+        return
+    # --- Get NEW trigger information from the user ---
+    triggers = get_trigger_details()
 
-    # Create a *new* task name
+    # Create a task name
     new_task_name = f"bedrock_{server_name}_{command.replace('-', '_')}"
 
-    try:
-        # 1. Create the new XML, using the *existing* command and arguments,
-        #    the *new* task name, the *new* triggers, and the config_dir.
-        new_xml_file_path = system_windows.create_windows_task_xml(
-            server_name, command, command_args, new_task_name, config_dir, triggers
+    # Call the handler to modify the task
+    modify_response = handlers.modify_windows_task_handler(
+        selected_task_name,
+        server_name,
+        command,
+        command_args,
+        new_task_name,
+        config_dir,
+        triggers,
+        base_dir,
+    )
+
+    if modify_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{modify_response['message']}")
+    else:
+        print(
+            f"{_OK_PREFIX}Task '{selected_task_name}' modified successfully! (New name: {new_task_name})"
         )
 
-        # 2. Delete the *old* task, using the *original* task name.
-        system_windows.delete_task(selected_task_name)
 
-        # 3. Import the *new* task, using the *new* XML file and the *new* name.
-        system_windows.import_task_xml(new_xml_file_path, new_task_name)
-        logger.info(
-            f"Task '{selected_task_name}' modified successfully! (New name: {new_task_name})"
-        )
-
-    except Exception as e:
-        raise TaskError(f"Failed to modify task: {e}") from e
-
-
-def delete_windows_task(server_name, config_dir=None):
-    """Deletes a Windows scheduled task."""
-    if config_dir is None:
-        config_dir = settings._config_dir
+def delete_windows_task(server_name, base_dir, config_dir=None):
+    """Deletes a Windows scheduled task (UI)."""
 
     if not server_name:
         raise InvalidServerNameError("delete_windows_task: server_name is empty.")
 
     if platform.system() != "Windows":
-        raise OSError("This function is for Windows only.")
+        print(f"{_ERROR_PREFIX}This function is for Windows only.")
+        return
+    # Get task names using handler
+    task_names_response = handlers.get_server_task_names_handler(
+        server_name, config_dir
+    )
 
-    task_names = system_windows.get_server_task_names(server_name, config_dir)
+    if task_names_response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{task_names_response['message']}")
+        return
+    task_names = task_names_response["task_names"]
     if not task_names:
-        logger.info("No scheduled tasks found to delete.")
+        print(f"{_INFO_PREFIX}No scheduled tasks found to delete.")
         return
 
     print(
-        f"{Fore.MAGENTA}Select the task to delete for {Fore.YELLOW}{server_name}:{Style.RESET_ALL}"
+        f"{_INFO_PREFIX}Select the task to delete for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
-    for i, (task_name) in enumerate(task_names):
+    for i, (task_name, file_path) in enumerate(task_names):  # Unpack the tuple
         print(f"{i + 1}. {task_name}")
     print(f"{len(task_names) + 1}. Cancel")
 
@@ -2873,15 +2258,17 @@ def delete_windows_task(server_name, config_dir=None):
                 - 1
             )
             if 0 <= task_index < len(task_names):
-                selected_task_name, selected_file_path = task_names[task_index]
+                selected_task_name, selected_file_path = task_names[
+                    task_index
+                ]  # Unpack tuple
                 break
             elif task_index == len(task_names):
-                logger.info("Task deletion cancelled.")
+                print(f"{_INFO_PREFIX}Task deletion cancelled.")
                 return  # Cancelled
             else:
-                logger.warning("Invalid selection.")
+                print(f"{_WARN_PREFIX}Invalid selection.")
         except ValueError:
-            logger.warning("Invalid input. Please enter a number.")
+            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     # Confirm deletion
     while True:
@@ -2893,25 +2280,20 @@ def delete_windows_task(server_name, config_dir=None):
             .strip()
         )
         if confirm_delete in ("y", "yes"):
-            try:
-                system_windows.delete_task(selected_task_name)
-                logger.info(f"Task '{selected_task_name}' deleted successfully!")
-                # Also remove the XML file
-                try:
-                    os.remove(selected_file_path)
-                    logger.info(f"Task XML file '{selected_file_path}' removed.")
-                except OSError as e:
-                    logger.warning(f"Failed to remove task XML file: {e}")
-                    # Not critical, don't raise, task is already deleted.
-                return
-            except Exception as e:
-                raise e
-
+            # Call the handler to delete the task
+            delete_response = handlers.delete_windows_task_handler(
+                selected_task_name, selected_file_path
+            )
+            if delete_response["status"] == "error":
+                print(f"{_ERROR_PREFIX}{delete_response['message']}")
+            else:
+                print(f"{_OK_PREFIX}Task '{selected_task_name}' deleted successfully!")
+            return
         elif confirm_delete in ("n", "no", ""):
-            logger.info("Task deletion canceled.")
+            print(f"{_INFO_PREFIX}Task deletion canceled.")
             return  # User canceled
         else:
-            logger.warning("Invalid input.  Please enter 'y' or 'n'.")
+            print(f"{_WARN_PREFIX}Invalid input.  Please enter 'y' or 'n'.")
 
 
 def main_menu(base_dir, config_dir):
