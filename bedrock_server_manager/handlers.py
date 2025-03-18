@@ -491,24 +491,11 @@ def write_server_config_handler(server_name, key, value, config_dir=None):
         return {"status": "error", "message": f"Failed to write server config: {e}"}
 
 
-def create_service_handler(server_name, base_dir=None):
-    """
-    Creates a service for the specified server.
-    """
-    # Assuming you have create_service implemented else where
-    try:
-        create_service(server_name, base_dir)
-        return {"status": "success"}
-    except Exception as e:
-        return {"status": "error", "message": f"Failed to create service: {e}"}
-
-
 def install_new_server_handler(
     server_name,
     target_version="LATEST",
     base_dir=None,
     config_dir=None,
-    create_service_bool=True,
 ):
     """Installs a new Bedrock server.  Handles the entire workflow.
 
@@ -523,7 +510,6 @@ def install_new_server_handler(
         configure_properties(bool, optional):
         configure_allowlist(bool, optional):
         configure_permissions(bool, optional):
-        create_service_bool(bool, optional):
     Returns:
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
@@ -1252,14 +1238,14 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
 
     if not server_name:
         raise InvalidServerNameError("backup_world_handler: server_name is empty.")
-        #return {"status": "error", "message": "Server name cannot be empty."}
+        # return {"status": "error", "message": "Server name cannot be empty."}
     was_running = False
     if stop_start_server:
-      was_running = system_base.is_server_running(server_name, base_dir)
-      if was_running:
-        stop_result = stop_server_handler(server_name, base_dir)
-        if stop_result["status"] == "error":
-            return stop_result
+        was_running = system_base.is_server_running(server_name, base_dir)
+        if was_running:
+            stop_result = stop_server_handler(server_name, base_dir)
+            if stop_result["status"] == "error":
+                return stop_result
 
     try:
         world_name_result = get_world_name_handler(server_name, base_dir)
@@ -1267,8 +1253,11 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
             return world_name_result
         world_name = world_name_result["world_name"]
         world_path = os.path.join(server_dir, "worlds", world_name)
-        if not os.path.exists(world_path): # Changed to exists
-            return {"status": "error", "message": f"World path does not exist: {world_path}"}
+        if not os.path.exists(world_path):  # Changed to exists
+            return {
+                "status": "error",
+                "message": f"World path does not exist: {world_path}",
+            }
 
         logger.info("Backing up world...")
         backup.backup_world(server_name, world_path, backup_dir)
@@ -1276,11 +1265,11 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
     except Exception as e:
         return {"status": "error", "message": f"World backup failed: {e}"}
     if stop_start_server and was_running:
-      start_result = start_server_handler(server_name, base_dir)
-      if start_result["status"] == "error":
-        return start_result
+        start_result = start_server_handler(server_name, base_dir)
+        if start_result["status"] == "error":
+            return start_result
 
-    return {"status": "success"} # Return success here
+    return {"status": "success"}  # Return success here
 
 
 def backup_config_file_handler(
@@ -1406,9 +1395,7 @@ def restore_world_handler(
 
     logger.info(f"Restoring world from {backup_file}...")
     try:
-        backup.restore_server(
-            server_name, backup_file, "world", base_dir
-        )
+        backup.restore_server(server_name, backup_file, "world", base_dir)
     except Exception as e:
         return {"status": "error", "message": f"Error restoring world: {e}"}
     if stop_start_server and was_running:

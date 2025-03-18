@@ -516,7 +516,7 @@ def install_new_server(base_dir=None, config_dir=None):
 
     # Main installation handler call
     install_result = handlers.install_new_server_handler(
-        server_name, target_version, base_dir, config_dir, create_service_bool=False
+        server_name, target_version, base_dir, config_dir
     )
     if install_result["status"] == "error":
         print(f"{_ERROR_PREFIX}{install_result['message']}")
