@@ -133,7 +133,15 @@ class UpdateError(BedrockManagerError):
     pass
 
 
-class PipInstallError(Exception):
+class PlayerDataError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
+    pass
+
+
+class DownloadError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
     pass
 
 

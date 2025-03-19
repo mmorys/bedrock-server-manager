@@ -3,7 +3,6 @@ import sys
 import argparse
 import os
 from bedrock_server_manager import cli
-from bedrock_server_manager.core.player import player
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager.config.settings import settings
 from importlib.metadata import version, PackageNotFoundError
@@ -398,7 +397,7 @@ def main():
             property_name=args.property,
             property_value=args.value,
         ),
-        "install-server": lambda: cli.install_new_server(base_dir),
+        "install-server": lambda: cli.install_new_server(base_dir, config_dir),
         "update-server": lambda: (
             (
                 server_base.manage_server_config(
@@ -407,7 +406,7 @@ def main():
                 if args.version
                 else None
             ),
-            cli.update_server(args.server, base_dir),
+            cli.update_server(args.server, base_dir, config_dir),
         ),
         "start-server": lambda: cli.handle_start_server(args.server, base_dir),
         "stop-server": lambda: cli.handle_stop_server(args.server, base_dir),
