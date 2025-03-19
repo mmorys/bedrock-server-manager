@@ -22,7 +22,8 @@ classifiers = [
 dependencies = [
     "requests",
     "psutil",
-    "colorama"
+    "colorama",
+    'pywin32; sys_platform == "win32"',
 ]
 
 keywords = ["minecraft", "bedrock", "server"]
