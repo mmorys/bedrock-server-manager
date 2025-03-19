@@ -94,7 +94,11 @@ class BedrockServer:
         if not command:
             raise MissingArgumentError("send_command: command is empty.")
 
-        if not self.is_running():
+        # Get process info.  If None, server is not running.        
+        process_info = system_base._get_bedrock_process_info(
+            self.server_name, settings.get("BASE_DIR")
+        )
+        if process_info is None:
             raise ServerNotRunningError("Cannot send command: Server is not running.")
 
         if platform.system() == "Linux":
@@ -120,20 +124,54 @@ class BedrockServer:
                 ) from None
 
         elif platform.system() == "Windows":
-            if self.process:  # Use the stored process object
-                try:
-                    self.process.stdin.write(f"{command}\n".encode())
-                    self.process.stdin.flush()
-                    logger.debug(
-                        f"Sent command '{command}' to server '{self.server_name}'"
-                    )
-                except Exception as e:
-                    raise SendCommandError(f"Error sending command: {e}") from e
-            else:
-                # This should, ideally, never happen if is_running() is accurate.
-                raise ServerNotRunningError(
-                    "Could not find running server process to send command to (process object missing)."
+            import win32file, pywintypes, win32pipe
+
+            pipe_name = rf"\\.\pipe\BedrockServer{self.server_name}"
+            handle = win32file.INVALID_HANDLE_VALUE  # Initialize handle
+
+            try:
+                handle = win32file.CreateFile(
+                    pipe_name,
+                    win32file.GENERIC_WRITE,
+                    0,
+                    None,
+                    win32file.OPEN_EXISTING,
+                    0,  # No special flags needed
+                    None,
                 )
+
+                if handle == win32file.INVALID_HANDLE_VALUE:
+                    raise SendCommandError(
+                        f"Could not open pipe: {win32pipe.GetLastError()}"
+                    )  # Raise the error
+
+                win32pipe.SetNamedPipeHandleState(
+                    handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
+                )
+
+                win32file.WriteFile(handle, (command + "\r\n").encode())  # Use \r\n
+
+            except pywintypes.error as e:
+                # Raise a more specific exception based on the error code
+                if e.winerror == 2:
+                    raise ServerNotRunningError(
+                        "Pipe does not exist.  Make sure the server is running."
+                    )
+                elif e.winerror == 231:
+                    raise SendCommandError(
+                        "All pipe instances are busy."
+                    )  # Or possibly retry
+                elif e.winerror == 109:
+                    raise SendCommandError(
+                        "Pipe has been broken (server might have closed it)."
+                    )
+                else:
+                    raise SendCommandError(f"Error sending command: {e}")
+
+            finally:
+                if handle != win32file.INVALID_HANDLE_VALUE:
+                    win32file.CloseHandle(handle)  # Always close
+
         else:
             raise SendCommandError("Unsupported operating system for sending commands.")
 
