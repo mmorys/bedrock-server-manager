@@ -69,53 +69,119 @@ def update_server_route(server_name):
 
 @server_bp.route("/install", methods=["GET", "POST"])
 def install_server_route():
-    base_dir = get_base_dir()
     if request.method == "POST":
         server_name = request.form["server_name"]
-        target_version = request.form["server_version"]
-
-        # Basic input validation (keep this in the route)
+        server_version = request.form["server_version"]
+        # Validate
         if not server_name:
             flash("Server name cannot be empty.", "error")
-            return render_template("install.html")  # Re-render with previous values
-        if not target_version:
-            flash("Server version cannot be empty", "error")
-            return render_template("install.html", server_name=server_name)  # pass back
-        # Validate server name format using the handler
-        validation_response = handlers.validate_server_name_format_handler(server_name)
-        if validation_response["status"] == "error":
-            flash(validation_response["message"], "error")
+            return render_template("install.html")
+        if not server_version:
+            flash("Server version cannot be empty.", "error")
+            return render_template("install.html", server_name=server_name)
+        if ";" in server_name:
+            flash("Server name cannot contain semicolons.", "error")
+            return render_template("install.html")
+        validation_result = handlers.validate_server_name_format_handler(server_name)
+        if validation_result["status"] == "error":
+            flash(validation_result["message"], "error")
             return render_template(
-                "install.html", server_name=server_name, server_version=target_version
-            )  # pass back
-
-        # Check if server exists using the handler
-        server_exists_response = handlers.validate_server_name_handler(
-            server_name, base_dir
-        )
-        if server_exists_response["status"] == "success":
-            flash(f"Server '{server_name}' already exists.", "error")
-            return render_template(
-                "install.html", server_version=target_version
-            )  # pass back
-
-        # Call the handler to install the server
-        install_response = handlers.install_new_server_handler(
-            server_name, target_version, base_dir
-        )
-
-        if install_response["status"] == "error":
-            flash(f"Error installing server: {install_response['message']}", "error")
-            return render_template(
-                "install.html", server_name=server_name, server_version=target_version
+                "install.html", server_name=server_name, server_version=server_version
             )
 
-        # Redirect to configure_properties_route, passing server_name
-        return redirect(
-            url_for("server_routes.configure_properties_route", server_name=server_name)
+        base_dir = get_base_dir()
+        config_dir = settings.get("CONFIG_DIR")
+        server_dir = os.path.join(base_dir, server_name)
+
+        # Check if server exists *before* calling the handler
+        if os.path.exists(server_dir):
+            # Render install.html with confirm_delete=True and server details
+            return render_template(
+                "install.html",
+                confirm_delete=True,
+                server_name=server_name,
+                server_version=server_version,
+            )
+
+        # If server doesn't exist, proceed with installation
+        result = handlers.install_new_server_handler(
+            server_name, server_version, base_dir, config_dir
         )
 
-    return render_template("install.html")  # GET request, show form
+        if result["status"] == "error":
+            flash(result["message"], "error")
+            return render_template(
+                "install.html", server_name=server_name, server_version=server_version
+            )
+        elif result["status"] == "success":
+            return redirect(
+                url_for(
+                    "server_routes.configure_properties_route",
+                    server_name=result["server_name"],
+                )
+            )
+        else:
+            flash("An unexpected error occurred.", "error")
+            return redirect(url_for("server_routes.index"))
+
+    else:  # request.method == 'GET'
+        return render_template("install.html")
+
+
+@server_bp.route("/install/confirm", methods=["POST"])
+def confirm_install_route():
+    server_name = request.form.get("server_name")  # Get server_name from form
+    server_version = request.form.get("server_version")
+    confirm = request.form.get("confirm")  # Get confirmation value (yes/no)
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
+
+    if not server_name or not server_version:
+        flash("Missing server name or version.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if confirm == "yes":
+        # Delete existing server data
+        delete_result = handlers.delete_server_data_handler(
+            server_name, base_dir, config_dir
+        )
+        if delete_result["status"] == "error":
+            flash(
+                f"Error deleting existing server data: {delete_result['message']}",
+                "error",
+            )
+            return render_template(
+                "install.html", server_name=server_name, server_version=server_version
+            )
+
+        # Call install_new_server_handler AGAIN, after deletion.
+        install_result = handlers.install_new_server_handler(
+            server_name, server_version, base_dir, config_dir
+        )
+        if install_result["status"] == "error":
+            flash(install_result["message"], "error")
+            return render_template(
+                "install.html", server_name=server_name, server_version=server_version
+            )
+
+        elif install_result["status"] == "success":
+            # Redirect to configure_properties_route with server_name
+            return redirect(
+                url_for(
+                    "server_routes.configure_properties_route",
+                    server_name=install_result["server_name"],
+                )
+            )
+        else:
+            flash("An unexpected error occurred during installation.", "error")
+            return redirect(url_for("server_routes.index"))
+
+    elif confirm == "no":
+        flash("Server installation cancelled.", "info")
+        return redirect(url_for("server_routes.index"))
+    else:
+        flash("Invalid confirmation value.", "error")
+        return redirect(url_for("server_routes.index"))
 
 
 @server_bp.route("/server/<server_name>/configure", methods=["GET", "POST"])

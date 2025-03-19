@@ -15,20 +15,33 @@
         </header>
 
         <section class="install-form-section">
+            {% if confirm_delete %}
+            <!-- Confirmation Form -->
+            <p>Server folder '{{ server_name }}' already exists. Continue and delete existing data?</p>
+            <form action="{{ url_for('server_routes.confirm_install_route') }}" method="post">
+                <input type="hidden" name="server_name" value="{{ server_name }}">
+                <input type="hidden" name="server_version" value="{{ server_version }}">
+                <button type="submit" name="confirm" value="yes" class="main-button">Continue?</button>
+                <button type="submit" name="confirm" value="no" class="main-button">Cancel</button>
+            </form>
+
+            {% else %}
+            <!-- Regular Installation Form -->
             <form action="{{ url_for('server_routes.install_server_route') }}" method="post">
                 <div class="form-group">
-                    <label for="server_name" class="form-label">Server Name:</label>
-                    <input type="text" id="server_name" name="server_name" class="form-input" required>
+                    <label for="server-name" class="form-label">Server Name:</label>
+                    <input type="text" id="server-name" name="server_name" class="form-input" value="{{ server_name or '' }}" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="server_version" class="form-label">Server Version (e.g., LATEST, PREVIEW, 1.21.x.x):</label>
-                    <input type="text" id="server_version" name="server_version" class="form-input" required>
+                    <label for="server-version" class="form-label">Server Version (e.g., LATEST, PREVIEW, 1.21.x.x):</label>
+                    <input type="text" id="server-version" name="server_version" class="form-input" value="{{ server_version or '' }}" required>
                 </div>
 
                 <button type="submit" class="main-button install-button">Install Server</button>
                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
             </form>
+            {% endif %}
         </section>
     </div>
 </body>
