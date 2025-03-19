@@ -1,23 +1,25 @@
 # bedrock-server-manager/bedrock_server_manager/__init__.py
 import sys
 import argparse
-import logging
 import os
-from importlib.metadata import version, PackageNotFoundError
-from bedrock_server_manager.config import settings
-from bedrock_server_manager.core import logging as core_logging
-from bedrock_server_manager.core.player import player
-from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager import cli
+from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.config.settings import settings
+from importlib.metadata import version, PackageNotFoundError
+from bedrock_server_manager.core import logging as core_logging
 from bedrock_server_manager.utils.general import startup_checks
+from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
 )
-from bedrock_server_manager.core.server import server as server_base
 
 # Configure logging
-logger = core_logging.setup_logging(log_dir=settings.LOG_DIR)
+logger = core_logging.setup_logging(
+    log_dir=settings.get("LOG_DIR"),
+    log_keep=settings.get("LOGS_KEEP"),
+    log_level=settings.get("LOG_LEVEL"),
+)
 
 try:
     __version__ = version("bedrock-server-manager")
@@ -51,8 +53,8 @@ def main():
     """
     startup_checks()
     system_base.check_prerequisites()
-    config_dir = settings.CONFIG_DIR
-    base_dir = settings.BASE_DIR
+    config_dir = settings._config_dir
+    base_dir = settings.get("BASE_DIR")
 
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(description="Bedrock Server Manager")
@@ -359,7 +361,7 @@ def main():
         "-l", "--logs", action="store_true", help="Clean up log files"
     )
     cleanup_parser.add_argument(
-        "--log-dir", default=settings.LOG_DIR, help="Log directory."
+        "--log-dir", default=settings.get("LOG_DIR"), help="Log directory."
     )
 
     # systemd-stop
@@ -395,7 +397,7 @@ def main():
             property_name=args.property,
             property_value=args.value,
         ),
-        "install-server": lambda: cli.install_new_server(base_dir),
+        "install-server": lambda: cli.install_new_server(base_dir, config_dir),
         "update-server": lambda: (
             (
                 server_base.manage_server_config(
@@ -404,7 +406,7 @@ def main():
                 if args.version
                 else None
             ),
-            cli.update_server(args.server, base_dir),
+            cli.update_server(args.server, base_dir, config_dir),
         ),
         "start-server": lambda: cli.handle_start_server(args.server, base_dir),
         "stop-server": lambda: cli.handle_stop_server(args.server, base_dir),
@@ -424,14 +426,14 @@ def main():
         "backup-server": lambda: cli.handle_backup_server(
             args.server, args.type, args.file, args.change_status, base_dir
         ),
-        "backup-all": lambda: cli.handle_backup_all(
-            args.server, base_dir, args.change_status
+        "backup-all": lambda: cli.handle_backup_server(
+            args.server, "all", None, args.change_status, base_dir
         ),
         "restore-server": lambda: cli.handle_restore_server(
             args.server, args.file, args.type, args.change_status, base_dir
         ),
-        "restore-all": lambda: cli.handle_restore_all(
-            args.server, base_dir, args.change_status
+        "restore-all": lambda: cli.handle_restore_server(
+            args.server, None, "all", args.change_status, base_dir
         ),
         "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
         "add-players": lambda: cli.handle_add_players(args.players, config_dir),

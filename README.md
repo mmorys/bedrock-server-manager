@@ -1,6 +1,6 @@
 # Bedrock Server Manager
 
-Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease. The script is Linux and Windows compatable.
+Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease, and is Linux/Windows compatable.
 
 ## Features
 
@@ -38,7 +38,10 @@ On Linux, you'll also need:
 
 ### Install The Package:
 
-1. Run the command `pip install bedrock-server-manager`
+1. Run the command 
+```
+pip install bedrock-server-manager
+```
 
 ### Setup The Configuration:
 
@@ -46,9 +49,9 @@ bedrock-server-manager will use the enviroment variable `BEDROCK_SERVER_MANAGER_
 
 Follow your platforms documentation for setting Enviroment Variables
 
-The script will create its data folders ( `./server`,`./backups`,`./.downloads` `./.config` `./.logs`  `./content/worlds`, and `./content/addons` ) in this location. This is where servers will be installed to and where the script will look when managing various server aspects. 
+The script will create its data folders in this location. This is where servers will be installed to and where the script will look when managing various server aspects. 
 
-Certain drttings can can be changed directly in the `./config/script_config.json` or with the `manage-script-config` command
+Certain variables can can be changed directly in the `./.config/script_config.json` or with the `manage-script-config` command
 
 #### The following variables are configurable via json
 
@@ -103,7 +106,6 @@ bedrock-server-manager <command> [options]
 | **get-installed-version**| Gets the installed version of a server          | `-s, --server`: Server Name (required)                                                                      | All           |
 | **check-server-status**| Checks the server status by reading server_output.txt | `-s, --server`: Server Name (required)                                                                      | All           |
 | **get-server-status-from-config**| Gets the server status from the server's config.json | `-s, --server`: Server name (required)                                                                       | All           |
-| **update-server-status-in-config**| Updates the server status in the server's config.json | `-s, --server`: Server name (required)                                                                       | All           |
 | **get-world-name**   | Gets the world name from the server.properties     | `-s, --server`: Server name (required)                                                                       | All           |
 | **check-internet**   | Checks for internet connectivity                    | None                                                                                                          | All           |
 | **get-service-status-from-config**| Gets the server status from the server's config.json | `-s, --server`: Server name (required)                                                                       | All           |
@@ -116,10 +118,10 @@ bedrock-server-manager <command> [options]
 |----------------------|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | **systemd-start**    | systemd start command (Linux only)                | `-s, --server`: Server name (required)                                                                       | Linux only    |
 | **systemd-stop**     | systemd stop command (Linux only)                 | `-s, --server`: Server name (required)                                                                       | Linux only    |
-| **check-service-exists**| Checks if a systemd service file exists (Linux only)| `-s, --server`: Server name (required)                                                                       | Linux only    |
+| **send-command**     | Sends a command to the server (Linux only)        | `-s, --server`: Server name (required) <br> `-c, --command`: Command to send (required)                        | Linux only    |
 | **enable-service**   | Enables a systemd service(Linux only)             | `-s, --server`: Server name (required)                                                                       | Linux only    |
 | **disable-service**  | Disables a systemd service (Linux only)            | `-s, --server`: Server name (required)                                                                       | Linux only    |
-| **send-command**     | Sends a command to the server (Linux only)        | `-s, --server`: Server name (required) <br> `-c, --command`: Command to send (required)                        | Linux only    |
+| **check-service-exists**| Checks if a systemd service file exists (Linux only)| `-s, --server`: Server name (required)                                                                       | Linux only    |
 
 
 ###### Examples:
@@ -132,13 +134,19 @@ bedrock-server-manager main
 
 Send Command:
 ```
-bedrock-server-manager send-command --server server_name --command "tell @a hello"
+bedrock-server-manager send-command -s server_name -c "tell @a hello"
 ```
 
 Update Server:
 
 ```
 bedrock-server-manager update-server --server server_name
+```
+
+Manage Script Config:
+
+```
+bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write --value 5
 ```
 
 

@@ -6,7 +6,6 @@ import subprocess
 import getpass
 import time
 from datetime import datetime
-from colorama import Fore, Style
 from bedrock_server_manager.config import settings
 from bedrock_server_manager.core.error import (
     CommandNotFoundError,
@@ -412,11 +411,7 @@ def get_server_cron_jobs(server_name):
                 filtered_jobs.append(line)
 
         if not filtered_jobs:
-            logger.warning(
-                Fore.YELLOW
-                + f"No scheduled cron jobs found for {server_name}."
-                + Style.RESET_ALL
-            )
+            logger.warning(f"No scheduled cron jobs found for {server_name}.")
             return "undefined"  # No jobs found for this server
 
         return filtered_jobs

@@ -5,13 +5,13 @@ import os
 import time
 
 DEFAULT_LOG_DIR = "logs"
-DEFAULT_BACKUP_COUNT = 4
+DEFAULT_LOG_KEEP = 3
 
 
 def setup_logging(
     log_dir=DEFAULT_LOG_DIR,
     log_filename="bedrock_server.log",
-    backup_count=DEFAULT_BACKUP_COUNT,
+    log_keep=DEFAULT_LOG_KEEP,
     log_level=logging.INFO,
     when="midnight",
     interval=1,
@@ -21,7 +21,7 @@ def setup_logging(
     Args:
         log_dir (str): Directory to store log files.
         log_filename (str): The base name of the log file.
-        backup_count (int): Number of backup log files to keep.
+        log_keep (int): Number of backup log files to keep.
         log_level (int): The minimum log level to record.
         when (str):  Indicates when to rotate. See TimedRotatingFileHandler docs.
         interval (int): The rotation interval.
@@ -37,7 +37,7 @@ def setup_logging(
     try:
         # Create a rotating file handler
         handler = logging.handlers.TimedRotatingFileHandler(
-            log_path, when=when, interval=interval, backupCount=backup_count
+            log_path, when=when, interval=interval, backupCount=log_keep
         )
 
         # Create a formatter

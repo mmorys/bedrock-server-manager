@@ -29,7 +29,9 @@ def scan_log_for_players(log_file):
 
     Returns:
         list: A list of dictionaries, each with 'name' and 'xuid' keys,
-              or an empty list if no players are found or an error occurs.
+            or an empty list if no players are found.
+    Raises:
+        FileOperationError: If the log file cannot be read.
     """
     players_data = []
     try:
@@ -46,10 +48,11 @@ def scan_log_for_players(log_file):
                         {"name": player_name, "xuid": xuid}
                     )  # Store as dictionaries
     except OSError as e:
-        logger.error(f"Error reading log file {log_file}: {e}")
-        return []  # Return an empty list on error
+        raise FileOperationError(
+            f"Error reading log file {log_file}: {e}"
+        ) from e  # Raise the exception
 
-    return players_data
+    return players_data  # Return data if all is ok
 
 
 def save_players_to_json(players_data, config_dir):

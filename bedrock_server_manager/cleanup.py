@@ -3,7 +3,7 @@ import os
 import shutil
 import logging
 from bedrock_server_manager.core import SCRIPT_DIR
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 
 logger = logging.getLogger("bedrock_server_manager.cleanup")
 
@@ -17,7 +17,7 @@ def cleanup_cache(verbose=False):
             try:
                 shutil.rmtree(cache_dir)
                 if verbose:
-                    logger.info(f"Deleted: {cache_dir}")
+                    logger.debug(f"Deleted: {cache_dir}")
                 deleted_count += 1
             except OSError as e:
                 logger.error(f"Error deleting {cache_dir}: {e}")  # Log the error
@@ -26,7 +26,7 @@ def cleanup_cache(verbose=False):
     return deleted_count
 
 
-def cleanup_logs(log_dir=settings.LOG_DIR, verbose=False):
+def cleanup_logs(log_dir=settings.get("LOG_DIR"), verbose=False):
     # added feature to clear the logs folder.
     deleted_count = 0
     logger = logging.getLogger("bedrock_server_manager")
@@ -54,5 +54,5 @@ def cleanup_logs(log_dir=settings.LOG_DIR, verbose=False):
         logger.error(f"Error deleting files in {log_dir}: {e}")
 
     if verbose:
-        logger.info(f"Deleted {deleted_count} log files.")
+        logger.debug(f"Deleted {deleted_count} log files.")
     return deleted_count

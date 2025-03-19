@@ -6,7 +6,7 @@ import time
 import json
 import platform
 import shutil
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.error import (
     ServerStartError,
     ServerStopError,
@@ -35,7 +35,7 @@ logger = logging.getLogger("bedrock_server_manager")
 class BedrockServer:
     def __init__(self, server_name, server_path=None):
         self.server_name = server_name
-        self.server_dir = os.path.join(settings.BASE_DIR, self.server_name)
+        self.server_dir = os.path.join(settings.get("BASE_DIR"), self.server_name)
         if server_path:
             self.server_path = server_path
         else:
@@ -53,33 +53,33 @@ class BedrockServer:
 
     def is_running(self):
         """Checks if the server process is currently running."""
-        return system_base.is_server_running(self.server_name, settings.BASE_DIR)
+        return system_base.is_server_running(self.server_name, settings.get("BASE_DIR"))
 
     def get_pid(self):
         """Gets the process ID of the running server (if running)."""
         server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.BASE_DIR
+            self.server_name, settings.get("BASE_DIR")
         )
         return server_info.get("pid") if server_info else None
 
     def get_cpu_usage(self):
         """Gets the current CPU usage of the server (if running)."""
         server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.BASE_DIR
+            self.server_name, settings.get("BASE_DIR")
         )
         return server_info.get("cpu_percent") if server_info else None
 
     def get_memory_usage(self):
         """Gets the current memory usage of the server (if running)."""
         server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.BASE_DIR
+            self.server_name, settings.get("BASE_DIR")
         )
         return server_info.get("memory_mb") if server_info else None
 
     def get_uptime(self):
         """Gets the server uptime (if running)."""
         server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.BASE_DIR
+            self.server_name, settings.get("BASE_DIR")
         )
         return server_info.get("uptime") if server_info else None
 
@@ -94,7 +94,11 @@ class BedrockServer:
         if not command:
             raise MissingArgumentError("send_command: command is empty.")
 
-        if not self.is_running():
+        # Get process info.  If None, server is not running.        
+        process_info = system_base._get_bedrock_process_info(
+            self.server_name, settings.get("BASE_DIR")
+        )
+        if process_info is None:
             raise ServerNotRunningError("Cannot send command: Server is not running.")
 
         if platform.system() == "Linux":
@@ -120,20 +124,54 @@ class BedrockServer:
                 ) from None
 
         elif platform.system() == "Windows":
-            if self.process:  # Use the stored process object
-                try:
-                    self.process.stdin.write(f"{command}\n".encode())
-                    self.process.stdin.flush()
-                    logger.debug(
-                        f"Sent command '{command}' to server '{self.server_name}'"
-                    )
-                except Exception as e:
-                    raise SendCommandError(f"Error sending command: {e}") from e
-            else:
-                # This should, ideally, never happen if is_running() is accurate.
-                raise ServerNotRunningError(
-                    "Could not find running server process to send command to (process object missing)."
+            import win32file, pywintypes, win32pipe
+
+            pipe_name = rf"\\.\pipe\BedrockServer{self.server_name}"
+            handle = win32file.INVALID_HANDLE_VALUE  # Initialize handle
+
+            try:
+                handle = win32file.CreateFile(
+                    pipe_name,
+                    win32file.GENERIC_WRITE,
+                    0,
+                    None,
+                    win32file.OPEN_EXISTING,
+                    0,  # No special flags needed
+                    None,
                 )
+
+                if handle == win32file.INVALID_HANDLE_VALUE:
+                    raise SendCommandError(
+                        f"Could not open pipe: {win32pipe.GetLastError()}"
+                    )  # Raise the error
+
+                win32pipe.SetNamedPipeHandleState(
+                    handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
+                )
+
+                win32file.WriteFile(handle, (command + "\r\n").encode())  # Use \r\n
+
+            except pywintypes.error as e:
+                # Raise a more specific exception based on the error code
+                if e.winerror == 2:
+                    raise ServerNotRunningError(
+                        "Pipe does not exist.  Make sure the server is running."
+                    )
+                elif e.winerror == 231:
+                    raise SendCommandError(
+                        "All pipe instances are busy."
+                    )  # Or possibly retry
+                elif e.winerror == 109:
+                    raise SendCommandError(
+                        "Pipe has been broken (server might have closed it)."
+                    )
+                else:
+                    raise SendCommandError(f"Error sending command: {e}")
+
+            finally:
+                if handle != win32file.INVALID_HANDLE_VALUE:
+                    win32file.CloseHandle(handle)  # Always close
+
         else:
             raise SendCommandError("Unsupported operating system for sending commands.")
 
@@ -328,7 +366,7 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         FileOperationError: If there's an error reading or writing the config file.
     """
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     server_config_dir = os.path.join(config_dir, server_name)
     config_file = os.path.join(server_config_dir, f"{server_name}_config.json")
@@ -391,7 +429,7 @@ def get_installed_version(server_name, config_dir=None):
         raise MissingArgumentError("No server name provided.")
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     installed_version = manage_server_config(
         server_name, "installed_version", "read", config_dir=config_dir
@@ -503,7 +541,7 @@ def get_server_status_from_config(server_name, config_dir=None):
         )
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     status = manage_server_config(server_name, "status", "read", config_dir=config_dir)
     if status is None:
@@ -532,7 +570,7 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
         )
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     current_status = get_server_status_from_config(server_name, config_dir)
     status = check_server_status(server_name, base_dir)
@@ -785,7 +823,7 @@ def _write_version_config(server_name, installed_version, config_dir=None):
         raise InvalidServerNameError("write_version_config: server_name is empty")
 
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
 
     if not installed_version:
         logger.warning(
@@ -826,7 +864,9 @@ def install_server(
         raise InvalidServerNameError("install_server: server_name is empty.")
 
     # Cleanup old downloads
-    downloader.prune_old_downloads(os.path.dirname(zip_file), settings.DOWNLOAD_KEEP)
+    downloader.prune_old_downloads(
+        os.path.dirname(zip_file), settings.get("DOWNLOAD_KEEP")
+    )
 
     # Stop server if running for update
     was_running = False
@@ -925,7 +965,7 @@ def delete_server_data(server_name, base_dir, config_dir=None):
         DirectoryError: If deleting the server data fails
     """
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings._config_dir
     server_dir = os.path.join(base_dir, server_name)
     config_folder = os.path.join(config_dir, server_name)
 

@@ -2,7 +2,7 @@
 import sys
 from datetime import datetime
 from colorama import Fore, Style, init
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 import os
 
 
@@ -12,11 +12,12 @@ def startup_checks():
         sys.exit("This script requires Python 3.10 or later.")
     init(autoreset=True)  # Initialize colorama
 
+    content_dir = settings.get("CONTENT_DIR")
     # Create directory used by the script
-    os.makedirs(settings.BASE_DIR, exist_ok=True)
-    os.makedirs(settings.CONTENT_DIR, exist_ok=True)
-    os.makedirs(f"{settings.CONTENT_DIR}/worlds", exist_ok=True)
-    os.makedirs(f"{settings.CONTENT_DIR}/addons", exist_ok=True)
+    os.makedirs(settings.get("BASE_DIR"), exist_ok=True)
+    os.makedirs(content_dir, exist_ok=True)
+    os.makedirs(f"{content_dir}/worlds", exist_ok=True)
+    os.makedirs(f"{content_dir}/addons", exist_ok=True)
 
 
 def get_timestamp():
@@ -65,4 +66,4 @@ _ERROR_PREFIX = Fore.RED + "[ERROR] " + Style.RESET_ALL
 
 def get_base_dir(base_dir=None):
     """Helper function to get the base directory.  Uses a provided value or the configured default."""
-    return base_dir if base_dir is not None else settings.BASE_DIR
+    return base_dir if base_dir is not None else settings.get("BASE_DIR")
