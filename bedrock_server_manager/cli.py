@@ -1395,7 +1395,7 @@ def _cron_scheduler(server_name, base_dir):
             time.sleep(2)
             continue
 
-        print(f"{_INFO_PREFIX}What would you like to do?{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}What would you like to do?{Style.RESET_ALL}")
         print("1) Add Job")
         print("2) Modify Job")
         print("3) Delete Job")
@@ -1456,7 +1456,7 @@ def add_cron_job(server_name, base_dir):
         return
 
     print(
-        f"{_INFO_PREFIX}Choose the command for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
+        f"{Fore.CYAN}Choose the command for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
     print("1) Update Server")
     print("2) Backup Server")
@@ -1806,7 +1806,7 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
         else:
             display_windows_task_table(task_names)
 
-        print(f"{_INFO_PREFIX}What would you like to do?{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}What would you like to do?{Style.RESET_ALL}")
         print("1) Add Task")
         print("2) Modify Task")
         print("3) Delete Task")
@@ -1872,10 +1872,10 @@ def add_windows_task(server_name, base_dir, config_dir=None):
         config_dir = settings._config_dir
 
     print(
-        f"{_INFO_PREFIX}Adding task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
+        f"{Fore.CYAN}Adding task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
 
-    print(f"{_INFO_PREFIX}Choose the command:{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}Choose the command:{Style.RESET_ALL}")
     print("1) Update Server")
     print("2) Backup Server")
     print("3) Start Server")
@@ -1939,7 +1939,7 @@ def get_trigger_details():
     """Gets trigger information from the user interactively."""
     triggers = []
     while True:
-        print(f"{_INFO_PREFIX}Choose a trigger type:{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}Choose a trigger type:{Style.RESET_ALL}")
         print("1) One Time")
         print("2) Daily")
         print("3) Weekly")
@@ -2147,7 +2147,7 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
         return
 
     print(
-        f"{_INFO_PREFIX}Select the task to modify for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
+        f"{Fore.CYAN}Select the task to modify for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
     for i, (task_name, file_path) in enumerate(task_names):  # Unpack tuple
         print(f"{i + 1}. {task_name}")
@@ -2241,7 +2241,7 @@ def delete_windows_task(server_name, base_dir, config_dir=None):
         return
 
     print(
-        f"{_INFO_PREFIX}Select the task to delete for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
+        f"{Fore.CYAN}Select the task to delete for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
     )
     for i, (task_name, file_path) in enumerate(task_names):  # Unpack the tuple
         print(f"{i + 1}. {task_name}")
