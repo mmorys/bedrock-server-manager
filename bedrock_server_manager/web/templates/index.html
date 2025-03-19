@@ -16,53 +16,63 @@
             <h1>Bedrock Server Manager</h1>
         </header>
 
-        {% if request.args.message %}
-        <div class="message-box">{{ request.args.message }}</div>
-        {% endif %}
-
         {% with messages = get_flashed_messages(with_categories=true) %}
-                  {% if messages %}
-                    {% for category, message in messages %}
-                      <div class="message-box message-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                  {% endif %}
-                {% endwith %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message-box message-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
         <section class="server-selection-section">
-            <form id="server-action-form" method="post">
-                <div class="select-server-group">
-                    <label for="server-select" class="select-label">Select Server:</label>
-                    <select id="server-select" name="server_name" class="server-dropdown">
-                        {% if servers and servers|length > 0 %}
-                            {% for server in servers %}
-                                {% if server.server_name not in ('Error', 'Info') %}
-                                    <option value="{{ server.server_name }}">{{ server.server_name }}</option>
-                                {% endif %}
-                            {% endfor %}
-                        {% else %}
-                            <option value="" disabled selected>No servers available</option>
-                        {% endif %}
-                    </select>
-                </div>
+            <label for="server-select" class="select-label">Select Server:</label>
+            <select id="server-select" name="server" class="server-dropdown">
+                <option value="" disabled selected>-- Select a Server --</option>
+                {% for server in servers %}
+                    <option value="{{ server.name }}">{{ server.name }}</option>
+                {% endfor %}
+            </select>
 
-                <div class="action-buttons-group">
-                    <button type="submit" class="action-button start-button" onclick="setAction('/start')">Start</button>
-                    <button type="submit" class="action-button stop-button" onclick="setAction('/stop')">Stop</button>
-                    <button type="submit" class="action-button restart-button" onclick="setAction('/restart')">Restart</button>
-                    <button type="submit" class="action-button update-button" onclick="setAction('/update')">Update</button>
-                </div>
-            </form>
+            <div class="action-buttons-group">
+                <button type="button" class="action-button start-button" onclick="startServer()">Start</button>
+                <button type="button" class="action-button stop-button" onclick="stopServer()">Stop</button>
+                <button type="button" class="action-button restart-button" onclick="restartServer()">Restart</button>
+                <button type="button" class="action-button update-button" onclick="updateServer()">Update</button>
+            </div>
             <script>
-                function setAction(action) {
-                    const serverSelect = document.getElementById('server-select');
-                    const selectedServer = serverSelect.value;
-                    const form = document.getElementById('server-action-form');
-
-                    if (selectedServer) {
-                        form.action = `/server/${selectedServer}${action}`;
+                function startServer() {
+                    var serverName = document.getElementById('server-select').value;
+                    if (serverName) {
+                        window.location.href = `/server/${serverName}/start`;
                     } else {
-                        alert("Please select a server.");
-                        event.preventDefault();
+                        alert('Please select a server.');
+                    }
+                }
+
+                function stopServer() {
+                    var serverName = document.getElementById('server-select').value;
+                    if (serverName) {
+                        window.location.href = `/server/${serverName}/stop`;
+                    } else {
+                        alert('Please select a server.');
+                    }
+                }
+
+                function restartServer() {
+                    var serverName = document.getElementById('server-select').value;
+                    if (serverName) {
+                        window.location.href = `/server/${serverName}/restart`;
+                    } else {
+                        alert('Please select a server.');
+                    }
+                }
+
+                  function updateServer() {
+                    var serverName = document.getElementById('server-select').value;
+                    if (serverName) {
+                        window.location.href = `/server/${serverName}/update`;
+                    } else {
+                        alert('Please select a server.');
                     }
                 }
             </script>
@@ -78,17 +88,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for server in servers %}
-                    <tr>
-                        <td>{{ server.server_name }}</td>
-                        <td>{{ server.status }}</td>
-                        <td>{{ server.version }}</td>
-                    </tr>
-                    {% endfor %}
-                    {% if not servers %}
-                    <tr>
-                        <td colspan="3" class="no-servers">{{ servers[0].status if servers else 'No servers found.' }}</td>
-                    </tr>
+                    {% if servers %} <!--- Check if server list is NOT empty -->
+                        {% for server in servers %}
+                        <tr>
+                            <td>{{ server.name }}</td>      <!-- Use .name, .status, .version -->
+                            <td>{{ server.status }}</td>
+                            <td>{{ server.version }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" class="no-servers">No servers found.</td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
