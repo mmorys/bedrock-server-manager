@@ -2,7 +2,7 @@
 import os
 from flask import Flask
 import secrets
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes import server_routes
 
 
@@ -30,5 +30,5 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    port = settings.BEDROCK_SERVER_MANAGER_PORT
+    port = settings.get("BEDROCK_SERVER_MANAGER_PORT")
     app.run(debug=True, port=port)

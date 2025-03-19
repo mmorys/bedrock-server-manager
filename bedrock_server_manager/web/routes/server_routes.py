@@ -4,7 +4,7 @@ from bedrock_server_manager.web.utils import server_list_utils, server_actions
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 import os
 
 server_bp = Blueprint("server_routes", __name__)  # Create a blueprint
@@ -13,7 +13,7 @@ server_bp = Blueprint("server_routes", __name__)  # Create a blueprint
 @server_bp.route("/")
 def index():
     base_dir = get_base_dir()
-    config_dir = settings.CONFIG_DIR
+    config_dir = settings.get("CONFIG_DIR")
     servers = server_list_utils.get_server_status_list(
         base_dir, config_dir
     )  # Call util function
@@ -87,7 +87,7 @@ def install_server_route():
             return render_template("install.html")
 
         base_dir = get_base_dir()
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings.get("CONFIG_DIR")
 
         result = server_actions.install_new_server_action(
             server_name, server_version, base_dir, config_dir
@@ -146,7 +146,7 @@ def configure_properties_route(server_name):
                     server_core.modify_server_properties(server_properties_path, key, value)
 
             # Write Config after properties are set
-            config_dir = settings.CONFIG_DIR
+            config_dir = settings.get("CONFIG_DIR")
             server_core.manage_server_config(server_name, "server_name", "write", server_name, config_dir)
             level_name = request.form.get('level-name') # Get from form
             server_core.manage_server_config(server_name, "target_version", "write", level_name, config_dir)

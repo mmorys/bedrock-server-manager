@@ -9,7 +9,7 @@ from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
 )
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 
 
 def start_server_action(server_name, base_dir=None):
@@ -82,7 +82,7 @@ def install_new_server_action(
     try:
         base_dir = get_base_dir(base_dir)
         if not config_dir:
-            config_dir = settings.CONFIG_DIR
+            config_dir = settings.get("CONFIG_DIR")
 
         server_dir = os.path.join(base_dir, server_name)
         if os.path.exists(server_dir):

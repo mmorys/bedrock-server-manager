@@ -3,7 +3,7 @@ import os
 import glob
 from bedrock_server_manager.core.server import server as server_core
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import settings
 
 
 def get_server_status_list(base_dir=None, config_dir=None):
@@ -11,7 +11,7 @@ def get_server_status_list(base_dir=None, config_dir=None):
 
     base_dir = get_base_dir(base_dir)
     if config_dir is None:
-        config_dir = settings.CONFIG_DIR
+        config_dir = settings.get("CONFIG_DIR")
 
     server_data = []  # Initialize list to hold server data
 
