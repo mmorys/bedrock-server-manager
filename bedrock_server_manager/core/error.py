@@ -1,9 +1,4 @@
 # bedrock-server-manager/bedrock_server_manager/core/error.py
-import logging
-
-logger = logging.getLogger("bedrock_server_manager")
-
-
 class BedrockManagerError(Exception):
     """Base class for all custom exceptions in this project."""
 
@@ -67,6 +62,10 @@ class ServiceError(BedrockManagerError):
 
 
 class DownloadExtractError(BedrockManagerError):
+    pass
+
+
+class AddonExtractError(BedrockManagerError):
     pass
 
 
@@ -134,7 +133,15 @@ class UpdateError(BedrockManagerError):
     pass
 
 
-class PipInstallError(Exception):
+class PlayerDataError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
+    pass
+
+
+class DownloadError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
     pass
 
 

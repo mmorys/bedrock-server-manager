@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.0.0"
+version = "3.0.1"
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
@@ -22,7 +22,8 @@ classifiers = [
 dependencies = [
     "requests",
     "psutil",
-    "colorama"
+    "colorama",
+    'pywin32; sys_platform == "win32"',
 ]
 
 keywords = ["minecraft", "bedrock", "server"]
@@ -31,6 +32,10 @@ keywords = ["minecraft", "bedrock", "server"]
 Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 "Bug Tracker" = "https://github.com/DMedina559/bedrock-server-manager/issues"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bedrock_server_manager*"]
 
 [project.scripts]
 bedrock-server-manager = "bedrock_server_manager:main"

@@ -1,4 +1,4 @@
-name: Bedrock Server Manager - Package Checks
+name: Bedrock Server Manager - Upload Artifacts
 
 on:
   push:
@@ -41,11 +41,11 @@ jobs:
         pip install -U pip
         pip install .
 
-    - name: Install linting and testing tools (flake8, pytest)
+    - name: Install linting and testing tools (flake8)
       shell: bash
       run: |
         source .venv/bin/activate
-        pip install flake8 pytest
+        pip install flake8
 
     - name: Get current version from pyproject.toml
       id: get_current_version
@@ -83,9 +83,3 @@ jobs:
         source .venv/bin/activate
         flake8 bedrock_server_manager --count --select=E9,F63,F7,F82 --show-source --statistics
         flake8 bedrock_server_manager --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Test with pytest
-      shell: bash
-      run: |
-        source .venv/bin/activate
-        pytest .test

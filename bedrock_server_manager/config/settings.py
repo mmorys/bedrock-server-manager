@@ -8,134 +8,111 @@ from bedrock_server_manager.utils import package_finder
 logger = logging.getLogger("bedrock_server_manager")
 
 package_name = "bedrock-server-manager"
-executable_name = "bedrock-server-manager"
+executable_name = package_name
 
 # Find bin/exe
 EXPATH = package_finder.find_executable(package_name, executable_name)
 
 
-# --- Determine Default Data and Config Directories ---
-def get_app_data_dir():
+class Settings:
     """
-    Gets the application data directory, checking for a custom environment
-    variable and falling back to the user's home directory if not found.
-    The directory is *not* created here; that's handled later in the script.
-
-    Returns:
-        str: The path to the application data directory.
+    Manages application settings, loading from and saving to a JSON config file.
     """
-    env_var_name = "BEDROCK_SERVER_MANAGER_DATA_DIR"
-    data_dir = os.environ.get(env_var_name)
 
-    if data_dir:
+    def __init__(self):
+        self._config_dir = self._get_app_config_dir()
+        self.config_file_name = "script_config.json"
+        self.config_path = os.path.join(self._config_dir, self.config_file_name)
+        self._settings = {}  # Initialize empty settings
+        self.load()  # Load settings
 
+    def _get_app_data_dir(self):
+        """
+        Gets the application data directory, checking for a custom environment
+        variable and falling back to the user's home directory.
+        Creates the directory if it does not exist.
+        """
+        env_var_name = "BEDROCK_SERVER_MANAGER_DATA_DIR"
+        data_dir = os.environ.get(env_var_name)
+
+        if data_dir:
+            logger.debug(f"Data Dir (from env): {data_dir}")
+        else:
+            data_dir = os.path.expanduser("~")
+            logger.debug(
+                f"{env_var_name} doesn't exist, defaulting to home directory: {data_dir}"
+            )
+
+        data_dir = os.path.join(data_dir, "bedrock-server-manager")
+        os.makedirs(data_dir, exist_ok=True)  # Ensure directory exists
         return data_dir
 
-    # Default to the user's home directory
-    return os.path.expanduser("~")
+    def _get_app_config_dir(self):
+        """
+        Returns the application configuration directory.
+        Creates the directory if it does not exist.
+        """
+        app_config_dir = os.path.join(self._get_app_data_dir(), ".config")
+        os.makedirs(app_config_dir, exist_ok=True)  # Ensure directory exists
+        return app_config_dir
+
+    @property
+    def default_config(self):
+        """
+        Defines the default configuration values.
+        """
+        app_data_dir = self._get_app_data_dir()  # Get app data dir
+        return {
+            "BASE_DIR": os.path.join(app_data_dir, "servers"),
+            "CONTENT_DIR": os.path.join(app_data_dir, "content"),
+            "DOWNLOAD_DIR": os.path.join(app_data_dir, ".downloads"),
+            "BACKUP_DIR": os.path.join(app_data_dir, "backups"),
+            "LOG_DIR": os.path.join(app_data_dir, ".logs"),
+            "BACKUP_KEEP": 3,
+            "DOWNLOAD_KEEP": 3,
+            "LOGS_KEEP": 3,
+            "LOG_LEVEL": logging.INFO,
+        }
+
+    def load(self):
+        """Loads settings from the JSON config file, overriding defaults."""
+        self._settings = self.default_config.copy()  # Start with defaults
+
+        try:
+            with open(self.config_path, "r") as f:
+                user_config = json.load(f)
+                self._settings.update(user_config)  # Override defaults
+        except FileNotFoundError:
+            logger.debug(
+                "Configuration file not found. Creating with default settings."
+            )
+            self._write_config()  # Create default config
+        except json.JSONDecodeError:
+            logger.warning("Configuration file is not valid JSON. Overwriting...")
+            self._write_config()  # Overwrite invalid config
+        except OSError as e:
+            raise ConfigError(f"Error reading config file: {e}") from e
+
+    def _write_config(self):
+        """Writes the current configuration to the config file."""
+        try:
+            with open(self.config_path, "w") as f:
+                json.dump(self._settings, f, indent=4)
+            logger.debug(f"Configuration written to {self.config_path}")
+        except OSError as e:
+            raise ConfigError(f"Failed to write to config file: {e}") from e
+
+    def get(self, key):
+        """Gets a configuration setting."""
+        return self._settings.get(key)
+
+    def set(self, key, value):
+        """Sets a configuration setting and saves it to the config file."""
+        # Update the specific key in the *in-memory* settings.
+        self._settings[key] = value
+        # Write the *entire* updated configuration back to the file.
+        self._write_config()
 
 
-# Get the application data directory:
-APP_DATA_DIR = get_app_data_dir()
-APP_DATA_DIR = os.path.join(APP_DATA_DIR, "bedrock-server-manager")
-APP_CONFIG_DIR = os.path.join(APP_DATA_DIR, ".config")
-
-# --- Default Configuration Values ---
-# These are the *defaults*.  The JSON file will override these.
-DEFAULT_CONFIG = {
-    "BASE_DIR": os.path.join(APP_DATA_DIR, "servers"),
-    "CONTENT_DIR": os.path.join(APP_DATA_DIR, "content"),
-    "DOWNLOAD_DIR": os.path.join(APP_DATA_DIR, ".downloads"),
-    "BACKUP_DIR": os.path.join(APP_DATA_DIR, "backups"),
-    "LOG_DIR": os.path.join(APP_DATA_DIR, ".logs"),
-    "BACKUP_KEEP": 3,
-    "DOWNLOAD_KEEP": 3,
-    "LOGS_KEEP": 3,
-    "LOG_LEVEL": logging.INFO,
-}
-
-CONFIG_DIR = APP_CONFIG_DIR
-CONFIG_FILE_NAME = "script_config.json"
-CONFIG_PATH = os.path.join(CONFIG_DIR, CONFIG_FILE_NAME)
-
-
-def load_settings():
-    """Loads settings from the JSON config file, overriding defaults."""
-    config = DEFAULT_CONFIG.copy()  # Start with defaults
-
-    # Create config directory if it doesn't exist
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            user_config = json.load(f)
-            config.update(user_config)  # Override defaults with user settings
-    except FileNotFoundError:
-        logger.info("Configuration file not found. Creating with default settings.")
-        _write_default_config()  # write the config
-    except json.JSONDecodeError:
-        logger.warning("Configuration file is not valid JSON.  Using defaults.")
-        _write_default_config()  # Overwrite invalid config file
-    except OSError as e:
-        raise ConfigError(f"Error reading config file: {e}") from e
-
-    return config
-
-
-def _write_default_config():
-    """Writes the default configuration to the config file."""
-    try:
-        with open(CONFIG_PATH, "w") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=4)
-        logger.info(f"Default configuration written to {CONFIG_PATH}")
-    except OSError as e:
-        raise ConfigError(f"Failed to write default config: {e}") from e
-
-
-# Load the settings
-_settings = load_settings()
-
-# --- Access Settings as Attributes ---
-BASE_DIR = _settings["BASE_DIR"]
-BACKUP_KEEP = _settings["BACKUP_KEEP"]
-DOWNLOAD_KEEP = _settings["DOWNLOAD_KEEP"]
-CONTENT_DIR = _settings["CONTENT_DIR"]
-DOWNLOAD_DIR = _settings["DOWNLOAD_DIR"]
-BACKUP_DIR = _settings["BACKUP_DIR"]
-LOG_DIR = _settings["LOG_DIR"]
-LOG_LEVEL = _settings["LOG_LEVEL"]
-LOGS_KEEP = _settings["LOGS_KEEP"]
-
-
-def get(key):
-    """Gets a configuration setting."""
-    return _settings.get(key)
-
-
-def set(key, value):
-    """Sets a configuration setting and saves it to the config file."""
-    global _settings, BASE_DIR, BACKUP_KEEP, DOWNLOAD_KEEP, LOGS_KEEP, CONTENT_DIR, DOWNLOAD_DIR, BACKUP_DIR, LOG_DIR, LOG_LEVEL
-    # Load the *existing* configuration from the file.
-    config = load_settings()
-
-    # Update the specific key.
-    config[key] = value
-
-    # Write the updated configuration back to the file.
-    try:
-        with open(CONFIG_PATH, "w") as f:
-            json.dump(config, f, indent=4)
-    except OSError as e:
-        raise ConfigError(f"Failed to write to config file: {e}") from e
-
-    # Reload settings to update cached values
-    _settings = load_settings()
-    BASE_DIR = _settings["BASE_DIR"]
-    BACKUP_KEEP = _settings["BACKUP_KEEP"]
-    DOWNLOAD_KEEP = _settings["DOWNLOAD_KEEP"]
-    LOGS_KEEP = _settings["LOGS_KEEP"]
-    CONTENT_DIR = _settings["CONTENT_DIR"]
-    DOWNLOAD_DIR = _settings["DOWNLOAD_DIR"]
-    BACKUP_DIR = _settings["BACKUP_DIR"]
-    LOG_DIR = _settings["LOG_DIR"]
-    LOG_LEVEL = _settings["LOG_LEVEL"]
+# --- Initialize Settings ---
+settings = Settings()
