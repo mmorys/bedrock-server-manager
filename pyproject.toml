@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.0.1b1"
+version = "3.0.1b2"
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
@@ -33,5 +33,12 @@ Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 "Bug Tracker" = "https://github.com/DMedina559/bedrock-server-manager/issues"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/CHANGELOG.md"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bedrock_server_manager*"]
+
 [project.scripts]
 bedrock-server-manager = "bedrock_server_manager:main"
+
+[tool.pytest.ini_options]
+testpaths = [".test"]
