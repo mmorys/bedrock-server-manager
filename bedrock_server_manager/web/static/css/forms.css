@@ -1,0 +1,97 @@
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/forms.css */
+
+/* Server Selection Form and Dropdown Styles */
+.server-selection-section {
+    margin-bottom: 20px;
+    text-align: center; /* Center the form elements */
+}
+
+.select-server-group {
+    display: inline-block; /* Keep label and dropdown in line */
+    margin-right: 15px; /* Spacing between dropdown and buttons */
+    vertical-align: middle; /* Align label and dropdown vertically */
+}
+
+.select-label {
+    margin-right: 5px; /* Spacing between label and dropdown */
+    font-weight: bold;
+    color: #ddd; /* Light gray label text */
+    vertical-align: middle; /* Align label with dropdown */
+}
+
+.server-dropdown {
+    padding: 8px;
+    border: 2px solid #777;
+    border-radius: 0; /* Sharp corners for dropdown */
+    background-color: #555;
+    color: #eee;
+    font-family: monospace, sans-serif; /* Match body font */
+    font-size: 1em;
+    cursor: pointer;
+}
+
+.action-buttons-group {
+    display: inline-block; /* Keep buttons in line with dropdown */
+    vertical-align: middle; /* Align buttons with dropdown */
+}
+
+/* Server Selection Form and Dropdown Styling - Refined Pixel Art */
+
+.server-selection-section {
+    margin-bottom: 25px;
+    text-align: left; /* Keep text-align: left for label and dropdown alignment */
+    padding: 15px;     /* Add padding around the whole section */
+    background-color: #3a3a3a; /* Dark gray section background - same as table body */
+    border: 2px solid #555;     /* Add a border to the section - same as table border */
+    border-radius: 5px;         /* Optional: Add slight rounded corners to the section */
+}
+
+.select-server-group {
+    display: inline-block;
+    margin-right: 20px; /* Slightly increased right margin */
+    vertical-align: middle;
+}
+
+.select-label {
+    margin-right: 8px;
+    font-weight: bold;
+    color: #ddd;
+    text-shadow: 1px 1px 0 #222;
+    vertical-align: middle;
+    display: inline-block; /* Make label inline-block */
+    width: 120px;         /* Fixed width for label - adjust as needed */
+    text-align: right;    /* Align label text to the right */
+}
+
+.server-dropdown {
+    padding: 7px 10px; /* Adjusted padding for dropdown */
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #bbb;      /* Light gray highlight - Top */
+    border-left-color: #bbb;     /* Light gray highlight - Left */
+    border-bottom-color: #666;   /* Medium gray shadow - Bottom */
+    border-right-color: #666;    /* Medium gray shadow - Right */
+    border-radius: 0; /* Keep sharp corners */
+    background-color: #888;      /* Medium gray background for dropdown */
+    color: #eee;               /* Light text color for dropdown */
+    font-family: monospace, sans-serif;
+    font-size: 1em;
+    cursor: pointer;
+    /* Pixelated shadow for dropdown */
+    box-shadow: 2px 2px 0 #777;
+}
+
+.server-dropdown:focus, .server-dropdown:hover {
+    outline: none; /* Remove default focus outline */
+    background-color: #999;      /* Slightly lighter gray on focus/hover */
+    border-top-color: #ccc;      /* Lighter highlight on focus/hover */
+    border-left-color: #ccc;     /* Lighter highlight on focus/hover */
+    border-bottom-color: #777;   /* Slightly lighter shadow on focus/hover */
+    border-right-color: #777;    /* Slightly lighter shadow on focus/hover */
+    box-shadow: 2px 2px 0 #888;  /* Adjusted hover/focus shadow - Lighter */
+}
+
+.action-buttons-group {
+    display: inline-block;
+    vertical-align: middle;
+}

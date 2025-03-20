@@ -1,0 +1,33 @@
+/* bedrock-server-manager/bedrock_server_manager/bedrock_server_manager/web/static/css/messages.css */
+
+.message-box {
+    background-color: #4CAF50;  /* Brighter, more saturated green - adjust as needed */
+    color: #fff;               /* White text for better contrast */
+    padding: 10px 15px;       /* Slightly adjusted padding */
+    margin-bottom: 20px;     /* Increased bottom margin for better spacing */
+    border-width: 2px;       /* 2px border */
+    border-style: solid;
+    border-top-color: #90EE90;    /* Light green top border for highlight */
+    border-left-color: #90EE90;   /* Light green left border for highlight */
+    border-bottom-color: #006400; /* Dark green bottom border for shadow */
+    border-right-color: #006400;  /* Dark green right border for shadow */
+    border-radius: 0;          /* Sharp corners */
+    text-shadow: 1px 1px 0 #224422; /* Subtle text shadow */
+    /* Optional: Add a box-shadow if you want more 3D effect */
+    box-shadow: 2px 2px 0 #336633;
+    font-weight: bold;
+}
+
+/* Style for error messages */
+.message-error {
+    background-color: #f44336; /* Red background for errors */
+    border-top-color: #ff9898;      /* Light red highlight - Top */
+    border-left-color: #ff9898;     /* Light red highlight - Left */
+    border-bottom-color: #800000;   /* dark red shadow - Bottom */
+    border-right-color: #800000;    /* dark red shadow - Right */
+}
+
+.message-box {
+     padding: 8px;
+     font-size: .9em;
+}
