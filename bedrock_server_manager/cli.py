@@ -9,6 +9,7 @@ from datetime import datetime
 from colorama import Fore, Style
 import xml.etree.ElementTree as ET
 from bedrock_server_manager import handlers
+from bedrock_server_manager.config.settings import EXPATH
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import (
     select_option,
@@ -1478,17 +1479,17 @@ def add_cron_job(server_name, base_dir):
             print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     if choice == 1:
-        command = f"{settings.EXPATH} update-server --server {server_name}"
+        command = f"{EXPATH} update-server --server {server_name}"
     elif choice == 2:
-        command = f"{settings.EXPATH} backup-all --server {server_name}"
+        command = f"{EXPATH} backup-all --server {server_name}"
     elif choice == 3:
-        command = f"{settings.EXPATH} start-server --server {server_name}"
+        command = f"{EXPATH} start-server --server {server_name}"
     elif choice == 4:
-        command = f"{settings.EXPATH} stop-server --server {server_name}"
+        command = f"{EXPATH} stop-server --server {server_name}"
     elif choice == 5:
-        command = f"{settings.EXPATH} restart-server --server {server_name}"
+        command = f"{EXPATH} restart-server --server {server_name}"
     elif choice == 6:
-        command = f"{settings.EXPATH} scan-players"
+        command = f"{EXPATH} scan-players"
 
     # Get cron timing details
     while True:
@@ -1538,7 +1539,7 @@ def add_cron_job(server_name, base_dir):
     else:
         schedule_time = schedule_response["schedule_time"]
 
-    display_command = command.replace(os.path.join(settings.EXPATH), "").strip()
+    display_command = command.replace(os.path.join(EXPATH), "").strip()
     display_command = display_command.split("--", 1)[0].strip()
     print(
         f"{_INFO_PREFIX}Your cron job will run with the following schedule:{Style.RESET_ALL}"
@@ -1667,7 +1668,7 @@ def modify_cron_job(server_name, base_dir):
         schedule_time = schedule_response["schedule_time"]
 
     # Format command (UI-specific formatting)
-    display_command = job_command.replace(os.path.join(settings.EXPATH), "").strip()
+    display_command = job_command.replace(os.path.join(EXPATH), "").strip()
     display_command = display_command.split("--", 1)[0].strip()
     print(
         f"{_INFO_PREFIX}Your modified cron job will run with the following schedule:{Style.RESET_ALL}"
