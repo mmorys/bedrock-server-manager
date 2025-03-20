@@ -159,3 +159,13 @@ The switch to python allows cross platform support, standardized processes, and 
     - LOG_DIR
     - LOGS_KEEP
     - LOG_LEVEL
+
+### 3.0.1
+1. Added handlers module
+   - Refactored cli to use handlers
+2. Refactored settings module
+   - Migrated settings to a class
+3. Fixed logger variables
+4. [WIP] Send command support for Windows
+    - Requires pywin32 module to be installed
+    - Requires seperate start method not currently available
