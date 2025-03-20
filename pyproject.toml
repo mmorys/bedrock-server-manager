@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.0.1b2"
+version = "3.1.0b3"
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
@@ -24,6 +24,7 @@ dependencies = [
     "psutil",
     "colorama",
     'pywin32; sys_platform == "win32"',
+    "flask"
 ]
 
 keywords = ["minecraft", "bedrock", "server"]
@@ -39,6 +40,7 @@ include = ["bedrock_server_manager*"]
 
 [project.scripts]
 bedrock-server-manager = "bedrock_server_manager:main"
+bedrock-server-manager-web = "bedrock_server_manager.web.app:main"
 
 [tool.pytest.ini_options]
 testpaths = [".test"]

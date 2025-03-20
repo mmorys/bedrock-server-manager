@@ -1,0 +1,50 @@
+/* bedrock-server-manager/bedrock_server_manager/bedrock_server_manager/web/static/css/tables.css */
+
+/* Server List Section and Table */
+.server-list-section {
+    margin-bottom: 20px;
+}
+
+.server-table {
+    width: 100%;
+    border-collapse: collapse; /* Keep border-collapse: collapse; */
+    background-color: #3a3a3a; /* Dark gray table body background - slightly lighter than header */
+    border: 2px solid #555;     /* Keep table border */
+}
+
+.server-table td {
+    border-width: 2px; /* Thicker cell borders to match design */
+    border-style: solid;
+    border-top-color: transparent;    /* No top border for cells */
+    border-left-color: transparent;   /* No left border for cells */
+    border-bottom-color: #555;      /* Dark gray bottom border for cell separation */
+    border-right-color: #555;       /* Dark gray right border for cell separation */
+    padding: 6px 8px;             /* Adjusted cell padding - slightly reduced vertical */
+    text-align: left;
+    font-size: 1em;               /* Keep font-size: 0.9em or adjust to 1em if pixel font looks good */
+    color: #eee;                  /* Light text color in cells */
+}
+
+.server-table th {
+    background-color: #404040; /* Darker gray header background - slightly darker than table body */
+    color: #ddd;              /* Light gray text color - adjusted for better contrast */
+    font-weight: bold;        /* Keep font-weight: bold */
+    text-align: left;         /* Keep text-align: left */
+    padding: 10px 8px;        /* Slightly increased padding for header */
+    border-bottom: 2px solid #555; /* Add a more pronounced bottom border */
+    border-top: none;         /* Remove top border (if any was set before) */
+    border-left: none;        /* Remove left border (let table border handle it) */
+    border-right: none;       /* Remove right border (let table border handle it) */
+    text-shadow: 1px 1px 0 #222; /* Subtle text shadow for header text */
+}
+
+.server-table tbody tr:nth-child(even) {
+    background-color: #444; /* Slightly darker for even rows - subtle striping */
+}
+
+.no-servers {
+    padding: 10px;
+    text-align: center;
+    font-style: italic;
+    color: #aaa;
+}
