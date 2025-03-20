@@ -42,5 +42,8 @@ include = ["bedrock_server_manager*"]
 bedrock-server-manager = "bedrock_server_manager:main"
 bedrock-server-manager-web = "bedrock_server_manager.web.app:main"
 
+[tool.setuptools.package-data]
+"bedrock_server_manager.web" = ["templates/*", "static/css/*"]
+
 [tool.pytest.ini_options]
 testpaths = [".test"]
