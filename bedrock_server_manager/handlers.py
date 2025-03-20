@@ -553,7 +553,7 @@ def install_new_server_handler(
         return config_result
 
     logger.info(f"Server {server_name} installed successfully.")
-    return {"status": "success"}
+    return {"status": "success", "server_name": server_name}
 
 
 def update_server_handler(

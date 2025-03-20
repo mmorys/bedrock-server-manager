@@ -94,7 +94,7 @@ class BedrockServer:
         if not command:
             raise MissingArgumentError("send_command: command is empty.")
 
-        # Get process info.  If None, server is not running.        
+        # Get process info.  If None, server is not running.
         process_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
