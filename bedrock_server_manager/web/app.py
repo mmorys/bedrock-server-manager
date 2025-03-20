@@ -4,6 +4,7 @@ from flask import Flask
 import secrets
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes import server_routes
+from waitress import serve
 
 
 def create_app():
@@ -28,7 +29,12 @@ def create_app():
     return app
 
 
-if __name__ == "__main__":
+def main():
     app = create_app()
     port = settings.get("BEDROCK_SERVER_MANAGER_PORT")
+    # Run with Flask's built-in server (for development) or waitress (for production)
     app.run(debug=True, port=port)
+    #serve(app, listen=f"*:{port}")
+
+if __name__ == "__main__":
+    main()
