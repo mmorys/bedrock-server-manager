@@ -169,3 +169,7 @@ The switch to python allows cross platform support, standardized processes, and 
 4. [WIP] Send command support for Windows
     - Requires pywin32 module to be installed
     - Requires seperate start method not currently available
+
+### 3.0.2
+1. Fixed EXPATH variable in Linux scheduler
+2. Fixed Modify Windows Task
