@@ -1,0 +1,45 @@
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/base.css */
+
+/* Basic Reset and Font */
+body {
+    font-family: monospace, sans-serif; /* Fallback to sans-serif if monospace not pixelated enough */
+    margin: 0;
+    padding: 0;
+    background-color: #222; /* Dark background from design */
+    color: #eee; /* Light text color */
+    font-size: 16px; /* Adjust as needed for pixel font size */
+}
+
+.container {
+    width: 90%; /* Keep width */
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #333; /* Keep background color */
+    border-width: 4px; /* Increased border width for chunkier look */
+    border-style: solid;
+    border-top-color: #777;    /* Lighter gray for top border */
+    border-left-color: #777;   /* Lighter gray for left border */
+    border-bottom-color: #222; /* Darker gray for bottom border */
+    border-right-color: #222;  /* Darker gray for right border */
+    border-radius: 0px;      /* Sharp corners - remove rounded corners */
+    /* Optional: Add a subtle shadow to the container itself if you want */
+    /* box-shadow: 3px 3px 0 #111; */ 
+}
+
+/* Header Styling */
+.header {
+    text-align: center;
+    margin-bottom: 25px; /* Increased bottom margin for more spacing */
+    padding-bottom: 15px; /* Increased padding below header */
+    border-bottom: 2px solid #666; /* Slightly thicker and darker border */
+}
+
+.header h1 {
+    font-size: 2.5em; /* Increased font size - more prominent header */
+    letter-spacing: 2px; /* Increased letter spacing - more pixelated spacing */
+    text-shadow: 2px 2px 0 #222, /* Main shadow - darker and more offset */
+                 3px 3px 0 #222; /* Added a second shadow layer for thicker effect */
+    font-weight: bold; /* Ensure font-weight: bold */
+    color: #eee;       /* Keep light text color */
+}
