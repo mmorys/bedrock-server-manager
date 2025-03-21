@@ -134,9 +134,7 @@ def _create_systemd_service(server_name, base_dir, autoupdate):
 
     autoupdate_cmd = ""
     if autoupdate:
-        autoupdate_cmd = (
-            f"ExecStartPre={EXPATH} update-server --server {server_name}"
-        )
+        autoupdate_cmd = f"ExecStartPre={EXPATH} update-server --server {server_name}"
         logger.debug("Auto-update enabled on start.")
     else:
         logger.debug("Auto-update disabled on start.")
