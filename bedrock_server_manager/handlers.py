@@ -1835,20 +1835,45 @@ def modify_windows_task_handler(
     """Modifies an existing Windows scheduled task (by deleting and recreating)."""
     base_dir = get_base_dir(base_dir)  # Keep for consistency
 
+    old_xml_file_path = os.path.join(config_dir, server_name, f"{old_task_name}.xml")
+
     try:
+
         # 1. Create the new XML
         new_xml_file_path = system_windows.create_windows_task_xml(
-            server_name, command, command_args, new_task_name, config_dir, triggers
+            server_name, "", command_args, new_task_name, config_dir, triggers
         )
 
         # 2. Delete the old task
-        system_windows.delete_task(old_task_name)
+        try:
+            system_windows.delete_task(old_task_name)
+        except Exception as e:
+            logger.warning(f"Failed to remove task XML: {e}")
+
+        if os.path.exists(old_xml_file_path):
+            try:
+                os.remove(old_xml_file_path)
+            except OSError as e:
+                logger.warning(f"Failed to remove task XML file: {e}")
 
         # 3. Import the new task
         system_windows.import_task_xml(new_xml_file_path, new_task_name)
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": f"Error modifying task: {e}"}
+
+
+def create_task_name_handler(server_name, command_args):
+    """Cleans up task names for modify windows task."""
+    # Remove '--server' and the server name using regex
+    cleaned_args = re.sub(
+        r"--server\s+" + re.escape(server_name) + r"\s*", "", command_args
+    ).strip()
+    # Replace all non-alphanumeric characters with underscores
+    sanitized_args = re.sub(r"\W+", "_", cleaned_args)
+
+    new_task_name = f"bedrock_{server_name}_{sanitized_args}_{get_timestamp()}"
+    return new_task_name
 
 
 def delete_windows_task_handler(task_name, task_file_path, base_dir=None):

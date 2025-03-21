@@ -6,7 +6,7 @@ import subprocess
 import getpass
 import time
 from datetime import datetime
-from bedrock_server_manager.config import settings
+from bedrock_server_manager.config.settings import EXPATH
 from bedrock_server_manager.core.error import (
     CommandNotFoundError,
     SystemdReloadError,
@@ -134,9 +134,7 @@ def _create_systemd_service(server_name, base_dir, autoupdate):
 
     autoupdate_cmd = ""
     if autoupdate:
-        autoupdate_cmd = (
-            f"ExecStartPre={settings.EXPATH} update-server --server {server_name}"
-        )
+        autoupdate_cmd = f"ExecStartPre={EXPATH} update-server --server {server_name}"
         logger.debug("Auto-update enabled on start.")
     else:
         logger.debug("Auto-update disabled on start.")
@@ -150,9 +148,9 @@ Type=forking
 WorkingDirectory={server_dir}
 Environment="PATH=/usr/bin:/bin:/usr/sbin:/sbin"
 {autoupdate_cmd}
-ExecStart={settings.EXPATH} systemd-start --server {server_name}
-ExecStop={settings.EXPATH} systemd-stop --server {server_name}
-ExecReload={settings.EXPATH} systemd-stop --server {server_name} && {settings.EXPATH} systemd-start --server {server_name}
+ExecStart={EXPATH} systemd-start --server {server_name}
+ExecStop={EXPATH} systemd-stop --server {server_name}
+ExecReload={EXPATH} systemd-stop --server {server_name} && {EXPATH} systemd-start --server {server_name}
 Restart=always
 RestartSec=10
 StartLimitIntervalSec=500
@@ -456,7 +454,7 @@ def _format_cron_command(command):
     command = command.strip()
 
     # Convert script path to string if it's a PosixPath
-    script_path = str(settings.EXPATH)
+    script_path = str(EXPATH)
 
     # Remove the script path if it appears at the start of the command
     if command.startswith(script_path):
