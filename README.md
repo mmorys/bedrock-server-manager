@@ -34,7 +34,7 @@ On Linux, you'll also need:
 *  systemd
 
 
-## Usage
+## Installation
 
 ### Install The Package:
 
@@ -42,6 +42,8 @@ On Linux, you'll also need:
 ```
 pip install bedrock-server-manager
 ```
+
+## Configuration
 
 ### Setup The Configuration:
 
@@ -55,16 +57,17 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 #### The following variables are configurable via json
 
-* BASE_DIR
-* CONTENT_DIR
-* DOWNLOAD_DIR
-* BACKUP_DIR
-* LOG_DIR
-* BACKUP_KEEP
-* DOWNLOAD_KEEP
-* LOGS_KEEP
-* LOG_LEVEL
+* BASE_DIR: Directory where servers will be installed
+* CONTENT_DIR: Directory where the app will look for addons/worlds
+* DOWNLOAD_DIR: Directory where servers will download
+* BACKUP_DIR: Directory where server backups will go
+* LOG_DIR: Directory where app logs will be saved
+* BACKUP_KEEP: How many backups to keep
+* DOWNLOAD_KEEP: How many server downloads to keep
+* LOGS_KEEP: How many logs to keep
+* LOG_LEVEL: Level for logging
 
+## Usage
 
 ### Run the script:
 
@@ -72,9 +75,9 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 bedrock-server-manager <command> [options]
 ```
 
-#### Available commands:
+### Available commands:
 
-<sub>When interacting with the script, server_name is the name of the servers folder (the name you chose durring the first step of instalation)</sub>
+<sub>When interacting with the script, server_name is the name of the servers folder (the name you chose durring the first step of instalation (also displayed in the Server Status table))</sub>
 
 | Command             | Description                                       | Arguments                                                                                                     | Platform      |
 |----------------------|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------|---------------|
@@ -150,22 +153,30 @@ bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write 
 ```
 
 
-### Install Content:
+## Install Content:
 
-With bedrock-server-manager you can easily import .mcworld and .mcpack files into your server. The script will look in `./content/worlds` and `./content/addons` respectively. 
+Easily import addons and worlds into your servers. The app will look in the configured `CONTENT_DIR` directories for addon files.
 
-For .mcworlds the script will scan the server.properties files for the `level-name` and extract the file to that folder.
+Place .mcworld files in `CONTENT_DIR/worlds` or .mcpack/.mcaddon files in `CONTENT_DIR/addons`
 
-For .mcpacks the script will extract them to a tmp folder and scan the manifest.json, looking for the pack type, name, version, and uuid. The script will then move the pack to it respective world folder (resource_packs, or behaviour_packs) with the name+verison used as the folder name, and the script will update the `world_behavior_packs.json` and `world_resource_packs.json` as needed with the packs uuid and version.
+Use the interactive menu to choose which file to install or use the command:
 
-### Tested on these systems:
+```
+bedrock-server-manager install-world --server server_name --file '/path/to/WORLD.mcworld'
+```
+
+```
+bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON.mcpack'
+```
+
+## Tested on these systems:
 - Debian 12 (bookworm)
 - Ubuntu 24.04
 - Windows 11 24H2
 - WSL2
 
-### Platform Differences:
+## Platform Differences:
 - Windows suppport has the following limitations such as:
- - No send-command support
+ - send-command requires seperate start method (no yet available)
  - No attach to console support
  - Doesn't auto restart if crashed
