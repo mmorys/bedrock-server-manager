@@ -700,9 +700,9 @@ def create_systemd_service_handler(
     try:
         system_linux._create_systemd_service(server_name, base_dir, autoupdate)
         if autostart:
-            system_linux.enable_service(server_name, base_dir)
+            system_linux._enable_systemd_service(server_name)
         else:
-            system_linux.disable_service(server_name, base_dir)
+            system_linux._disable_systemd_service(server_name)
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": f"Failed to create systemd service: {e}"}
@@ -745,7 +745,7 @@ def enable_service_handler(server_name, base_dir=None):
         return {"status": "success"}
     base_dir = get_base_dir(base_dir)
     try:
-        system_linux.enable_service(server_name, base_dir)
+        system_linux._enable_systemd_service(server_name)
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": f"Failed to enable service: {e}"}
@@ -756,7 +756,7 @@ def disable_service_handler(server_name, base_dir=None):
         return {"status": "success"}
     base_dir = get_base_dir(base_dir)
     try:
-        system_linux.disable_service(server_name, base_dir)
+        system_linux._disable_systemd_service(server_name)
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": f"Failed to disable service: {e}"}
