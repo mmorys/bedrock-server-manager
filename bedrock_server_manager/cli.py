@@ -13,6 +13,7 @@ from bedrock_server_manager.config.settings import EXPATH
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import (
     select_option,
+    get_timestamp,
     get_base_dir,
     _INFO_PREFIX,
     _OK_PREFIX,
@@ -1783,9 +1784,8 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
 
     if platform.system() != "Windows":
         raise OSError("This function is for Windows only.")
-
+    os.system("cls")
     while True:
-        os.system("cls")
         print(f"{Fore.MAGENTA}Bedrock Server Manager - Task Scheduler{Style.RESET_ALL}")
         print(
             f"{Fore.CYAN}Current scheduled tasks for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
@@ -2177,27 +2177,33 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
         except ValueError:
             print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
-    # --- Get existing command and arguments ---
+    # --- Get existing command and arguments using XML parsing ---
     try:
-        with open(selected_file_path, "r") as file:
-            xml_content = file.read()
+        tree = ET.parse(selected_file_path)
+        root = tree.getroot()
 
-        # Use a regular expression to find the <Command> and <Arguments> tags and extract their content
-        command_match = re.search(r"<Command>(.*?)</Command>", xml_content)
-        arguments_match = re.search(r"<Arguments>(.*?)</Arguments>", xml_content)
+        # Handle namespaces.  Task Scheduler XML *usually* uses this namespace:
+        namespaces = {"ns": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
-        # Extract the command and arguments, remove extra spaces
-        command = command_match.group(1).strip() if command_match else ""
-        command_args = arguments_match.group(1).strip() if arguments_match else ""
+        # Find the Command and Arguments elements, using the namespace
+        command_element = root.find(".//ns:Command", namespaces)
+        arguments_element = root.find(".//ns:Arguments", namespaces)
+
+        # Extract text, handle None case safely
+        command = command_element.text.strip() if command_element is not None else ""
+        command_args = (
+            arguments_element.text.strip() if arguments_element is not None else ""
+        )
 
     except (FileNotFoundError, ET.ParseError) as e:
         print(f"{_ERROR_PREFIX}Error loading task XML: {e}")
         return
+
     # --- Get NEW trigger information from the user ---
     triggers = get_trigger_details()
 
     # Create a task name
-    new_task_name = f"bedrock_{server_name}_{command.replace('-', '_')}"
+    new_task_name = handlers.create_task_name_handler(server_name, command_args)
 
     # Call the handler to modify the task
     modify_response = handlers.modify_windows_task_handler(

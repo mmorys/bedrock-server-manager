@@ -185,7 +185,6 @@ def get_windows_task_info(task_names):
             logger.exception(
                 f"An unexpected error occurred while getting task info for {task_name}: {e}"
             )
-
     return task_info_list
 
 
@@ -324,6 +323,7 @@ def create_windows_task_xml(
     Raises:
         TaskError: If there's an error creating the XML or writing the file.
     """
+
     task = ET.Element("Task", version="1.2")
     task.set("xmlns", "http://schemas.microsoft.com/windows/2004/02/mit/task")
 
@@ -381,7 +381,7 @@ def create_windows_task_xml(
     task_dir = os.path.join(config_dir, server_name)
     os.makedirs(task_dir, exist_ok=True)
 
-    xml_file_name = f"{command}.xml"
+    xml_file_name = f"{task_name}.xml"
     xml_file_path = os.path.join(task_dir, xml_file_name)
     try:
         ET.indent(task)
