@@ -195,8 +195,13 @@ def is_server_running(server_name, base_dir):
         return False
 
 
+_last_cpu_times = {}
+_last_timestamp = None
+
+
 def _get_bedrock_process_info(server_name, base_dir):
-    """Gets resource usage information for the running Bedrock server.
+    """Gets resource usage information for the running Bedrock server,
+    using delta-based CPU usage calculation similar to _linux_monitor.
 
     Args:
         server_name (str): The name of the server.
@@ -204,16 +209,18 @@ def _get_bedrock_process_info(server_name, base_dir):
 
     Returns:
         dict or None: A dictionary containing process information, or None
-                      if the server is not running or an error occurs.  The
-                      dictionary has the following keys:
+                      if the server is not running or an error occurs.
+                      The dictionary has the following keys:
                         - pid (int): The process ID.
                         - cpu_percent (float): The CPU usage percentage.
                         - memory_mb (float): The memory usage in megabytes.
                         - uptime (str): The server uptime as a string.
-                      If any of these cannot be retrieved, they will be None.
     Raises:
         ResourceMonitorError: If there is any error during monitoring.
     """
+
+    global _last_cpu_times, _last_timestamp
+
     if platform.system() == "Linux":
         try:
             # Find the screen process running the Bedrock server
@@ -232,7 +239,7 @@ def _get_bedrock_process_info(server_name, base_dir):
                     psutil.AccessDenied,
                     psutil.ZombieProcess,
                 ):
-                    pass
+                    continue
 
             if not screen_pid:
                 logger.warning(
@@ -260,18 +267,39 @@ def _get_bedrock_process_info(server_name, base_dir):
             # Get process details
             try:
                 bedrock_process = psutil.Process(bedrock_pid)
-                with bedrock_process.oneshot():  # Improves performance
-                    # CPU Usage: Real-time calculation
-                    cpu_percent = (
-                        bedrock_process.cpu_percent(interval=1.0) / psutil.cpu_count()
-                    )  # per core usage
+                with bedrock_process.oneshot():
+                    current_cpu_times = bedrock_process.cpu_times()
 
-                    # Memory Usage
-                    memory_mb = bedrock_process.memory_info().rss / (
-                        1024 * 1024
-                    )  # Convert to MB
+                    # Get previous CPU times and timestamp; if not set, initialize them.
+                    if _last_timestamp is None:
+                        _last_cpu_times[bedrock_pid] = current_cpu_times
+                        _last_timestamp = time.time()
+                        # Not enough data to calculate delta; return 0% CPU usage.
+                        cpu_percent = 0.0
+                    else:
+                        current_timestamp = time.time()
+                        time_delta = current_timestamp - _last_timestamp
 
-                    # Uptime
+                        prev_cpu_times = _last_cpu_times.get(
+                            bedrock_pid, current_cpu_times
+                        )
+                        cpu_time_delta = (
+                            current_cpu_times.user + current_cpu_times.system
+                        ) - (prev_cpu_times.user + prev_cpu_times.system)
+                        cpu_percent = (
+                            (cpu_time_delta / time_delta * 100)
+                            if time_delta > 0
+                            else 0.0
+                        )
+
+                        # Update globals for the next call
+                        _last_cpu_times[bedrock_pid] = current_cpu_times
+                        _last_timestamp = current_timestamp
+
+                    # Memory Usage (in MB)
+                    memory_mb = bedrock_process.memory_info().rss / (1024 * 1024)
+
+                    # Uptime calculation
                     uptime_seconds = time.time() - bedrock_process.create_time()
                     uptime_str = str(timedelta(seconds=int(uptime_seconds)))
 

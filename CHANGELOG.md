@@ -173,3 +173,7 @@ The switch to python allows cross platform support, standardized processes, and 
 ### 3.0.2
 1. Fixed EXPATH variable in Linux scheduler
 2. Fixed Modify Windows Task
+
+### 3.0.3
+1. Fixed Linux resource usage monitor
+2. Fixed Linux systemd enable/disable
