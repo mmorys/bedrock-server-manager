@@ -72,6 +72,8 @@ class Settings:
             "DOWNLOAD_KEEP": 3,
             "LOGS_KEEP": 3,
             "LOG_LEVEL": logging.INFO,
+            "LOG_LEVEL": logging.INFO,
+            "BEDROCK_SERVER_MANAGER_PORT": 5000,
         }
 
     def load(self):
