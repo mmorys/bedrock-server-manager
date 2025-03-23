@@ -1,5 +1,6 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/server_routes.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+import json
 from bedrock_server_manager import handlers
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
@@ -205,8 +206,7 @@ def configure_properties_route(server_name):
         flash(f"server.properties not found for server: {server_name}", "error")
         return redirect(url_for("server_routes.index"))
     # Check if new_install is True, convert to boolean
-    new_install = request.args.get('new_install', 'false')
-
+    new_install = request.args.get("new_install", False)
 
     if request.method == "POST":
         # Handle form submission (save properties)
@@ -290,12 +290,12 @@ def configure_properties_route(server_name):
 
         # Redirect based on new_install flag, Changed redirect
         if new_install:
-            new_install=True
+            new_install = True
             return redirect(
                 url_for(
                     "server_routes.configure_allowlist_route",
                     server_name=server_name,
-                   new_install=new_install,
+                    new_install=new_install,
                 )
             )
         else:
@@ -322,7 +322,7 @@ def configure_properties_route(server_name):
 @server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET", "POST"])
 def configure_allowlist_route(server_name):
     base_dir = get_base_dir()
-    new_install = request.args.get('new_install', 'false')
+    new_install = request.args.get("new_install", False)
 
     if request.method == "POST":
         player_names_raw = request.form.get("player_names", "")
@@ -346,9 +346,16 @@ def configure_allowlist_route(server_name):
         if result["status"] == "success":
             flash(f"Allowlist for '{server_name}' updated successfully!", "success")
             if new_install:
-                new_install=True
-                return "next step in installation (configure permissions) - coming soon"
-            return redirect(url_for("server_routes.index"))
+                new_install = True
+                return redirect(
+                    url_for(
+                        "server_routes.configure_allowlist_route",
+                        server_name=server_name,
+                        new_install=new_install,
+                    )
+                )
+            else:
+                return redirect(url_for("server_routes.index"))
         else:
             flash(f"Error updating allowlist: {result['message']}", "error")
             # Re-render the form with the existing and attempted new players
@@ -370,5 +377,91 @@ def configure_allowlist_route(server_name):
             "configure_allowlist.html",
             server_name=server_name,
             existing_players=existing_players,
+            new_install=new_install,
+        )
+
+
+@server_bp.route("/server/<server_name>/configure_permissions", methods=["GET", "POST"])
+def configure_permissions_route(server_name):
+    base_dir = get_base_dir()
+    new_install = request.args.get("new_install", False)
+
+    if request.method == "POST":
+        # Handle form submission (save permissions)
+        permissions_data = {}
+        for xuid, permission in request.form.items():
+            #  Sanitize permission input!  VERY IMPORTANT!
+            if permission.lower() not in ("visitor", "member", "operator"):
+                flash(
+                    f"Invalid permission level for XUID {xuid}: {permission}", "error"
+                )
+                # Re-render with current data
+                return redirect(
+                    url_for(
+                        "server_routes.configure_permissions_route",
+                        server_name=server_name,
+                        new_install=new_install,
+                    )
+                )  # Stay on page
+
+            permissions_data[xuid] = permission.lower()
+
+        # Get player names from players.json
+        players_response = handlers.get_players_from_json_handler()
+        if players_response["status"] == "error":
+            flash(f"Error loading player data: {players_response['message']}", "error")
+            # Decide how to proceed; maybe back to the index page?
+            return redirect(url_for("server_routes.index"))
+        player_names = {
+            player["xuid"]: player["name"] for player in players_response["players"]
+        }  # Create XUID->Name mapping
+
+        # Call handler to configure permission for EACH player.
+        for xuid, permission in permissions_data.items():
+            player_name = player_names.get(
+                xuid, "Unknown Player"
+            )  # Get name, default if not found.
+            result = handlers.configure_player_permission_handler(
+                server_name, xuid, player_name, permission, base_dir
+            )
+            if result["status"] == "error":
+                flash(
+                    f"Error setting permission for {player_name}: {result['message']}",
+                    "error",
+                )
+
+        flash(f"Permissions for server '{server_name}' updated.", "success")
+        if new_install:
+            new_install = True
+            return "Comming Soon"
+        return redirect(url_for("server_routes.index"))
+
+    else:  # GET request
+        # Get the list of players from players.json
+        players_response = handlers.get_players_from_json_handler()
+        if players_response["status"] == "error":
+            flash(f"Error loading player data: {players_response['message']}", "error")
+            return redirect(url_for("server_routes.index"))
+        players = players_response["players"]
+
+        # Get the *current* permissions from the server's permissions.json file.
+        permissions = {}
+        try:
+            server_dir = os.path.join(base_dir, server_name)
+            permissions_file = os.path.join(server_dir, "permissions.json")
+            if os.path.exists(permissions_file):
+                with open(permissions_file, "r") as f:
+                    permissions_data = json.load(f)
+                    # Create a dictionary mapping XUID to permission level
+                    for player_entry in permissions_data:
+                        permissions[player_entry["xuid"]] = player_entry["permission"]
+        except (OSError, json.JSONDecodeError) as e:
+            flash(f"Error reading permissions.json: {e}", "error")
+
+        return render_template(
+            "configure_permissions.html",
+            server_name=server_name,
+            players=players,
+            permissions=permissions,
             new_install=new_install,
         )

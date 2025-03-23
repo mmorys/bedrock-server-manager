@@ -1,0 +1,53 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_permissions.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager - Configure Permissions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Configure Permissions for {{ server_name }}</h1>
+        </header>
+
+        <section class="permissions-form-section">
+            <form action="{{ url_for('server_routes.configure_permissions_route', server_name=server_name, next_step=next_step) }}" method="post">
+                <table class="server-table">
+                    <thead>
+                        <tr>
+                            <th>Player Name</th>
+                            <th>XUID</th>
+                            <th>Permission Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for player in players %}
+                        <tr>
+                            <td>{{ player.name }}</td>
+                            <td>{{ player.xuid }}</td>
+                            <td>
+                                <select name="{{ player.xuid }}" class="form-input">
+                                    <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
+                                    <option value="member" {% if permissions.get(player.xuid) == 'member' %}selected{% endif %}>Member</option>
+                                    <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
+                                </select>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <button type="submit" class="main-button">Save Permissions</button>
+                {% if next_step == 'install' %}
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
+                {% else %}
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                {% endif %}
+            </form>
+        </section>
+    </div>
+</body>
+</html>
