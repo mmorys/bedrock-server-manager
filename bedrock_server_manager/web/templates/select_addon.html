@@ -1,0 +1,45 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/select_addon.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager - Select Addon</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Select Addon to Install for {{ server_name }}</h1>
+        </header>
+
+        <section class="select-addon-section">
+            {% if addon_files %}
+                <form action="{{ url_for('server_routes.install_addon_route', server_name=server_name) }}" method="post">
+                     <table class="server-table">
+                      <thead>
+                        <tr>
+                          <th>Addon Name</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                    <tbody>
+                    {% for addon_file in addon_files %}
+                        <tr>
+                            <td>{{ addon_file|basename }}</td>
+                            <td> <button type="submit" name="selected_file" value="{{ addon_file }}" class="main-button">Install</button></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                    </table>
+                    <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                </form>
+            {% else %}
+                <p>No addon files (.mcaddon or .mcpack) found in the content directory.</p>
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Main Menu</a>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html>

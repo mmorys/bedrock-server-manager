@@ -1545,6 +1545,35 @@ def list_backups_handler(server_name, backup_type, base_dir=None):
     return {"status": "success", "backups": backup_files}
 
 
+def list_content_files_handler(content_dir, extensions):
+    """Lists files in a directory with specified extensions.
+
+    Args:
+        content_dir (str): The directory to search.
+        extensions (list): A list of file extensions (e.g., ["mcworld", "mcaddon"]).
+
+    Returns:
+        dict: {"status": "success", "files": [...]} or {"status": "error", "message": ...}
+    """
+    if not os.path.isdir(content_dir):
+        return {
+            "status": "error",
+            "message": f"Content directory not found: {content_dir}.",
+        }
+
+    files = []
+    for ext in extensions:
+        files.extend(glob.glob(os.path.join(content_dir, f"*.{ext}")))
+
+    if not files:
+        return {
+            "status": "error",
+            "message": f"No files found with extensions: {extensions}",
+        }
+
+    return {"status": "success", "files": files}
+
+
 def install_addon_handler(
     server_name, addon_file, base_dir=None, stop_start_server=True
 ):

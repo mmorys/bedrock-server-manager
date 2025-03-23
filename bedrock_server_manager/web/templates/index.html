@@ -59,6 +59,7 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <td>
+                                <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="config-link">Install Content</a>
                                 <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="config-link">Backup</a>
                                 <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="config-link">Restore</a>
                             </td>

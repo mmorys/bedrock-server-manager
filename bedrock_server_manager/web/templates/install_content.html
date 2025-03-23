@@ -1,0 +1,25 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/install_content.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Install Content - Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Install Content for {{ server_name }}</h1>
+        </header>
+
+        <section class="install-content-section">
+            <!-- Changed to links (<a> tags) instead of buttons -->
+            <a href="{{ url_for('server_routes.install_world_route', server_name=server_name) }}" class="main-button">Import World</a>
+            <a href="{{ url_for('server_routes.install_addon_route', server_name=server_name) }}" class="main-button">Install Addon</a>
+            <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+        </section>
+    </div>
+</body>
+</html>

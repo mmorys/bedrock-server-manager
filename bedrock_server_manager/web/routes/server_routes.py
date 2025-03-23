@@ -676,3 +676,112 @@ def restore_action_route(server_name):
         flash("Restoration completed successfully!", "success")
 
     return redirect(url_for("server_routes.index"))
+
+
+@server_bp.route("/server/<server_name>/install_content", methods=["GET"])
+def install_content_menu_route(server_name):
+    """Displays the content installation menu (world/addon)."""
+    return render_template("install_content.html", server_name=server_name)
+
+
+@server_bp.route("/server/<server_name>/install_world", methods=["GET", "POST"])
+def install_world_route(server_name):
+    base_dir = get_base_dir()
+    content_dir = os.path.join(settings.get("CONTENT_DIR"), "worlds")
+
+    if request.method == "POST":
+        selected_file = request.form.get("selected_file")
+        if not selected_file:
+            flash("No world file selected.", "error")
+            return redirect(url_for("server_routes.index"))
+
+        # Check if world exists *before* calling handler
+        world_name_result = handlers.get_world_name_handler(server_name, base_dir)
+        if world_name_result["status"] == "success":  # world exists.
+            world_name = world_name_result["world_name"]
+            world_path = os.path.join(base_dir, server_name, "worlds", world_name)
+            if os.path.exists(world_path):
+                # World Exists, confirm overwrite
+                return render_template(
+                    "confirm_world_overwrite.html",
+                    server_name=server_name,
+                    selected_file=selected_file,
+                )
+            else:
+                # World does not exist
+                result = handlers.extract_world_handler(
+                    server_name, selected_file, base_dir
+                )
+                if result["status"] == "error":
+                    flash(f"Error importing world: {result['message']}", "error")
+                else:
+                    flash("World imported successfully!", "success")
+                return redirect(url_for("server_routes.index"))
+        else:
+            # Error getting world.
+            flash(f"Error getting world: {world_name_result['message']}", "error")
+            return redirect(url_for("server_routes.index"))
+
+    else:  # GET request
+        result = handlers.list_content_files_handler(content_dir, ["mcworld"])
+        if result["status"] == "error":
+            flash(result["message"], "error")
+            world_files = []
+        else:
+            world_files = result["files"]
+        return render_template(
+            "select_world.html", server_name=server_name, world_files=world_files
+        )
+
+
+@server_bp.route("/server/<server_name>/install_world/confirm", methods=["POST"])
+def confirm_world_overwrite_route(server_name):
+    base_dir = get_base_dir()
+    selected_file = request.form.get("selected_file")
+    confirm = request.form.get("confirm")
+
+    if not selected_file:
+        flash("No world file selected.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if confirm == "yes":
+        # Proceed with world extraction (overwriting existing)
+        result = handlers.extract_world_handler(server_name, selected_file, base_dir)
+        if result["status"] == "error":
+            flash(f"Error importing world: {result['message']}", "error")
+        else:
+            flash("World imported successfully!", "success")
+    else:
+        flash("World import cancelled.", "info")
+
+    return redirect(url_for("server_routes.index"))
+
+
+@server_bp.route("/server/<server_name>/install_addon", methods=["GET", "POST"])
+def install_addon_route(server_name):
+    base_dir = get_base_dir()
+    content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
+
+    if request.method == "POST":
+        selected_file = request.form.get("selected_file")
+        if not selected_file:
+            flash("No addon file selected.", "error")
+            return redirect(url_for("server_routes.index"))
+
+        result = handlers.install_addon_handler(server_name, selected_file, base_dir)
+        if result["status"] == "error":
+            flash(f"Error installing addon: {result['message']}", "error")
+        else:
+            flash("Addon installed successfully!", "success")
+        return redirect(url_for("server_routes.index"))
+
+    else:  # GET request
+        result = handlers.list_content_files_handler(content_dir, ["mcaddon", "mcpack"])
+        if result["status"] == "error":
+            flash(result["message"], "error")
+            addon_files = []
+        else:
+            addon_files = result["files"]
+        return render_template(
+            "select_addon.html", server_name=server_name, addon_files=addon_files
+        )
