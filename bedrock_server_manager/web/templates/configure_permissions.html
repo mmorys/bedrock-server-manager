@@ -49,9 +49,9 @@
                 </table>
                 <button type="submit" class="main-button">Save Permissions</button>
                 {% if new_install %}
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
+                <a href="{{ url_for('server_routes.index') }}" class="action-link">Return</a>
                 {% else %}
-                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                 <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
                 {% endif %}
             </form>
         </section>

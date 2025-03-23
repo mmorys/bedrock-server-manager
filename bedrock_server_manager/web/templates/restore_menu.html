@@ -17,10 +17,10 @@
         <section class="restore-menu-section">
             <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post">
                 <p>What do you want to restore?</p>
-                <button type="submit" name="restore_type" value="world" class="main-button">Restore World</button>
-                <button type="submit" name="restore_type" value="config" class="main-button">Restore Configuration File</button>
-                <button type="submit" name="restore_type" value="all" class="main-button">Restore All</button>
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                <button type="submit" name="restore_type" value="world" class="action-link">Restore World</button>
+                <button type="submit" name="restore_type" value="config" class="action-link">Restore Configuration File</button>
+                <button type="submit" name="restore_type" value="all" class="action-link">Restore All</button>
+                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
             </form>
         </section>
     </div>

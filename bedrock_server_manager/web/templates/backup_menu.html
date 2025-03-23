@@ -17,10 +17,10 @@
         <section class="backup-menu-section">
             <form action="{{ url_for('server_routes.backup_action_route', server_name=server_name) }}" method="post">
                 <p>What do you want to backup?</p>
-                <button type="submit" name="backup_type" value="world" class="main-button">Backup World</button>
-                <button type="submit" name="backup_type" value="config" class="main-button">Backup Configuration File</button>
-                <button type="submit" name="backup_type" value="all" class="main-button">Backup All</button>
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                <button type="submit" name="backup_type" value="world" class="action-link">Backup World</button>
+                <button type="submit" name="backup_type" value="config" class="action-link">Backup Configuration File</button>
+                <button type="submit" name="backup_type" value="all" class="action-link">Backup All</button>
+                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
             </form>
         </section>
     </div>

@@ -28,16 +28,16 @@
                     {% for world_file in world_files %}
                         <tr>
                             <td>{{ world_file|basename }}</td>
-                            <td><button type="submit" name="selected_file" value="{{ world_file }}" class="main-button">Import</button></td>
+                            <td><button type="submit" name="selected_file" value="{{ world_file }}" class="action-link">Import</button></td>
                         </tr>
                     {% endfor %}
                     </tbody>
                     </table>
-                    <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                    <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
                 </form>
             {% else %}
                 <p>No world files (.mcworld) found in the content directory.</p>
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Main Menu</a>
+                <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
             {% endif %}
         </section>
     </div>

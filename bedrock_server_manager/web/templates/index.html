@@ -52,22 +52,22 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% if servers %} <!--- Check if server list is NOT empty -->
+                    {% if servers %}
                         {% for server in servers %}
                         <tr>
-                            <td>{{ server.name }}</td>      <!-- Use .name, .status, .version -->
+                            <td>{{ server.name }}</td>
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <td>
-                                <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="config-link">Install Content</a>
-                                <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="config-link">Backup</a>
-                                <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="config-link">Restore</a>
+                              <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
+                              <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
+                              <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
                             </td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="3" class="no-servers">No servers found.</td>
+                            <td colspan="4" class="no-servers">{{ servers[0].status if servers else 'No servers found.' }}</td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -76,9 +76,8 @@
 
         <section class="main-menu-buttons">
             <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-
-            <!-- <a href="#" class="main-button advanced-button">Advanced Options</a>
-            <a href="#" class="main-button exit-button">Exit</a> -->
+            <!-- <button class="main-button advanced-button" disabled>Advanced Options</button>
+            <button class="main-button exit-button" disabled>Exit</button> -->
         </section>
     </div>
 </body>

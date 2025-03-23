@@ -16,9 +16,9 @@
         <section class="backup-config-section">
           <form action="{{ url_for('server_routes.backup_action_route', server_name=server_name) }}" method="post">
             <input type="hidden" name="backup_type" value="config">
-              <button type="submit" name="file_to_backup" value="allowlist.json" class="main-button">allowlist.json</button>
-              <button type="submit" name="file_to_backup" value="permissions.json" class="main-button">permissions.json</button>
-              <button type="submit" name="file_to_backup" value="server.properties" class="main-button">server.properties</button>
+              <button type="submit" name="file_to_backup" value="allowlist.json" class="action-link">allowlist.json</button>
+              <button type="submit" name="file_to_backup" value="permissions.json" class="action-link">permissions.json</button>
+              <button type="submit" name="file_to_backup" value="server.properties" class="action-link">server.properties</button>
               <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
             </form>
         </section>

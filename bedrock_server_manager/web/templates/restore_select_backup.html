@@ -27,7 +27,7 @@
                             <tr>
                                 <td>{{ backup|basename }}</td>
                                 <td>
-                                    <button type="submit" name="backup_file" value="{{ backup }}" class="main-button">Restore</button>
+                                    <button type="submit" name="backup_file" value="{{ backup }}" class="action-link">Restore</button>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -37,7 +37,7 @@
             {% else %}
                 <p>No backups found for {{ server_name }} of type {{ restore_type }}.</p>
             {% endif %}
-            <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+            <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
         </section>
     </div>
 </body>

@@ -19,8 +19,8 @@
             </p>
             <form action="{{ url_for('server_routes.confirm_world_overwrite_route', server_name=server_name) }}" method="post">
                 <input type="hidden" name="selected_file" value="{{ selected_file }}">
-                <button type="submit" name="confirm" value="yes" class="main-button">Yes, Overwrite</button>
-                <button type="submit" name="confirm" value="no" class="main-button">No, Cancel</button>
+                <button type="submit" name="confirm" value="yes" class="action-link">Delete Current World</button>
+                <button type="submit" name="confirm" value="no" class="action-link">No, Cancel</button>
             </form>
         </section>
     </div>

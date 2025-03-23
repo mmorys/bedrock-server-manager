@@ -78,6 +78,36 @@
                 7px 7px 0 #555;
 }
 
+.action-link {
+    padding: 4px 8px;       /* Slightly smaller padding than action buttons */
+    margin: 2px;
+    border-width: 2px;
+    border-style: solid;
+    border-top-color: #bbb;
+    border-left-color: #bbb;
+    border-bottom-color: #666;
+    border-right-color: #666;
+    border-radius: 0;
+    background-color: #888;  /* Gray background */
+    color: #fff;            /* White text */
+    cursor: pointer;
+    font-size: 0.9em;      /* Slightly smaller font size */
+    font-weight: bold;
+    text-shadow: 1px 1px 0 #444;
+    box-shadow: 2px 2px 0 #555;
+    text-decoration: none; /* Remove underline */
+    display: inline-block;  /* Treat as inline-block for consistent styling */
+}
+
+.action-link:hover {
+    background-color: #999;  /* Slightly lighter gray on hover */
+    border-top-color: #ccc;
+    border-left-color: #ccc;
+    border-bottom-color: #777;
+    border-right-color: #777;
+    box-shadow: 2px 2px 0 #666;
+    text-decoration: none; /* Remove underline on hover */
+}
 
 /* Main Menu Buttons - Pixel Art Style */
 .main-menu-buttons {

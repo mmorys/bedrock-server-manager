@@ -16,9 +16,9 @@
 
         <section class="install-content-section">
             <!-- Changed to links (<a> tags) instead of buttons -->
-            <a href="{{ url_for('server_routes.install_world_route', server_name=server_name) }}" class="main-button">Import World</a>
-            <a href="{{ url_for('server_routes.install_addon_route', server_name=server_name) }}" class="main-button">Install Addon</a>
-            <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+            <a href="{{ url_for('server_routes.install_world_route', server_name=server_name) }}" class="action-link">Import World</a>
+            <a href="{{ url_for('server_routes.install_addon_route', server_name=server_name) }}" class="action-link">Install Addon</a>
+            <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
         </section>
     </div>
 </body>

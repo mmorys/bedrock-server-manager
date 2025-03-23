@@ -38,8 +38,8 @@
                     <input type="text" id="server-version" name="server_version" class="form-input" value="{{ server_version or '' }}" required>
                 </div>
 
-                <button type="submit" class="main-button install-button">Install Server</button>
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                <button type="submit" class="action-link">Install Server</button>
+                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
             </form>
             {% endif %}
         </section>
