@@ -1,0 +1,44 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/restore_select_backup.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Select Backup - Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Select Backup to Restore for {{ server_name }}</h1>
+            <p>Restore Type: {{ restore_type }}</p>
+        </header>
+
+        <section class="restore-select-section">
+            {% if backups %}
+                <form action="{{ url_for('server_routes.restore_action_route', server_name=server_name) }}" method="post">
+                    <input type="hidden" name="restore_type" value="{{ restore_type }}">
+                    <table class="server-table">
+                        <thead><tr><th>Backup File</th><th>Action</th></tr></thead>
+                        <tbody>
+                        {% for backup in backups %}
+                            <tr>
+                                <td>{{ backup|basename }}</td>
+                                <td>
+                                    <button type="submit" name="backup_file" value="{{ backup }}" class="main-button">Restore</button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </form>
+            {% else %}
+                <p>No backups found for {{ server_name }} of type {{ restore_type }}.</p>
+            {% endif %}
+            <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+        </section>
+    </div>
+</body>
+</html>

@@ -1362,6 +1362,36 @@ def backup_all_handler(server_name, base_dir=None, stop_start_server=True):
     return {"status": "success"}
 
 
+def list_backups_handler(server_name, backup_type, base_dir=None):
+    """Lists available backups for a server.
+
+    Args:
+        server_name (str): The name of the server.
+        backup_type (str): "world" or "config".
+        base_dir (str, optional): The base directory. Defaults to None.
+
+    Returns:
+        dict: {"status": "success", "backups": [...]} or {"status": "error", "message": ...}
+    """
+    base_dir = get_base_dir(base_dir)
+    backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
+
+    if not os.path.isdir(backup_dir):
+        return {"status": "error", "message": f"No backups found for {server_name}."}
+
+    if backup_type == "world":
+        backup_files = glob.glob(os.path.join(backup_dir, "*.mcworld"))
+    elif backup_type == "config":
+        backup_files = glob.glob(os.path.join(backup_dir, "*_backup_*.json"))
+        backup_files += glob.glob(
+            os.path.join(backup_dir, "server_backup_*.properties")
+        )
+    else:
+        return {"status": "error", "message": f"Invalid backup type: {backup_type}"}
+
+    return {"status": "success", "backups": backup_files}
+
+
 def restore_world_handler(
     server_name, backup_file, base_dir=None, stop_start_server=True
 ):

@@ -398,12 +398,14 @@ def configure_permissions_route(server_name):
         permissions_data = {}
         for xuid, permission in request.form.items():
             if permission.lower() not in ("visitor", "member", "operator"):
-                flash(f"Invalid permission level for XUID {xuid}: {permission}", "error")
+                flash(
+                    f"Invalid permission level for XUID {xuid}: {permission}", "error"
+                )
                 return redirect(
                     url_for(
                         "server_routes.configure_permissions_route",
                         server_name=server_name,
-                        new_install=new_install
+                        new_install=new_install,
                     )
                 )
 
@@ -411,8 +413,8 @@ def configure_permissions_route(server_name):
 
         players_response = handlers.get_players_from_json_handler()
         if players_response["status"] == "error":
-             # We still want to continue even if we cannot load player names.
-            player_names = {} # Just use an empty dict.
+            # We still want to continue even if we cannot load player names.
+            player_names = {}  # Just use an empty dict.
 
         else:
             player_names = {
@@ -425,24 +427,34 @@ def configure_permissions_route(server_name):
                 server_name, xuid, player_name, permission, base_dir
             )
             if result["status"] == "error":
-                flash(f"Error setting permission for {player_name}: {result['message']}", "error")
+                flash(
+                    f"Error setting permission for {player_name}: {result['message']}",
+                    "error",
+                )
                 # Continue to the next player, even on error
 
         flash(f"Permissions for server '{server_name}' updated.", "success")
         if new_install:
-            return redirect(url_for('server_routes.configure_service_route', server_name=server_name, new_install=new_install))
+            return redirect(
+                url_for(
+                    "server_routes.configure_service_route",
+                    server_name=server_name,
+                    new_install=new_install,
+                )
+            )
         return redirect(url_for("server_routes.index"))
-
 
     else:  # GET request
         players_response = handlers.get_players_from_json_handler()
         if players_response["status"] == "error":
             # Instead of redirecting, flash a message and continue rendering the template.
-            flash(f"Error loading player data: {players_response['message']}.  No players found.", "warning")
+            flash(
+                f"Error loading player data: {players_response['message']}.  No players found.",
+                "warning",
+            )
             players = []  # Provide an empty list so the template doesn't break.
         else:
             players = players_response["players"]
-
 
         permissions = {}
         try:
@@ -549,3 +561,118 @@ def configure_service_route(server_name):
         else:
             flash("Unsupported operating system for service configuration.", "error")
             return redirect(url_for("server_routes.index"))
+
+
+@server_bp.route("/server/<server_name>/backup", methods=["GET"])
+def backup_menu_route(server_name):
+    return render_template("backup_menu.html", server_name=server_name)
+
+
+@server_bp.route("/server/<server_name>/backup/config", methods=["GET"])
+def backup_config_select_route(server_name):
+    return render_template("backup_config_options.html", server_name=server_name)
+
+
+@server_bp.route("/server/<server_name>/backup/action", methods=["POST"])
+def backup_action_route(server_name):
+    base_dir = get_base_dir()
+    backup_type = request.form.get("backup_type")  # "world", "config", or "all"
+    file_to_backup = request.form.get(
+        "file_to_backup"
+    )  # Will be None unless backup_type is "config"
+
+    if not backup_type:
+        flash("Invalid backup type.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if backup_type == "config" and not file_to_backup:
+        return redirect(
+            url_for("server_routes.backup_config_select_route", server_name=server_name)
+        )
+
+    if backup_type == "world":
+        result = handlers.backup_world_handler(server_name, base_dir)
+    elif backup_type == "config":
+        result = handlers.backup_config_file_handler(
+            server_name, file_to_backup, base_dir
+        )
+    elif backup_type == "all":
+        result = handlers.backup_all_handler(server_name, base_dir)
+    else:
+        flash("Invalid backup type.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if result["status"] == "error":
+        flash(f"Backup failed: {result['message']}", "error")
+    else:
+        flash("Backup completed successfully!", "success")
+
+    # Always redirect back to the main index page after backup
+    return redirect(url_for("server_routes.index"))
+
+
+@server_bp.route("/server/<server_name>/restore", methods=["GET"])
+def restore_menu_route(server_name):
+    """Displays the restore menu."""
+    return render_template("restore_menu.html", server_name=server_name)
+
+
+@server_bp.route("/server/<server_name>/restore/select", methods=["POST"])
+def restore_select_backup_route(server_name):
+    """Displays the list of available backups for the selected type."""
+    base_dir = get_base_dir()
+    restore_type = request.form.get("restore_type")
+    if not restore_type:
+        flash("No restore type selected.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    # Handle "Restore All" as a special case, since there's no selection.
+    if restore_type == "all":
+        result = handlers.restore_all_handler(server_name, base_dir)
+        if result["status"] == "error":
+            flash(f"Error restoring all files: {result['message']}", "error")
+        else:
+            flash("All files restored successfully!", "success")
+        return redirect(url_for("server_routes.index"))
+
+    # Handle other backup types (world, config)
+    list_response = handlers.list_backups_handler(server_name, restore_type, base_dir)
+    if list_response["status"] == "error":
+        flash(f"Error listing backups: {list_response['message']}", "error")
+        return redirect(url_for("server_routes.index"))
+
+    return render_template(
+        "restore_select_backup.html",
+        server_name=server_name,
+        restore_type=restore_type,
+        backups=list_response["backups"],
+    )
+
+
+@server_bp.route("/server/<server_name>/restore/action", methods=["POST"])
+def restore_action_route(server_name):
+    """Performs the actual restoration based on the selected backup file and type."""
+    base_dir = get_base_dir()
+    backup_file = request.form.get("backup_file")
+    restore_type = request.form.get("restore_type")
+
+    if not backup_file or not restore_type:
+        flash("Invalid restore request.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if restore_type == "world":
+        result = handlers.restore_world_handler(server_name, backup_file, base_dir)
+    elif restore_type == "config":
+        result = handlers.restore_config_file_handler(
+            server_name, backup_file, base_dir
+        )
+    else:
+        flash("Invalid restore type.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    if result["status"] == "error":
+        flash(f"Error during restoration: {result['message']}", "error")
+    else:
+        flash("Restoration completed successfully!", "success")
+
+    return redirect(url_for("server_routes.index"))

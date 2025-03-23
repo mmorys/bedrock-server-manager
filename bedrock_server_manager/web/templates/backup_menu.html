@@ -1,0 +1,28 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/backup_menu.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager - Backup Menu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Backup Server: {{ server_name }}</h1>
+        </header>
+
+        <section class="backup-menu-section">
+            <form action="{{ url_for('server_routes.backup_action_route', server_name=server_name) }}" method="post">
+                <p>What do you want to backup?</p>
+                <button type="submit" name="backup_type" value="world" class="main-button">Backup World</button>
+                <button type="submit" name="backup_type" value="config" class="main-button">Backup Configuration File</button>
+                <button type="submit" name="backup_type" value="all" class="main-button">Backup All</button>
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+            </form>
+        </section>
+    </div>
+</body>
+</html>

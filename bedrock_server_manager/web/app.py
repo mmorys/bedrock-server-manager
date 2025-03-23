@@ -5,6 +5,7 @@ import secrets
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes import server_routes
 from waitress import serve
+from os.path import basename
 
 
 def create_app():
@@ -20,6 +21,7 @@ def create_app():
     static_folder = os.path.join(APP_ROOT, "static")
     app.template_folder = template_folder
     app.static_folder = static_folder
+    app.jinja_env.filters["basename"] = basename
 
     # --- Set a SECRET KEY ---
     app.config["SECRET_KEY"] = secrets.token_hex(16)  # Generate a random key

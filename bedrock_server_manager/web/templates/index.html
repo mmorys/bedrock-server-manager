@@ -58,6 +58,10 @@
                             <td>{{ server.name }}</td>      <!-- Use .name, .status, .version -->
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
+                            <td>
+                                <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="config-link">Backup</a>
+                                <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="config-link">Restore</a>
+                            </td>
                         </tr>
                         {% endfor %}
                     {% else %}
