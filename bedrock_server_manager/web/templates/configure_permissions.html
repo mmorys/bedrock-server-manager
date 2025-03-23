@@ -15,7 +15,7 @@
         </header>
 
         <section class="permissions-form-section">
-            <form action="{{ url_for('server_routes.configure_permissions_route', server_name=server_name, next_step=next_step) }}" method="post">
+            <form action="{{ url_for('server_routes.configure_permissions_route', server_name=server_name, new_install=new_install) }}" method="post">
                 <table class="server-table">
                     <thead>
                         <tr>
@@ -41,7 +41,7 @@
                     </tbody>
                 </table>
                 <button type="submit" class="main-button">Save Permissions</button>
-                {% if next_step == 'install' %}
+                {% if new_install %}
                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
                 {% else %}
                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>

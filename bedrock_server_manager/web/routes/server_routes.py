@@ -206,7 +206,10 @@ def configure_properties_route(server_name):
         flash(f"server.properties not found for server: {server_name}", "error")
         return redirect(url_for("server_routes.index"))
     # Check if new_install is True, convert to boolean
-    new_install = request.args.get("new_install", False)
+    new_install_str = request.args.get(
+        "new_install", "False"
+    )  # Get as string, default "False"
+    new_install = new_install_str.lower() == "true"
 
     if request.method == "POST":
         # Handle form submission (save properties)
@@ -288,9 +291,8 @@ def configure_properties_route(server_name):
 
         flash(f"Server properties for '{server_name}' updated successfully!", "success")
 
-        # Redirect based on new_install flag, Changed redirect
+        # Redirect based on new_install flag
         if new_install:
-            new_install = True
             return redirect(
                 url_for(
                     "server_routes.configure_allowlist_route",
@@ -322,7 +324,10 @@ def configure_properties_route(server_name):
 @server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET", "POST"])
 def configure_allowlist_route(server_name):
     base_dir = get_base_dir()
-    new_install = request.args.get("new_install", False)
+    new_install_str = request.args.get(
+        "new_install", "False"
+    )  # Get as string, default "False"
+    new_install = new_install_str.lower() == "true"
 
     if request.method == "POST":
         player_names_raw = request.form.get("player_names", "")
@@ -346,10 +351,9 @@ def configure_allowlist_route(server_name):
         if result["status"] == "success":
             flash(f"Allowlist for '{server_name}' updated successfully!", "success")
             if new_install:
-                new_install = True
                 return redirect(
                     url_for(
-                        "server_routes.configure_allowlist_route",
+                        "server_routes.configure_permissions_route",
                         server_name=server_name,
                         new_install=new_install,
                     )
@@ -384,7 +388,8 @@ def configure_allowlist_route(server_name):
 @server_bp.route("/server/<server_name>/configure_permissions", methods=["GET", "POST"])
 def configure_permissions_route(server_name):
     base_dir = get_base_dir()
-    new_install = request.args.get("new_install", False)
+    new_install_str = request.args.get("new_install", "False")
+    new_install = new_install_str.lower() == "true"
 
     if request.method == "POST":
         # Handle form submission (save permissions)
@@ -432,8 +437,7 @@ def configure_permissions_route(server_name):
 
         flash(f"Permissions for server '{server_name}' updated.", "success")
         if new_install:
-            new_install = True
-            return "Comming Soon"
+            return "Coming Soon"
         return redirect(url_for("server_routes.index"))
 
     else:  # GET request

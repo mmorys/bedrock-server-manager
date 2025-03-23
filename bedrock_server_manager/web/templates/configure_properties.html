@@ -16,7 +16,7 @@
         </header>
 
         <section class="config-form-section">
-            <form action="{{ url_for('server_routes.configure_properties_route', server_name=server_name) }}" method="post">
+            <form action="{{ url_for('server_routes.configure_properties_route', server_name=server_name, new_install=new_install) }}" method="post">
 
                 <div class="form-group">
                     <label for="server-name" class="form-label">Server Name:</label>

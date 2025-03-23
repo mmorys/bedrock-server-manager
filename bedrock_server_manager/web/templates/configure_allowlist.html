@@ -15,7 +15,7 @@
         </header>
 
         <section class="allowlist-form-section">
-            <form action="{{ url_for('server_routes.configure_allowlist_route', server_name=server_name, next_step=next_step) }}" method="post">
+            <form action="{{ url_for('server_routes.configure_allowlist_route', server_name=server_name, new_install=new_install) }}" method="post">
                 <div class="form-group">
                     <label for="player-names" class="form-label">Player Names (one per line):</label>
                     <textarea id="player-names" name="player_names" class="form-input" rows="5" placeholder="Enter player names, one per line"></textarea>
@@ -27,7 +27,7 @@
                 </div>
 
                 <button type="submit" class="main-button">Add Players</button>
-                {% if next_step == 'install' %}
+                {% if new_install %}
                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
                 {% else %}
                  <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
