@@ -1,0 +1,62 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_service.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Configure Service - Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <script src="{{ url_for('static', filename='js/create_service.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Configure Service for {{ server_name }}</h1>
+        </header>
+
+        <section class="service-config-section">
+            <form action="{{ url_for('server_routes.configure_service_route', server_name=server_name, new_install=new_install) }}" method="post">
+                {% if os == 'Linux' %}
+                <div class="form-group">
+                    <label for="autoupdate" class="form-label">Enable Auto-Update on Start:</label>
+                    <input type="checkbox" id="autoupdate" name="autoupdate" class="form-checkbox" {% if autoupdate %}checked{% endif %}>
+                </div>
+
+                <div class="form-group">
+                    <label for="autostart" class="form-label">Enable Autostart on Boot:</label>
+                    <input type="checkbox" id="autostart" name="autostart" class="form-checkbox" {% if autostart %}checked{% endif %}>
+                </div>
+                {% elif os == 'Windows' %}
+                <div class="form-group">
+                    <label for="autoupdate" class="form-label">Enable Auto-Update on Start:</label>
+                    <input type="checkbox" id="autoupdate" name="autoupdate" class="form-checkbox" {% if autoupdate %}checked{% endif %}>
+                </div>
+                {% else %}
+                <p>Unsupported operating system for service configuration.</p>
+                {% endif %}
+                
+                {% if new_install %}
+                <div class="form-group">
+                    <label for="start_server" class="form-label">Start Server After Configuration:</label>
+                    <input type="checkbox" id="start-server" name="start_server" class="form-checkbox">
+                </div>
+                {% endif %}
+
+                <button type="submit" class="main-button">Save Service Settings</button>
+                {% if new_install %}
+                    <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
+                {% else %}
+                    <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                {% endif %}
+            </form>
+
+            {% if os == 'Linux' %}
+              <div id="lingering-message">
+                  <!-- Message about lingering will be inserted here -->
+              </div>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html>

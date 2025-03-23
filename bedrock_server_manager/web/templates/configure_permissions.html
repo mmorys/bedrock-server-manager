@@ -3,10 +3,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bedrock Server Manager - Configure Permissions</title>
+    <title>Configure Permissions - Bedrock Server Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
 </head>
 <body>
     <div class="container">
@@ -25,26 +26,32 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for player in players %}
-                        <tr>
-                            <td>{{ player.name }}</td>
-                            <td>{{ player.xuid }}</td>
-                            <td>
-                                <select name="{{ player.xuid }}" class="form-input">
-                                    <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
-                                    <option value="member" {% if permissions.get(player.xuid) == 'member' %}selected{% endif %}>Member</option>
-                                    <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
-                                </select>
-                            </td>
-                        </tr>
-                        {% endfor %}
+                        {% if players %}  <!-- Check if players list is not empty -->
+                            {% for player in players %}
+                            <tr>
+                                <td>{{ player.name }}</td>
+                                <td>{{ player.xuid }}</td>
+                                <td>
+                                    <select name="{{ player.xuid }}" class="form-input">
+                                        <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
+                                        <option value="member" {% if permissions.get(player.xuid) == 'member' %}selected{% endif %}>Member</option>
+                                        <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="3">No players found.</td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                 </table>
                 <button type="submit" class="main-button">Save Permissions</button>
                 {% if new_install %}
                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Skip</a>
                 {% else %}
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                 <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
                 {% endif %}
             </form>
         </section>

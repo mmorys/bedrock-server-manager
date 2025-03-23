@@ -4,7 +4,9 @@ import json
 from bedrock_server_manager import handlers
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.core.server import server as server_base
 import os
+import platform
 
 server_bp = Blueprint("server_routes", __name__)
 
@@ -395,60 +397,53 @@ def configure_permissions_route(server_name):
         # Handle form submission (save permissions)
         permissions_data = {}
         for xuid, permission in request.form.items():
-            #  Sanitize permission input!  VERY IMPORTANT!
             if permission.lower() not in ("visitor", "member", "operator"):
-                flash(
-                    f"Invalid permission level for XUID {xuid}: {permission}", "error"
-                )
-                # Re-render with current data
+                flash(f"Invalid permission level for XUID {xuid}: {permission}", "error")
                 return redirect(
                     url_for(
                         "server_routes.configure_permissions_route",
                         server_name=server_name,
-                        new_install=new_install,
+                        new_install=new_install
                     )
-                )  # Stay on page
+                )
 
             permissions_data[xuid] = permission.lower()
 
-        # Get player names from players.json
         players_response = handlers.get_players_from_json_handler()
         if players_response["status"] == "error":
-            flash(f"Error loading player data: {players_response['message']}", "error")
-            # Decide how to proceed; maybe back to the index page?
-            return redirect(url_for("server_routes.index"))
-        player_names = {
-            player["xuid"]: player["name"] for player in players_response["players"]
-        }  # Create XUID->Name mapping
+             # We still want to continue even if we cannot load player names.
+            player_names = {} # Just use an empty dict.
 
-        # Call handler to configure permission for EACH player.
+        else:
+            player_names = {
+                player["xuid"]: player["name"] for player in players_response["players"]
+            }
+
         for xuid, permission in permissions_data.items():
-            player_name = player_names.get(
-                xuid, "Unknown Player"
-            )  # Get name, default if not found.
+            player_name = player_names.get(xuid, "Unknown Player")
             result = handlers.configure_player_permission_handler(
                 server_name, xuid, player_name, permission, base_dir
             )
             if result["status"] == "error":
-                flash(
-                    f"Error setting permission for {player_name}: {result['message']}",
-                    "error",
-                )
+                flash(f"Error setting permission for {player_name}: {result['message']}", "error")
+                # Continue to the next player, even on error
 
         flash(f"Permissions for server '{server_name}' updated.", "success")
         if new_install:
-            return "Coming Soon"
+            return redirect(url_for('server_routes.configure_service_route', server_name=server_name, new_install=new_install))
         return redirect(url_for("server_routes.index"))
 
+
     else:  # GET request
-        # Get the list of players from players.json
         players_response = handlers.get_players_from_json_handler()
         if players_response["status"] == "error":
-            flash(f"Error loading player data: {players_response['message']}", "error")
-            return redirect(url_for("server_routes.index"))
-        players = players_response["players"]
+            # Instead of redirecting, flash a message and continue rendering the template.
+            flash(f"Error loading player data: {players_response['message']}.  No players found.", "warning")
+            players = []  # Provide an empty list so the template doesn't break.
+        else:
+            players = players_response["players"]
 
-        # Get the *current* permissions from the server's permissions.json file.
+
         permissions = {}
         try:
             server_dir = os.path.join(base_dir, server_name)
@@ -456,7 +451,6 @@ def configure_permissions_route(server_name):
             if os.path.exists(permissions_file):
                 with open(permissions_file, "r") as f:
                     permissions_data = json.load(f)
-                    # Create a dictionary mapping XUID to permission level
                     for player_entry in permissions_data:
                         permissions[player_entry["xuid"]] = player_entry["permission"]
         except (OSError, json.JSONDecodeError) as e:
@@ -469,3 +463,89 @@ def configure_permissions_route(server_name):
             permissions=permissions,
             new_install=new_install,
         )
+
+
+@server_bp.route("/server/<server_name>/configure_service", methods=["GET", "POST"])
+def configure_service_route(server_name):
+    base_dir = get_base_dir()
+    new_install_str = request.args.get("new_install", "False")
+    new_install = new_install_str.lower() == "true"
+    if request.method == "POST":
+        if platform.system() == "Linux":
+            autoupdate = request.form.get("autoupdate") == "on"
+            autostart = request.form.get("autostart") == "on"
+            response = handlers.create_systemd_service_handler(
+                server_name, base_dir, autoupdate, autostart
+            )
+            if response["status"] == "error":
+                flash(response["message"], "error")
+                # Re-render the form with current values
+                return render_template(
+                    "configure_service.html",
+                    server_name=server_name,
+                    os=platform.system(),
+                    autoupdate=autoupdate,
+                    autostart=autostart,
+                    new_install=new_install,
+                )
+
+        elif platform.system() == "Windows":
+            autoupdate = request.form.get("autoupdate") == "on"
+            response = handlers.set_windows_autoupdate_handler(
+                server_name, "true" if autoupdate else "false"
+            )  # Convert boolean to string
+            if response["status"] == "error":
+                flash(response["message"], "error")
+                # Re-render the form
+                return render_template(
+                    "configure_service.html",
+                    server_name=server_name,
+                    os=platform.system(),
+                    autoupdate=autoupdate,
+                    new_install=new_install,
+                )
+        else:
+            flash("Unsupported operating system for service configuration.", "error")
+            return redirect(url_for("server_routes.index"))
+
+        flash(f"Service settings for '{server_name}' updated successfully!", "success")
+
+        # Check if we should start the server
+        if new_install:
+            if request.form.get("start_server") == "on":  # Check if checkbox is checked
+                start_result = handlers.start_server_handler(server_name, base_dir)
+                if start_result["status"] == "error":
+                    flash(f"Error starting server: {start_result['message']}", "error")
+                    #  Even if start fails, continue to index.  User can start manually.
+                else:
+                    flash(f"Server '{server_name}' started.", "success")
+            return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.index"))
+
+    else:  # GET request
+        if platform.system() == "Linux":
+            # For Linux, we don't need to pre-populate any values. systemd handles it.
+            return render_template(
+                "configure_service.html",
+                server_name=server_name,
+                os=platform.system(),
+                new_install=new_install,
+            )
+        elif platform.system() == "Windows":
+            # Get current autoupdate setting from config.json
+            config_dir = settings.get("CONFIG_DIR")
+            autoupdate_value = server_base.manage_server_config(
+                server_name, "autoupdate", "read", config_dir=config_dir
+            )
+            # Convert config value to boolean for checkbox
+            autoupdate = autoupdate_value == "true" if autoupdate_value else False
+            return render_template(
+                "configure_service.html",
+                server_name=server_name,
+                os=platform.system(),
+                autoupdate=autoupdate,  # Pass the boolean value
+                new_install=new_install,
+            )
+        else:
+            flash("Unsupported operating system for service configuration.", "error")
+            return redirect(url_for("server_routes.index"))
