@@ -34,7 +34,8 @@ def main():
     port = settings.get("BEDROCK_SERVER_MANAGER_PORT")
     # Run with Flask's built-in server (for development) or waitress (for production)
     app.run(debug=True, port=port)
-    #serve(app, listen=f"*:{port}")
+    # serve(app, listen=f"*:{port}")
+
 
 if __name__ == "__main__":
     main()

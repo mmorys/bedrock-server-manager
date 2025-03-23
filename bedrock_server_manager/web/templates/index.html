@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </head>
 <body>
     <div class="container">
@@ -39,43 +40,6 @@
                 <button type="button" class="action-button restart-button" onclick="restartServer()">Restart</button>
                 <button type="button" class="action-button update-button" onclick="updateServer()">Update</button>
             </div>
-            <script>
-                function startServer() {
-                    var serverName = document.getElementById('server-select').value;
-                    if (serverName) {
-                        window.location.href = `/server/${serverName}/start`;
-                    } else {
-                        alert('Please select a server.');
-                    }
-                }
-
-                function stopServer() {
-                    var serverName = document.getElementById('server-select').value;
-                    if (serverName) {
-                        window.location.href = `/server/${serverName}/stop`;
-                    } else {
-                        alert('Please select a server.');
-                    }
-                }
-
-                function restartServer() {
-                    var serverName = document.getElementById('server-select').value;
-                    if (serverName) {
-                        window.location.href = `/server/${serverName}/restart`;
-                    } else {
-                        alert('Please select a server.');
-                    }
-                }
-
-                  function updateServer() {
-                    var serverName = document.getElementById('server-select').value;
-                    if (serverName) {
-                        window.location.href = `/server/${serverName}/update`;
-                    } else {
-                        alert('Please select a server.');
-                    }
-                }
-            </script>
         </section>
 
         <section class="server-list-section">

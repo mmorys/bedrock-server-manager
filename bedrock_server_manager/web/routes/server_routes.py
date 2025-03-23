@@ -5,7 +5,7 @@ from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 import os
 
-server_bp = Blueprint("server_routes", __name__)  # Create a blueprint
+server_bp = Blueprint("server_routes", __name__)
 
 
 @server_bp.route("/")
@@ -72,7 +72,7 @@ def install_server_route():
     if request.method == "POST":
         server_name = request.form["server_name"]
         server_version = request.form["server_version"]
-        # Validate
+
         if not server_name:
             flash("Server name cannot be empty.", "error")
             return render_template("install.html")
@@ -82,6 +82,7 @@ def install_server_route():
         if ";" in server_name:
             flash("Server name cannot contain semicolons.", "error")
             return render_template("install.html")
+        # Validate the format
         validation_result = handlers.validate_server_name_format_handler(server_name)
         if validation_result["status"] == "error":
             flash(validation_result["message"], "error")
@@ -91,11 +92,11 @@ def install_server_route():
 
         base_dir = get_base_dir()
         config_dir = settings.get("CONFIG_DIR")
-        server_dir = os.path.join(base_dir, server_name)
 
-        # Check if server exists *before* calling the handler
+        # Check if server exists *before* calling the handler.
+        server_dir = os.path.join(base_dir, server_name)
         if os.path.exists(server_dir):
-            # Render install.html with confirm_delete=True and server details
+            # Render install.html with confirm_delete=True and the server_name.
             return render_template(
                 "install.html",
                 confirm_delete=True,
@@ -103,7 +104,7 @@ def install_server_route():
                 server_version=server_version,
             )
 
-        # If server doesn't exist, proceed with installation
+        # If server doesn't exist, proceed with installation.
         result = handlers.install_new_server_handler(
             server_name, server_version, base_dir, config_dir
         )
@@ -113,11 +114,19 @@ def install_server_route():
             return render_template(
                 "install.html", server_name=server_name, server_version=server_version
             )
+        elif result["status"] == "confirm":
+            return render_template(
+                "install.html",
+                confirm_delete=True,
+                server_name=result["server_name"],
+                server_version=result["server_version"],
+            )
         elif result["status"] == "success":
             return redirect(
                 url_for(
                     "server_routes.configure_properties_route",
                     server_name=result["server_name"],
+                    new_install=True,
                 )
             )
         else:
@@ -130,9 +139,9 @@ def install_server_route():
 
 @server_bp.route("/install/confirm", methods=["POST"])
 def confirm_install_route():
-    server_name = request.form.get("server_name")  # Get server_name from form
+    server_name = request.form.get("server_name")
     server_version = request.form.get("server_version")
-    confirm = request.form.get("confirm")  # Get confirmation value (yes/no)
+    confirm = request.form.get("confirm")
     base_dir = get_base_dir()
     config_dir = settings.get("CONFIG_DIR")
 
@@ -141,7 +150,7 @@ def confirm_install_route():
         return redirect(url_for("server_routes.index"))
 
     if confirm == "yes":
-        # Delete existing server data
+        # Delete existing server data.
         delete_result = handlers.delete_server_data_handler(
             server_name, base_dir, config_dir
         )
@@ -158,6 +167,7 @@ def confirm_install_route():
         install_result = handlers.install_new_server_handler(
             server_name, server_version, base_dir, config_dir
         )
+
         if install_result["status"] == "error":
             flash(install_result["message"], "error")
             return render_template(
@@ -165,13 +175,14 @@ def confirm_install_route():
             )
 
         elif install_result["status"] == "success":
-            # Redirect to configure_properties_route with server_name
             return redirect(
                 url_for(
                     "server_routes.configure_properties_route",
                     server_name=install_result["server_name"],
+                    new_install=True,
                 )
             )
+
         else:
             flash("An unexpected error occurred during installation.", "error")
             return redirect(url_for("server_routes.index"))
@@ -184,21 +195,22 @@ def confirm_install_route():
         return redirect(url_for("server_routes.index"))
 
 
-@server_bp.route("/server/<server_name>/configure", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/configure_properties", methods=["GET", "POST"])
 def configure_properties_route(server_name):
     base_dir = get_base_dir()
+    server_dir = os.path.join(base_dir, server_name)
+    server_properties_path = os.path.join(server_dir, "server.properties")
 
-    # Validate server name format (using handler)
-    validation_response = handlers.validate_server_name_format_handler(server_name)
-    if validation_response["status"] == "error":
-        flash(validation_response["message"], "error")
+    if not os.path.exists(server_properties_path):
+        flash(f"server.properties not found for server: {server_name}", "error")
         return redirect(url_for("server_routes.index"))
+    # Check if new_install is True, convert to boolean
+    new_install = request.args.get('new_install', 'false')
+
 
     if request.method == "POST":
         # Handle form submission (save properties)
         properties_to_update = {}
-
-        # List of allowed keys
         allowed_keys = [
             "server-name",
             "level-name",
@@ -217,20 +229,16 @@ def configure_properties_route(server_name):
             "online-mode",
             "texturepack-required",
         ]
-
-        # Iterate through allowed keys, get values, and validate
         for key in allowed_keys:
-            value = request.form.get(key)  # Use .get()
-            if value is not None:  # Key exists in form.
-                if key == "level-name":  # special case
+            value = request.form.get(key)
+            if value is not None:
+                if key == "level-name":
                     value = value.replace(" ", "_")
-
                 validation_response = handlers.validate_property_value_handler(
                     key, value
                 )
                 if validation_response["status"] == "error":
                     flash(validation_response["message"], "error")
-                    # Re-render form WITH existing, and current properties
                     current_properties = handlers.read_server_properties_handler(
                         server_name, base_dir
                     )["properties"]
@@ -238,10 +246,9 @@ def configure_properties_route(server_name):
                         "configure_properties.html",
                         server_name=server_name,
                         properties=current_properties,
+                        new_install=new_install,
                     )
                 properties_to_update[key] = value
-
-        # Call the handler to modify properties
         modify_response = handlers.modify_server_properties_handler(
             server_name, properties_to_update, base_dir
         )
@@ -250,7 +257,6 @@ def configure_properties_route(server_name):
                 f"Error updating server properties: {modify_response['message']}",
                 "error",
             )
-            # Re-render form with current values
             current_properties = handlers.read_server_properties_handler(
                 server_name, base_dir
             )["properties"]
@@ -258,7 +264,9 @@ def configure_properties_route(server_name):
                 "configure_properties.html",
                 server_name=server_name,
                 properties=current_properties,
+                new_install=new_install,
             )
+
         # Write server config
         config_dir = settings.get("CONFIG_DIR")
         write_config_response = handlers.write_server_config_handler(
@@ -266,7 +274,7 @@ def configure_properties_route(server_name):
         )
         if write_config_response["status"] == "error":
             flash(write_config_response["message"], "error")
-        level_name = request.form.get("level-name")  # Get from form
+        level_name = request.form.get("level-name")
         write_config_response = handlers.write_server_config_handler(
             server_name, "target_version", level_name, config_dir
         )
@@ -278,14 +286,22 @@ def configure_properties_route(server_name):
         if write_config_response["status"] == "error":
             flash(write_config_response["message"], "error")
 
-        # Call handler
-        # create_service_result = handlers.create_service_handler(server_name,base_dir)
-        # if create_service_result["status"] == "error":
-        #    flash(f"Failed to create service: {create_service_result['message']}", 'error')
         flash(f"Server properties for '{server_name}' updated successfully!", "success")
-        return redirect(url_for("server_routes.index"))
-    else:
-        # Load and pass existing properties (using handler)
+
+        # Redirect based on new_install flag, Changed redirect
+        if new_install:
+            new_install=True
+            return redirect(
+                url_for(
+                    "server_routes.configure_allowlist_route",
+                    server_name=server_name,
+                   new_install=new_install,
+                )
+            )
+        else:
+            return redirect(url_for("server_routes.index"))
+
+    else:  # GET request
         properties_response = handlers.read_server_properties_handler(
             server_name, base_dir
         )
@@ -299,4 +315,60 @@ def configure_properties_route(server_name):
             "configure_properties.html",
             server_name=server_name,
             properties=properties_response["properties"],
+            new_install=new_install,
+        )
+
+
+@server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET", "POST"])
+def configure_allowlist_route(server_name):
+    base_dir = get_base_dir()
+    new_install = request.args.get('new_install', 'false')
+
+    if request.method == "POST":
+        player_names_raw = request.form.get("player_names", "")
+        ignore_limit = (
+            request.form.get("ignore_limit") == "on"
+        )  # Convert checkbox to boolean
+
+        # Process player names (split into a list, remove empty lines)
+        player_names = [
+            name.strip() for name in player_names_raw.splitlines() if name.strip()
+        ]
+
+        new_players_data = []
+        for name in player_names:
+            new_players_data.append({"name": name, "ignoresPlayerLimit": ignore_limit})
+
+        result = handlers.configure_allowlist_handler(
+            server_name, base_dir, new_players_data
+        )
+
+        if result["status"] == "success":
+            flash(f"Allowlist for '{server_name}' updated successfully!", "success")
+            if new_install:
+                new_install=True
+                return "next step in installation (configure permissions) - coming soon"
+            return redirect(url_for("server_routes.index"))
+        else:
+            flash(f"Error updating allowlist: {result['message']}", "error")
+            # Re-render the form with the existing and attempted new players
+            return render_template(
+                "configure_allowlist.html",
+                server_name=server_name,
+                existing_players=result.get("existing_players", []),
+                new_install=new_install,
+            )
+
+    else:  # GET request
+        result = handlers.configure_allowlist_handler(server_name, base_dir)
+        if result["status"] == "error":
+            flash(f"Error loading allowlist: {result['message']}", "error")
+            return redirect(url_for("server_routes.index"))
+
+        existing_players = result.get("existing_players", [])  # Default to empty list
+        return render_template(
+            "configure_allowlist.html",
+            server_name=server_name,
+            existing_players=existing_players,
+            new_install=new_install,
         )
