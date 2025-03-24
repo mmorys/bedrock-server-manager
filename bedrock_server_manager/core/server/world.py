@@ -94,14 +94,18 @@ def export_world(world_path, backup_file):
     try:
         # Ensure the directory for the backup file exists
         os.makedirs(os.path.dirname(backup_file), exist_ok=True)
-        logger.debug(f"Created directory for backup file: {os.path.dirname(backup_file)}")
+        logger.debug(
+            f"Created directory for backup file: {os.path.dirname(backup_file)}"
+        )
 
         shutil.make_archive(
             os.path.splitext(backup_file)[0],  # Base name (without extension)
             "zip",  # Format
             root_dir=world_path,  # What to archive
         )
-        logger.debug(f"Created zip archive: {os.path.splitext(backup_file)[0] + '.zip'}")
+        logger.debug(
+            f"Created zip archive: {os.path.splitext(backup_file)[0] + '.zip'}"
+        )
         os.rename(os.path.splitext(backup_file)[0] + ".zip", backup_file)
         logger.info(f"World backup created: {backup_file}")
     except OSError as e:
@@ -142,7 +146,9 @@ def import_world(server_name, backup_file, base_dir):
         ) from e
 
     if world_name is None or not world_name:
-        logger.error("Failed to get world name from server.properties (returned None or empty string).")
+        logger.error(
+            "Failed to get world name from server.properties (returned None or empty string)."
+        )
         raise FileOperationError(
             "Failed to get world name from server.properties (returned None or empty string)."
         )

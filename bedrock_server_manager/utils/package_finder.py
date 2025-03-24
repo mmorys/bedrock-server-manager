@@ -13,7 +13,9 @@ def find_executable(package_name: str, executable_name: str = None) -> Path | No
     """
     Dynamically finds the executable path, handling venv nuances.
     """
-    logger.debug(f"Finding executable for package: {package_name}, executable name: {executable_name}")
+    logger.debug(
+        f"Finding executable for package: {package_name}, executable name: {executable_name}"
+    )
     try:
         distribution = importlib.metadata.distribution(package_name)
         logger.debug(f"Found distribution: {distribution.name} {distribution.version}")

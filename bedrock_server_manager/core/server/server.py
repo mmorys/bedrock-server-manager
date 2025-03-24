@@ -54,12 +54,16 @@ class BedrockServer:
             raise ServerNotFoundError(self.server_path)
         self.process = None
         self.status = "STOPPED"
-        logger.debug(f"BedrockServer initialized: {self.server_name}, status: {self.status}")
+        logger.debug(
+            f"BedrockServer initialized: {self.server_name}, status: {self.status}"
+        )
 
     def is_running(self):
         """Checks if the server process is currently running."""
         logger.debug(f"Checking if server {self.server_name} is running")
-        is_running = system_base.is_server_running(self.server_name, settings.get("BASE_DIR"))
+        is_running = system_base.is_server_running(
+            self.server_name, settings.get("BASE_DIR")
+        )
         logger.debug(f"Server {self.server_name} running: {is_running}")
         return is_running
 
@@ -407,7 +411,9 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
 
     server_config_dir = os.path.join(config_dir, server_name)
     config_file = os.path.join(server_config_dir, f"{server_name}_config.json")
-    logger.debug(f"Managing server config: server={server_name}, key={key}, operation={operation}, config_file={config_file}")
+    logger.debug(
+        f"Managing server config: server={server_name}, key={key}, operation={operation}, config_file={config_file}"
+    )
 
     if not server_name:
         raise InvalidServerNameError("manage_server_config: server_name is empty.")
@@ -600,7 +606,9 @@ def get_server_status_from_config(server_name, config_dir=None):
     logger.info(f"Getting server status from config for: {server_name}")
     status = manage_server_config(server_name, "status", "read", config_dir=config_dir)
     if status is None:
-        logger.warning(f"No status found in config for {server_name}, returning UNKNOWN")
+        logger.warning(
+            f"No status found in config for {server_name}, returning UNKNOWN"
+        )
         return "UNKNOWN"
 
     logger.debug(f"Server status from config: {status}")
@@ -769,7 +777,9 @@ def configure_permissions(server_dir, xuid, player_name, permission):
         logger.error(f"Server directory not found: {server_dir}")
         raise DirectoryError(f"Server directory not found: {server_dir}")
 
-    logger.info(f"Configuring permissions for player: {player_name}, xuid: {xuid}, permission: {permission}")
+    logger.info(
+        f"Configuring permissions for player: {player_name}, xuid: {xuid}, permission: {permission}"
+    )
 
     if not os.path.exists(permissions_file):
         try:
@@ -848,19 +858,25 @@ def modify_server_properties(server_properties, property_name, property_value):
             "modify_server_properties: server_properties file path is empty."
         )
     if not os.path.exists(server_properties):
-        logger.error(f"modify_server_properties: server_properties file does not exist: {server_properties}")
+        logger.error(
+            f"modify_server_properties: server_properties file does not exist: {server_properties}"
+        )
         raise FileOperationError(
             f"modify_server_properties: server_properties file does not exist: {server_properties}"
         )
     if not property_name:
         raise MissingArgumentError("modify_server_properties: property_name is empty.")
     if any(ord(c) < 32 for c in property_value):
-        logger.error("modify_server_properties: property_value contains control characters.")
+        logger.error(
+            "modify_server_properties: property_value contains control characters."
+        )
         raise InvalidInputError(
             "modify_server_properties: property_value contains control characters."
         )
 
-    logger.info(f"Modifying server.properties: property={property_name}, value={property_value}")
+    logger.info(
+        f"Modifying server.properties: property={property_name}, value={property_value}"
+    )
 
     try:
         with open(server_properties, "r") as f:
@@ -907,7 +923,9 @@ def _write_version_config(server_name, installed_version, config_dir=None):
 
     if config_dir is None:
         config_dir = settings._config_dir
-    logger.info(f"Writing version config for server: {server_name}, version: {installed_version}")
+    logger.info(
+        f"Writing version config for server: {server_name}, version: {installed_version}"
+    )
 
     if not installed_version:
         logger.warning(
@@ -946,7 +964,9 @@ def install_server(
     """
     if not server_name:
         raise InvalidServerNameError("install_server: server_name is empty.")
-    logger.info(f"Installing/Updating server: {server_name}, version: {current_version}, update: {in_update}")
+    logger.info(
+        f"Installing/Updating server: {server_name}, version: {current_version}, update: {in_update}"
+    )
 
     # Cleanup old downloads
     downloader.prune_old_downloads(
@@ -1031,7 +1051,9 @@ def no_update_needed(server_name, installed_version, target_version):
         logger.debug(f"Specific version {target_version} requested, update needed.")
         return False
 
-    logger.info(f"Checking for updates: server={server_name}, installed={installed_version}, target={target_version}")
+    logger.info(
+        f"Checking for updates: server={server_name}, installed={installed_version}, target={target_version}"
+    )
 
     try:
         download_url = downloader.lookup_bedrock_download_url(target_version)
@@ -1039,14 +1061,18 @@ def no_update_needed(server_name, installed_version, target_version):
         logger.debug(f"Current version from download URL: {current_version}")
     except Exception:
         # If we can't get the target version, assume an update is needed
-        logger.warning("Failed to determine current version, assuming update is needed.")
+        logger.warning(
+            "Failed to determine current version, assuming update is needed."
+        )
         return False
 
     if installed_version == current_version:
         logger.info("No update needed.")
         return True  # No update needed
     else:
-        logger.info(f"Update needed: installed={installed_version}, current={current_version}")
+        logger.info(
+            f"Update needed: installed={installed_version}, current={current_version}"
+        )
         return False  # Update needed
 
 
@@ -1173,7 +1199,9 @@ def stop_server_if_running(server_name, base_dir):
             # Even if stop_server raises an exception, we still return True,
             # because the server *was* running. We've already logged any
             # errors within stop_server.
-            logger.warning(f"Server {server_name} was running, but failed to stop cleanly.")
+            logger.warning(
+                f"Server {server_name} was running, but failed to stop cleanly."
+            )
             return True
     else:
         logger.debug(f"Server {server_name} is not currently running.")

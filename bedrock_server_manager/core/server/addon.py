@@ -87,7 +87,9 @@ def process_mcaddon(addon_file, server_name, base_dir):
         logger.debug(f"Extracted {os.path.basename(addon_file)} successfully")
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
-        logger.error(f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)")
+        logger.error(
+            f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
+        )
         raise AddonExtractError(
             f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
         ) from None
@@ -126,7 +128,9 @@ def _process_mcaddon_files(temp_dir, server_name, base_dir):
     if not server_name:
         raise InvalidServerNameError("_process_mcaddon_files: server_name is empty.")
     if not os.path.isdir(temp_dir):
-        logger.error(f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}")
+        logger.error(
+            f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
+        )
         raise DirectoryError(
             f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
         )
@@ -190,7 +194,9 @@ def process_mcpack(pack_file, server_name, base_dir):
         logger.debug(f"Extracted {os.path.basename(pack_file)} successfully")
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
-        logger.error(f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)")
+        logger.error(
+            f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
+        )
         raise AddonExtractError(
             f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
         ) from None
@@ -230,13 +236,17 @@ def _process_manifest(temp_dir, server_name, pack_file, base_dir):
 
     manifest_info = _extract_manifest_info(temp_dir)
     if manifest_info is None:
-        logger.error(f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json")
+        logger.error(
+            f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
+        )
         raise FileOperationError(
             f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
         )
 
     pack_type, uuid, version, addon_name_from_manifest = manifest_info
-    logger.debug(f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}")
+    logger.debug(
+        f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+    )
 
     install_pack(
         pack_type,
@@ -282,7 +292,9 @@ def _extract_manifest_info(temp_dir):
         version = manifest_data["header"]["version"]
         addon_name_from_manifest = manifest_data["header"]["name"]
 
-        logger.debug(f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}")
+        logger.debug(
+            f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+        )
         return pack_type, uuid, version, addon_name_from_manifest
     except (OSError, json.JSONDecodeError, KeyError, IndexError) as e:
         logger.error(f"Failed to extract info from manifest.json: {e}")
@@ -328,7 +340,9 @@ def install_pack(
     if not pack_file:
         raise MissingArgumentError("install_pack: pack_file is empty.")
 
-    logger.debug(f"Installing pack: type={pack_type}, server={server_name}, file={pack_file}, uuid={uuid}, version={version}, name={addon_name_from_manifest}")
+    logger.debug(
+        f"Installing pack: type={pack_type}, server={server_name}, file={pack_file}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+    )
 
     try:
         world_name = server.get_world_name(server_name, base_dir)

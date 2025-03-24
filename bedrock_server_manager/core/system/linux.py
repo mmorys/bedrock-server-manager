@@ -229,7 +229,9 @@ def _enable_systemd_service(server_name):
             logger.debug(f"Service {service_name} is already enabled.")
             return
     except FileNotFoundError:
-        logger.error("systemctl command not found, make sure you are on a systemd system")
+        logger.error(
+            "systemctl command not found, make sure you are on a systemd system"
+        )
         raise CommandNotFoundError(
             "systemctl",
             message="systemctl command not found, make sure you are on a systemd system",
@@ -281,7 +283,9 @@ def _disable_systemd_service(server_name):
             logger.debug(f"Service {service_name} is already disabled.")
             return
     except FileNotFoundError:
-        logger.error("systemctl command not found, make sure you are on a systemd system")
+        logger.error(
+            "systemctl command not found, make sure you are on a systemd system"
+        )
         raise CommandNotFoundError(
             "systemctl",
             message="systemctl command not found, make sure you are on a systemd system",
@@ -608,7 +612,9 @@ def validate_cron_input(value, min_val, max_val):
         # Check for simple integer values
         num = int(value)
         if not (min_val <= num <= max_val):
-            logger.error(f"Invalid cron input: {value} is out of range ({min_val}-{max_val})")
+            logger.error(
+                f"Invalid cron input: {value} is out of range ({min_val}-{max_val})"
+            )
             raise InvalidCronJobError(
                 f"Invalid cron input: {value} is out of range ({min_val}-{max_val})"
             )
@@ -628,7 +634,9 @@ def convert_to_readable_schedule(month, day_of_month, hour, minute, day_of_week)
     validate_cron_input(hour, 0, 23)
     validate_cron_input(minute, 0, 59)
     validate_cron_input(day_of_week, 0, 7)
-    logger.debug(f"Converting cron schedule to readable format: {minute} {hour} {day_of_month} {month} {day_of_week}")
+    logger.debug(
+        f"Converting cron schedule to readable format: {minute} {hour} {day_of_month} {month} {day_of_week}"
+    )
     # Handle the all-wildcards case FIRST.
     if (
         month == "*"
@@ -676,12 +684,16 @@ def convert_to_readable_schedule(month, day_of_month, hour, minute, day_of_week)
                     next_run = next_run.replace(year=now.year + 1)
                 return next_run.strftime("%m/%d/%Y %H:%M")
             except ValueError:
-                logger.error(f"Invalid date/time values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}")
+                logger.error(
+                    f"Invalid date/time values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
+                )
                 raise InvalidCronJobError(
                     f"Invalid date/time values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
                 ) from None
     except ValueError:
-        logger.error(f"Invalid values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}")
+        logger.error(
+            f"Invalid values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
+        )
         raise InvalidCronJobError(
             f"Invalid values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
         ) from None

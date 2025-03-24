@@ -55,6 +55,9 @@ def main():
     system_base.check_prerequisites()
     config_dir = settings._config_dir
     base_dir = settings.get("BASE_DIR")
+    logger.info(f"Starting Bedrock Server Manager v{__version__}")
+    logger.debug(f"Base directory: {base_dir}")
+    logger.debug(f"Config directory: {config_dir}")
 
     # --- Argument Parsing ---
     parser = argparse.ArgumentParser(description="Bedrock Server Manager")
@@ -505,6 +508,7 @@ def main():
             commands[args.subcommand]()  # Execute the function
         except KeyboardInterrupt:
             print("\nOperation interrupted. Exiting...")
+            logger.info("Operation interrupted by user.")
             sys.exit(1)
         except Exception as e:
             logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")

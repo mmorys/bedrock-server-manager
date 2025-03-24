@@ -32,14 +32,16 @@ def setup_logging(
 
     # Create a logger
 
-    logger.debug(f"Setting up logging.  Dir: {log_dir}, Filename: {log_filename}, Level: {log_level}")
+    logger.debug(
+        f"Setting up logging.  Dir: {log_dir}, Filename: {log_filename}, Level: {log_level}"
+    )
 
     try:
         # Create a rotating file handler
         handler = logging.handlers.TimedRotatingFileHandler(
             log_path, when=when, interval=interval, backupCount=log_keep
         )
-        handler.setLevel(log_level) # Set level on the HANDLER
+        handler.setLevel(log_level)  # Set level on the HANDLER
 
         # Create a formatter
         formatter = logging.Formatter(
@@ -53,9 +55,8 @@ def setup_logging(
         # Add console output
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        console_handler.setLevel(log_level) # Set level on the HANDLER
+        console_handler.setLevel(log_level)  # Set level on the HANDLER
         logger.addHandler(console_handler)
-
 
     except Exception as e:
         logging.error(f"Failed to create log handler: {e}")

@@ -78,7 +78,9 @@ def prune_old_backups(backup_dir, backup_keep, file_prefix="", file_extension=""
                         f"Failed to remove {old_backup}: {e}"
                     ) from e
         else:
-            logger.debug(f"Number of backups ({len(backups)}) is less than or equal to keep count ({backups_to_keep}). Skipping pruning.")
+            logger.debug(
+                f"Number of backups ({len(backups)}) is less than or equal to keep count ({backups_to_keep}). Skipping pruning."
+            )
     except ValueError:
         logger.error("backup_keep must be a valid integer.")
         raise ValueError("backup_keep must be a valid integer.") from None
@@ -97,7 +99,9 @@ def backup_world(server_name, world_path, backup_dir):
         # Other exceptions may be raised by world.export_world
     """
     if not os.path.isdir(world_path):
-        logger.error(f"World directory '{world_path}' does not exist. Skipping world backup.")
+        logger.error(
+            f"World directory '{world_path}' does not exist. Skipping world backup."
+        )
         raise DirectoryError(
             f"World directory '{world_path}' does not exist. Skipping world backup."
         )
@@ -185,7 +189,9 @@ def backup_server(server_name, backup_type, base_dir, file_to_backup=None):
             raise BackupWorldError(f"World backup failed: {e}") from e
 
     elif backup_type == "config":
-        logger.info(f"Performing config backup for server: {server_name}, file: {file_to_backup}")
+        logger.info(
+            f"Performing config backup for server: {server_name}, file: {file_to_backup}"
+        )
         if not file_to_backup:
             raise MissingArgumentError(
                 "backup_server: file_to_backup is empty when backup_type is config."
@@ -262,7 +268,9 @@ def restore_config_file(backup_file, server_dir):
 
     target_file = os.path.join(server_dir, f"{base_name}.{file_extension}")
 
-    logger.info(f"Restoring configuration file: {os.path.basename(backup_file)} to {target_file}")
+    logger.info(
+        f"Restoring configuration file: {os.path.basename(backup_file)} to {target_file}"
+    )
     try:
         shutil.copy2(backup_file, target_file)
         logger.info(f"Configuration file restored to {target_file}")
@@ -306,7 +314,9 @@ def restore_server(server_name, backup_file, restore_type, base_dir):
         world.import_world(server_name, backup_file, base_dir)
 
     elif restore_type == "config":
-        logger.info(f"Restoring config file for server: {server_name} from {backup_file}")
+        logger.info(
+            f"Restoring config file for server: {server_name} from {backup_file}"
+        )
         restore_config_file(backup_file, server_dir)
     else:
         logger.error(f"Invalid restore type in restore_server: {restore_type}")

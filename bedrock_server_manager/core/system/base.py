@@ -108,7 +108,9 @@ def set_server_folder_permissions(server_dir):
                 for d in dirs:
                     os.chown(os.path.join(root, d), real_user, real_group)
                     os.chmod(os.path.join(root, d), 0o775)
-                    logger.debug(f"Set permissions on directory: {os.path.join(root, d)}")
+                    logger.debug(
+                        f"Set permissions on directory: {os.path.join(root, d)}"
+                    )
                 for f in files:
                     file_path = os.path.join(root, f)
                     os.chown(file_path, real_user, real_group)
@@ -174,7 +176,7 @@ def is_server_running(server_name, base_dir):
                 text=True,
                 check=False,
             )
-            is_running =  f".bedrock-{server_name}" in result.stdout
+            is_running = f".bedrock-{server_name}" in result.stdout
             logger.debug(f"Server {server_name} running: {is_running} (Linux - screen)")
             return is_running
         except FileNotFoundError:
@@ -192,7 +194,9 @@ def is_server_running(server_name, base_dir):
                         and proc.info["cwd"]
                         and base_dir.lower() in proc.info["cwd"].lower()
                     ):
-                        logger.debug(f"Server {server_name} running: True (Windows - process found)")
+                        logger.debug(
+                            f"Server {server_name} running: True (Windows - process found)"
+                        )
                         return True
                 except (
                     psutil.NoSuchProcess,
@@ -200,7 +204,9 @@ def is_server_running(server_name, base_dir):
                     psutil.ZombieProcess,
                 ):
                     pass
-            logger.debug(f"Server {server_name} running: False (Windows - process not found)")
+            logger.debug(
+                f"Server {server_name} running: False (Windows - process not found)"
+            )
             return False
         except Exception as e:
             logger.error(f"Error checking process: {e}")
@@ -320,7 +326,9 @@ def _get_bedrock_process_info(server_name, base_dir):
                     uptime_seconds = time.time() - bedrock_process.create_time()
                     uptime_str = str(timedelta(seconds=int(uptime_seconds)))
 
-                    logger.debug(f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}")
+                    logger.debug(
+                        f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
+                    )
                     return {
                         "pid": bedrock_pid,
                         "cpu_percent": cpu_percent,
@@ -380,7 +388,9 @@ def _get_bedrock_process_info(server_name, base_dir):
                     # Uptime
                     uptime_seconds = time.time() - bedrock_process.create_time()
                     uptime_str = str(timedelta(seconds=int(uptime_seconds)))
-                    logger.debug(f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}")
+                    logger.debug(
+                        f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
+                    )
                     return {
                         "pid": bedrock_pid,
                         "cpu_percent": cpu_percent,
@@ -430,13 +440,17 @@ def remove_readonly(path):
             )
             logger.debug("Removed read-only attribute on Windows.")
         except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}")
+            logger.error(
+                f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}"
+            )
             raise SetFolderPermissionsError(
                 f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}"
             ) from e
         except FileNotFoundError:
             # If SYSTEMROOT is not set, this is a serious system issue.
-            logger.error("attrib command not found (SYSTEMROOT environment variable not set).")
+            logger.error(
+                "attrib command not found (SYSTEMROOT environment variable not set)."
+            )
             raise FileOperationError(
                 "attrib command not found (SYSTEMROOT environment variable not set)."
             ) from None
@@ -465,7 +479,9 @@ def remove_readonly(path):
                             dir_path,
                             os.stat(dir_path).st_mode | stat.S_IWUSR | stat.S_IXUSR,
                         )
-                        logger.debug(f"Set write and execute permissions on directory: {dir_path}")
+                        logger.debug(
+                            f"Set write and execute permissions on directory: {dir_path}"
+                        )
                     for f in files:
                         file_path = os.path.join(root, f)
                         if "bedrock_server" in file_path:
@@ -475,7 +491,9 @@ def remove_readonly(path):
                                 | stat.S_IWUSR
                                 | stat.S_IXUSR,
                             )
-                            logger.debug(f"Set execute and write permissions on file: {file_path}")
+                            logger.debug(
+                                f"Set execute and write permissions on file: {file_path}"
+                            )
                         else:
                             os.chmod(
                                 file_path, os.stat(file_path).st_mode | stat.S_IWUSR

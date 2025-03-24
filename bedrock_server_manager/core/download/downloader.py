@@ -88,7 +88,9 @@ def lookup_bedrock_download_url(target_version):
         response = requests.get(download_page, headers=headers, timeout=30)
         response.raise_for_status()
         download_page_content = response.text
-        logger.debug(f"Fetched download page content, length: {len(download_page_content)}")
+        logger.debug(
+            f"Fetched download page content, length: {len(download_page_content)}"
+        )
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch download page content: {e}")
         raise InternetConnectivityError(
@@ -301,10 +303,11 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
                         else:
                             # Ensure the directory for the file exists:
                             os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                            logger.debug(f"Created directory for file: {os.path.dirname(target_path)}")
+                            logger.debug(
+                                f"Created directory for file: {os.path.dirname(target_path)}"
+                            )
                             zip_ref.extract(zip_info, server_dir)
                             logger.debug(f"Extracted: {target_path}")
-
 
             else:
                 logger.info("Extracting server files...")
@@ -313,7 +316,9 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
 
         logger.info("Server files extracted successfully.")
     except zipfile.BadZipFile:
-        logger.error(f"Failed to extract server files: {zip_file} is not a valid ZIP file.")
+        logger.error(
+            f"Failed to extract server files: {zip_file} is not a valid ZIP file."
+        )
         raise DownloadExtractError(
             f"Failed to extract server files: {zip_file} is not a valid ZIP file."
         )

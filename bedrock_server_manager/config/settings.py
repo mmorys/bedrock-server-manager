@@ -91,9 +91,7 @@ class Settings:
                 self._settings.update(user_config)  # Override defaults
                 logger.debug(f"Loaded user config: {user_config}")
         except FileNotFoundError:
-            logger.info(
-                "Configuration file not found. Creating with default settings."
-            )
+            logger.info("Configuration file not found. Creating with default settings.")
             self._write_config()  # Create default config
         except json.JSONDecodeError:
             logger.warning("Configuration file is not valid JSON. Overwriting...")
@@ -103,7 +101,6 @@ class Settings:
             raise ConfigError(f"Error reading config file: {e}") from e
 
         logger.debug(f"Loaded settings: {self._settings}")
-
 
     def _write_config(self):
         """Writes the current configuration to the config file."""
@@ -121,7 +118,6 @@ class Settings:
         value = self._settings.get(key)
         logger.debug(f"Value for {key}: {value}")
         return value
-
 
     def set(self, key, value):
         """Sets a configuration setting and saves it to the config file."""

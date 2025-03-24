@@ -59,7 +59,9 @@ def _windows_start_server(server_name, server_dir):
                 stderr=f,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-        logger.debug(f"Started server process with PID: {process.pid}, output redirected to file")
+        logger.debug(
+            f"Started server process with PID: {process.pid}, output redirected to file"
+        )
     except (OSError, Exception) as e:
         logger.warning(
             f"Failed to open for redirection or start process: {e}. Using PIPE fallback."
@@ -73,7 +75,9 @@ def _windows_start_server(server_name, server_dir):
                 stderr=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            logger.debug(f"Started server process with PID: {process.pid}, output redirected to PIPE")
+            logger.debug(
+                f"Started server process with PID: {process.pid}, output redirected to PIPE"
+            )
         except Exception as e:
             logger.error(f"Failed to start server executable: {e}")
             raise ServerStartError(f"Failed to start server executable: {e}") from e
@@ -363,7 +367,9 @@ def create_windows_task_xml(
     except (subprocess.CalledProcessError, IndexError, OSError):
         # Fallback to username if whoami fails or output is unexpected
         ET.SubElement(principal, "UserId").text = os.getenv("USERNAME")
-        logger.warning(f"Failed to get SID, using USERNAME instead: {os.getenv('USERNAME')}")
+        logger.warning(
+            f"Failed to get SID, using USERNAME instead: {os.getenv('USERNAME')}"
+        )
     ET.SubElement(principal, "LogonType").text = "InteractiveToken"
     ET.SubElement(principal, "RunLevel").text = "LeastPrivilege"
 
@@ -439,7 +445,9 @@ def import_task_xml(xml_file_path, task_name):
     except subprocess.CalledProcessError as e:
         error_output = e.stderr.strip() if e.stderr else ""
         stdout_output = e.stdout.strip() if e.stdout else ""
-        logger.error(f"Failed to import task '{task_name}'. Return Code: {e.returncode}.  Error: {error_output}. Output: {stdout_output}")
+        logger.error(
+            f"Failed to import task '{task_name}'. Return Code: {e.returncode}.  Error: {error_output}. Output: {stdout_output}"
+        )
         raise TaskError(
             f"Failed to import task '{task_name}'. Return Code: {e.returncode}.  Error: {error_output}. Output: {stdout_output}"
         ) from e
@@ -666,7 +674,9 @@ def delete_task(task_name):
         if "does not exist" in stderr.lower():
             logger.debug(f"Task '{task_name}' not found.")
             return  # Task not found - not an error
-        logger.error(f"Failed to delete task '{task_name}'. Return Code: {e.returncode}. Error: {stderr.strip()}. Output: {e.stdout.strip() if e.stdout else ''}")
+        logger.error(
+            f"Failed to delete task '{task_name}'. Return Code: {e.returncode}. Error: {stderr.strip()}. Output: {e.stdout.strip() if e.stdout else ''}"
+        )
         raise TaskError(
             f"Failed to delete task '{task_name}'. "
             f"Return Code: {e.returncode}. Error: {stderr.strip()}. "

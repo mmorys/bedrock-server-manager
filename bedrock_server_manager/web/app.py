@@ -31,7 +31,7 @@ def create_app():
 
     # --- Set a SECRET KEY ---
     app.config["SECRET_KEY"] = secrets.token_hex(16)  # Generate a random key
-    #logger.debug(f"Secret key set: {app.config['SECRET_KEY']}")
+    # logger.debug(f"Secret key set: {app.config['SECRET_KEY']}")
 
     app.register_blueprint(server_routes.server_bp)
     logger.debug("Registered blueprints")
