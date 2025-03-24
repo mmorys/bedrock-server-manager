@@ -6,6 +6,7 @@ from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.server import server as server_base
 import os
+from flask import jsonify
 import platform
 
 server_bp = Blueprint("server_routes", __name__)
@@ -35,6 +36,7 @@ def manage_server_route():
     else:
         servers = status_response["servers"]
     return render_template("manage_servers.html", servers=servers)
+
 
 @server_bp.route("/advanced_menu")
 def advanced_menu_route():
@@ -833,3 +835,17 @@ def install_addon_route(server_name):
         return render_template(
             "select_addon.html", server_name=server_name, addon_files=addon_files
         )
+
+
+@server_bp.route("/server/<server_name>/monitor")
+def monitor_server_route(server_name):
+    """Displays the server monitoring page."""
+    return render_template("monitor.html", server_name=server_name)
+
+
+@server_bp.route("/api/server/<server_name>/status")
+def server_status_api(server_name):
+    """Provides server status information as JSON."""
+    base_dir = get_base_dir()
+    result = handlers.get_bedrock_process_info_handler(server_name, base_dir)
+    return jsonify(result)  # Return JSON response

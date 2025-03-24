@@ -1,0 +1,72 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/monitor.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor Server - Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <!-- You might want a separate CSS file for the monitor page later -->
+    <style>
+        #status-info {
+            font-family: monospace, sans-serif;
+            white-space: pre; /* Preserve whitespace and line breaks */
+            border: 1px solid #555; /* Darker border for visibility */
+            padding: 10px;
+            background-color: #3a3a3a; /* Dark gray background */
+            color: #eee; /* Light text color */
+            border-radius: 0px;
+            box-shadow:  2px 2px 0 #222;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Monitoring Server: {{ server_name }}</h1>
+        </header>
+
+        <section class="monitor-section">
+            <div id="status-info">
+                Loading server status...
+            </div>
+             <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link">Return</a>
+        </section>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/api/server/{{ server_name }}/status') 
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        const info = data.process_info;
+                        document.getElementById('status-info').textContent = `
+PID:          ${info.pid}
+CPU Usage:    ${info.cpu_percent.toFixed(1)}%
+Memory Usage: ${info.memory_mb.toFixed(1)} MB
+Uptime:       ${info.uptime}
+                        `.trim(); // Use template literals for multi-line string and .trim()
+                    } else {
+                        document.getElementById('status-info').textContent = `Error: ${data.message}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching server status:', error);
+                    document.getElementById('status-info').textContent = `Error fetching server status: ${error}`;
+                });
+        }
+
+        // Update status immediately when the page loads, then every 2 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus(); // Initial update
+            setInterval(updateStatus, 2000); // Update every 2000ms (2 seconds)
+        });
+    </script>
+</body>
+</html>
