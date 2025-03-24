@@ -19,6 +19,10 @@ from bedrock_server_manager.core.error import (
     InstallUpdateError,
     CommandNotFoundError,
     InvalidCronJobError,
+    MissingArgumentError,
+    ServerNotRunningError,
+    SendCommandError,
+    CommandNotFoundError,
 )
 from bedrock_server_manager.core.server import (
     server as server_base,
@@ -26,8 +30,8 @@ from bedrock_server_manager.core.server import (
     backup,
     addon,
 )
-from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.system import (
+    base as system_base,
     linux as system_linux,
     windows as system_windows,
 )
@@ -959,6 +963,36 @@ def get_bedrock_process_info_handler(server_name, base_dir=None):
         return {"status": "success", "process_info": process_info}
     except Exception as e:
         return {"status": "error", "message": f"Error getting process info: {e}"}
+
+
+def send_command_handler(server_name, command, base_dir=None):
+    """Sends a command to the running Bedrock server.
+
+    Args:
+        server_name (str): The name of the server.
+        command (str): The command to send.
+        base_dir (str, optional): The base directory. Defaults to None.
+
+    Returns:
+        dict: {"status": "success"} or {"status": "error", "message": ...}
+    """
+    base_dir = get_base_dir(base_dir)
+    try:
+        bedrock_server = server_base.BedrockServer(
+            server_name, os.path.join(base_dir, server_name)
+        )
+        bedrock_server.send_command(command)
+        return {"status": "success"}
+    except (
+        MissingArgumentError,
+        ServerNotRunningError,
+        SendCommandError,
+        CommandNotFoundError,
+    ) as e:
+        # Catch all the exceptions that BedrockServer.send_command can raise
+        return {"status": "error", "message": str(e)}
+    except Exception as e:  # also catch unexpected exceptions
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
 def attach_to_screen_session_handler(server_name, base_dir=None):

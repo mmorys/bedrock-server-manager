@@ -484,8 +484,10 @@ def main():
         "is-server-running": lambda: print(
             system_base.is_server_running(args.server, base_dir)
         ),
-        "send-command": lambda: server_base.BedrockServer(args.server).send_command(
-            " ".join(args.command)
+        "send-command": lambda: cli.handle_send_command(
+            server_name=args.server,
+            command=" ".join(args.command),
+            base_dir=settings.get("BASE_DIR"),
         ),
         "export-world": lambda: cli.handle_export_world(args.server, base_dir),
         "validate-server": lambda: print(

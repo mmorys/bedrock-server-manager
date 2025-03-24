@@ -889,6 +889,17 @@ def monitor_service_usage(server_name, base_dir=None):
     _monitor(server_name, base_dir)
 
 
+def handle_send_command(server_name, command, base_dir=None):
+    """Handles sending a command."""
+
+    response = handlers.send_command_handler(server_name, command, base_dir)
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+        return
+    print("Command sent successfully.")
+
+
 def attach_console(server_name, base_dir=None):
     """Attaches to the server console."""
     if not server_name:
