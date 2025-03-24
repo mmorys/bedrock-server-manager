@@ -127,6 +127,8 @@
 
         document.addEventListener('DOMContentLoaded', function() {
           const serverName = "{{ server_name }}";  // Get server_name from Jinja2 context
+          const EXPATH = "{{ EXPATH }}";  // Get server_name from Jinja2 context
+
 
           document.getElementById('cron-form').addEventListener('submit', function(event) {
             event.preventDefault(); // Prevent the default form submission
@@ -139,7 +141,7 @@
             const weekday = document.getElementById('weekday').value;
             const originalCronString = document.getElementById('original_cron_string').value;
 
-            const fullCommand = `${settings.EXPATH} ${command} --server ${serverName}`;
+            const fullCommand = `${EXPATH} ${command} --server ${serverName}`;
             const cronString = `${minute} ${hour} ${day} ${month} ${weekday} ${fullCommand}`;
 
 
