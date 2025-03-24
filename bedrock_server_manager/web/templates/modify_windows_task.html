@@ -1,0 +1,42 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/modify_windows_task.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager - Modify Windows Task</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Modify Windows Task for {{ server_name }}</h1>
+        </header>
+
+        <section class="add-task-section">
+            <!--  action will be set by JavaScript based on whether it's an add or modify operation -->
+            <form id= "task-form" action= "{{ url_for('server_routes.add_windows_task_route', server_name=server_name) }}" method="post">
+                <div class="form-group">
+                    <label for="command" class="form-label">Command:</label>
+                    <select id="command" name="command" class="form-input">
+                        <option value="update-server">Update Server</option>
+                        <option value="backup-all">Backup Server</option>
+                        <option value="start-server">Start Server</option>
+                        <option value="stop-server">Stop Server</option>
+                        <option value="restart-server">Restart Server</option>
+                        <option value="scan-players">Scan Players</option>
+                    </select>
+                </div>
+                <div id="trigger-container">
+                  <!-- Trigger inputs will be added here -->
+                </div>
+
+                <button type="button" class="main-button" onclick="addTrigger()">Add Trigger</button>
+                <button type="submit" class="main-button">Add Task</button>
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+            </form>
+        </section>
+    </div>
+</body>
+</html>

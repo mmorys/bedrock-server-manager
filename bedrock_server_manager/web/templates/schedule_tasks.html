@@ -1,0 +1,182 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_tasks.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bedrock Server Manager - Tasks Scheduler</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Schedule Tasks for {{ server_name }}</h1>
+        </header>
+
+        <section class="schedule-tasks-section">
+            <h2>Current Scheduled Tasks</h2>
+            {% if table_data %}
+                <table class="server-table">
+                    <thead>
+                        <tr>
+                            <th>Minute</th>
+                            <th>Hour</th>
+                            <th>Day of Month</th>
+                            <th>Month</th>
+                            <th>Day of Week</th>
+                            <th>Schedule</th>
+                            <th>Command</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in table_data %}
+                            <tr>
+                                <td>{{ job.minute }}</td>
+                                <td>{{ job.hour }}</td>
+                                <td>{{ job.day_of_month }}</td>
+                                <td>{{ job.month }}</td>
+                                <td>{{ job.day_of_week }}</td>
+                                <td>{{ job.schedule_time }}</td>
+                                <td>{{ job.command }}</td>
+                                <td>
+                                    <a href="#" onclick="fillModifyForm('{{ job.minute }}', '{{ job.hour }}', '{{ job.day_of_month }}', '{{ job.month }}', '{{ job.day_of_week }}', '{{ job.command }}')" class="action-link">Modify</a>
+                                    <a href="#" onclick="confirmDelete('{{ job.minute }} {{ job.hour }} {{ job.day_of_month }} {{ job.month }} {{ job.day_of_week }} {{ job.command }}')" class="action-link">Delete</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No cron jobs scheduled for this server.</p>
+            {% endif %}
+        <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Server List</a>
+        </section>
+
+        <section class="add-cron-job-section">
+          <h2>Add/Modify Cron Job</h2>
+          <form id="cron-form" action="" method="post">
+              <div class="form-group">
+                    <label for="command">Command:</label>
+                    <select id="command" name="command" class="form-input">
+                        <option value="update-server">Update Server</option>
+                        <option value="backup-all">Backup Server</option>
+                        <option value="start-server">Start Server</option>
+                        <option value="stop-server">Stop Server</option>
+                        <option value="restart-server">Restart Server</option>
+                        <option value="scan-players">Scan Players</option>
+                    </select>
+                </div>
+              <div class="form-group">
+                  <label for="minute">Minute:</label>
+                  <input type="text" id="minute" name="minute" class="form-input" value="*" required>
+              </div>
+              <div class="form-group">
+                  <label for="hour">Hour:</label>
+                  <input type="text" id="hour" name="hour" class="form-input" value="*" required>
+              </div>
+              <div class="form-group">
+                  <label for="day">Day of Month:</label>
+                  <input type="text" id="day" name="day" class="form-input" value="*" required>
+              </div>
+              <div class="form-group">
+                  <label for="month">Month:</label>
+                  <input type="text" id="month" name="month" class="form-input" value="*" required>
+              </div>
+              <div class="form-group">
+                  <label for="weekday">Day of Week:</label>
+                  <input type="text" id="weekday" name="weekday" class="form-input" value="*" required>
+              </div>
+              <input type="hidden" id="original_cron_string" name="original_cron_string" value="">
+              <button type="submit" class="main-button">Add/Modify Job</button>
+          </form>
+      </section>
+    </div>
+      <script>
+        function confirmDelete(cronString) {
+            if (confirm(`Are you sure you want to delete the cron job:\n${cronString}?`)) {
+                // If user confirms, submit a form to the delete route
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/server/${serverName}/schedule/delete`;
+                var cronInput = document.createElement('input');
+                cronInput.type = 'hidden';
+                cronInput.name = 'cron_string';
+                cronInput.value = cronString;
+                form.appendChild(cronInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        function fillModifyForm(minute, hour, day, month, weekday, command) {
+            document.getElementById('minute').value = minute;
+            document.getElementById('hour').value = hour;
+            document.getElementById('day').value = day;
+            document.getElementById('month').value = month;
+            document.getElementById('weekday').value = weekday;
+            document.getElementById('original_cron_string').value = `${minute} ${hour} ${day} ${month} ${weekday} ${command}`
+            // Extract just the command part, handling paths
+            let commandPart = command.split('--')[0].trim();  // Split on -- and take first part
+            commandPart = commandPart.split('/').pop().split('\\').pop(); // Extract command name
+            commandPart = commandPart.replace('.exe', '').replace('.py','').replace('bedrock-server-manager','').replace('bedrock_server_manager','');
+            document.getElementById('command').value = commandPart
+            document.getElementById('cron-form').action = "{{ url_for('server_routes.modify_cron_job_route', server_name = server_name) }}";
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+          const serverName = "{{ server_name }}";  // Get server_name from Jinja2 context
+
+          document.getElementById('cron-form').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            const command = document.getElementById('command').value;
+            const minute = document.getElementById('minute').value;
+            const hour = document.getElementById('hour').value;
+            const day = document.getElementById('day').value;
+            const month = document.getElementById('month').value;
+            const weekday = document.getElementById('weekday').value;
+            const originalCronString = document.getElementById('original_cron_string').value;
+
+            const fullCommand = `${settings.EXPATH} ${command} --server ${serverName}`;
+            const cronString = `${minute} ${hour} ${day} ${month} ${weekday} ${fullCommand}`;
+
+
+            let submitUrl;
+            if (originalCronString) {
+                submitUrl = "{{ url_for('server_routes.modify_cron_job_route', server_name = server_name) }}";
+                }
+             else {
+                submitUrl = "{{ url_for('server_routes.add_cron_job_route', server_name = server_name) }}";
+            }
+
+            // Send the command using fetch (POST request)
+            fetch(submitUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ new_cron_job : cronString, old_cron_job: originalCronString })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    flashMessage('Cron job added/modified successfully!', 'success');
+                } else {
+                    flashMessage(`Error: ${data.message}`, 'error');
+                }
+                window.location.reload()
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                flashMessage(`Error: ${error}`, 'error');
+                window.location.reload();
+            });
+
+        });
+      });
+
+    </script>
+</body>
+</html>

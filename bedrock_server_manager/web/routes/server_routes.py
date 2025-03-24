@@ -862,3 +862,201 @@ def server_status_api(server_name):
     base_dir = get_base_dir()
     result = handlers.get_bedrock_process_info_handler(server_name, base_dir)
     return jsonify(result)  # Return JSON response
+
+
+from flask import jsonify
+@server_bp.route("/server/<server_name>/schedule", methods=["GET"])
+def schedule_tasks_route(server_name):
+    base_dir = get_base_dir()
+    # Get cron jobs using the handler
+    cron_jobs_response = handlers.get_server_cron_jobs_handler(server_name)
+    if cron_jobs_response["status"] == "error":
+        flash(cron_jobs_response['message'], "error")
+        table_data = []  # Provide empty data if there's an error
+    else:
+        cron_jobs = cron_jobs_response["cron_jobs"]
+        # Get formatted table data using the handler
+        table_response = handlers.get_cron_jobs_table_handler(cron_jobs)
+        if table_response["status"] == "error":
+            flash(table_response['message'], "error")
+            table_data = []
+        else:
+            table_data = table_response["table_data"]
+
+    return render_template(
+        "schedule_tasks.html", server_name=server_name, table_data=table_data
+    )
+
+
+@server_bp.route("/server/<server_name>/schedule/add", methods=["POST"])
+def add_cron_job_route(server_name):
+    base_dir = get_base_dir()
+    data = request.get_json()
+    cron_string = data.get("new_cron_job")
+
+    if not cron_string:
+        return jsonify({"status": "error", "message": "Cron string is required."}), 400
+
+    add_response = handlers.add_cron_job_handler(cron_string)
+    return jsonify(add_response)  # Return JSON response
+
+
+@server_bp.route("/server/<server_name>/schedule/modify", methods=["POST"])
+def modify_cron_job_route(server_name):
+    base_dir = get_base_dir()
+    data = request.get_json()
+    old_cron_string = data.get("old_cron_job")
+    new_cron_string = data.get("new_cron_job")
+
+    if not old_cron_string or not new_cron_string:
+        return (
+            jsonify({"status": "error", "message": "Both old and new cron strings are required."}),
+            400,
+        )
+
+    modify_response = handlers.modify_cron_job_handler(
+        old_cron_string, new_cron_string
+    )
+    return jsonify(modify_response)  # Return JSON response
+
+
+@server_bp.route("/server/<server_name>/schedule/delete", methods=["POST"])
+def delete_cron_job_route(server_name):
+    base_dir = get_base_dir()
+    data = request.get_json()
+    cron_string = data.get("cron_string")
+    if not cron_string:
+        return jsonify({"status": "error", "message": "Cron string is required."}), 400
+    delete_response = handlers.delete_cron_job_handler(cron_string)
+    return jsonify(delete_response)  # Return JSON response
+
+
+@server_bp.route("/server/<server_name>/tasks", methods=["GET"])
+def schedule_tasks_windows_route(server_name):
+    """Displays the Windows Task Scheduler UI."""
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
+
+    if platform.system() != "Windows":
+        flash("Task scheduling is only available on Windows.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    task_names_response = handlers.get_server_task_names_handler(
+        server_name, config_dir
+    )
+    if task_names_response["status"] == "error":
+        flash(
+            f"Error getting task names: {task_names_response['message']}", "error"
+        )
+        tasks = []  # Provide an empty list so the template doesn't break
+    else:
+        task_names = task_names_response["task_names"]
+        # Get detailed task info using the handler
+        task_info_response = handlers.get_windows_task_info_handler(
+            [task[0] for task in task_names]  # Extract task names
+        )
+        if task_info_response["status"] == "error":
+            flash(
+                f"Error getting task info: {task_info_response['message']}", "error"
+            )
+            tasks = []
+        else:
+            tasks = task_info_response["task_info"]
+
+    return render_template(
+        "schedule_tasks_windows.html", server_name=server_name, tasks=tasks
+    )
+
+
+@server_bp.route("/server/<server_name>/tasks/add", methods=["GET", "POST"])
+def add_windows_task_route(server_name):
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
+    if request.method == 'POST':
+        command = request.form.get('command')
+        command_args = f"--server {server_name}"
+        if command == "update-server":
+            pass # command args already correct.
+        elif command == "backup-all":
+            pass
+        elif command == "start-server":
+            pass
+        elif command == "stop-server":
+            pass
+        elif command == "restart-server":
+            pass
+        elif command == "scan-players":
+            command_args = "" # No args
+        else:
+            flash("Invalid command selected.", "error")
+            return render_template("add_windows_task.html", server_name=server_name)
+
+        task_name = f"bedrock_{server_name}_{command.replace('-', '_')}"
+        triggers = []
+
+        # Process trigger data (iterate through form data)
+        trigger_num = 1
+        while True:  # Loop until we run out of trigger data
+            trigger_type = request.form.get(f"trigger_type_{trigger_num}")
+            if not trigger_type:
+                break  # No more triggers
+
+            trigger_data = {"type": trigger_type}
+            trigger_data["start"] = request.form.get(f"start_{trigger_num}")
+
+            if trigger_type == "Daily":
+                trigger_data["interval"] = int(request.form.get(f"interval_{trigger_num}"))
+            elif trigger_type == "Weekly":
+                trigger_data["interval"] = int(request.form.get(f"interval_{trigger_num}"))
+                days_of_week_str = request.form.get(f"days_of_week_{trigger_num}", "")
+                trigger_data["days"] = [day.strip() for day in days_of_week_str.split(",") if day.strip()]
+            elif trigger_type == "Monthly":
+                days_of_month_str = request.form.get(f"days_of_month_{trigger_num}", "")
+                trigger_data["days"] = [int(day.strip()) for day in days_of_month_str.split(",") if day.strip().isdigit()]
+                months_str = request.form.get(f"months_{trigger_num}", "")
+                trigger_data["months"] = [month.strip() for month in months_str.split(",") if month.strip()]
+
+            triggers.append(trigger_data)
+            trigger_num += 1
+
+        # Call handler to create the task
+        result = handlers.create_windows_task_handler(server_name, command, command_args, task_name, config_dir, triggers, base_dir)
+
+        if result['status'] == 'success':
+            flash(f"Task '{task_name}' added successfully!", 'success')
+            return redirect(url_for('server_routes.schedule_tasks_windows_route', server_name=server_name))
+        else:
+            flash(f"Error adding task: {result['message']}", 'error')
+            return render_template("add_windows_task.html", server_name=server_name)
+
+    return render_template("add_windows_task.html", server_name=server_name)
+
+
+@server_bp.route("/server/<server_name>/tasks/modify/<task_name>", methods=["GET", "POST"])
+def modify_windows_task_route(server_name, task_name):
+    base_dir = get_base_dir()
+    config_dir = settings.CONFIG_DIR
+
+     # TODO: Implement modify logic (similar to add, but loading existing task data)
+
+    return render_template("modify_windows_task.html", server_name=server_name, task_name=task_name)
+
+
+@server_bp.route("/server/<server_name>/tasks/delete", methods=["POST"])
+def delete_windows_task_route(server_name):
+    base_dir = get_base_dir()
+    config_dir = settings.CONFIG_DIR
+    task_name = request.form.get("task_name")
+    task_file_path = request.form.get("task_file_path")
+
+    if not task_name or not task_file_path:
+        flash("Invalid task deletion request.", "error")
+        return redirect(url_for("server_routes.index"))
+
+    result = handlers.delete_windows_task_handler(task_name, task_file_path, base_dir)
+
+    if result["status"] == "error":
+        flash(f"Error deleting task: {result['message']}", "error")
+    else:
+        flash(f"Task '{task_name}' deleted successfully!", "success")
+    return redirect(url_for('server_routes.schedule_tasks_windows_route', server_name=server_name)) # redirect back to list of tasks

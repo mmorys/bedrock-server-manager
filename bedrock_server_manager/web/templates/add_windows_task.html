@@ -1,0 +1,132 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/add_windows_task.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Windows Task - Bedrock Server Manager</title>
+     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <script>
+        let triggerCount = 0; // Global counter for trigger IDs
+
+        function addTrigger() {
+            triggerCount++;
+            const container = document.getElementById('trigger-container');
+            const triggerDiv = document.createElement('div');
+            triggerDiv.className = 'trigger-group';
+            triggerDiv.id = `trigger-group-${triggerCount}`;
+            triggerDiv.innerHTML = `
+                <h3>Trigger ${triggerCount}</h3>
+                <div class="form-group">
+                    <label for="trigger_type_${triggerCount}" class="form-label">Trigger Type:</label>
+                    <select id="trigger_type_${triggerCount}" name="trigger_type_${triggerCount}" class="form-input" onchange="showTriggerFields(${triggerCount})">
+                        <option value="">-- Select Trigger Type --</option>
+                        <option value="TimeTrigger">One Time</option>
+                        <option value="Daily">Daily</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Monthly">Monthly</option>
+                    </select>
+                </div>
+                <div id="trigger_fields_${triggerCount}">
+                    <!-- Dynamic fields will be added here by showTriggerFields() -->
+                </div>
+                <button type="button" onclick="removeTrigger(${triggerCount})" class="main-button">Remove Trigger</button>
+                <hr>
+            `;
+            container.appendChild(triggerDiv);
+        }
+        function removeTrigger(triggerNum) {
+            const triggerDiv = document.getElementById(`trigger-group-${triggerNum}`);
+            if (triggerDiv) {
+                triggerDiv.remove();
+            }
+        }
+
+        function showTriggerFields(triggerNum) {
+            const triggerType = document.getElementById(`trigger_type_${triggerNum}`).value;
+            const fieldsDiv = document.getElementById(`trigger_fields_${triggerNum}`);
+            fieldsDiv.innerHTML = ''; // Clear previous fields
+
+            if (triggerType === 'TimeTrigger') {
+                fieldsDiv.innerHTML = `
+                    <div class="form-group">
+                        <label for="start_${triggerNum}" class="form-label">Start Date/Time:</label>
+                        <input type="datetime-local" id="start_${triggerNum}" name="start_${triggerNum}" class="form-input" required>
+                    </div>
+                `;
+            } else if (triggerType === 'Daily') {
+                fieldsDiv.innerHTML = `
+                    <div class="form-group">
+                        <label for="start_${triggerNum}" class="form-label">Start Date/Time:</label>
+                        <input type="datetime-local" id="start_${triggerNum}" name="start_${triggerNum}" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="interval_${triggerNum}" class="form-label">Interval (days):</label>
+                        <input type="number" id="interval_${triggerNum}" name="interval_${triggerNum}" class="form-input" min="1" required>
+                    </div>
+                `;
+            } else if (triggerType === 'Weekly') {
+                fieldsDiv.innerHTML = `
+                    <div class="form-group">
+                        <label for="start_${triggerNum}" class="form-label">Start Date/Time:</label>
+                        <input type="datetime-local" id="start_${triggerNum}" name="start_${triggerNum}" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="days_of_week_${triggerNum}" class="form-label">Days of Week (comma-separated):</label>
+                        <input type="text" id="days_of_week_${triggerNum}" name="days_of_week_${triggerNum}" class="form-input" placeholder="Sun,Mon,Tue" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="interval_${triggerNum}" class="form-label">Interval (weeks):</label>
+                        <input type="number" id="interval_${triggerNum}" name="interval_${triggerNum}" class="form-input" min="1" required>
+                    </div>
+                `;
+            } else if (triggerType === 'Monthly') {
+                fieldsDiv.innerHTML = `
+                    <div class="form-group">
+                        <label for="start_${triggerNum}" class="form-label">Start Date/Time:</label>
+                        <input type="datetime-local" id="start_${triggerNum}" name="start_${triggerNum}" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="days_of_month_${triggerNum}" class="form-label">Days of Month (comma-separated):</label>
+                        <input type="text" id="days_of_month_${triggerNum}" name="days_of_month_${triggerNum}" class="form-input" placeholder="1,15,28" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="months_${triggerNum}" class="form-label">Months (comma-separated):</label>
+                        <input type="text" id="months_${triggerNum}" name="months_${triggerNum}" class="form-input" placeholder="Jan,Feb,Mar" required>
+                    </div>
+                `;
+            }
+        }
+        //Adds trigger on load so one is present by default
+        document.addEventListener("DOMContentLoaded", function() {
+            addTrigger();
+        });
+    </script>
+
+        <section class="add-task-section">
+            <!--  action will be set by JavaScript based on whether it's an add or modify operation -->
+            <form id= "task-form" action= "{{ url_for('server_routes.add_windows_task_route', server_name=server_name) }}" method="post">
+                <div class="form-group">
+                    <label for="command" class="form-label">Command:</label>
+                    <select id="command" name="command" class="form-input">
+                        <option value="update-server">Update Server</option>
+                        <option value="backup-all">Backup Server</option>
+                        <option value="start-server">Start Server</option>
+                        <option value="stop-server">Stop Server</option>
+                        <option value="restart-server">Restart Server</option>
+                        <option value="scan-players">Scan Players</option>
+                    </select>
+                </div>
+                <div id="trigger-container">
+                  <!-- Trigger inputs will be added here -->
+                </div>
+
+                <button type="button" class="main-button" onclick="addTrigger()">Add Trigger</button>
+                <button type="submit" class="main-button">Add Task</button>
+                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+            </form>
+        </section>
+    </div>
+</body>
+</html>

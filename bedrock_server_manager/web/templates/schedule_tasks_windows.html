@@ -1,0 +1,76 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_tasks_windows.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Windows Task Scheduler - Bedrock Server Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Windows Task Scheduler for {{ server_name }}</h1>
+        </header>
+
+        <section class="windows-tasks-section">
+            <h2>Current Scheduled Tasks</h2>
+            {% if tasks %}
+                <table class="server-table">
+                    <thead>
+                        <tr>
+                            <th>Task Name</th>
+                            <th>Command</th>
+                            <th>Schedule</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td>{{ task.task_name }}</td>
+                            <td>{{ task.command }}</td>
+                            <td>{{ task.schedule }}</td>
+                            <td>
+                                <a href="{{ url_for('server_routes.modify_windows_task_route', server_name=server_name, task_name=task.task_name) }}" class="action-link">Modify</a>
+                                <a href="#" onclick="confirmDelete('{{ task.task_name }}', '{{ task.file_path }}')" class="action-link">Delete</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No scheduled tasks found for this server.</p>
+            {% endif %}
+
+            <a href="{{ url_for('server_routes.add_windows_task_route', server_name=server_name) }}" class="main-button">Add Task</a>
+            <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Server List</a>
+        </section>
+        <form id="deleteForm" action="" method="post" style="display: none;"></form>
+    </div>
+        <script>
+        function confirmDelete(taskName, task_file_path) {
+            if (confirm(`Are you sure you want to delete the task '${taskName}'?`)) {
+                // If user confirms, submit a form to the delete route
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = "{{ url_for('server_routes.delete_windows_task_route', server_name = server_name) }}";
+                var taskNameInput = document.createElement('input');
+                taskNameInput.type = 'hidden';
+                taskNameInput.name = 'task_name';
+                taskNameInput.value = taskName;
+                var taskPathInput = document.createElement('input');
+                taskPathInput.type = 'hidden';
+                taskPathInput.name = 'task_file_path';
+                taskPathInput.value = task_file_path;
+                form.appendChild(taskNameInput);
+                form.appendChild(taskPathInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>
