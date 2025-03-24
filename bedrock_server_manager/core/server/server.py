@@ -34,10 +34,12 @@ logger = logging.getLogger("bedrock_server_manager")
 
 class BedrockServer:
     def __init__(self, server_name, server_path=None):
+        logger.debug(f"Initializing BedrockServer: {server_name}")
         self.server_name = server_name
         self.server_dir = os.path.join(settings.get("BASE_DIR"), self.server_name)
         if server_path:
             self.server_path = server_path
+            logger.debug(f"Using provided server path: {self.server_path}")
         else:
             # Determine the executable name based on the platform
             if platform.system() == "Windows":
@@ -45,43 +47,61 @@ class BedrockServer:
             else:
                 exe_name = "bedrock_server"
             self.server_path = os.path.join(self.server_dir, exe_name)
+            logger.debug(f"Using default server path: {self.server_path}")
 
         if not os.path.exists(self.server_path):
+            logger.error(f"Server executable not found: {self.server_path}")
             raise ServerNotFoundError(self.server_path)
         self.process = None
         self.status = "STOPPED"
+        logger.debug(f"BedrockServer initialized: {self.server_name}, status: {self.status}")
 
     def is_running(self):
         """Checks if the server process is currently running."""
-        return system_base.is_server_running(self.server_name, settings.get("BASE_DIR"))
+        logger.debug(f"Checking if server {self.server_name} is running")
+        is_running = system_base.is_server_running(self.server_name, settings.get("BASE_DIR"))
+        logger.debug(f"Server {self.server_name} running: {is_running}")
+        return is_running
 
     def get_pid(self):
         """Gets the process ID of the running server (if running)."""
+        logger.debug(f"Getting PID for server: {self.server_name}")
         server_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
-        return server_info.get("pid") if server_info else None
+        pid = server_info.get("pid") if server_info else None
+        logger.debug(f"Server {self.server_name} PID: {pid}")
+        return pid
 
     def get_cpu_usage(self):
         """Gets the current CPU usage of the server (if running)."""
+        logger.debug(f"Getting CPU usage for server: {self.server_name}")
         server_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
-        return server_info.get("cpu_percent") if server_info else None
+        cpu_usage = server_info.get("cpu_percent") if server_info else None
+        logger.debug(f"Server {self.server_name} CPU usage: {cpu_usage}%")
+        return cpu_usage
 
     def get_memory_usage(self):
         """Gets the current memory usage of the server (if running)."""
+        logger.debug(f"Getting memory usage for server: {self.server_name}")
         server_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
-        return server_info.get("memory_mb") if server_info else None
+        memory_usage = server_info.get("memory_mb") if server_info else None
+        logger.debug(f"Server {self.server_name} memory usage: {memory_usage} MB")
+        return memory_usage
 
     def get_uptime(self):
         """Gets the server uptime (if running)."""
+        logger.debug(f"Getting uptime for server: {self.server_name}")
         server_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
-        return server_info.get("uptime") if server_info else None
+        uptime = server_info.get("uptime") if server_info else None
+        logger.debug(f"Server {self.server_name} uptime: {uptime} seconds")
+        return uptime
 
     def send_command(self, command):
         """Sends a command to the running server process.
@@ -92,14 +112,17 @@ class BedrockServer:
             CommandNotFoundError: If screen not found on linux
         """
         if not command:
+            logger.error("send_command: command is empty.")
             raise MissingArgumentError("send_command: command is empty.")
         # Get process info.  If None, server is not running.
         process_info = system_base._get_bedrock_process_info(
             self.server_name, settings.get("BASE_DIR")
         )
         if process_info is None:
+            logger.error("Cannot send command: Server is not running.")
             raise ServerNotRunningError("Cannot send command: Server is not running.")
 
+        logger.info(f"Sending command '{command}' to server '{self.server_name}'")
         if platform.system() == "Linux":
             try:
                 # Use screen -X stuff to send the command
@@ -116,8 +139,10 @@ class BedrockServer:
                 )
                 logger.debug(f"Sent command '{command}' to server '{self.server_name}'")
             except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to send command to server: {e}")
                 raise SendCommandError(f"Failed to send command to server: {e}") from e
             except FileNotFoundError:
+                logger.error("screen command not found. Is screen installed?")
                 raise CommandNotFoundError(
                     "screen", message="screen command not found. Is screen installed?"
                 ) from None
@@ -140,6 +165,7 @@ class BedrockServer:
                 )
 
                 if handle == win32file.INVALID_HANDLE_VALUE:
+                    logger.error(f"Could not open pipe: {win32pipe.GetLastError()}")
                     raise SendCommandError(
                         f"Could not open pipe: {win32pipe.GetLastError()}"
                     )  # Raise the error
@@ -149,8 +175,10 @@ class BedrockServer:
                 )
 
                 win32file.WriteFile(handle, (command + "\r\n").encode())  # Use \r\n
+                logger.debug(f"Sent command '{command}' to server '{self.server_name}'")
 
             except pywintypes.error as e:
+                logger.error(f"Error sending command: {e}")
                 # Raise a more specific exception based on the error code
                 if e.winerror == 2:
                     raise ServerNotRunningError(
@@ -170,12 +198,15 @@ class BedrockServer:
             finally:
                 if handle != win32file.INVALID_HANDLE_VALUE:
                     win32file.CloseHandle(handle)  # Always close
+                    logger.debug("Closed pipe handle")
 
         else:
+            logger.error("Unsupported operating system for sending commands.")
             raise SendCommandError("Unsupported operating system for sending commands.")
 
     def start(self):
         if self.is_running():
+            logger.error("Server is already running!")
             raise ServerStartError("Server is already running!")
 
         self.status = "STARTING"
@@ -203,6 +234,7 @@ class BedrockServer:
                 self.server_name, self.server_dir
             )
         else:
+            logger.error("Unsupported operating system for starting server.")
             raise ServerStartError("Unsupported operating system for starting server.")
 
         # Wait for the server to initialize
@@ -222,6 +254,7 @@ class BedrockServer:
 
         self.status = "ERROR"  # Update status to stopped if it didn't start
         manage_server_config(self.server_name, "status", "write", "ERROR")
+        logger.error(f"Server '{self.server_name}' failed to start within the timeout.")
         raise ServerStartError(
             f"Server '{self.server_name}' failed to start within the timeout."
         )
@@ -253,6 +286,7 @@ class BedrockServer:
         elif platform.system() == "Windows":
             system_windows._windows_stop_server(self.server_name, self.server_dir)
         else:
+            logger.error("Unsupported operating system for stopping server.")
             raise ServerStopError("Unsupported operating system for stopping server.")
 
         # Wait for the server to stop
@@ -271,6 +305,7 @@ class BedrockServer:
             time.sleep(2)
             attempts += 1
         # Did not stop cleanly
+        logger.error(f"Server '{self.server_name}' failed to stop within the timeout")
         raise ServerStopError(
             f"Server '{self.server_name}' failed to stop within the timeout"
         )
@@ -295,9 +330,10 @@ def get_world_name(server_name, base_dir):
     if not server_name:
         raise MissingArgumentError("get_world_name: server_name is empty")
 
-    logger.debug(f"Getting world name for: {server_name}")
+    logger.info(f"Getting world name for: {server_name}")
 
     if not os.path.exists(server_properties):
+        logger.error(f"server.properties not found for {server_name}")
         raise FileOperationError(f"server.properties not found for {server_name}")
 
     try:
@@ -308,8 +344,9 @@ def get_world_name(server_name, base_dir):
                     logger.debug(f"World name: {world_name}")
                     return world_name
     except OSError as e:
+        logger.error(f"Failed to read server.properties: {e}")
         raise FileOperationError(f"Failed to read server.properties: {e}") from e
-
+    logger.error("Failed to extract world name from server.properties.")
     raise FileOperationError("Failed to extract world name from server.properties.")
 
 
@@ -339,6 +376,7 @@ def validate_server(server_name, base_dir):
 
     exe_path = os.path.join(server_dir, exe_name)
     if not os.path.exists(exe_path):
+        logger.error(f"Server executable not found: {exe_path}")
         raise ServerNotFoundError(exe_path)
 
     logger.debug(f"{server_name} valid")
@@ -369,6 +407,7 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
 
     server_config_dir = os.path.join(config_dir, server_name)
     config_file = os.path.join(server_config_dir, f"{server_name}_config.json")
+    logger.debug(f"Managing server config: server={server_name}, key={key}, operation={operation}, config_file={config_file}")
 
     if not server_name:
         raise InvalidServerNameError("manage_server_config: server_name is empty.")
@@ -376,33 +415,43 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         raise MissingArgumentError("manage_server_config: key or operation is empty.")
 
     os.makedirs(server_config_dir, exist_ok=True)
+    logger.debug(f"Created directory: {server_config_dir}")
 
     if not os.path.exists(config_file):
         try:
             with open(config_file, "w") as f:
                 json.dump({}, f)  # Create empty JSON file
+            logger.debug(f"Created empty config file: {config_file}")
         except OSError as e:
+            logger.error(f"Failed to create config file: {e}")
             raise FileOperationError(f"Failed to create config file: {e}") from e
 
     try:
         with open(config_file, "r") as f:
             current_config = json.load(f)
+        logger.debug(f"Loaded existing config: {current_config}")
     except (OSError, json.JSONDecodeError) as e:
+        logger.error(f"Failed to read/parse config file: {e}")
         raise FileOperationError(f"Failed to read/parse config file: {e}") from e
 
     if operation == "read":
-        return current_config.get(key)  # Returns None if not found
+        value = current_config.get(key)  # Returns None if not found
+        logger.debug(f"Read value for key '{key}': {value}")
+        return value
     elif operation == "write":
         if value is None:
+            logger.error("Value is required for 'write' operation.")
             raise MissingArgumentError("Value is required for 'write' operation.")
         current_config[key] = value
         try:
             with open(config_file, "w") as f:
                 json.dump(current_config, f, indent=4)
-            logger.debug(f"Updated '{key}' in config to: '{value}'")
+            logger.info(f"Updated '{key}' in config to: '{value}'")
         except OSError as e:
+            logger.error(f"Failed to write to config file: {e}")
             raise FileOperationError(f"Failed to write to config file: {e}") from e
     else:
+        logger.error(f"Invalid operation: '{operation}'. Must be 'read' or 'write'.")
         raise InvalidInputError(
             f"Invalid operation: '{operation}'. Must be 'read' or 'write'."
         )
@@ -422,7 +471,7 @@ def get_installed_version(server_name, config_dir=None):
         MissingArgumentError: If server_name is empty.
         # Other exceptions may be raised by manage_server_config
     """
-    logger.debug(f"Getting installed version for server: {server_name}")
+    logger.info(f"Getting installed version for server: {server_name}")
 
     if not server_name:
         raise MissingArgumentError("No server name provided.")
@@ -439,7 +488,7 @@ def get_installed_version(server_name, config_dir=None):
             "No installed_version found in config.json, defaulting to UNKNOWN."
         )
         return "UNKNOWN"
-
+    logger.debug(f"Installed version: {installed_version}")
     return installed_version
 
 
@@ -470,6 +519,8 @@ def check_server_status(
     if not server_name:
         raise MissingArgumentError("check_server_status: server_name is empty.")
 
+    logger.info(f"Checking server status for: {server_name}")
+
     # Wait for the log file to exist (up to max_attempts)
     while not os.path.exists(log_file) and attempt < max_attempts:
         time.sleep(0.5)  # Consider making the sleep duration configurable
@@ -482,7 +533,9 @@ def check_server_status(
     try:
         with open(log_file, "r") as f:
             lines = f.readlines()  # Read all lines
+        logger.debug(f"Read {len(lines)} lines from log file: {log_file}")
     except OSError as e:
+        logger.error(f"Failed to read server log: {log_file}")
         raise FileOperationError(f"Failed to read server log: {log_file}") from e
 
     total_lines = len(lines)
@@ -493,6 +546,7 @@ def check_server_status(
         lines_to_read = min(chunk_size, total_lines - read_lines)
         log_chunk = lines[-(read_lines + lines_to_read) :]  # Read a chunk from the end
         log_chunk.reverse()  # Read lines in reverse (most recent first)
+        logger.debug(f"Read chunk of {len(log_chunk)} lines from log file")
 
         for line in log_chunk:
             line = line.strip()
@@ -513,10 +567,11 @@ def check_server_status(
                 break
 
         if status != "UNKNOWN":
+            logger.debug(f"Found status: {status} in log file")
             break  # Exit loop if status is found
         read_lines += lines_to_read
 
-    logger.debug(f"{server_name} status from output file: {status}")
+    logger.info(f"{server_name} status from output file: {status}")
     return status
 
 
@@ -542,10 +597,13 @@ def get_server_status_from_config(server_name, config_dir=None):
     if config_dir is None:
         config_dir = settings._config_dir
 
+    logger.info(f"Getting server status from config for: {server_name}")
     status = manage_server_config(server_name, "status", "read", config_dir=config_dir)
     if status is None:
+        logger.warning(f"No status found in config for {server_name}, returning UNKNOWN")
         return "UNKNOWN"
 
+    logger.debug(f"Server status from config: {status}")
     return status
 
 
@@ -571,8 +629,10 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
     if config_dir is None:
         config_dir = settings._config_dir
 
+    logger.info(f"Updating server status in config for: {server_name}")
     current_status = get_server_status_from_config(server_name, config_dir)
     status = check_server_status(server_name, base_dir)
+    logger.debug(f"Current status: {current_status}, Checked status: {status}")
 
     if current_status == "installed" and status == "UNKNOWN":
         logger.debug(
@@ -581,7 +641,7 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
         return  # No update needed
 
     manage_server_config(server_name, "status", "write", status, config_dir=config_dir)
-    logger.debug(f"Successfully updated server status for {server_name} in config.json")
+    logger.info(f"Successfully updated server status for {server_name} in config.json")
 
 
 def configure_allowlist(server_dir):
@@ -603,12 +663,15 @@ def configure_allowlist(server_dir):
     if not server_dir:
         raise MissingArgumentError("configure_allowlist: server_dir is empty.")
 
+    logger.info(f"Configuring allowlist for server directory: {server_dir}")
+
     if os.path.exists(allowlist_file):
         try:
             with open(allowlist_file, "r") as f:
                 existing_players = json.load(f)
-            logger.debug("Loaded existing allowlist.json.")
+            logger.debug(f"Loaded existing allowlist.json: {existing_players}")
         except (OSError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to read existing allowlist.json: {e}")
             raise FileOperationError(
                 f"Failed to read existing allowlist.json: {e}"
             ) from e
@@ -635,7 +698,10 @@ def add_players_to_allowlist(server_dir, new_players):
     if not server_dir:
         raise MissingArgumentError("add_players_to_allowlist: server_dir is empty")
     if not isinstance(new_players, list):
+        logger.error("new_players must be a list")
         raise TypeError("new_players must be a list")
+
+    logger.info(f"Adding players to allowlist: {new_players}")
 
     # Load existing players
     if os.path.exists(allowlist_file):
@@ -644,6 +710,7 @@ def add_players_to_allowlist(server_dir, new_players):
                 existing_players = json.load(f)
             logger.debug("Loaded existing allowlist.json.")
         except (OSError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to read existing allowlist.json: {e}")
             raise FileOperationError(
                 f"Failed to read existing allowlist.json: {e}"
             ) from e
@@ -659,10 +726,12 @@ def add_players_to_allowlist(server_dir, new_players):
             )
             continue  # Skip if already exists.
         existing_players.append(player)
+        logger.debug(f"Added player '{player['name']}' to allowlist")
     try:
         with open(allowlist_file, "w") as f:
             json.dump(existing_players, f, indent=4)
     except OSError as e:
+        logger.error(f"Failed to save updated allowlist.json: {e}")
         raise FileOperationError(f"Failed to save updated allowlist.json: {e}") from e
 
     logger.info(f"Updated allowlist.json with {len(new_players)} new players.")
@@ -693,10 +762,14 @@ def configure_permissions(server_dir, xuid, player_name, permission):
     if not permission:
         raise MissingArgumentError("configure_permissions: permission is empty.")
     if permission.lower() not in ("operator", "member", "visitor"):
+        logger.error(f"Invalid permission level: {permission}")
         raise InvalidInputError("configure_permissions: invalid permission level.")
 
     if not os.path.isdir(server_dir):
+        logger.error(f"Server directory not found: {server_dir}")
         raise DirectoryError(f"Server directory not found: {server_dir}")
+
+    logger.info(f"Configuring permissions for player: {player_name}, xuid: {xuid}, permission: {permission}")
 
     if not os.path.exists(permissions_file):
         try:
@@ -704,6 +777,7 @@ def configure_permissions(server_dir, xuid, player_name, permission):
                 json.dump([], f)
             logger.debug(f"Created empty permissions file: {permissions_file}")
         except OSError as e:
+            logger.error(f"Failed to initialize permissions.json: {e}")
             raise FileOperationError(
                 f"Failed to initialize permissions.json: {e}"
             ) from e
@@ -711,7 +785,9 @@ def configure_permissions(server_dir, xuid, player_name, permission):
     try:
         with open(permissions_file, "r") as f:
             permissions_data = json.load(f)
+        logger.debug(f"Loaded existing permissions data: {permissions_data}")
     except (OSError, json.JSONDecodeError) as e:
+        logger.error(f"Failed to read or parse permissions.json: {e}")
         raise FileOperationError(
             f"Failed to read or parse permissions.json: {e}"
         ) from e
@@ -747,7 +823,9 @@ def configure_permissions(server_dir, xuid, player_name, permission):
     try:
         with open(permissions_file, "w") as f:
             json.dump(permissions_data, f, indent=4)
+        logger.debug("Updated permissions.json successfully")
     except OSError as e:
+        logger.error(f"Failed to update permissions.json: {e}")
         raise FileOperationError(f"Failed to update permissions.json: {e}") from e
 
 
@@ -770,15 +848,19 @@ def modify_server_properties(server_properties, property_name, property_value):
             "modify_server_properties: server_properties file path is empty."
         )
     if not os.path.exists(server_properties):
+        logger.error(f"modify_server_properties: server_properties file does not exist: {server_properties}")
         raise FileOperationError(
             f"modify_server_properties: server_properties file does not exist: {server_properties}"
         )
     if not property_name:
         raise MissingArgumentError("modify_server_properties: property_name is empty.")
     if any(ord(c) < 32 for c in property_value):
+        logger.error("modify_server_properties: property_value contains control characters.")
         raise InvalidInputError(
             "modify_server_properties: property_value contains control characters."
         )
+
+    logger.info(f"Modifying server.properties: property={property_name}, value={property_value}")
 
     try:
         with open(server_properties, "r") as f:
@@ -798,8 +880,10 @@ def modify_server_properties(server_properties, property_name, property_value):
 
         with open(server_properties, "w") as f:
             f.writelines(lines)
+        logger.debug("Modified server.properties successfully")
 
     except OSError as e:
+        logger.error(f"Failed to modify property '{property_name}': {e}")
         raise FileOperationError(
             f"Failed to modify property '{property_name}': {e}"
         ) from e
@@ -823,6 +907,7 @@ def _write_version_config(server_name, installed_version, config_dir=None):
 
     if config_dir is None:
         config_dir = settings._config_dir
+    logger.info(f"Writing version config for server: {server_name}, version: {installed_version}")
 
     if not installed_version:
         logger.warning(
@@ -861,6 +946,7 @@ def install_server(
     """
     if not server_name:
         raise InvalidServerNameError("install_server: server_name is empty.")
+    logger.info(f"Installing/Updating server: {server_name}, version: {current_version}, update: {in_update}")
 
     # Cleanup old downloads
     downloader.prune_old_downloads(
@@ -878,11 +964,14 @@ def install_server(
             backup.backup_all(server_name, base_dir)
             logger.info("Backup successful before update.")
         except Exception as e:
+            logger.error(f"Backup failed before update: {e}")
             raise InstallUpdateError(f"Backup failed before update: {e}") from e
 
     try:
         downloader.extract_server_files_from_zip(zip_file, server_dir, in_update)
+        logger.info("Extracted server files successfully")
     except Exception as e:
+        logger.error(f"Failed to extract server files: {e}")
         raise InstallUpdateError(f"Failed to extract server files: {e}") from e
 
     # Restore all after update
@@ -891,16 +980,20 @@ def install_server(
             backup.restore_all(server_name, base_dir)
             logger.info("Server data restored after update.")
         except Exception as e:
+            logger.error(f"Restore failed after update: {e}")
             raise InstallUpdateError(f"Restore failed after update: {e}") from e
 
     try:
         system_base.set_server_folder_permissions(server_dir)  # use core
+        logger.debug("Set server folder permissions")
     except Exception as e:
         logger.warning(f"Failed to set server folder permissions: {e}")
 
     try:
         _write_version_config(server_name, current_version)
+        logger.debug("Wrote version config")
     except Exception as e:
+        logger.error(f"Failed to write version to config.json: {e}")
         raise InstallUpdateError(f"Failed to write version to config.json: {e}") from e
 
     # Start server if it was running
@@ -935,18 +1028,25 @@ def no_update_needed(server_name, installed_version, target_version):
 
     if target_version.upper() not in ("LATEST", "PREVIEW"):
         # Specific version requested, always update.
+        logger.debug(f"Specific version {target_version} requested, update needed.")
         return False
+
+    logger.info(f"Checking for updates: server={server_name}, installed={installed_version}, target={target_version}")
 
     try:
         download_url = downloader.lookup_bedrock_download_url(target_version)
         current_version = downloader.get_version_from_url(download_url)
+        logger.debug(f"Current version from download URL: {current_version}")
     except Exception:
         # If we can't get the target version, assume an update is needed
+        logger.warning("Failed to determine current version, assuming update is needed.")
         return False
 
     if installed_version == current_version:
+        logger.info("No update needed.")
         return True  # No update needed
     else:
+        logger.info(f"Update needed: installed={installed_version}, current={current_version}")
         return False  # Update needed
 
 
@@ -970,6 +1070,7 @@ def delete_server_data(server_name, base_dir, config_dir=None):
 
     if not server_name:
         raise InvalidServerNameError("delete_server_data: server_name is empty.")
+    logger.info(f"Deleting server data for: {server_name}")
 
     if not os.path.exists(server_dir) and not os.path.exists(config_folder):
         logger.warning(
@@ -999,13 +1100,17 @@ def delete_server_data(server_name, base_dir, config_dir=None):
 
     elif platform.system() == "Windows":
         system_base.remove_readonly(server_dir)
+        logger.debug("Removed read-only attribute from server directory (Windows)")
         system_base.remove_readonly(config_dir)
+        logger.debug("Removed read-only attribute from config directory (Windows)")
 
     # Remove the server directory
     logger.debug(f"Deleting server directory: {server_dir}")
     try:
         shutil.rmtree(server_dir)
+        logger.info(f"Deleted server directory: {server_dir}")
     except OSError as e:
+        logger.error(f"Failed to delete server directory: {server_dir}: {e}")
         raise DirectoryError(
             f"Failed to delete server directory: {server_dir}: {e}"
         ) from e
@@ -1014,7 +1119,9 @@ def delete_server_data(server_name, base_dir, config_dir=None):
     logger.debug(f"Deleting config directory: {config_folder}")
     try:
         shutil.rmtree(config_folder)
+        logger.info(f"Deleted config directory: {config_folder}")
     except OSError as e:
+        logger.error(f"Failed to delete config directory: {config_folder}: {e}")
         raise DirectoryError(
             f"Failed to delete config directory: {config_folder}: {e}"
         ) from e
@@ -1054,18 +1161,20 @@ def stop_server_if_running(server_name, base_dir):
     if not server_name:
         raise InvalidServerNameError("stop_server_if_running: server_name is empty.")
 
-    logger.debug("Checking if server is running")
+    logger.info(f"Checking if server {server_name} needs to be stopped")
     if system_base.is_server_running(server_name, base_dir):
         try:
             logger.info(f"Stopping server: {server_name}")
             bedrock_server = BedrockServer(server_name)
             bedrock_server.stop()  # Use stop_server
+            logger.debug(f"Server {server_name} stopped")
             return True  # Was running and stopped successfully
         except Exception:
             # Even if stop_server raises an exception, we still return True,
             # because the server *was* running. We've already logged any
             # errors within stop_server.
+            logger.warning(f"Server {server_name} was running, but failed to stop cleanly.")
             return True
     else:
-        logger.debug(f"Server {server_name} is not currently running.")  # use debug
+        logger.debug(f"Server {server_name} is not currently running.")
         return False  # Server was not running

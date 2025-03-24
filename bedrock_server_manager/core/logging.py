@@ -26,19 +26,20 @@ def setup_logging(
         when (str):  Indicates when to rotate. See TimedRotatingFileHandler docs.
         interval (int): The rotation interval.
     """
-
+    logger = logging.getLogger("bedrock_server_manager")
     os.makedirs(log_dir, exist_ok=True)  # Create log directory if it doesn't exist
     log_path = os.path.join(log_dir, log_filename)
 
     # Create a logger
-    logger = logging.getLogger("bedrock_server_manager")
-    logger.setLevel(log_level)  # Set the overall logger level
+
+    logger.debug(f"Setting up logging.  Dir: {log_dir}, Filename: {log_filename}, Level: {log_level}")
 
     try:
         # Create a rotating file handler
         handler = logging.handlers.TimedRotatingFileHandler(
             log_path, when=when, interval=interval, backupCount=log_keep
         )
+        handler.setLevel(log_level) # Set level on the HANDLER
 
         # Create a formatter
         formatter = logging.Formatter(
@@ -52,7 +53,9 @@ def setup_logging(
         # Add console output
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
+        console_handler.setLevel(log_level) # Set level on the HANDLER
         logger.addHandler(console_handler)
+
 
     except Exception as e:
         logging.error(f"Failed to create log handler: {e}")
