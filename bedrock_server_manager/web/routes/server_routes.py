@@ -86,6 +86,19 @@ def restart_server_route(server_name):
     return redirect(url_for("server_routes.index"))
 
 
+@server_bp.route("/server/<server_name>/send", methods=["POST"])
+def send_command_route(server_name):
+    base_dir = get_base_dir()
+    data = request.get_json()  # Get the JSON data from the request body
+    command = data.get("command")  # Get the 'command' value
+
+    if not command:
+        return jsonify({"status": "error", "message": "Command cannot be empty."}), 400
+
+    result = handlers.send_command_handler(server_name, command, base_dir)
+    return jsonify(result)  # Return JSON response
+
+
 @server_bp.route("/server/<server_name>/update", methods=["GET", "POST"])
 def update_server_route(server_name):
     base_dir = get_base_dir()
