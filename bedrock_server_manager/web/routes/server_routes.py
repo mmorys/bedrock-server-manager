@@ -24,6 +24,31 @@ def index():
     return render_template("index.html", servers=servers)
 
 
+@server_bp.route("/manage_servers")
+def manage_server_route():
+    base_dir = get_base_dir()
+    # Use the handler to get server status.
+    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    if status_response["status"] == "error":
+        flash(f"Error getting server status: {status_response['message']}", "error")
+        servers = []  # Provide an empty list so the template doesn't break
+    else:
+        servers = status_response["servers"]
+    return render_template("manage_servers.html", servers=servers)
+
+@server_bp.route("/advanced_menu")
+def advanced_menu_route():
+    base_dir = get_base_dir()
+    # Use the handler to get server status.
+    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    if status_response["status"] == "error":
+        flash(f"Error getting server status: {status_response['message']}", "error")
+        servers = []  # Provide an empty list so the template doesn't break
+    else:
+        servers = status_response["servers"]
+    return render_template("advanced_menu.html", servers=servers)
+
+
 @server_bp.route("/server/<server_name>/start", methods=["GET", "POST"])
 def start_server_route(server_name):
     base_dir = get_base_dir()
@@ -67,7 +92,7 @@ def update_server_route(server_name):
         flash(f"Server '{server_name}' Updated successfully.", "success")
     else:
         flash(f"Error updating server '{server_name}': {response['message']}", "error")
-    return redirect(url_for("server_routes.index"))
+    return redirect(url_for("server_routes.manage_server_route"))
 
 
 @server_bp.route("/install", methods=["GET", "POST"])
@@ -198,6 +223,22 @@ def confirm_install_route():
         return redirect(url_for("server_routes.index"))
 
 
+@server_bp.route("/server/<server_name>/delete", methods=["POST"])
+def delete_server_route(server_name):
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
+
+    # Call the handler to delete the server data
+    result = handlers.delete_server_data_handler(server_name, base_dir, config_dir)
+
+    if result["status"] == "success":
+        flash(f"Server '{server_name}' deleted successfully.", "success")
+    else:
+        flash(f"Error deleting server '{server_name}': {result['message']}", "error")
+
+    return redirect(url_for("server_routes.manage_server_route"))
+
+
 @server_bp.route("/server/<server_name>/configure_properties", methods=["GET", "POST"])
 def configure_properties_route(server_name):
     base_dir = get_base_dir()
@@ -206,7 +247,7 @@ def configure_properties_route(server_name):
 
     if not os.path.exists(server_properties_path):
         flash(f"server.properties not found for server: {server_name}", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.advanced_menu_route"))
     # Check if new_install is True, convert to boolean
     new_install_str = request.args.get(
         "new_install", "False"
@@ -303,7 +344,7 @@ def configure_properties_route(server_name):
                 )
             )
         else:
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
 
     else:  # GET request
         properties_response = handlers.read_server_properties_handler(
@@ -313,7 +354,7 @@ def configure_properties_route(server_name):
             flash(
                 f"Error loading properties: {properties_response['message']}", "error"
             )
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
 
         return render_template(
             "configure_properties.html",
@@ -361,7 +402,7 @@ def configure_allowlist_route(server_name):
                     )
                 )
             else:
-                return redirect(url_for("server_routes.index"))
+                return redirect(url_for("server_routes.advanced_menu_route"))
         else:
             flash(f"Error updating allowlist: {result['message']}", "error")
             # Re-render the form with the existing and attempted new players
@@ -376,7 +417,7 @@ def configure_allowlist_route(server_name):
         result = handlers.configure_allowlist_handler(server_name, base_dir)
         if result["status"] == "error":
             flash(f"Error loading allowlist: {result['message']}", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
 
         existing_players = result.get("existing_players", [])  # Default to empty list
         return render_template(
@@ -442,7 +483,7 @@ def configure_permissions_route(server_name):
                     new_install=new_install,
                 )
             )
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.advanced_menu_route"))
 
     else:  # GET request
         players_response = handlers.get_players_from_json_handler()
@@ -518,7 +559,7 @@ def configure_service_route(server_name):
                 )
         else:
             flash("Unsupported operating system for service configuration.", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
 
         flash(f"Service settings for '{server_name}' updated successfully!", "success")
 
@@ -531,8 +572,8 @@ def configure_service_route(server_name):
                     #  Even if start fails, continue to index.  User can start manually.
                 else:
                     flash(f"Server '{server_name}' started.", "success")
-            return redirect(url_for("server_routes.index"))
-        return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
+        return redirect(url_for("server_routes.advanced_menu_route"))
 
     else:  # GET request
         if platform.system() == "Linux":
@@ -560,7 +601,7 @@ def configure_service_route(server_name):
             )
         else:
             flash("Unsupported operating system for service configuration.", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.advanced_menu_route"))
 
 
 @server_bp.route("/server/<server_name>/backup", methods=["GET"])
@@ -583,7 +624,7 @@ def backup_action_route(server_name):
 
     if not backup_type:
         flash("Invalid backup type.", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     if backup_type == "config" and not file_to_backup:
         return redirect(
@@ -600,7 +641,7 @@ def backup_action_route(server_name):
         result = handlers.backup_all_handler(server_name, base_dir)
     else:
         flash("Invalid backup type.", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     if result["status"] == "error":
         flash(f"Backup failed: {result['message']}", "error")
@@ -608,7 +649,7 @@ def backup_action_route(server_name):
         flash("Backup completed successfully!", "success")
 
     # Always redirect back to the main index page after backup
-    return redirect(url_for("server_routes.index"))
+    return redirect(url_for("server_routes.manage_server_route"))
 
 
 @server_bp.route("/server/<server_name>/restore", methods=["GET"])
@@ -633,13 +674,13 @@ def restore_select_backup_route(server_name):
             flash(f"Error restoring all files: {result['message']}", "error")
         else:
             flash("All files restored successfully!", "success")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     # Handle other backup types (world, config)
     list_response = handlers.list_backups_handler(server_name, restore_type, base_dir)
     if list_response["status"] == "error":
         flash(f"Error listing backups: {list_response['message']}", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     return render_template(
         "restore_select_backup.html",
@@ -658,7 +699,7 @@ def restore_action_route(server_name):
 
     if not backup_file or not restore_type:
         flash("Invalid restore request.", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     if restore_type == "world":
         result = handlers.restore_world_handler(server_name, backup_file, base_dir)
@@ -668,20 +709,27 @@ def restore_action_route(server_name):
         )
     else:
         flash("Invalid restore type.", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.manage_server_route"))
 
     if result["status"] == "error":
         flash(f"Error during restoration: {result['message']}", "error")
     else:
         flash("Restoration completed successfully!", "success")
 
-    return redirect(url_for("server_routes.index"))
+    return redirect(url_for("server_routes.manage_server_route"))
 
 
-@server_bp.route("/server/<server_name>/install_content", methods=["GET"])
-def install_content_menu_route(server_name):
-    """Displays the content installation menu (world/addon)."""
-    return render_template("install_content.html", server_name=server_name)
+@server_bp.route("/install_content")
+def install_content_menu_route():
+    base_dir = get_base_dir()
+    # Use the handler to get server status.
+    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    if status_response["status"] == "error":
+        flash(f"Error getting server status: {status_response['message']}", "error")
+        servers = []  # Provide an empty list so the template doesn't break
+    else:
+        servers = status_response["servers"]
+    return render_template("install_content.html", servers=servers)
 
 
 @server_bp.route("/server/<server_name>/install_world", methods=["GET", "POST"])
@@ -693,7 +741,7 @@ def install_world_route(server_name):
         selected_file = request.form.get("selected_file")
         if not selected_file:
             flash("No world file selected.", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.install_content_menu_route"))
 
         # Check if world exists *before* calling handler
         world_name_result = handlers.get_world_name_handler(server_name, base_dir)
@@ -716,11 +764,11 @@ def install_world_route(server_name):
                     flash(f"Error importing world: {result['message']}", "error")
                 else:
                     flash("World imported successfully!", "success")
-                return redirect(url_for("server_routes.index"))
+                return redirect(url_for("server_routes.install_content_menu_route"))
         else:
             # Error getting world.
             flash(f"Error getting world: {world_name_result['message']}", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.install_content_menu_route"))
 
     else:  # GET request
         result = handlers.list_content_files_handler(content_dir, ["mcworld"])
@@ -742,7 +790,7 @@ def confirm_world_overwrite_route(server_name):
 
     if not selected_file:
         flash("No world file selected.", "error")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.install_content_menu_route"))
 
     if confirm == "yes":
         # Proceed with world extraction (overwriting existing)
@@ -754,7 +802,7 @@ def confirm_world_overwrite_route(server_name):
     else:
         flash("World import cancelled.", "info")
 
-    return redirect(url_for("server_routes.index"))
+    return redirect(url_for("server_routes.install_content_menu_route"))
 
 
 @server_bp.route("/server/<server_name>/install_addon", methods=["GET", "POST"])
@@ -766,14 +814,14 @@ def install_addon_route(server_name):
         selected_file = request.form.get("selected_file")
         if not selected_file:
             flash("No addon file selected.", "error")
-            return redirect(url_for("server_routes.index"))
+            return redirect(url_for("server_routes.install_content_menu_route"))
 
         result = handlers.install_addon_handler(server_name, selected_file, base_dir)
         if result["status"] == "error":
             flash(f"Error installing addon: {result['message']}", "error")
         else:
             flash("Addon installed successfully!", "success")
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("server_routes.install_content_menu_route"))
 
     else:  # GET request
         result = handlers.list_content_files_handler(content_dir, ["mcaddon", "mcpack"])

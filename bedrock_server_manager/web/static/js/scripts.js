@@ -66,3 +66,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function confirmDelete(serverName) {
+    if (confirm(`Are you sure you want to delete server '${serverName}'? This action is irreversible!`)) {
+        // If user confirms, submit a form to the delete route
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/server/${serverName}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}

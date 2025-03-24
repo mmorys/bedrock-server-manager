@@ -38,7 +38,6 @@
                 <button type="button" class="action-button start-button" onclick="startServer()">Start</button>
                 <button type="button" class="action-button stop-button" onclick="stopServer()">Stop</button>
                 <button type="button" class="action-button restart-button" onclick="restartServer()">Restart</button>
-                <button type="button" class="action-button update-button" onclick="updateServer()">Update</button>
             </div>
         </section>
 
@@ -58,11 +57,9 @@
                             <td>{{ server.name }}</td>
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
-                            <td>
+                            <!--<td>
                               <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
-                              <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
-                              <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
-                            </td>
+                            </td> -->
                         </tr>
                         {% endfor %}
                     {% else %}
@@ -76,6 +73,9 @@
 
         <section class="main-menu-buttons">
             <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('server_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
+            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
             <!-- <button class="main-button advanced-button" disabled>Advanced Options</button>
             <button class="main-button exit-button" disabled>Exit</button> -->
         </section>
