@@ -2371,9 +2371,7 @@ def manage_server(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}{app_name} - Manage Server{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Manage Server{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Update Server")
         print("2) Start Server")
@@ -2431,9 +2429,7 @@ def install_content(base_dir, config_dir=None):
         config_dir = settings._config_dir
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Import World")
         print("2) Import Addon")
@@ -2468,9 +2464,7 @@ def advanced_menu(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}{app_name} - Advanced Menu{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Advanced Menu{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Configure Server Properties")
         print("2) Configure Allowlist")
@@ -2550,9 +2544,7 @@ def backup_restore(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}{app_name} - Backup/Restore{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Backup/Restore{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Backup Server")
         print("2) Restore Server")

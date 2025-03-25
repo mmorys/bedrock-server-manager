@@ -93,7 +93,7 @@ def log_separator(logger, app_name=None, app_version="0.0.0"):
         f"Python Version: {python_version}",
         f"Timestamp: {current_time}",
     ]
-    #logger.debug(f"Writing separator to log files. App: {app_name}, Version: {app_version}")
+    # logger.debug(f"Writing separator to log files. App: {app_name}, Version: {app_version}")
 
     for handler in logger.handlers:
         if isinstance(
@@ -106,19 +106,25 @@ def log_separator(logger, app_name=None, app_version="0.0.0"):
                         handler.stream.write(line + "\n")
                     handler.stream.write(separator_line + "\n\n")
                     handler.stream.flush()
-                    #logger.debug(f"Separator written to {handler.baseFilename}")
+                    # logger.debug(f"Separator written to {handler.baseFilename}")
                 except ValueError as e:
                     if "I/O operation on closed file" in str(e):
                         # Handle the case where the stream is closed
-                        logger.warning(f"Could not write to log file (stream closed): {handler.baseFilename} - {e}")
+                        logger.warning(
+                            f"Could not write to log file (stream closed): {handler.baseFilename} - {e}"
+                        )
                         print(
                             f"Warning: Could not write to log file (stream closed): {e}",
                             file=sys.stderr,
                         )
                     else:
                         # Re-raise other ValueErrors
-                        logger.exception(f"ValueError writing to log file {handler.baseFilename}: {e}")
+                        logger.exception(
+                            f"ValueError writing to log file {handler.baseFilename}: {e}"
+                        )
                         raise
                 except Exception as e:  # catch more generic exception
-                    logger.exception(f"Unexpected error writing to log file {handler.baseFilename}: {e}")
+                    logger.exception(
+                        f"Unexpected error writing to log file {handler.baseFilename}: {e}"
+                    )
                     raise
