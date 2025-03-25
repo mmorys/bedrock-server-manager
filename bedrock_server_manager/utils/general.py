@@ -3,18 +3,25 @@ import sys
 from datetime import datetime
 from colorama import Fore, Style, init
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager import handlers
+from bedrock_server_manager.core.logging import log_separator
 import os
 import logging
 
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def startup_checks():
+def startup_checks(app_name=None, version=None):
     """Perform initial checks when the script starts."""
-    logger.debug("Performing startup checks")
+
     if sys.version_info < (3, 10):
         logger.critical("Python version is less than 3.10. Exiting.")
         sys.exit("This script requires Python 3.10 or later.")
+
+    log_separator(logger, app_name=app_name, app_version=version)
+
+    logger.info(f"Starting {app_name} v{version}....")
+
     init(autoreset=True)  # Initialize colorama
     logger.debug("colorama initialized")
 
@@ -28,6 +35,9 @@ def startup_checks():
     logger.debug(f"Created directory: {content_dir}/worlds")
     os.makedirs(f"{content_dir}/addons", exist_ok=True)
     logger.debug(f"Created directory: {content_dir}/addons")
+    handlers.update_server_statuses_handler(
+        settings.get("BASE_DIR"), settings._config_dir
+    )
     logger.debug("Startup checks complete")
 
 
@@ -60,11 +70,11 @@ def select_option(prompt, default_value, *options):
             ).strip()
             if not choice:
                 print(f"Using default: {Fore.YELLOW}{default_value}{Style.RESET_ALL}")
-                logger.info(f"User selected default option: {default_value}")
+                logger.debug(f"User selected default option: {default_value}")
                 return default_value
             choice_num = int(choice)
             if 1 <= choice_num <= len(options):
-                logger.info(f"User selected option: {options[choice_num - 1]}")
+                logger.debug(f"User selected option: {options[choice_num - 1]}")
                 return options[choice_num - 1]
             else:
                 print(f"{_ERROR_PREFIX}Invalid selection. Please try again.")

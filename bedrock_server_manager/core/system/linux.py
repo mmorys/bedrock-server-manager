@@ -310,7 +310,7 @@ def _systemd_start_server(server_name, server_dir):
         ServerStartError: If the server fails to start.
         CommandNotFoundError: If the 'screen' command is not found.
     """
-    logger.info(f"Starting server {server_name} using screen...")
+    logger.debug(f"_systemd_start_server: starting server {server_name}...")
     # Clear server_output.txt
     try:
         with open(os.path.join(server_dir, "server_output.txt"), "w") as f:
@@ -356,7 +356,7 @@ def _systemd_stop_server(server_name, server_dir):
         ServerStopError: If the server fails to stop.
         CommandNotFoundError: If pgrep or screen is not found
     """
-    logger.info(f"Stopping server {server_name}...")
+    logger.debug(f"_systemd_stop_server: stopping server {server_name}...")
 
     # Find and kill the screen session.
     try:

@@ -6,7 +6,7 @@ import logging
 import glob
 import os
 import zipfile
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.error import (
     DownloadExtractError,
@@ -81,7 +81,7 @@ def lookup_bedrock_download_url(target_version):
 
     try:
         headers = {
-            "User-Agent": "zvortex11325/bedrock-server-manager",
+            "User-Agent": f"zvortex11325/{app_name}",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept": "text/html",
         }
@@ -225,7 +225,7 @@ def download_server_zip_file(download_url, zip_file):
     logger.debug(f"Resolved download URL: {download_url}")
 
     try:
-        headers = {"User-Agent": "zvortex11325/bedrock-server-manager"}
+        headers = {"User-Agent": f"zvortex11325/{app_name}"}
         response = requests.get(download_url, headers=headers, stream=True, timeout=30)
         response.raise_for_status()
         logger.debug(f"Download response status code: {response.status_code}")
@@ -271,7 +271,7 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
             "extract_server_files_from_zip: server_dir is empty."
         )
 
-    logger.info(f"Extracting server files from {zip_file} to {server_dir}")
+    logger.debug(f"Extracting server files from {zip_file} to {server_dir}")
     try:
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             if in_update:

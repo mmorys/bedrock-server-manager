@@ -128,7 +128,7 @@ def set_server_folder_permissions(server_dir):
             ) from e
 
     elif platform.system() == "Windows":
-        logger.info("Setting folder permissions for Windows...")
+        logger.info("Setting folder permissions...")
         try:
             for root, dirs, files in os.walk(server_dir):
                 for d in dirs:
@@ -143,9 +143,9 @@ def set_server_folder_permissions(server_dir):
                     if not (current_permissions & stat.S_IWRITE):
                         os.chmod(file_path, current_permissions | stat.S_IWRITE)
                         logger.debug(f"Set write permissions on file: {file_path}")
-            logger.info("Folder permissions set for Windows (ensured write access).")
+            logger.info("Folder permissions set.")
         except OSError as e:
-            logger.error(f"Failed to set folder permissions on Windows: {e}")
+            logger.error(f"Failed to set folder permissions: {e}")
             raise SetFolderPermissionsError(
                 f"Failed to set folder permissions on Windows: {e}"
             ) from e

@@ -86,7 +86,7 @@ def get_all_servers_status_handler(base_dir=None, config_dir=None):
     base_dir = get_base_dir(base_dir)
     if config_dir is None:
         config_dir = settings._config_dir
-    logger.info(f"Getting status for all servers in: {base_dir}")
+    logger.debug(f"Getting status for all servers in: {base_dir}")
 
     if not os.path.isdir(base_dir):
         logger.error(f"{base_dir} does not exist or is not a directory.")
@@ -115,6 +115,71 @@ def get_all_servers_status_handler(base_dir=None, config_dir=None):
                 }
     logger.debug(f"Server statuses: {servers_data}")
     return {"status": "success", "servers": servers_data}
+
+
+def update_server_statuses_handler(base_dir=None, config_dir=None):
+    """Updates the status in config.json for all servers, based on runtime checks.
+
+    Iterates through all servers in the base directory.  If a server is
+    NOT running, but its config file says it IS running (or starting, etc.),
+    the config file is updated to reflect the STOPPED status.
+
+    Args:
+        base_dir (str, optional): The base directory for servers. Defaults to None.
+        config_dir (str, optional): config directory
+
+    Returns:
+        dict: {"status": "success"} or {"status": "error", "message": ...}
+    """
+    base_dir = get_base_dir(base_dir)
+    if config_dir is None:
+        config_dir = settings._config_dir
+    logger.debug("Updating server statuses in config files.")
+
+    if not os.path.isdir(base_dir):
+        logger.error(f"Base directory does not exist: {base_dir}")
+        return {
+            "status": "error",
+            "message": f"Base directory does not exist: {base_dir}",
+        }
+
+    try:
+        for server_folder in glob.glob(os.path.join(base_dir, "*/")):
+            server_name = os.path.basename(os.path.normpath(server_folder))
+            logger.debug(f"Checking status for server: {server_name}")
+
+            is_running = system_base.is_server_running(server_name, base_dir)
+            current_status = server_base.get_server_status_from_config(
+                server_name, config_dir
+            )
+            logger.debug(
+                f"Server {server_name}: Running={is_running}, Config Status={current_status}"
+            )
+            #  Statuses that indicate the server *should* be running
+            running_statuses = ("RUNNING", "STARTING", "RESTARTING")
+
+            if not is_running and current_status in running_statuses:
+                logger.debug(
+                    f"Updating status for {server_name}: Config says {current_status}, but server is not running.  Setting to STOPPED."
+                )
+                server_base.manage_server_config(
+                    server_name, "status", "write", "STOPPED", config_dir
+                )
+            # Add this for consistency
+            elif is_running and current_status == "STOPPED":
+                logger.debug(
+                    f"Updating status for {server_name}: Config says {current_status}, but server is running.  Setting to RUNNING."
+                )
+                server_base.manage_server_config(
+                    server_name, "status", "write", "RUNNING", config_dir
+                )
+
+        logger.debug("Server status updates complete.")
+        return {"status": "success"}
+
+    except Exception as e:  # Catch any unexpected errors during the process
+        logger.exception(f"Error updating server statuses: {e}")
+        return {"status": "error", "message": f"Error updating server statuses: {e}"}
 
 
 def configure_allowlist_handler(server_name, base_dir=None, new_players_data=None):
@@ -182,7 +247,7 @@ def configure_allowlist_handler(server_name, base_dir=None, new_players_data=Non
     if added_players:
         try:
             server_base.add_players_to_allowlist(server_dir, added_players)
-            logger.info(f"Added players to allowlist: {added_players}")
+            logger.debug(f"Added players to allowlist: {added_players}")
             return {
                 "status": "success",
                 "existing_players": existing_players,
@@ -339,7 +404,7 @@ def read_server_properties_handler(server_name, base_dir=None):
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
     server_properties_path = os.path.join(server_dir, "server.properties")
-    logger.info(f"Reading server.properties for server: {server_name}")
+    logger.debug(f"Reading server.properties for server: {server_name}")
     if not os.path.exists(server_properties_path):
         logger.error(f"server.properties not found in: {server_properties_path}")
         return {

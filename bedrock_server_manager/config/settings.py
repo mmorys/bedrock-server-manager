@@ -2,16 +2,27 @@
 import os
 import json
 import logging
+from importlib.metadata import version, PackageNotFoundError
 from bedrock_server_manager.core.error import ConfigError
 from bedrock_server_manager.utils import package_finder
 
 logger = logging.getLogger("bedrock_server_manager")
 
+
+# Package name in different forms
 package_name = "bedrock-server-manager"
 executable_name = package_name
+app_name = package_name.replace("-", " ").title()
+env_name = package_name.replace("-", "_").upper()
+
 
 # Find bin/exe
 EXPATH = package_finder.find_executable(package_name, executable_name)
+
+try:
+    __version__ = version(package_name)
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 
 class Settings:
@@ -33,7 +44,7 @@ class Settings:
         variable and falling back to the user's home directory.
         Creates the directory if it does not exist.
         """
-        env_var_name = "BEDROCK_SERVER_MANAGER_DATA_DIR"
+        env_var_name = f"{env_name}_DATA_DIR"
         data_dir = os.environ.get(env_var_name)
 
         if data_dir:
@@ -44,7 +55,7 @@ class Settings:
                 f"{env_var_name} doesn't exist, defaulting to home directory: {data_dir}"
             )
 
-        data_dir = os.path.join(data_dir, "bedrock-server-manager")
+        data_dir = os.path.join(data_dir, package_name)
         os.makedirs(data_dir, exist_ok=True)  # Ensure directory exists
         logger.debug(f"App Data Dir: {data_dir}")
         return data_dir
@@ -77,7 +88,7 @@ class Settings:
             "LOGS_KEEP": 3,
             "LOG_LEVEL": logging.INFO,
             "LOG_LEVEL": logging.INFO,
-            "BEDROCK_SERVER_MANAGER_PORT": 5000,
+            f"{env_name}_PORT": 5000,
         }
 
     def load(self):

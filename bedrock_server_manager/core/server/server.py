@@ -215,7 +215,7 @@ class BedrockServer:
 
         self.status = "STARTING"
         manage_server_config(self.server_name, "status", "write", "STARTING")
-        logger.info(f"Starting server '{self.server_name}'...")
+        logger.debug(f"BedrockServer.start: starting server '{self.server_name}'...")
 
         if platform.system() == "Linux":
             try:
@@ -272,7 +272,7 @@ class BedrockServer:
 
         self.status = "STOPPING"
         manage_server_config(self.server_name, "status", "write", "STOPPING")
-        logger.info(f"Stopping server '{self.server_name}'...")
+        logger.debug(f"BedrockServer.stop: stopping server '{self.server_name}'...")
 
         if platform.system() == "Linux":
             try:
@@ -452,7 +452,7 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         try:
             with open(config_file, "w") as f:
                 json.dump(current_config, f, indent=4)
-            logger.info(f"Updated '{key}' in config to: '{value}'")
+            logger.debug(f"Updated '{key}' in config to: '{value}'")
         except OSError as e:
             logger.error(f"Failed to write to config file: {e}")
             raise FileOperationError(f"Failed to write to config file: {e}") from e
@@ -477,7 +477,7 @@ def get_installed_version(server_name, config_dir=None):
         MissingArgumentError: If server_name is empty.
         # Other exceptions may be raised by manage_server_config
     """
-    logger.info(f"Getting installed version for server: {server_name}")
+    logger.debug(f"Getting installed version for server: {server_name}")
 
     if not server_name:
         raise MissingArgumentError("No server name provided.")
@@ -603,7 +603,7 @@ def get_server_status_from_config(server_name, config_dir=None):
     if config_dir is None:
         config_dir = settings._config_dir
 
-    logger.info(f"Getting server status from config for: {server_name}")
+    logger.debug(f"Getting server status from config for: {server_name}")
     status = manage_server_config(server_name, "status", "read", config_dir=config_dir)
     if status is None:
         logger.warning(
@@ -671,7 +671,7 @@ def configure_allowlist(server_dir):
     if not server_dir:
         raise MissingArgumentError("configure_allowlist: server_dir is empty.")
 
-    logger.info(f"Configuring allowlist for server directory: {server_dir}")
+    logger.debug(f"Configuring allowlist for server directory: {server_dir}")
 
     if os.path.exists(allowlist_file):
         try:
@@ -709,7 +709,7 @@ def add_players_to_allowlist(server_dir, new_players):
         logger.error("new_players must be a list")
         raise TypeError("new_players must be a list")
 
-    logger.info(f"Adding players to allowlist: {new_players}")
+    logger.debug(f"Adding players to allowlist: {new_players}")
 
     # Load existing players
     if os.path.exists(allowlist_file):
@@ -874,7 +874,7 @@ def modify_server_properties(server_properties, property_name, property_value):
             "modify_server_properties: property_value contains control characters."
         )
 
-    logger.info(
+    logger.debug(
         f"Modifying server.properties: property={property_name}, value={property_value}"
     )
 
@@ -923,9 +923,6 @@ def _write_version_config(server_name, installed_version, config_dir=None):
 
     if config_dir is None:
         config_dir = settings._config_dir
-    logger.info(
-        f"Writing version config for server: {server_name}, version: {installed_version}"
-    )
 
     if not installed_version:
         logger.warning(
@@ -938,9 +935,6 @@ def _write_version_config(server_name, installed_version, config_dir=None):
         "write",
         installed_version,
         config_dir=config_dir,
-    )
-    logger.info(
-        f"Successfully updated installed_version in config.json for server: {server_name}"
     )
 
 
@@ -964,8 +958,8 @@ def install_server(
     """
     if not server_name:
         raise InvalidServerNameError("install_server: server_name is empty.")
-    logger.info(
-        f"Installing/Updating server: {server_name}, version: {current_version}, update: {in_update}"
+    logger.debug(
+        f"Installing server: {server_name}, version: {current_version}, update: {in_update}"
     )
 
     # Cleanup old downloads
@@ -989,7 +983,6 @@ def install_server(
 
     try:
         downloader.extract_server_files_from_zip(zip_file, server_dir, in_update)
-        logger.info("Extracted server files successfully")
     except Exception as e:
         logger.error(f"Failed to extract server files: {e}")
         raise InstallUpdateError(f"Failed to extract server files: {e}") from e

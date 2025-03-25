@@ -2,7 +2,7 @@
 import os
 from flask import Flask
 import secrets
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes import server_routes
 from waitress import serve
 from os.path import basename
@@ -41,7 +41,7 @@ def create_app():
 
 def main():
     app = create_app()
-    port = settings.get("BEDROCK_SERVER_MANAGER_PORT")
+    port = settings.get(f"{env_name}_PORT")
     logger.info(f"Starting web app on port {port}")
     # Run with Flask's built-in server (for development) or waitress (for production)
     app.run(debug=True, port=port)

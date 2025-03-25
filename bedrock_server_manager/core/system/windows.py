@@ -30,7 +30,7 @@ def _windows_start_server(server_name, server_dir):
         ServerStartError: If the server fails to start.
         ServerNotFoundError: If the server executable is not found.
     """
-    logger.info(f"Starting server {server_name} on Windows")
+    logger.debug(f"_windows_start_server: starting server {server_name}")
     # Write an initial message to the server output file
     output_file = os.path.join(server_dir, "server_output.txt")
     exe_path = os.path.join(server_dir, "bedrock_server.exe")
@@ -101,7 +101,7 @@ def _windows_stop_server(server_name, server_dir):
         ServerStopError: If stopping the server fails.
     """
 
-    logger.info(f"Stopping server {server_name}...")
+    logger.debug(f"_windows_stop_server: stopping server {server_name}...")
     try:
         # Iterate over all processes to find the one with the matching server name and cwd
         for proc in psutil.process_iter(["pid", "name", "cwd"]):

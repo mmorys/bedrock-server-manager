@@ -9,7 +9,7 @@ from datetime import datetime
 from colorama import Fore, Style
 import xml.etree.ElementTree as ET
 from bedrock_server_manager import handlers
-from bedrock_server_manager.config.settings import EXPATH
+from bedrock_server_manager.config.settings import EXPATH, app_name
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import (
     select_option,
@@ -1388,7 +1388,7 @@ def _cron_scheduler(server_name, base_dir):
 
     while True:
         os.system("cls" if platform.system() == "Windows" else "clear")
-        print(f"{Fore.MAGENTA}Bedrock Server Manager - Task Scheduler{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}{app_name} - Task Scheduler{Style.RESET_ALL}")
         print(
             f"{Fore.CYAN}Current scheduled task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
@@ -1797,7 +1797,7 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
         raise OSError("This function is for Windows only.")
     os.system("cls")
     while True:
-        print(f"{Fore.MAGENTA}Bedrock Server Manager - Task Scheduler{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}{app_name} - Task Scheduler{Style.RESET_ALL}")
         print(
             f"{Fore.CYAN}Current scheduled tasks for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
@@ -2318,7 +2318,7 @@ def main_menu(base_dir, config_dir):
     """Displays the main menu and handles user interaction."""
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(f"\n{Fore.MAGENTA}Bedrock Server Manager{Style.RESET_ALL}")
+        print(f"\n{Fore.MAGENTA}{app_name}{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
 
         print("1) Install New Server")
@@ -2372,7 +2372,7 @@ def manage_server(base_dir, config_dir=None):
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Manage Server{Style.RESET_ALL}"
+            f"\n{Fore.MAGENTA}{app_name} - Manage Server{Style.RESET_ALL}"
         )
         list_servers_status(base_dir, config_dir)
         print("1) Update Server")
@@ -2432,7 +2432,7 @@ def install_content(base_dir, config_dir=None):
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Install Content{Style.RESET_ALL}"
+            f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}"
         )
         list_servers_status(base_dir, config_dir)
         print("1) Import World")
@@ -2469,7 +2469,7 @@ def advanced_menu(base_dir, config_dir=None):
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Advanced Menu{Style.RESET_ALL}"
+            f"\n{Fore.MAGENTA}{app_name} - Advanced Menu{Style.RESET_ALL}"
         )
         list_servers_status(base_dir, config_dir)
         print("1) Configure Server Properties")
@@ -2551,7 +2551,7 @@ def backup_restore(base_dir, config_dir=None):
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Backup/Restore{Style.RESET_ALL}"
+            f"\n{Fore.MAGENTA}{app_name} - Backup/Restore{Style.RESET_ALL}"
         )
         list_servers_status(base_dir, config_dir)
         print("1) Backup Server")

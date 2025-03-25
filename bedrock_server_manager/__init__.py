@@ -4,8 +4,12 @@ import argparse
 import os
 from bedrock_server_manager import cli
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.config.settings import settings
-from importlib.metadata import version, PackageNotFoundError
+from bedrock_server_manager.config.settings import (
+    settings,
+    app_name,
+    package_name,
+    __version__,
+)
 from bedrock_server_manager.core import logging as core_logging
 from bedrock_server_manager.utils.general import startup_checks
 from bedrock_server_manager.core.server import server as server_base
@@ -20,11 +24,6 @@ logger = core_logging.setup_logging(
     log_keep=settings.get("LOGS_KEEP"),
     log_level=settings.get("LOG_LEVEL"),
 )
-
-try:
-    __version__ = version("bedrock-server-manager")
-except PackageNotFoundError:
-    __version__ = "0.0.0"
 
 
 def run_cleanup(args):
@@ -51,16 +50,15 @@ def main():
     """
     Main entry point for the Bedrock Server Manager application.
     """
-    startup_checks()
+    startup_checks(app_name, __version__)
     system_base.check_prerequisites()
     config_dir = settings._config_dir
     base_dir = settings.get("BASE_DIR")
-    logger.info(f"Starting Bedrock Server Manager v{__version__}")
     logger.debug(f"Base directory: {base_dir}")
     logger.debug(f"Config directory: {config_dir}")
 
     # --- Argument Parsing ---
-    parser = argparse.ArgumentParser(description="Bedrock Server Manager")
+    parser = argparse.ArgumentParser(description=app_name)
     subparsers = parser.add_subparsers(title="commands", dest="subcommand")
 
     # --- Subparser Definitions ---
@@ -70,7 +68,7 @@ def main():
         parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # main-menu
-    main_parser = subparsers.add_parser("main", help="Open Bedrock Server Manager menu")
+    main_parser = subparsers.add_parser("main", help=f"Open {app_name} menu")
 
     # list-servers
     list_parser = subparsers.add_parser(
@@ -507,8 +505,7 @@ def main():
         try:
             commands[args.subcommand]()  # Execute the function
         except KeyboardInterrupt:
-            print("\nOperation interrupted. Exiting...")
-            logger.info("Operation interrupted by user.")
+            logger.info("User exited...")
             sys.exit(1)
         except Exception as e:
             logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")
