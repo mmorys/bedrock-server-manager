@@ -1199,6 +1199,32 @@ def restore_menu(server_name, base_dir):
                 print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
 
+def handle_start_web_server(host=None, debug=False, mode="direct"):
+    """Restores a server from a backup file."""
+
+    print("Starting web server...")
+
+    response = handlers.start_web_server_handler(host, debug, mode)
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Web server started successfully.")
+
+
+def handle_stop_web_server():
+    """Restores a server from a backup file."""
+
+    print("Stopping web server...")
+
+    response = handlers.stop_web_server_handler()
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Web server stopeed successfully.")
+
+
 def handle_install_addon(server_name, addon_file, base_dir=None):
     """Handles the installation of an addon, including stopping/starting the server."""
 
@@ -1234,7 +1260,7 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
     file_names = [os.path.basename(file) for file in mcworld_files]
 
     # Display the menu and get user selection
-    print(f"{_INFO_PREFIX}Available worlds to install:{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}Available worlds to install:{Style.RESET_ALL}")
     for i, file_name in enumerate(file_names):
         print(f"{i + 1}. {file_name}")
     print(f"{len(file_names) + 1}. Cancel")

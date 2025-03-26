@@ -8,7 +8,10 @@ import getpass
 import platform
 import time
 import json
-from bedrock_server_manager.config.settings import settings
+import sys
+from bedrock_server_manager.web.app import run_web_server
+from bedrock_server_manager.core import SCRIPT_DIR
+from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.core.player import player as player_base
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager.core.error import (
@@ -868,7 +871,7 @@ def set_windows_autoupdate_handler(server_name, autoupdate_value, base_dir=None)
     """
     if platform.system() != "Windows":
         return {"status": "success"}  # Not applicable
-    logger.info(f"Setting Windows autoupdate for {server_name} to {autoupdate_value}")
+    logger.info(f"Setting autoupdate for {server_name} to {autoupdate_value}")
     if not server_name:
         raise InvalidServerNameError(
             "set_windows_autoupdate_handler: server_name is empty"
@@ -1119,7 +1122,7 @@ def get_bedrock_process_info_handler(server_name, base_dir=None):
             or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-    logger.info(f"Getting process info for server: {server_name}")
+    logger.debug(f"Getting process info for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "get_bedrock_process_info_handler: server_name is empty"
@@ -1277,7 +1280,9 @@ def get_world_name_handler(server_name, base_dir=None):
         dict: {"status": "success", "world_name": ...} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-    logger.info(f"Getting world name for server: {server_name}")
+    logger.debug(
+        f"get_world_name_handler: Getting world name for server: {server_name}"
+    )
     try:
         world_name = server_base.get_world_name(server_name, base_dir)
         if world_name is None or not world_name:  # Check for None or empty
@@ -1934,7 +1939,7 @@ def list_content_files_handler(content_dir, extensions):
     Returns:
         dict: {"status": "success", "files": [...]} or {"status": "error", "message": ...}
     """
-    logger.info(
+    logger.debug(
         f"Listing content files in directory: {content_dir} with extensions: {extensions}"
     )
     if not os.path.isdir(content_dir):
@@ -2350,3 +2355,64 @@ def get_month_element_name_handler(month_input):
     except Exception as e:
         logger.exception(f"Error getting month element name for {month_input} - {e}")
         return {"status": "error", "message": str(e)}
+
+
+def start_web_server_handler(host=None, debug=False, mode="direct"):
+    """Starts the web server with defined host with optional debug mode
+
+    Args:
+        host (str, optional): The base directory for servers. Defaults to None.
+        debug (bool, optional): Starts the server in debug mode
+    """
+    if mode == "direct":
+        logger.info("Running web-server directly...")
+        try:
+            run_web_server(host, debug)
+            return {"status": "success"}
+        except Exception as e:
+            logger.exception(f"Error updating server statuses: {e}")
+            return {
+                "status": "error",
+                "message": f"Error updating server statuses: {e}",
+            }
+
+    elif mode == "detached":
+        logger.info("Running web-server in detached mode...")
+        try:
+            command = [str(EXPATH), "start-webserver"]
+            if host:
+                command.extend(["--host", host])
+            if debug:
+                command.append("--debug")
+            command.extend(["--mode", "direct"])
+
+            process = subprocess.Popen(
+                command,
+                cwd=SCRIPT_DIR,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=(
+                    subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+                ),  # Don't open a console
+            )
+
+            logger.info(f"Started web server with PID: {process.pid}")
+            return {"status": "success", "process": process.pid}
+
+        except FileNotFoundError:
+            logger.error(f"Executable or script not found: {EXPATH}")
+            return {"status": "error", "message": f"Executable not found: {EXPATH}"}
+        except Exception as e:
+            logger.exception(f"Error starting process: {e}")
+            return {"status": "error", "message": str(e)}
+
+
+def stop_web_server_handler(script_dir=SCRIPT_DIR):
+    script_dir = settings.get("BASE_DIR")
+    try:
+        return {"status": "success"}
+    except Exception as e:
+        logger.exception(f"Error starting process: {e}")
+        return {"status": "error", "message": str(e)}
+    return {"status": "success"}

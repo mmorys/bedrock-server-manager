@@ -334,7 +334,7 @@ def get_world_name(server_name, base_dir):
     if not server_name:
         raise MissingArgumentError("get_world_name: server_name is empty")
 
-    logger.info(f"Getting world name for: {server_name}")
+    logger.debug(f"get_world_name: Getting world name for: {server_name}")
 
     if not os.path.exists(server_properties):
         logger.error(f"server.properties not found for {server_name}")
@@ -637,7 +637,7 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
     if config_dir is None:
         config_dir = settings._config_dir
 
-    logger.info(f"Updating server status in config for: {server_name}")
+    logger.debug(f"Updating server status in config for: {server_name}")
     current_status = get_server_status_from_config(server_name, config_dir)
     status = check_server_status(server_name, base_dir)
     logger.debug(f"Current status: {current_status}, Checked status: {status}")

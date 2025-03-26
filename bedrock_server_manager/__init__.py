@@ -376,6 +376,27 @@ def main():
     )
     add_server_arg(systemd_start_parser)
 
+    # --- Web-Server ---
+    web_server_parser = subparsers.add_parser(
+        "start-webserver", help="Start the web server"
+    )
+    web_server_parser.add_argument(
+        "-H",
+        "--host",
+        help="Host address to bind to.  If omitted, binds to both IPv4 (0.0.0.0) and IPv6 (::).",
+        required=False,
+    )
+    web_server_parser.add_argument(
+        "-d", "--debug", help="Start in debug mode", action="store_true"
+    )
+    web_server_parser.add_argument(
+        "-m", "--mode", default="direct", help="Mode to start in"
+    )
+
+    web_server_parser = subparsers.add_parser(
+        "stop-webserver", help="Stop the web server"
+    )
+
     # --- Command Dispatch Table ---
     commands = {
         "main": lambda: cli.main_menu(base_dir, config_dir),
@@ -496,8 +517,12 @@ def main():
         ),
         "check-internet": lambda: print(system_base.check_internet_connectivity()),
         "cleanup": lambda: run_cleanup(args),
-        "systemd-stop": lambda: print(cli.handle_systemd_stop(args.server, base_dir)),
-        "systemd-start": lambda: print(cli.handle_systemd_start(args.server, base_dir)),
+        "systemd-stop": lambda: cli.handle_systemd_stop(args.server, base_dir),
+        "systemd-start": lambda: cli.handle_systemd_start(args.server, base_dir),
+        "start-webserver": lambda: cli.handle_start_web_server(
+            args.host, args.debug, args.mode
+        ),
+        "stop-webserver": lambda: cli.handle_stop_web_server(),
     }
 
     args = parser.parse_args()
