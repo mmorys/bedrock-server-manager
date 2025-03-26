@@ -439,7 +439,7 @@ def _update_pack_json(json_file, pack_id, version):
         MissingArgumentError: If json_file, pack_id, or version is empty.
         FileOperationError: If there's an error reading or writing the JSON file.
     """
-    logger.info(f"Updating {os.path.basename(json_file)}.")
+    logger.debug(f"Updating {os.path.basename(json_file)}.")
 
     if not json_file:
         raise MissingArgumentError("_update_pack_json: json_file is empty.")
@@ -483,7 +483,7 @@ def _update_pack_json(json_file, pack_id, version):
 
         if not pack_exists:
             packs.append({"pack_id": pack_id, "version": version})
-            logger.info(f"Added new pack entry to {json_file}")
+            logger.debug(f"Added new pack entry to {json_file}")
 
         with open(json_file, "w") as f:
             json.dump(packs, f, indent=4)

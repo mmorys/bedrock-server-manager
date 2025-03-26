@@ -64,7 +64,7 @@ def start_server_route(server_name):
     response = handlers.start_server_handler(server_name, base_dir)
     if response["status"] == "success":
         flash(f"Server '{server_name}' started successfully.", "success")
-        logger.info(f"Server started: {server_name}")
+        logger.debug(f"stop_server_route: server started: {server_name}")
     else:
         flash(f"Error starting server '{server_name}': {response['message']}", "error")
         logger.error(f"Error starting server {server_name}: {response['message']}")
@@ -77,7 +77,7 @@ def stop_server_route(server_name):
     response = handlers.stop_server_handler(server_name, base_dir)
     if response["status"] == "success":
         flash(f"Server '{server_name}' stopped successfully.", "success")
-        logger.info(f"Server stopped: {server_name}")
+        logger.debug(f"stop_server_route: server stopped: {server_name}")
     else:
         flash(f"Error stopping server '{server_name}': {response['message']}", "error")
         logger.error(f"Error stopping server {server_name}: {response['message']}")
@@ -90,7 +90,7 @@ def restart_server_route(server_name):
     response = handlers.restart_server_handler(server_name, base_dir)
     if response["status"] == "success":
         flash(f"Server '{server_name}' restarted successfully.", "success")
-        logger.info(f"Server restarted: {server_name}")
+        logger.debug(f"restart_server_route: server restarted: {server_name}")
     else:
         flash(
             f"Error restarting server '{server_name}': {response['message']}", "error"
@@ -330,7 +330,7 @@ def configure_properties_route(server_name):
         "new_install", "False"
     )  # Get as string, default "False"
     new_install = new_install_str.lower() == "true"
-    logger.info(
+    logger.debug(
         f"Configuring properties for server: {server_name}, new_install: {new_install}"
     )
     if request.method == "POST":
@@ -470,7 +470,7 @@ def configure_allowlist_route(server_name):
         "new_install", "False"
     )  # Get as string, default "False"
     new_install = new_install_str.lower() == "true"
-    logger.info(
+    logger.debug(
         f"Configuring allowlist for server: {server_name}, new_install: {new_install}"
     )
 
@@ -544,7 +544,7 @@ def configure_permissions_route(server_name):
     new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
 
-    logger.info(
+    logger.debug(
         f"Configuring permissions for server: {server_name}, new_install: {new_install}"
     )
 
@@ -646,7 +646,7 @@ def configure_service_route(server_name):
     base_dir = get_base_dir()
     new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
-    logger.info(
+    logger.debug(
         f"Configuring service for server: {server_name}, new_install: {new_install}"
     )
     if request.method == "POST":
