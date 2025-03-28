@@ -65,7 +65,7 @@
                               <a href="{{ url_for('server_routes.update_server_route', server_name=server.name) }}" class="action-link">Update Server</a>
                               <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
                               <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
-                              <a href="#" onclick="confirmDelete('{{ server.name }}')" class="action-link">Delete</a>
+                              <button type="button" onclick="deleteServer(this, '{{ server.name }}')" class="action-link delete-button">Delete</button>
                             </td>
                         </tr>
                         {% endfor %}

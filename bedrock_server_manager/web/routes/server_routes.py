@@ -62,7 +62,7 @@ def advanced_menu_route():
 
 
 @server_bp.route("/server/<server_name>/start", methods=["POST"])
-@login_required # Ensure login is required
+@login_required
 def start_server_route(server_name):
     """API endpoint to start a server."""
     base_dir = get_base_dir()
@@ -74,7 +74,9 @@ def start_server_route(server_name):
     if status_code == 200:
         logger.info(f"Server '{server_name}' started successfully via API.")
     else:
-        logger.error(f"API Error starting server '{server_name}': {response.get('message', 'Unknown error')}")
+        logger.error(
+            f"API Error starting server '{server_name}': {response.get('message', 'Unknown error')}"
+        )
 
     return jsonify(response), status_code
 
@@ -92,7 +94,9 @@ def stop_server_route(server_name):
     if status_code == 200:
         logger.info(f"Server '{server_name}' stopped successfully via API.")
     else:
-        logger.error(f"API Error stopping server '{server_name}': {response.get('message', 'Unknown error')}")
+        logger.error(
+            f"API Error stopping server '{server_name}': {response.get('message', 'Unknown error')}"
+        )
 
     return jsonify(response), status_code
 
@@ -110,7 +114,9 @@ def restart_server_route(server_name):
     if status_code == 200:
         logger.info(f"Server '{server_name}' restarted successfully via API.")
     else:
-        logger.error(f"API Error restarting server '{server_name}': {response.get('message', 'Unknown error')}")
+        logger.error(
+            f"API Error restarting server '{server_name}': {response.get('message', 'Unknown error')}"
+        )
 
     return jsonify(response), status_code
 
@@ -123,22 +129,36 @@ def send_command_route(server_name):
     data = request.get_json()
 
     if not data or not isinstance(data, dict):
-         logger.warning(f"API send_command for {server_name}: Invalid or empty JSON body received.")
-         return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
+        logger.warning(
+            f"API send_command for {server_name}: Invalid or empty JSON body received."
+        )
+        return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
 
     command = data.get("command")
 
     if not command:
         logger.warning(f"API send_command for {server_name}: Received empty 'command'.")
-        return jsonify({"status": "error", "message": "Request body must contain a non-empty 'command' field."}), 400
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Request body must contain a non-empty 'command' field.",
+                }
+            ),
+            400,
+        )
 
     logger.info(f"API request received for {server_name}, command: {command}")
     result = handlers.send_command_handler(server_name, command, base_dir)
 
     # Assuming send_command_handler returns a dict with status/message
-    status_code = 200 if result.get("status") == "success" else 500 # Or maybe 400 if command failed validation?
+    status_code = (
+        200 if result.get("status") == "success" else 500
+    )  # Or maybe 400 if command failed validation?
     if status_code != 200:
-         logger.error(f"API Error sending command to {server_name}: {result.get('message', 'Unknown error')}")
+        logger.error(
+            f"API Error sending command to {server_name}: {result.get('message', 'Unknown error')}"
+        )
 
     return jsonify(result), status_code
 
@@ -156,7 +176,9 @@ def update_server_route(server_name):
     if status_code == 200:
         logger.info(f"Server '{server_name}' updated successfully via API.")
     else:
-        logger.error(f"API Error updating server '{server_name}': {response.get('message', 'Unknown error')}")
+        logger.error(
+            f"API Error updating server '{server_name}': {response.get('message', 'Unknown error')}"
+        )
 
     return jsonify(response), status_code
 
@@ -347,23 +369,29 @@ def confirm_install_route():
         return redirect(url_for("server_routes.index"))
 
 
-@server_bp.route("/server/<server_name>/delete", methods=["POST"])
+@server_bp.route("/server/<server_name>/delete", methods=["DELETE"])
 @login_required
 def delete_server_route(server_name):
+    """API endpoint to delete a server."""
     base_dir = get_base_dir()
     config_dir = settings.get("CONFIG_DIR")
+    logger.info(f"API request received to delete server: {server_name}")
 
     # Call the handler to delete the server data
     result = handlers.delete_server_data_handler(server_name, base_dir, config_dir)
 
-    if result["status"] == "success":
-        flash(f"Server '{server_name}' deleted successfully.", "success")
-        logger.info(f"Server deleted: {server_name}")
-    else:
-        flash(f"Error deleting server '{server_name}': {result['message']}", "error")
-        logger.error(f"Error deleting server {server_name}: {result['message']}")
+    # Determine appropriate status code
+    status_code = 200 if result.get("status") == "success" else 500
 
-    return redirect(url_for("server_routes.manage_server_route"))
+    if status_code == 200:
+        logger.info(f"Server '{server_name}' deleted successfully.")
+    else:
+        logger.error(
+            f"API Error deleting server '{server_name}': {result.get('message', 'Unknown error')}"
+        )
+
+    # Return JSON response
+    return jsonify(result), status_code
 
 
 @server_bp.route("/server/<server_name>/configure_properties", methods=["GET", "POST"])
