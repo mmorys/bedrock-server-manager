@@ -25,6 +25,8 @@
             {% endif %}
         {% endwith %}
 
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
         <section class="server-selection-section">
             <label for="server-select" class="select-label">Select Server:</label>
             <select id="server-select" name="server" class="server-dropdown">
@@ -35,10 +37,10 @@
             </select>
 
             <div class="action-buttons-group">
-                <button type="button" class="action-button start-button" onclick="startServer()">Start</button>
-                <button type="button" class="action-button stop-button" onclick="stopServer()">Stop</button>
-                <button type="button" class="action-button restart-button" onclick="restartServer()">Restart</button>
-                <button type="button" class="action-button command-button" onclick="promptCommand()">Send Command</button>
+                <button type="button" class="action-button start-button" onclick="startServer(this)">Start</button>
+                <button type="button" class="action-button stop-button" onclick="stopServer(this)">Stop</button>
+                <button type="button" class="action-button restart-button" onclick="restartServer(this)">Restart</button>
+                <button type="button" class="action-button command-button" onclick="promptCommand(this)">Send Command</button>
             </div>
         </section>
 

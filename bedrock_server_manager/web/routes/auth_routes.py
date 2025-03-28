@@ -1,7 +1,8 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/auth_routes.py
 import os
 import functools
-import logging  # Import logging
+import logging
+import secrets
 from bedrock_server_manager.config.settings import env_name, app_name
 from flask import (
     Blueprint,
@@ -12,9 +13,11 @@ from flask import (
     session,
     flash,
     current_app,
+    jsonify,
+    abort,
 )
 
-logger = logging.getLogger("bedrock_server_manager")  # Get the logger
+logger = logging.getLogger("bedrock_server_manager")
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -22,20 +25,117 @@ auth_bp = Blueprint("auth", __name__)
 # --- Helper Function / Decorator for Route Protection ---
 def login_required(view):
     """
-    Decorator that redirects users to the login page
-    if they are not logged in.
+    Decorator that checks for a valid session or API token.
+    Redirects browser users to login if not authenticated.
+    Returns 401 JSON error for API requests if not authenticated.
     """
 
     @functools.wraps(view)
     def wrapped_view(**kwargs):
-        if "logged_in" not in session:
+        # 1. Check for active web session
+        if "logged_in" in session:
+            logger.debug(
+                f"Login required check passed via session for user '{session.get('username', 'unknown')}' for path '{request.path}'"
+            )
+            return view(**kwargs)  # User is logged in via browser session
+
+        # 2. Check for API Token Authentication
+        expected_token = current_app.config.get(f"{env_name}_WEB_TOKEN")
+        auth_header = request.headers.get("Authorization")
+
+        if expected_token:
+            logger.debug(
+                f"API token is configured. Checking header for path '{request.path}'"
+            )
+            if auth_header:
+                logger.debug(f"Authorization header found for path '{request.path}'")
+                parts = auth_header.split()
+                # Check if header is in "Bearer <token>" format
+                if len(parts) == 2 and parts[0].lower() == "bearer":
+                    provided_token = parts[1]
+                    # Securely compare the provided token with the expected one
+                    if secrets.compare_digest(provided_token, expected_token):
+                        # --- API User Authenticated ---
+                        logger.info(
+                            f"Login required check passed via API token from {request.remote_addr} for path '{request.path}'"
+                        )
+                        return view(**kwargs)  # Token is valid
+                    else:
+                        # Provided token is incorrect
+                        logger.warning(
+                            f"Invalid API token received from {request.remote_addr} for path '{request.path}'"
+                        )
+                        return (
+                            jsonify(
+                                error="Unauthorized",
+                                message="Invalid API token provided.",
+                            ),
+                            401,
+                        )
+                else:
+                    # Authorization header format is incorrect
+                    logger.warning(
+                        f"Invalid Authorization header format from {request.remote_addr} for path '{request.path}'"
+                    )
+                    return (
+                        jsonify(
+                            error="Unauthorized",
+                            message="Invalid Authorization header format. Use 'Bearer <token>'.",
+                        ),
+                        401,
+                    )
+            else:
+                logger.debug(
+                    f"No Authorization header found for API check on path '{request.path}'"
+                )
+        else:
+            logger.debug(
+                f"{env_name}_WEB_TOKEN is not configured. Skipping token check."
+            )
+
+        # 3. If neither session nor valid token found:
+        # Differentiate between browser and API request failure
+        best = request.accept_mimetypes.best_match(["application/json", "text/html"])
+        is_browser_like = (
+            best == "text/html"
+            and request.accept_mimetypes[best]
+            > request.accept_mimetypes["application/json"]
+        )
+        logger.debug(
+            f"Authentication failed for path '{request.path}'. Browser-like client: {is_browser_like}"
+        )
+
+        if is_browser_like:
+            # It's likely a browser, redirect to login page
             logger.warning(
-                f"Unauthorized access attempt to {request.path} from {request.remote_addr}. Redirecting to login."
+                f"Unauthenticated browser access to {request.path} from {request.remote_addr}. Redirecting to login."
             )
             flash("Please log in to access this page.", "warning")
             return redirect(url_for("auth.login", next=request.url))
-        logger.debug(f"Login required check passed for {request.path}")
-        return view(**kwargs)
+        else:
+            # It's likely an API client (or doesn't prefer HTML), return 401 JSON
+            if not expected_token:
+                logger.error(
+                    f"API access attempted to {request.path} from {request.remote_addr} but {env_name}_WEB_TOKEN is not configured."
+                )
+                return (
+                    jsonify(
+                        error="Unauthorized",
+                        message="API access is not configured on the server.",
+                    ),
+                    401,
+                )
+            else:
+                logger.warning(
+                    f"Unauthenticated API access to {request.path} from {request.remote_addr}. Responding with 401."
+                )
+                return (
+                    jsonify(
+                        error="Unauthorized",
+                        message="Authentication required. Provide session cookie or Bearer token.",
+                    ),
+                    401,
+                )
 
     return wrapped_view
 
@@ -49,7 +149,7 @@ def login():
         logger.debug(
             f"User '{session.get('username')}' already logged in. Redirecting to index."
         )
-        return redirect(url_for("server_routes.index"))  # Redirect to your main page
+        return redirect(url_for("server_routes.index"))
 
     if request.method == "POST":
         username_attempt = request.form.get("username")

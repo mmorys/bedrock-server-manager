@@ -50,8 +50,17 @@ def create_app():
     # --- Load Authentication Credentials ---
     username_env = f"{env_name}_WEB_USERNAME"
     password_env = f"{env_name}_WEB_PASSWORD"
+    token_env = f"{env_name}_WEB_TOKEN"
     app.config[username_env] = os.environ.get(username_env)
     app.config[password_env] = os.environ.get(password_env)
+    app.config[token_env] = os.environ.get(token_env)
+    if not app.config[token_env]:
+        logger.warning(
+            "API environment variable token_env is not set. API access will be disabled."
+        )
+    else:
+        # Avoid logging the token itself!
+        logger.debug("API token loaded from environment variable.")
 
     # --- Log a warning if credentials are not set ---
     if not app.config[username_env] or not app.config[password_env]:
@@ -59,7 +68,7 @@ def create_app():
             f"Authentication environment variables ({username_env}, {password_env}) are not set."
         )
         logger.warning(
-            f"Using default admin:admin username:password. Consider changing these immediately."
+            f"Using default admin:admin (username:password). Consider changing these immediately."
         )
         app.config[username_env] = "admin"
         app.config[password_env] = "admin"

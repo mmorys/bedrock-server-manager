@@ -61,79 +61,104 @@ def advanced_menu_route():
     return render_template("advanced_menu.html", servers=servers, app_name=app_name)
 
 
-@server_bp.route("/server/<server_name>/start", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/start", methods=["POST"])
+@login_required # Ensure login is required
 def start_server_route(server_name):
+    """API endpoint to start a server."""
     base_dir = get_base_dir()
+    logger.info(f"API request received to start server: {server_name}")
     response = handlers.start_server_handler(server_name, base_dir)
-    if response["status"] == "success":
-        flash(f"Server '{server_name}' started successfully.", "success")
-        logger.debug(f"stop_server_route: server started: {server_name}")
+
+    status_code = 200 if response.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Server '{server_name}' started successfully via API.")
     else:
-        flash(f"Error starting server '{server_name}': {response['message']}", "error")
-        logger.error(f"Error starting server {server_name}: {response['message']}")
-    return redirect(url_for("server_routes.index"))
+        logger.error(f"API Error starting server '{server_name}': {response.get('message', 'Unknown error')}")
+
+    return jsonify(response), status_code
 
 
-@server_bp.route("/server/<server_name>/stop", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/stop", methods=["POST"])
 @login_required
 def stop_server_route(server_name):
+    """API endpoint to stop a server."""
     base_dir = get_base_dir()
+    logger.info(f"API request received to stop server: {server_name}")
     response = handlers.stop_server_handler(server_name, base_dir)
-    if response["status"] == "success":
-        flash(f"Server '{server_name}' stopped successfully.", "success")
-        logger.debug(f"stop_server_route: server stopped: {server_name}")
+
+    status_code = 200 if response.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Server '{server_name}' stopped successfully via API.")
     else:
-        flash(f"Error stopping server '{server_name}': {response['message']}", "error")
-        logger.error(f"Error stopping server {server_name}: {response['message']}")
-    return redirect(url_for("server_routes.index"))
+        logger.error(f"API Error stopping server '{server_name}': {response.get('message', 'Unknown error')}")
+
+    return jsonify(response), status_code
 
 
-@server_bp.route("/server/<server_name>/restart", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/restart", methods=["POST"])
 @login_required
 def restart_server_route(server_name):
+    """API endpoint to restart a server."""
     base_dir = get_base_dir()
+    logger.info(f"API request received to restart server: {server_name}")
     response = handlers.restart_server_handler(server_name, base_dir)
-    if response["status"] == "success":
-        flash(f"Server '{server_name}' restarted successfully.", "success")
-        logger.debug(f"restart_server_route: server restarted: {server_name}")
+
+    status_code = 200 if response.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Server '{server_name}' restarted successfully via API.")
     else:
-        flash(
-            f"Error restarting server '{server_name}': {response['message']}", "error"
-        )
-        logger.error(f"Error restarting server {server_name}: {response['message']}")
-    return redirect(url_for("server_routes.index"))
+        logger.error(f"API Error restarting server '{server_name}': {response.get('message', 'Unknown error')}")
+
+    return jsonify(response), status_code
 
 
 @server_bp.route("/server/<server_name>/send", methods=["POST"])
 @login_required
 def send_command_route(server_name):
+    """API endpoint to send a command to a server."""
     base_dir = get_base_dir()
-    data = request.get_json()  # Get the JSON data from the request body
-    command = data.get("command")  # Get the 'command' value
+    data = request.get_json()
+
+    if not data or not isinstance(data, dict):
+         logger.warning(f"API send_command for {server_name}: Invalid or empty JSON body received.")
+         return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
+
+    command = data.get("command")
 
     if not command:
-        logger.warning(
-            f"Received send_command request for {server_name} with empty command."
-        )
-        return jsonify({"status": "error", "message": "Command cannot be empty."}), 400
+        logger.warning(f"API send_command for {server_name}: Received empty 'command'.")
+        return jsonify({"status": "error", "message": "Request body must contain a non-empty 'command' field."}), 400
 
-    logger.info(f"Received command for {server_name}: {command}")
+    logger.info(f"API request received for {server_name}, command: {command}")
     result = handlers.send_command_handler(server_name, command, base_dir)
-    return jsonify(result)  # Return JSON response
+
+    # Assuming send_command_handler returns a dict with status/message
+    status_code = 200 if result.get("status") == "success" else 500 # Or maybe 400 if command failed validation?
+    if status_code != 200:
+         logger.error(f"API Error sending command to {server_name}: {result.get('message', 'Unknown error')}")
+
+    return jsonify(result), status_code
 
 
-@server_bp.route("/server/<server_name>/update", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/update", methods=["POST"])
 @login_required
 def update_server_route(server_name):
+    """API endpoint to update a server."""
     base_dir = get_base_dir()
+    logger.info(f"API request received to update server: {server_name}")
     response = handlers.update_server_handler(server_name, base_dir=base_dir)
-    if response["status"] == "success":
-        flash(f"Server '{server_name}' Updated successfully.", "success")
-        logger.info(f"Server updated: {server_name}")
+
+    status_code = 200 if response.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Server '{server_name}' updated successfully via API.")
     else:
-        flash(f"Error updating server '{server_name}': {response['message']}", "error")
-        logger.error(f"Error updating server {server_name}: {response['message']}")
-    return redirect(url_for("server_routes.manage_server_route"))
+        logger.error(f"API Error updating server '{server_name}': {response.get('message', 'Unknown error')}")
+
+    return jsonify(response), status_code
 
 
 @server_bp.route("/install", methods=["GET", "POST"])
@@ -1419,7 +1444,9 @@ def modify_windows_task_route(server_name, task_name):
             logger.error(f"Invalid command selected: {command}")
             flash("Invalid command selected.", "error")
             # Reload existing data to re-render form with errors
-            existing_task_data = handlers.get_windows_task_details_handler(xml_file_path)
+            existing_task_data = handlers.get_windows_task_details_handler(
+                xml_file_path
+            )
             return render_template(
                 "modify_windows_task.html",
                 server_name=server_name,
