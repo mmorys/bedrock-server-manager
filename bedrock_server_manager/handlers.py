@@ -9,6 +9,8 @@ import platform
 import time
 import json
 import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime
 from bedrock_server_manager.web.app import run_web_server
 from bedrock_server_manager.core import SCRIPT_DIR
 from bedrock_server_manager.config.settings import settings, EXPATH
@@ -2237,6 +2239,152 @@ def create_windows_task_handler(
     except Exception as e:
         logger.exception(f"Error creating Windows task {task_name}: {e}")
         return {"status": "error", "message": f"Error creating task: {e}"}
+
+
+def get_windows_task_details_handler(task_file_path):
+    """Reads a Windows Task Scheduler XML file and extracts command and trigger details.
+
+    Args:
+        task_file_path (str): Path to the XML file for the scheduled task.
+
+    Returns:
+        dict: {"status": "success", "task_details": {"command": "...", "triggers": [...]}}
+              or {"status": "error", "message": ...}
+    """
+    logger.debug(f"Loading existing task data from XML: {task_file_path}")
+    if not os.path.exists(task_file_path):
+        logger.error(f"Task XML file not found: {task_file_path}")
+        return {"status": "error", "message": "Task XML file not found."}
+
+    try:
+        tree = ET.parse(task_file_path)
+        root = tree.getroot()
+        namespaces = {"ns": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+
+        # --- Extract Command Part ---
+        command_part = ""
+        arguments_element = root.find(".//ns:Arguments", namespaces)
+        if arguments_element is not None and arguments_element.text is not None:
+            command_args = arguments_element.text.strip()
+            if command_args:
+                command_part = command_args.split()[
+                    0
+                ]  # Get the first argument as command
+        logger.debug(f"Extracted command part: {command_part}")
+
+        # --- Extract Triggers ---
+        triggers = []
+        trigger_elements = root.findall(".//ns:Triggers/*", namespaces)
+        for trigger_elem in trigger_elements:
+            trigger_data = {
+                "type": trigger_elem.tag.replace(f"{{{namespaces['ns']}}}", "")
+            }
+            start_elem = trigger_elem.find("ns:StartBoundary", namespaces)
+            if start_elem is not None and start_elem.text:
+                try:
+                    iso_dt = datetime.fromisoformat(start_elem.text)
+                    # Format for <input type="datetime-local">
+                    trigger_data["start"] = iso_dt.strftime("%Y-%m-%dT%H:%M")
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse start boundary format: {start_elem.text}"
+                    )
+                    trigger_data["start"] = ""
+
+            # -- Parse Calendar Triggers --
+            if trigger_data["type"] == "CalendarTrigger":
+                schedule_by_day = trigger_elem.find("ns:ScheduleByDay", namespaces)
+                schedule_by_week = trigger_elem.find("ns:ScheduleByWeek", namespaces)
+                schedule_by_month = trigger_elem.find("ns:ScheduleByMonth", namespaces)
+
+                if schedule_by_day is not None:
+                    trigger_data["type"] = "Daily"
+                    interval_elem = schedule_by_day.find("ns:DaysInterval", namespaces)
+                    if interval_elem is not None and interval_elem.text:
+                        trigger_data["interval"] = int(interval_elem.text)
+                elif schedule_by_week is not None:
+                    trigger_data["type"] = "Weekly"
+                    interval_elem = schedule_by_week.find(
+                        "ns:WeeksInterval", namespaces
+                    )
+                    if interval_elem is not None and interval_elem.text:
+                        trigger_data["interval"] = int(interval_elem.text)
+                    days_elem = schedule_by_week.find("ns:DaysOfWeek", namespaces)
+                    if days_elem is not None:
+                        # Map back to user-friendly input format (comma-separated)
+                        day_mapping = {
+                            "Sunday": "Sun",
+                            "Monday": "Mon",
+                            "Tuesday": "Tue",
+                            "Wednesday": "Wed",
+                            "Thursday": "Thu",
+                            "Friday": "Fri",
+                            "Saturday": "Sat",
+                        }
+                        days_list = [
+                            day_mapping.get(
+                                day.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                                day.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                            )
+                            for day in days_elem
+                        ]
+                        trigger_data["days_of_week"] = ",".join(days_list)
+                elif schedule_by_month is not None:
+                    trigger_data["type"] = "Monthly"
+                    days_elem = schedule_by_month.find("ns:DaysOfMonth", namespaces)
+                    if days_elem is not None:
+                        trigger_data["days_of_month"] = ",".join(
+                            [
+                                d.text
+                                for d in days_elem.findall("ns:Day", namespaces)
+                                if d.text
+                            ]
+                        )
+                    months_elem = schedule_by_month.find("ns:Months", namespaces)
+                    if months_elem is not None:
+                        # Map back to user-friendly input format (comma-separated)
+                        month_mapping = {
+                            "January": "Jan",
+                            "February": "Feb",
+                            "March": "Mar",
+                            "April": "Apr",
+                            "May": "May",
+                            "June": "Jun",
+                            "July": "Jul",
+                            "August": "Aug",
+                            "September": "Sep",
+                            "October": "Oct",
+                            "November": "Nov",
+                            "December": "Dec",
+                        }
+                        months_list = [
+                            month_mapping.get(
+                                m.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                                m.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                            )
+                            for m in months_elem
+                        ]
+                        trigger_data["months"] = ",".join(months_list)
+                else:
+                    logger.warning(
+                        f"Unknown CalendarTrigger subtype in {task_file_path}"
+                    )
+            triggers.append(trigger_data)
+
+        logger.debug(
+            f"Extracted task details: command={command_part}, triggers={triggers}"
+        )
+        return {
+            "status": "success",
+            "task_details": {"command": command_part, "triggers": triggers},
+        }
+
+    except ET.ParseError as e:
+        logger.error(f"Error parsing task XML {task_file_path}: {e}")
+        return {"status": "error", "message": f"Error parsing task XML: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.exception(f"Unexpected error loading task XML {task_file_path}: {e}")
+        return {"status": "error", "message": f"Unexpected error loading task XML: {e}"}
 
 
 def modify_windows_task_handler(

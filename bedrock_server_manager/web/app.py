@@ -103,9 +103,7 @@ def run_web_server(host=None, debug=False):
         # return
 
     port = settings.get(f"{env_name}_PORT")
-    logger.info(
-        f"Starting web server. Debug mode: {debug}, Port: {port}"
-    ) 
+    logger.info(f"Starting web server. Debug mode: {debug}, Port: {port}")
 
     if host is None:
         # Bind to both IPv4 and IPv6

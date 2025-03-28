@@ -1392,15 +1392,150 @@ def add_windows_task_route(server_name):
 def modify_windows_task_route(server_name, task_name):
     base_dir = get_base_dir()
     config_dir = settings.CONFIG_DIR
-    logger.info(f"Modifying Windows task: {task_name} for server: {server_name}")
-    # TODO: Implement modify logic (similar to add, but loading existing task data)
-
-    return render_template(
-        "modify_windows_task.html",
-        server_name=server_name,
-        task_name=task_name,
-        app_name=app_name,
+    xml_file_path = os.path.join(config_dir, server_name, f"{task_name}.xml")
+    logger.info(
+        f"Modify Windows task route accessed for server: {server_name}, task: {task_name}, method: {request.method}"
     )
+
+    if request.method == "POST":
+        logger.debug(f"POST request received for modifying task: {task_name}")
+        # Handle form submission (modify task)
+        command = request.form.get("command")
+        logger.debug(f"Received command: {command}")
+        # Construct command arguments (similar to add)
+        if command == "update-server":
+            command_args = f"--server {server_name}"
+        elif command == "backup-all":
+            command_args = f"--server {server_name}"
+        elif command == "start-server":
+            command_args = f"--server {server_name}"
+        elif command == "stop-server":
+            command_args = f"--server {server_name}"
+        elif command == "restart-server":
+            command_args = f"--server {server_name}"
+        elif command == "scan-players":
+            command_args = ""
+        else:
+            logger.error(f"Invalid command selected: {command}")
+            flash("Invalid command selected.", "error")
+            # Reload existing data to re-render form with errors
+            existing_task_data = handlers.get_windows_task_details_handler(xml_file_path)
+            return render_template(
+                "modify_windows_task.html",
+                server_name=server_name,
+                task_name=task_name,
+                **existing_task_data,
+                app_name=app_name,
+            )
+
+        new_task_name = (
+            f"bedrock_{server_name}_{command.replace('-', '_')}"  # Rename task
+        )
+        logger.debug(f"New task name will be: {new_task_name}")
+
+        triggers = []
+        trigger_num = 1
+        while True:
+            trigger_type = request.form.get(f"trigger_type_{trigger_num}")
+            if not trigger_type:
+                break
+            trigger_data = {"type": trigger_type}
+            trigger_data["start"] = request.form.get(f"start_{trigger_num}")
+            if trigger_type == "Daily":
+                trigger_data["interval"] = int(
+                    request.form.get(f"interval_{trigger_num}")
+                )
+            elif trigger_type == "Weekly":
+                trigger_data["interval"] = int(
+                    request.form.get(f"interval_{trigger_num}")
+                )
+                days_of_week_str = request.form.get(f"days_of_week_{trigger_num}", "")
+                trigger_data["days"] = [
+                    day.strip() for day in days_of_week_str.split(",") if day.strip()
+                ]
+            elif trigger_type == "Monthly":
+                days_of_month_str = request.form.get(f"days_of_month_{trigger_num}", "")
+                trigger_data["days"] = [
+                    int(day.strip())
+                    for day in days_of_month_str.split(",")
+                    if day.strip().isdigit()
+                ]
+                months_str = request.form.get(f"months_{trigger_num}", "")
+                trigger_data["months"] = [
+                    month.strip() for month in months_str.split(",") if month.strip()
+                ]
+            triggers.append(trigger_data)
+            trigger_num += 1
+        logger.debug(f"Parsed triggers: {triggers}")
+
+        # Call the handler to modify the task
+        logger.info(
+            f"Calling handler to modify task '{task_name}' to '{new_task_name}'"
+        )
+        result = handlers.modify_windows_task_handler(
+            task_name,  # Old task name
+            server_name,
+            command,
+            command_args,
+            new_task_name,
+            config_dir,
+            triggers,
+            base_dir,
+        )
+
+        if result["status"] == "success":
+            logger.info(
+                f"Task '{task_name}' modified successfully! (New name: {new_task_name})"
+            )
+            flash(
+                f"Task '{task_name}' modified successfully! (New name: {new_task_name})",
+                "success",
+            )
+            return redirect(
+                url_for(
+                    "server_routes.schedule_tasks_windows_route",
+                    server_name=server_name,
+                )
+            )
+        else:
+            logger.error(f"Error modifying task '{task_name}': {result['message']}")
+            flash(f"Error modifying task: {result['message']}", "error")
+            # Load existing task data again for re-rendering
+            existing_task_data = _load_existing_task_data_for_modify(
+                xml_file_path
+            )  # Call helper function
+            return render_template(
+                "modify_windows_task.html",
+                server_name=server_name,
+                task_name=task_name,
+                **existing_task_data,
+                app_name=app_name,
+            )
+
+    else:  # GET request
+        logger.debug(f"GET request received for modifying task: {task_name}")
+        # Load existing task data from XML to pre-populate the form
+        existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
+        if "error" in existing_task_data:
+            logger.error(
+                f"Error loading task data for modification: {existing_task_data['error']}"
+            )
+            flash(f"Error loading task data: {existing_task_data['error']}", "error")
+            return redirect(
+                url_for(
+                    "server_routes.schedule_tasks_windows_route",
+                    server_name=server_name,
+                )
+            )
+
+        logger.debug(f"Rendering modification form with data: {existing_task_data}")
+        return render_template(
+            "modify_windows_task.html",
+            server_name=server_name,
+            task_name=task_name,
+            **existing_task_data,
+            app_name=app_name,
+        )
 
 
 @server_bp.route("/server/<server_name>/tasks/delete", methods=["POST"])
