@@ -1,0 +1,50 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/login.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{ app_name } - Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <style>
+        .login-container {
+            max-width: 450px;
+            margin-top: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container login-container">
+        <header class="header">
+            <h1>Login</h1>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message-box message-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if error %}
+            <div class="message-box message-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
+            <div class="form-group">
+                <label for="username" class="form-label">Username:</label>
+                <input type="text" id="username" name="username" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label for="password" class="form-label">Password:</label>
+                <input type="password" id="password" name="password" class="form-input" required>
+            </div>
+            <button type="submit" class="main-button">Login</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,13 +1,14 @@
 # bedrock-server-manager/bedrock_server_manager/web/app.py
 import os
-from waitress import serve
-from os.path import basename
 import logging
 import ipaddress
-from flask import Flask
 import secrets
+from waitress import serve
+from os.path import basename
+from flask import Flask, session
 from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes import server_routes
+from bedrock_server_manager.web.routes.auth_routes import auth_bp
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -32,11 +33,50 @@ def create_app():
     logger.debug(f"Template folder: {template_folder}")
     logger.debug(f"Static folder: {static_folder}")
 
-    # --- Set a SECRET KEY ---
-    app.config["SECRET_KEY"] = secrets.token_hex(16)
+    # --- Set a SECRET KEY (Crucial for sessions) ---
+    secret_key_env = f"{env_name}_SECRET"
+    secret_key_value = os.environ.get(secret_key_env)
+    if secret_key_value:
+        app.config["SECRET_KEY"] = secret_key_value
+        logger.info(f"Loaded SECRET_KEY from environment variable {secret_key_env}")
+    else:
+        app.config["SECRET_KEY"] = secrets.token_hex(16)
+        logger.warning(
+            f"Using randomly generated SECRET_KEY. "
+            f"Set {secret_key_env} environment variable for persistent sessions across restarts."
+        )
+    logger.debug("SECRET_KEY set")
 
+    # --- Load Authentication Credentials ---
+    username_env = f"{env_name}_WEB_USERNAME"
+    password_env = f"{env_name}_WEB_PASSWORD"
+    app.config[username_env] = os.environ.get(username_env)
+    app.config[password_env] = os.environ.get(password_env)
+
+    # --- Log a warning if credentials are not set ---
+    if not app.config[username_env] or not app.config[password_env]:
+        logger.warning(
+            f"Authentication environment variables ({username_env}, {password_env}) are not set."
+        )
+        logger.warning(
+            f"Using default admin:admin username:password. Consider changing these immediately."
+        )
+        app.config[username_env] = "admin"
+        app.config[password_env] = "admin"
+    else:
+        logger.info("Web authentication credentials loaded from environment variables.")
+
+    # --- Register Blueprints ---
     app.register_blueprint(server_routes.server_bp)
-    logger.debug("Registered blueprints")
+    app.register_blueprint(auth_bp)  # Register the auth blueprint
+    logger.debug("Registered blueprints: server_routes, auth_routes")
+
+    # --- Add context processor to make login status available to templates ---
+    @app.context_processor
+    def inject_user():
+        return dict(is_logged_in=session.get("logged_in", False))
+
+    logger.debug("Registered context processor: inject_user")
 
     return app
 
@@ -51,8 +91,21 @@ def run_web_server(host=None, debug=False):
         debug (bool): Whether to run in Flask's debug mode.
     """
     app = create_app()
+
+    # --- Check credentials before starting server (optional but recommended) ---
+    username_env = f"{env_name}_WEB_USERNAME"
+    password_env = f"{env_name}_WEB_PASSWORD"
+    if not app.config.get(username_env) or not app.config.get(password_env):
+        logger.error(
+            f"Cannot start web server: {username_env} or {password_env} environment variables are not set."
+        )
+        # You might want to exit here instead of just logging
+        # return
+
     port = settings.get(f"{env_name}_PORT")
-    logger.debug(f"Starting web server. Debug mode: {debug}, Port: {port}")
+    logger.info(
+        f"Starting web server. Debug mode: {debug}, Port: {port}"
+    ) 
 
     if host is None:
         # Bind to both IPv4 and IPv6

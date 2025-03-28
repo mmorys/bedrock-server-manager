@@ -1,15 +1,15 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/server_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+import os
+import platform
+import logging
 import json
 from bedrock_server_manager import handlers
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.config.settings import EXPATH, app_name
 from bedrock_server_manager.core.server import server as server_base
-import os
-from flask import jsonify
-import platform
-import logging
+from bedrock_server_manager.web.routes.auth_routes import login_required
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -17,6 +17,7 @@ server_bp = Blueprint("server_routes", __name__)
 
 
 @server_bp.route("/")
+@login_required
 def index():
     base_dir = get_base_dir()
     # Use the handler to get server status.
@@ -31,6 +32,7 @@ def index():
 
 
 @server_bp.route("/manage_servers")
+@login_required
 def manage_server_route():
     base_dir = get_base_dir()
     # Use the handler to get server status.
@@ -45,6 +47,7 @@ def manage_server_route():
 
 
 @server_bp.route("/advanced_menu")
+@login_required
 def advanced_menu_route():
     base_dir = get_base_dir()
     # Use the handler to get server status.
@@ -72,6 +75,7 @@ def start_server_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/stop", methods=["GET", "POST"])
+@login_required
 def stop_server_route(server_name):
     base_dir = get_base_dir()
     response = handlers.stop_server_handler(server_name, base_dir)
@@ -85,6 +89,7 @@ def stop_server_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/restart", methods=["GET", "POST"])
+@login_required
 def restart_server_route(server_name):
     base_dir = get_base_dir()
     response = handlers.restart_server_handler(server_name, base_dir)
@@ -100,6 +105,7 @@ def restart_server_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/send", methods=["POST"])
+@login_required
 def send_command_route(server_name):
     base_dir = get_base_dir()
     data = request.get_json()  # Get the JSON data from the request body
@@ -117,6 +123,7 @@ def send_command_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/update", methods=["GET", "POST"])
+@login_required
 def update_server_route(server_name):
     base_dir = get_base_dir()
     response = handlers.update_server_handler(server_name, base_dir=base_dir)
@@ -130,6 +137,7 @@ def update_server_route(server_name):
 
 
 @server_bp.route("/install", methods=["GET", "POST"])
+@login_required
 def install_server_route():
     if request.method == "POST":
         server_name = request.form["server_name"]
@@ -144,7 +152,9 @@ def install_server_route():
             logger.warning(
                 f"Attempted to install server {server_name} with empty version."
             )
-            return render_template("install.html", server_name=server_name, app_name=app_name)
+            return render_template(
+                "install.html", server_name=server_name, app_name=app_name
+            )
         if ";" in server_name:
             flash("Server name cannot contain semicolons.", "error")
             logger.warning(
@@ -159,7 +169,10 @@ def install_server_route():
                 f"Server name validation failed: {validation_result['message']}"
             )
             return render_template(
-                "install.html", server_name=server_name, server_version=server_version, app_name=app_name
+                "install.html",
+                server_name=server_name,
+                server_version=server_version,
+                app_name=app_name,
             )
 
         base_dir = get_base_dir()
@@ -190,7 +203,10 @@ def install_server_route():
             flash(result["message"], "error")
             logger.error(f"Error installing server {server_name}: {result['message']}")
             return render_template(
-                "install.html", server_name=server_name, server_version=server_version, app_name=app_name
+                "install.html",
+                server_name=server_name,
+                server_version=server_version,
+                app_name=app_name,
             )
         elif result["status"] == "confirm":
             logger.info(
@@ -201,7 +217,7 @@ def install_server_route():
                 confirm_delete=True,
                 server_name=result["server_name"],
                 server_version=result["server_version"],
-                app_name=app_name
+                app_name=app_name,
             )
         elif result["status"] == "success":
             logger.info(
@@ -224,6 +240,7 @@ def install_server_route():
 
 
 @server_bp.route("/install/confirm", methods=["POST"])
+@login_required
 def confirm_install_route():
     server_name = request.form.get("server_name")
     server_version = request.form.get("server_version")
@@ -251,7 +268,10 @@ def confirm_install_route():
                 f"Error deleting existing server data for {server_name}: {delete_result['message']}"
             )
             return render_template(
-                "install.html", server_name=server_name, server_version=server_version, app_name=app_name
+                "install.html",
+                server_name=server_name,
+                server_version=server_version,
+                app_name=app_name,
             )
 
         # Call install_new_server_handler AGAIN, after deletion.
@@ -265,7 +285,10 @@ def confirm_install_route():
                 f"Error installing server {server_name} after deletion: {install_result['message']}"
             )
             return render_template(
-                "install.html", server_name=server_name, server_version=server_version, app_name=app_name
+                "install.html",
+                server_name=server_name,
+                server_version=server_version,
+                app_name=app_name,
             )
 
         elif install_result["status"] == "success":
@@ -300,6 +323,7 @@ def confirm_install_route():
 
 
 @server_bp.route("/server/<server_name>/delete", methods=["POST"])
+@login_required
 def delete_server_route(server_name):
     base_dir = get_base_dir()
     config_dir = settings.get("CONFIG_DIR")
@@ -318,6 +342,7 @@ def delete_server_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/configure_properties", methods=["GET", "POST"])
+@login_required
 def configure_properties_route(server_name):
     base_dir = get_base_dir()
     server_dir = os.path.join(base_dir, server_name)
@@ -377,7 +402,7 @@ def configure_properties_route(server_name):
                         server_name=server_name,
                         properties=current_properties,
                         new_install=new_install,
-                        app_name=app_name
+                        app_name=app_name,
                     )
                 properties_to_update[key] = value
         modify_response = handlers.modify_server_properties_handler(
@@ -399,7 +424,7 @@ def configure_properties_route(server_name):
                 server_name=server_name,
                 properties=current_properties,
                 new_install=new_install,
-                app_name=app_name
+                app_name=app_name,
             )
 
         # Write server config
@@ -464,11 +489,12 @@ def configure_properties_route(server_name):
             server_name=server_name,
             properties=properties_response["properties"],
             new_install=new_install,
-            app_name=app_name
+            app_name=app_name,
         )
 
 
 @server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET", "POST"])
+@login_required
 def configure_allowlist_route(server_name):
     base_dir = get_base_dir()
     new_install_str = request.args.get(
@@ -523,7 +549,7 @@ def configure_allowlist_route(server_name):
                 server_name=server_name,
                 existing_players=result.get("existing_players", []),
                 new_install=new_install,
-                app_name=app_name
+                app_name=app_name,
             )
 
     else:  # GET request
@@ -541,11 +567,12 @@ def configure_allowlist_route(server_name):
             server_name=server_name,
             existing_players=existing_players,
             new_install=new_install,
-            app_name=app_name
+            app_name=app_name,
         )
 
 
 @server_bp.route("/server/<server_name>/configure_permissions", methods=["GET", "POST"])
+@login_required
 def configure_permissions_route(server_name):
     base_dir = get_base_dir()
     new_install_str = request.args.get("new_install", "False")
@@ -645,11 +672,12 @@ def configure_permissions_route(server_name):
             players=players,
             permissions=permissions,
             new_install=new_install,
-            app_name=app_name
+            app_name=app_name,
         )
 
 
 @server_bp.route("/server/<server_name>/configure_service", methods=["GET", "POST"])
+@login_required
 def configure_service_route(server_name):
     base_dir = get_base_dir()
     new_install_str = request.args.get("new_install", "False")
@@ -677,7 +705,7 @@ def configure_service_route(server_name):
                     autoupdate=autoupdate,
                     autostart=autostart,
                     new_install=new_install,
-                    app_name=app_name
+                    app_name=app_name,
                 )
 
         elif platform.system() == "Windows":
@@ -697,7 +725,7 @@ def configure_service_route(server_name):
                     os=platform.system(),
                     autoupdate=autoupdate,
                     new_install=new_install,
-                    app_name=app_name
+                    app_name=app_name,
                 )
         else:
             flash("Unsupported operating system for service configuration.", "error")
@@ -734,7 +762,7 @@ def configure_service_route(server_name):
                 server_name=server_name,
                 os=platform.system(),
                 new_install=new_install,
-                app_name=app_name
+                app_name=app_name,
             )
         elif platform.system() == "Windows":
             # Get current autoupdate setting from config.json
@@ -753,7 +781,7 @@ def configure_service_route(server_name):
                 os=platform.system(),
                 autoupdate=autoupdate,  # Pass the boolean value
                 new_install=new_install,
-                app_name=app_name
+                app_name=app_name,
             )
         else:
             flash("Unsupported operating system for service configuration.", "error")
@@ -764,16 +792,23 @@ def configure_service_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/backup", methods=["GET"])
+@login_required
 def backup_menu_route(server_name):
-    return render_template("backup_menu.html", server_name=server_name, app_name=app_name)
+    return render_template(
+        "backup_menu.html", server_name=server_name, app_name=app_name
+    )
 
 
 @server_bp.route("/server/<server_name>/backup/config", methods=["GET"])
+@login_required
 def backup_config_select_route(server_name):
-    return render_template("backup_config_options.html", server_name=server_name, app_name=app_name)
+    return render_template(
+        "backup_config_options.html", server_name=server_name, app_name=app_name
+    )
 
 
 @server_bp.route("/server/<server_name>/backup/action", methods=["POST"])
+@login_required
 def backup_action_route(server_name):
     base_dir = get_base_dir()
     backup_type = request.form.get("backup_type")  # "world", "config", or "all"
@@ -823,13 +858,17 @@ def backup_action_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/restore", methods=["GET"])
+@login_required
 def restore_menu_route(server_name):
     """Displays the restore menu."""
     logger.info(f"Displaying restore menu for server: {server_name}")
-    return render_template("restore_menu.html", server_name=server_name, app_name=app_name)
+    return render_template(
+        "restore_menu.html", server_name=server_name, app_name=app_name
+    )
 
 
 @server_bp.route("/server/<server_name>/restore/select", methods=["POST"])
+@login_required
 def restore_select_backup_route(server_name):
     """Displays the list of available backups for the selected type."""
     base_dir = get_base_dir()
@@ -872,11 +911,12 @@ def restore_select_backup_route(server_name):
         server_name=server_name,
         restore_type=restore_type,
         backups=list_response["backups"],
-        app_name=app_name
+        app_name=app_name,
     )
 
 
 @server_bp.route("/server/<server_name>/restore/action", methods=["POST"])
+@login_required
 def restore_action_route(server_name):
     """Performs the actual restoration based on the selected backup file and type."""
     base_dir = get_base_dir()
@@ -915,6 +955,7 @@ def restore_action_route(server_name):
 
 
 @server_bp.route("/install_content")
+@login_required
 def install_content_menu_route():
     base_dir = get_base_dir()
     # Use the handler to get server status.
@@ -929,6 +970,7 @@ def install_content_menu_route():
 
 
 @server_bp.route("/server/<server_name>/install_world", methods=["GET", "POST"])
+@login_required
 def install_world_route(server_name):
     base_dir = get_base_dir()
     content_dir = os.path.join(settings.get("CONTENT_DIR"), "worlds")
@@ -957,7 +999,7 @@ def install_world_route(server_name):
                     "confirm_world_overwrite.html",
                     server_name=server_name,
                     selected_file=selected_file,
-                    app_name=app_name
+                    app_name=app_name,
                 )
             else:
                 # World does not exist
@@ -994,11 +1036,15 @@ def install_world_route(server_name):
             world_files = result["files"]
             logger.debug(f"Found world files: {world_files}")
         return render_template(
-            "select_world.html", server_name=server_name, world_files=world_files, app_name=app_name
+            "select_world.html",
+            server_name=server_name,
+            world_files=world_files,
+            app_name=app_name,
         )
 
 
 @server_bp.route("/server/<server_name>/install_world/confirm", methods=["POST"])
+@login_required
 def confirm_world_overwrite_route(server_name):
     base_dir = get_base_dir()
     selected_file = request.form.get("selected_file")
@@ -1033,6 +1079,7 @@ def confirm_world_overwrite_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/install_addon", methods=["GET", "POST"])
+@login_required
 def install_addon_route(server_name):
     base_dir = get_base_dir()
     content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
@@ -1068,11 +1115,15 @@ def install_addon_route(server_name):
             addon_files = result["files"]
             logger.debug(f"Found addon files: {addon_files}")
         return render_template(
-            "select_addon.html", server_name=server_name, addon_files=addon_files, app_name=app_name
+            "select_addon.html",
+            server_name=server_name,
+            addon_files=addon_files,
+            app_name=app_name,
         )
 
 
 @server_bp.route("/server/<server_name>/monitor")
+@login_required
 def monitor_server_route(server_name):
     """Displays the server monitoring page."""
     logger.info(f"Displaying monitoring page for server: {server_name}")
@@ -1080,6 +1131,7 @@ def monitor_server_route(server_name):
 
 
 @server_bp.route("/api/server/<server_name>/status")
+@login_required
 def server_status_api(server_name):
     """Provides server status information as JSON."""
     base_dir = get_base_dir()
@@ -1089,6 +1141,7 @@ def server_status_api(server_name):
 
 
 @server_bp.route("/server/<server_name>/schedule", methods=["GET"])
+@login_required
 def schedule_tasks_route(server_name):
     base_dir = get_base_dir()
     # Get cron jobs using the handler
@@ -1117,11 +1170,12 @@ def schedule_tasks_route(server_name):
         server_name=server_name,
         table_data=table_data,
         EXPATH=EXPATH,
-        app_name=app_name
+        app_name=app_name,
     )
 
 
 @server_bp.route("/server/<server_name>/schedule/add", methods=["POST"])
+@login_required
 def add_cron_job_route(server_name):
     base_dir = get_base_dir()
     data = request.get_json()
@@ -1139,6 +1193,7 @@ def add_cron_job_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/schedule/modify", methods=["POST"])
+@login_required
 def modify_cron_job_route(server_name):
     base_dir = get_base_dir()
     data = request.get_json()
@@ -1166,6 +1221,7 @@ def modify_cron_job_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/schedule/delete", methods=["POST"])
+@login_required
 def delete_cron_job_route(server_name):
     base_dir = get_base_dir()
     data = request.get_json()
@@ -1181,6 +1237,7 @@ def delete_cron_job_route(server_name):
 
 
 @server_bp.route("/server/<server_name>/tasks", methods=["GET"])
+@login_required
 def schedule_tasks_windows_route(server_name):
     """Displays the Windows Task Scheduler UI."""
     base_dir = get_base_dir()
@@ -1219,11 +1276,15 @@ def schedule_tasks_windows_route(server_name):
             tasks = task_info_response["task_info"]
 
     return render_template(
-        "schedule_tasks_windows.html", server_name=server_name, tasks=tasks, app_name=app_name
+        "schedule_tasks_windows.html",
+        server_name=server_name,
+        tasks=tasks,
+        app_name=app_name,
     )
 
 
 @server_bp.route("/server/<server_name>/tasks/add", methods=["GET", "POST"])
+@login_required
 def add_windows_task_route(server_name):
     base_dir = get_base_dir()
     config_dir = settings.get("CONFIG_DIR")
@@ -1246,7 +1307,9 @@ def add_windows_task_route(server_name):
         else:
             flash("Invalid command selected.", "error")
             logger.warning(f"Invalid command selected for Windows task: {command}")
-            return render_template("add_windows_task.html", server_name=server_name, app_name=app_name)
+            return render_template(
+                "add_windows_task.html", server_name=server_name, app_name=app_name
+            )
 
         task_name = f"bedrock_{server_name}_{command.replace('-', '_')}"
         triggers = []
@@ -1313,14 +1376,19 @@ def add_windows_task_route(server_name):
             logger.error(
                 f"Error adding task '{task_name}' for {server_name}: {result['message']}"
             )
-            return render_template("add_windows_task.html", server_name=server_name, app_name=app_name)
+            return render_template(
+                "add_windows_task.html", server_name=server_name, app_name=app_name
+            )
 
-    return render_template("add_windows_task.html", server_name=server_name, app_name=app_name)
+    return render_template(
+        "add_windows_task.html", server_name=server_name, app_name=app_name
+    )
 
 
 @server_bp.route(
     "/server/<server_name>/tasks/modify/<task_name>", methods=["GET", "POST"]
 )
+@login_required
 def modify_windows_task_route(server_name, task_name):
     base_dir = get_base_dir()
     config_dir = settings.CONFIG_DIR
@@ -1328,11 +1396,15 @@ def modify_windows_task_route(server_name, task_name):
     # TODO: Implement modify logic (similar to add, but loading existing task data)
 
     return render_template(
-        "modify_windows_task.html", server_name=server_name, task_name=task_name, app_name=app_name
+        "modify_windows_task.html",
+        server_name=server_name,
+        task_name=task_name,
+        app_name=app_name,
     )
 
 
 @server_bp.route("/server/<server_name>/tasks/delete", methods=["POST"])
+@login_required
 def delete_windows_task_route(server_name):
     base_dir = get_base_dir()
     config_dir = settings.CONFIG_DIR
