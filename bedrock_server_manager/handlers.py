@@ -1757,15 +1757,15 @@ def restore_config_file_handler(
                 return stop_result
 
     try:
-        restore_result = backup.restore_server(
+        backup.restore_server(
             server_name, backup_file, "config", base_dir
         )
-        logger.debug(f"Config file restored for {server_name} from {backup_file}")
-        if restore_result["status"] == "error":
-            return restore_result
     except Exception as e:
         logger.exception(f"Error restoring config file for {server_name}: {e}")
         return {"status": "error", "message": f"Error restoring config file: {e}"}
+        
+    logger.debug(f"Config file restored for {server_name} from {backup_file}")
+
     if stop_start_server and was_running:
         logger.debug(f"Restarting server {server_name} after config file restore")
         start_result = start_server_handler(server_name, base_dir)
