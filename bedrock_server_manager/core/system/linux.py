@@ -414,7 +414,7 @@ def get_server_cron_jobs(server_name):
 
     if not server_name:
         raise InvalidServerNameError("get_server_cron_jobs: server_name is empty.")
-    logger.info(f"Getting cron jobs for server: {server_name}")
+    logger.debug(f"get_server_cron_jobs: getting cron jobs for server: {server_name}")
 
     try:
         result = subprocess.run(
@@ -519,7 +519,7 @@ def get_cron_jobs_table(cron_jobs):
     table_data = []
     if not cron_jobs:
         return table_data
-    logger.info("Formatting cron jobs into table data")
+    logger.debug("Formatting cron jobs into table data")
 
     for line in cron_jobs:
         parsed_job = _parse_cron_line(line)

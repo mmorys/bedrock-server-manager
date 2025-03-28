@@ -2038,7 +2038,7 @@ def get_server_cron_jobs_handler(server_name, base_dir=None):
         dict: {"status": "success", "cron_jobs": [...]} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-    logger.info(f"Retrieving cron jobs for server: {server_name}")
+    logger.debug(f"Getting cron jobs for server: {server_name}")
     try:
         cron_jobs = system_linux.get_server_cron_jobs(server_name)
         logger.debug(f"Cron jobs for {server_name}: {cron_jobs}")
