@@ -108,9 +108,9 @@ def set_server_folder_permissions(server_dir):
                 for d in dirs:
                     os.chown(os.path.join(root, d), real_user, real_group)
                     os.chmod(os.path.join(root, d), 0o775)
-                    logger.debug(
+                    """logger.debug(
                         f"Set permissions on directory: {os.path.join(root, d)}"
-                    )
+                    )"""
                 for f in files:
                     file_path = os.path.join(root, f)
                     os.chown(file_path, real_user, real_group)
@@ -119,7 +119,7 @@ def set_server_folder_permissions(server_dir):
                         logger.debug(f"Set execute permissions on: {file_path}")
                     else:
                         os.chmod(file_path, 0o664)
-                        logger.debug(f"Set permissions on file: {file_path}")
+                        """logger.debug(f"Set permissions on file: {file_path}")"""
             logger.info("Folder permissions set.")
         except OSError as e:
             logger.error(f"Failed to set server folder permissions: {e}")
