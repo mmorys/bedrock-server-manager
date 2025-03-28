@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
 </head>
 <body>
     <div class="container">
@@ -14,14 +16,16 @@
             <h1>Backup Server: {{ server_name }}</h1>
         </header>
 
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
         <section class="backup-menu-section">
-            <form action="{{ url_for('server_routes.backup_action_route', server_name=server_name) }}" method="post">
-                <p>What do you want to backup?</p>
-                <button type="submit" name="backup_type" value="world" class="action-link">Backup World</button>
-                <button type="submit" name="backup_type" value="config" class="action-link">Backup Configuration File</button>
-                <button type="submit" name="backup_type" value="all" class="action-link">Backup All</button>
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
-            </form>
+            <p>What do you want to backup?</p>
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-link">Backup World Now</button>
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-link">Backup All Now</button>
+
+            <a href="{{ url_for('server_routes.backup_config_select_route', server_name=server_name) }}" class="action-link">Backup Specific Config File...</a>
+
+            <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
         </section>
     </div>
 </body>

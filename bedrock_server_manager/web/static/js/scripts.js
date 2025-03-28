@@ -225,3 +225,114 @@ function deleteServer(buttonElement, serverName) {
         showStatusMessage('Deletion cancelled.', 'info');
     }
 }
+
+
+function triggerBackup(buttonElement, serverName, backupType) {
+
+    console.log(`ENTERED triggerBackup - Server: ${serverName}, Type: ${backupType}, Button:`, buttonElement);
+
+    if (backupType === 'all') {
+        console.log("Checking confirmation for 'all' backup...");
+        if (!confirm(`Performing a full backup (world + config) for '${serverName}'. This might take a moment. Continue?`)) {
+            console.log("Full backup cancelled by user.");
+            showStatusMessage('Full backup cancelled.', 'info');
+            return;
+        }
+        console.log("Confirmation received for 'all' backup.");
+    }
+
+    const requestBody = {
+        backup_type: backupType
+    };
+    console.log("Constructed request body:", requestBody);
+
+    // Call the helper function, sending the type in the JSON body
+    console.log("Calling sendServerActionRequest..."); // --- Log before call ---
+    sendServerActionRequest(serverName, 'backup/action', 'POST', requestBody, buttonElement);
+    console.log("Returned from sendServerActionRequest call (async)."); // --- Log after call ---
+}
+
+/**
+ * Triggers a backup operation for a specific config file passed directly.
+ * @param {HTMLElement} buttonElement The button that was clicked.
+ * @param {string} serverName The name of the server.
+ * @param {string} filename The specific config file to backup.
+ */
+function triggerSpecificConfigBackup(buttonElement, serverName, filename) {
+    if (!filename) {
+        console.error("triggerSpecificConfigBackup called without a filename!");
+        showStatusMessage("Internal error: No filename specified for backup.", "error");
+        return;
+    }
+
+    console.log(`ENTERED triggerBackup - Server: ${serverName}, Type: ${backupType}, Button:`, buttonElement);
+    console.log(`triggerSpecificConfigBackup called for server: ${serverName}, file: ${filename}`);
+
+    const requestBody = {
+        backup_type: 'config',
+        file_to_backup: filename
+    };
+
+    // Call the helper function, sending type and file in the JSON body
+    // Use the updated sendServerActionRequest which handles the path 'backup/action'
+    sendServerActionRequest(serverName, 'backup/action', 'POST', requestBody, buttonElement);
+}
+
+/**
+ * Triggers a restoration operation from a specific backup file.
+ * @param {HTMLElement} buttonElement The button that was clicked.
+ * @param {string} serverName The name of the server.
+ * @param {string} restoreType 'world' or 'config'.
+ * @param {string} backupFile The filename of the backup to restore.
+ */
+function triggerRestore(buttonElement, serverName, restoreType, backupFile) {
+    if (!backupFile) {
+        console.error("triggerRestore called without backupFile!");
+        showStatusMessage("Internal error: No backup file specified for restore.", "error");
+        return;
+    }
+    if (!restoreType) {
+        console.error("triggerRestore called without restoreType!");
+        showStatusMessage("Internal error: No restore type specified.", "error");
+        return;
+    }
+
+
+    console.log(`triggerRestore called for server: ${serverName}, type: ${restoreType}, file: ${backupFile}`);
+
+    // Confirmation dialog
+    if (!confirm(`Are you sure you want to restore '${backupFile}' for server '${serverName}'?\nThis will overwrite current ${restoreType} data.`)) {
+        console.log("Restore cancelled by user.");
+        showStatusMessage('Restore operation cancelled.', 'info');
+        return;
+    }
+    console.log("Restore confirmed by user.");
+
+    const requestBody = {
+        restore_type: restoreType,
+        backup_file: backupFile
+    };
+
+    // Call the helper function, using the modified actionPath structure
+    // The action path should match the Flask route
+    sendServerActionRequest(serverName, 'restore/action', 'POST', requestBody, buttonElement);
+}
+
+/**
+ * Triggers restoring all files for a server.
+ * @param {HTMLElement} buttonElement The button that was clicked.
+ * @param {string} serverName The name of the server.
+ */
+function triggerRestoreAll(buttonElement, serverName) {
+    console.log(`triggerRestoreAll called for server: ${serverName}`);
+
+    // Confirmation dialog
+    if (!confirm(`Are you sure you want to restore ALL backup files for server '${serverName}'?\nThis will overwrite current world and config files.`)) {
+        console.log("Restore All cancelled by user.");
+        showStatusMessage('Restore All operation cancelled.', 'info');
+        return;
+    }
+    console.log("Restore All confirmed by user.");
+
+    sendServerActionRequest(serverName, 'restore/all', 'POST', null, buttonElement);
+}

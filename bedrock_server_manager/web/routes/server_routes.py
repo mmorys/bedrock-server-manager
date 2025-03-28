@@ -151,10 +151,7 @@ def send_command_route(server_name):
     logger.info(f"API request received for {server_name}, command: {command}")
     result = handlers.send_command_handler(server_name, command, base_dir)
 
-    # Assuming send_command_handler returns a dict with status/message
-    status_code = (
-        200 if result.get("status") == "success" else 500
-    )  # Or maybe 400 if command failed validation?
+    status_code = 200 if result.get("status") == "success" else 500
     if status_code != 200:
         logger.error(
             f"API Error sending command to {server_name}: {result.get('message', 'Unknown error')}"
@@ -863,51 +860,57 @@ def backup_config_select_route(server_name):
 @server_bp.route("/server/<server_name>/backup/action", methods=["POST"])
 @login_required
 def backup_action_route(server_name):
+    """API endpoint to trigger a server backup."""
     base_dir = get_base_dir()
-    backup_type = request.form.get("backup_type")  # "world", "config", or "all"
-    file_to_backup = request.form.get(
-        "file_to_backup"
-    )  # Will be None unless backup_type is "config"
+    data = request.get_json() # Expect JSON data
+
+    if not data:
+        logger.warning(f"API Backup request for {server_name}: Empty JSON body received.")
+        return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
+
+    backup_type = data.get("backup_type")  # "world", "config", or "all"
+    file_to_backup = data.get("file_to_backup") # Optional, only for type "config"
 
     if not backup_type:
-        flash("Invalid backup type.", "error")
-        logger.warning(
-            f"Invalid backup request for {server_name}: No backup type specified."
-        )
-        return redirect(url_for("server_routes.manage_server_route"))
+        logger.warning(f"API Backup request for {server_name}: Missing 'backup_type' in JSON body.")
+        return jsonify({"status": "error", "message": "Missing 'backup_type' in request body."}), 400
 
+    # Validate config backup request
     if backup_type == "config" and not file_to_backup:
-        logger.warning(
-            f"Invalid backup request for {server_name}: No file selected for config backup."
-        )
-        return redirect(
-            url_for("server_routes.backup_config_select_route", server_name=server_name)
-        )
-    logger.info(
-        f"Performing backup for server: {server_name}, type: {backup_type}, file: {file_to_backup}"
-    )
+        logger.warning(f"API Backup request for {server_name}: Missing 'file_to_backup' for config backup type.")
+        return jsonify({"status": "error", "message": "Missing 'file_to_backup' for config backup type."}), 400
+
+    logger.info(f"API request received to perform backup for server: {server_name}, type: {backup_type}, file: {file_to_backup or 'N/A'}")
+
+    result = None
     if backup_type == "world":
         result = handlers.backup_world_handler(server_name, base_dir)
     elif backup_type == "config":
-        result = handlers.backup_config_file_handler(
-            server_name, file_to_backup, base_dir
-        )
+        result = handlers.backup_config_file_handler(server_name, file_to_backup, base_dir)
     elif backup_type == "all":
         result = handlers.backup_all_handler(server_name, base_dir)
     else:
-        flash("Invalid backup type.", "error")
-        logger.error(f"Invalid backup type specified: {backup_type}")
-        return redirect(url_for("server_routes.manage_server_route"))
+        logger.error(f"API Backup request for {server_name}: Invalid backup_type specified: {backup_type}")
+        return jsonify({"status": "error", "message": "Invalid backup type specified."}), 400
 
-    if result["status"] == "error":
-        flash(f"Backup failed: {result['message']}", "error")
-        logger.error(f"Backup failed for {server_name}: {result['message']}")
+    # Determine status code - backups might take time, so 202 Accepted could also be suitable
+    # For now, let's use 200 on success reported by handler, 500 on error.
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Backup API request for {server_name} (type: {backup_type}) completed successfully according to handler.")
     else:
-        flash("Backup completed successfully!", "success")
-        logger.info(f"Backup completed successfully for {server_name}")
+        error_message = result.get('message', 'Unknown backup error') if result else 'Backup handler failed unexpectedly'
+        logger.error(f"API Backup failed for {server_name} (type: {backup_type}): {error_message}")
+        # Ensure result is a dict even if handler failed badly
+        if not result:
+             result = {"status": "error", "message": "Backup handler failed unexpectedly"}
+        elif "status" not in result:
+             result["status"] = "error" # Ensure status is set
 
-    # Always redirect back to the main index page after backup
-    return redirect(url_for("server_routes.manage_server_route"))
+
+    # Return JSON result from the handler
+    return jsonify(result), status_code
 
 
 @server_bp.route("/server/<server_name>/restore", methods=["GET"])
@@ -920,91 +923,112 @@ def restore_menu_route(server_name):
     )
 
 
+@server_bp.route("/server/<server_name>/restore/action", methods=["POST"])
+@login_required
+def restore_action_route(server_name):
+    """API endpoint to trigger a server restoration from a specific backup."""
+    base_dir = get_base_dir()
+    data = request.get_json() # Expect JSON data
+
+    if not data:
+        logger.warning(f"API Restore request for {server_name}: Empty JSON body received.")
+        return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
+
+    backup_file = data.get("backup_file")
+    restore_type = data.get("restore_type") # "world" or "config"
+
+    if not backup_file or not restore_type:
+        logger.warning(f"API Restore request for {server_name}: Missing 'backup_file' or 'restore_type' in JSON body.")
+        return jsonify({"status": "error", "message": "Missing 'backup_file' or 'restore_type' in request body."}), 400
+
+    # Optional: Add extra validation for file names or types if needed
+
+    logger.info(f"API request received to restore server: {server_name}, type: {restore_type}, file: {backup_file}")
+
+    result = None
+    if restore_type == "world":
+        result = handlers.restore_world_handler(server_name, backup_file, base_dir)
+    elif restore_type == "config":
+        # Make sure your handler can deduce the original filename from the backup filename
+        # or that the backup_file variable contains enough info.
+        result = handlers.restore_config_file_handler(server_name, backup_file, base_dir)
+        # Note: Restore 'all' is handled directly in restore_select_backup_route currently.
+        # If you wanted an API for that, you'd add another elif here or a separate route.
+    else:
+        logger.error(f"API Restore request for {server_name}: Invalid restore_type specified: {restore_type}")
+        return jsonify({"status": "error", "message": "Invalid restore type specified (must be 'world' or 'config')."}), 400
+
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Restore API request for {server_name} (type: {restore_type}, file: {backup_file}) completed successfully according to handler.")
+    else:
+        error_message = result.get('message', 'Unknown restore error') if result else 'Restore handler failed unexpectedly'
+        logger.error(f"API Restore failed for {server_name} (type: {restore_type}, file: {backup_file}): {error_message}")
+        # Ensure result is a dict even if handler failed badly
+        if not result:
+             result = {"status": "error", "message": "Restore handler failed unexpectedly"}
+        elif "status" not in result:
+             result["status"] = "error" # Ensure status is set
+
+    return jsonify(result), status_code
+    
+
 @server_bp.route("/server/<server_name>/restore/select", methods=["POST"])
 @login_required
 def restore_select_backup_route(server_name):
-    """Displays the list of available backups for the selected type."""
+    """Displays the list of available backups for the selected type (world or config)."""
     base_dir = get_base_dir()
     restore_type = request.form.get("restore_type")
-    if not restore_type:
-        flash("No restore type selected.", "error")
-        logger.warning(
-            f"Restore request for {server_name} with no restore type selected."
-        )
-        return redirect(url_for("server_routes.index"))
 
-    logger.info(
-        f"Displaying backup selection for restore type '{restore_type}' for server: {server_name}"
-    )
+    if not restore_type or restore_type not in ["world", "config"]:
+        flash("Invalid restore type selected.", "error")
+        logger.warning(f"Restore selection request for {server_name} with invalid type: {restore_type}")
+        # Redirect back to the menu where they came from
+        return redirect(url_for("server_routes.restore_menu_route", server_name=server_name))
 
-    # Handle "Restore All" as a special case, since there's no selection.
-    if restore_type == "all":
-        result = handlers.restore_all_handler(server_name, base_dir)
-        if result["status"] == "error":
-            flash(f"Error restoring all files: {result['message']}", "error")
-            logger.error(
-                f"Error restoring all files for {server_name}: {result['message']}"
-            )
-        else:
-            flash("All files restored successfully!", "success")
-            logger.info(f"All files restored successfully for {server_name}")
-        return redirect(url_for("server_routes.manage_server_route"))
+    logger.info(f"Listing backups for restore type '{restore_type}' for server: {server_name}")
 
-    # Handle other backup types (world, config)
+    # List backups for 'world' or 'config'
     list_response = handlers.list_backups_handler(server_name, restore_type, base_dir)
+
     if list_response["status"] == "error":
         flash(f"Error listing backups: {list_response['message']}", "error")
-        logger.error(
-            f"Error listing backups for {server_name} ({restore_type}): {list_response['message']}"
-        )
-        return redirect(url_for("server_routes.manage_server_route"))
+        logger.error(f"Error listing backups for {server_name} ({restore_type}): {list_response['message']}")
+        # Redirect back to the menu
+        return redirect(url_for("server_routes.restore_menu_route", server_name=server_name))
 
+    # Render the selection page
     return render_template(
         "restore_select_backup.html",
         server_name=server_name,
         restore_type=restore_type,
-        backups=list_response["backups"],
+        backups=list_response.get("backups", []), # Use .get with default
         app_name=app_name,
     )
 
 
-@server_bp.route("/server/<server_name>/restore/action", methods=["POST"])
+@server_bp.route("/server/<server_name>/restore/all", methods=["POST"])
 @login_required
-def restore_action_route(server_name):
-    """Performs the actual restoration based on the selected backup file and type."""
+def restore_all_api_route(server_name):
+    """API endpoint to trigger restoring all files for a server."""
     base_dir = get_base_dir()
-    backup_file = request.form.get("backup_file")
-    restore_type = request.form.get("restore_type")
+    logger.info(f"API request received to restore all files for server: {server_name}")
 
-    if not backup_file or not restore_type:
-        flash("Invalid restore request.", "error")
-        logger.warning(
-            f"Invalid restore request for {server_name}: Missing backup file or restore type."
-        )
-        return redirect(url_for("server_routes.manage_server_route"))
+    # Call the handler directly
+    result = handlers.restore_all_handler(server_name, base_dir)
 
-    logger.info(
-        f"Restoring server: {server_name}, type: {restore_type}, file: {backup_file}"
-    )
-    if restore_type == "world":
-        result = handlers.restore_world_handler(server_name, backup_file, base_dir)
-    elif restore_type == "config":
-        result = handlers.restore_config_file_handler(
-            server_name, backup_file, base_dir
-        )
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(f"Restore All API request for {server_name} completed successfully.")
     else:
-        flash("Invalid restore type.", "error")
-        logger.error(f"Invalid restore type specified: {restore_type}")
-        return redirect(url_for("server_routes.manage_server_route"))
+        error_message = result.get('message', 'Unknown restore error') if result else 'Restore All handler failed unexpectedly'
+        logger.error(f"API Restore All failed for {server_name}: {error_message}")
+        if not result: result = {"status": "error", "message": "Restore All handler failed unexpectedly"}
+        elif "status" not in result: result["status"] = "error"
 
-    if result["status"] == "error":
-        flash(f"Error during restoration: {result['message']}", "error")
-        logger.error(f"Error during restoration for {server_name}: {result['message']}")
-    else:
-        flash("Restoration completed successfully!", "success")
-        logger.info(f"Restoration completed successfully for {server_name}")
-
-    return redirect(url_for("server_routes.manage_server_route"))
+    return jsonify(result), status_code
 
 
 @server_bp.route("/install_content")
