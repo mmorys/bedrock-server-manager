@@ -147,7 +147,9 @@ def get_windows_task_info(task_names):
     """
     if not isinstance(task_names, list):
         raise TypeError("task_names must be a list")
-    logger.debug(f"get_windows_task_info: getting Windows task info for tasks: {task_names}")
+    logger.debug(
+        f"get_windows_task_info: getting Windows task info for tasks: {task_names}"
+    )
     task_info_list = []
     for task_name in task_names:
         try:
