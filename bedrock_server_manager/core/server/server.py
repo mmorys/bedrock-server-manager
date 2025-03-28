@@ -1119,9 +1119,9 @@ def delete_server_data(server_name, base_dir, config_dir=None):
 
     elif platform.system() == "Windows":
         system_base.remove_readonly(server_dir)
-        logger.debug("Removed read-only attribute from server directory (Windows)")
+        logger.debug("Removed read-only attribute from server directory")
         system_base.remove_readonly(config_dir)
-        logger.debug("Removed read-only attribute from config directory (Windows)")
+        logger.debug("Removed read-only attribute from config directory")
 
     # Remove the server directory
     logger.debug(f"Deleting server directory: {server_dir}")
@@ -1145,7 +1145,7 @@ def delete_server_data(server_name, base_dir, config_dir=None):
             f"Failed to delete config directory: {config_folder}: {e}"
         ) from e
 
-    logger.info(f"Server {server_name} data deleted successfully.")
+    logger.debug(f"delete_server_data: {server_name}'s' data was deleted successfully.")
 
 
 def start_server_if_was_running(server_name, base_dir, was_running):

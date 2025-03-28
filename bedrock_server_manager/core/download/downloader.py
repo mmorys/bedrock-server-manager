@@ -299,15 +299,15 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
 
                         if zip_info.is_dir():
                             os.makedirs(target_path, exist_ok=True)
-                            logger.debug(f"Created directory: {target_path}")
+                            """logger.debug(f"Created directory: {target_path}")"""
                         else:
                             # Ensure the directory for the file exists:
                             os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                            logger.debug(
+                            """logger.debug(
                                 f"Created directory for file: {os.path.dirname(target_path)}"
-                            )
+                            )"""
                             zip_ref.extract(zip_info, server_dir)
-                            logger.debug(f"Extracted: {target_path}")
+                            """logger.debug(f"Extracted: {target_path}")"""
 
             else:
                 logger.info("Extracting server files...")

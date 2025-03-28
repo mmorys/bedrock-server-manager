@@ -2180,7 +2180,7 @@ def get_server_task_names_handler(server_name, config_dir=None):
     """
     if config_dir is None:
         config_dir = settings._config_dir
-    logger.info(f"Getting task names for server: {server_name}")
+    logger.debug(f"Getting task names for server: {server_name}")
     try:
         task_names = system_windows.get_server_task_names(server_name, config_dir)
         logger.debug(f"Task names for {server_name}: {task_names}")
@@ -2199,7 +2199,7 @@ def get_windows_task_info_handler(task_names):
     Returns:
         dict: {"status": "success", "task_info": [...]} or {"status": "error", "message": ...}
     """
-    logger.info(f"Getting Windows task info for tasks: {task_names}")
+    logger.debug(f"Getting Windows task info for tasks: {task_names}")
     try:
         task_info = system_windows.get_windows_task_info(task_names)
         logger.debug(f"Task info: {task_info}")
@@ -2411,7 +2411,7 @@ def start_web_server_handler(host=None, debug=False, mode="direct"):
 def stop_web_server_handler(script_dir=SCRIPT_DIR):
     script_dir = settings.get("BASE_DIR")
     try:
-        return {"status": "success"}
+        logger.warning("Not implemented")
     except Exception as e:
         logger.exception(f"Error starting process: {e}")
         return {"status": "error", "message": str(e)}

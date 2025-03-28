@@ -147,7 +147,7 @@ def get_windows_task_info(task_names):
     """
     if not isinstance(task_names, list):
         raise TypeError("task_names must be a list")
-    logger.info(f"Getting Windows task info for tasks: {task_names}")
+    logger.debug(f"get_windows_task_info: getting Windows task info for tasks: {task_names}")
     task_info_list = []
     for task_name in task_names:
         try:
@@ -432,7 +432,7 @@ def import_task_xml(xml_file_path, task_name):
         raise FileOperationError(
             f"import_task_xml: XML file not found: {xml_file_path}"
         )
-    logger.info(f"Importing task XML: {xml_file_path} as {task_name}")
+    logger.debug(f"Importing task XML: {xml_file_path} as {task_name}")
     try:
         result = subprocess.run(
             ["schtasks", "/Create", "/TN", task_name, "/XML", xml_file_path, "/F"],
