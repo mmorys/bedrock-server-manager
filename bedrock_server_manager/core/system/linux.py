@@ -37,6 +37,7 @@ def check_service_exists(server_name):
     service_file = os.path.join(
         os.path.expanduser("~"), ".config", "systemd", "user", f"{service_name}.service"
     )
+    logger.debug(f"Checking if service file exists: {service_file}")
     return os.path.exists(service_file)
 
 
@@ -67,6 +68,7 @@ def enable_user_lingering():
             logger.debug(f"Lingering is already enabled for {username}")
             return  # Already enabled
     except FileNotFoundError:
+        logger.error("loginctl command not found. Lingering cannot be checked/enabled.")
         raise CommandNotFoundError(
             "loginctl",
             message="loginctl command not found. Lingering cannot be checked/enabled.",
@@ -83,10 +85,12 @@ def enable_user_lingering():
         )
         logger.info(f"Lingering enabled for {username}")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to enable lingering for {username}.  Error: {e}")
         raise SystemdReloadError(
             f"Failed to enable lingering for {username}.  Error: {e}"
         ) from e
     except FileNotFoundError:
+        logger.error("loginctl or sudo command not found. Lingering cannot be enabled.")
         raise CommandNotFoundError(
             "loginctl or sudo",
             message="loginctl or sudo command not found. Lingering cannot be enabled.",
@@ -121,10 +125,13 @@ def _create_systemd_service(server_name, base_dir, autoupdate):
     )
 
     systemd_dir = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user")
+    logger.debug(f"Creating systemd service file: {service_file}")
     # Catch OSError when creating directories
     try:
         os.makedirs(systemd_dir, exist_ok=True)
+        logger.debug(f"Created directory: {systemd_dir}")
     except OSError as e:
+        logger.error(f"Failed to create systemd directory: {systemd_dir}: {e}")
         raise ServiceError(
             f"Failed to create systemd directory: {systemd_dir}: {e}"
         ) from e
@@ -169,14 +176,17 @@ WantedBy=default.target
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
             logger.debug("systemd daemon reloaded.")
         except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to reload systemd daemon: {e}")
             raise SystemdReloadError(f"Failed to reload systemd daemon: {e}") from e
         except FileNotFoundError:
+            logger.error("systemctl command not found.  Is systemd installed?")
             raise CommandNotFoundError(
                 "systemctl",
                 message="systemctl command not found.  Is systemd installed?",
             ) from None
 
     except OSError as e:
+        logger.error(f"Failed to write systemd service file: {service_file}: {e}")
         raise ServiceError(
             f"Failed to write systemd service file: {service_file}: {e}"
         ) from e
@@ -199,8 +209,10 @@ def _enable_systemd_service(server_name):
         raise InvalidServerNameError("_enable_systemd_service: server_name is empty.")
 
     service_name = f"bedrock-{server_name}"
+    logger.debug(f"Enabling systemd service: {service_name}")
 
     if not check_service_exists(server_name):
+        logger.error(f"Service file for {server_name} does not exist. Cannot enable.")
         raise ServiceError(
             f"Service file for {server_name} does not exist. Cannot enable."
         )
@@ -217,6 +229,9 @@ def _enable_systemd_service(server_name):
             logger.debug(f"Service {service_name} is already enabled.")
             return
     except FileNotFoundError:
+        logger.error(
+            "systemctl command not found, make sure you are on a systemd system"
+        )
         raise CommandNotFoundError(
             "systemctl",
             message="systemctl command not found, make sure you are on a systemd system",
@@ -226,6 +241,7 @@ def _enable_systemd_service(server_name):
         subprocess.run(["systemctl", "--user", "enable", service_name], check=True)
         logger.info(f"Autostart for {server_name} enabled successfully.")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to enable {server_name}: {e}")
         raise ServiceError(f"Failed to enable {server_name}: {e}") from e
 
 
@@ -247,6 +263,7 @@ def _disable_systemd_service(server_name):
         raise InvalidServerNameError("_disable_systemd_service: server_name is empty.")
 
     service_name = f"bedrock-{server_name}"
+    logger.debug(f"Disabling systemd service: {service_name}")
 
     if not check_service_exists(server_name):
         logger.debug(
@@ -266,6 +283,9 @@ def _disable_systemd_service(server_name):
             logger.debug(f"Service {service_name} is already disabled.")
             return
     except FileNotFoundError:
+        logger.error(
+            "systemctl command not found, make sure you are on a systemd system"
+        )
         raise CommandNotFoundError(
             "systemctl",
             message="systemctl command not found, make sure you are on a systemd system",
@@ -275,6 +295,7 @@ def _disable_systemd_service(server_name):
         subprocess.run(["systemctl", "--user", "disable", service_name], check=True)
         logger.info(f"Server {service_name} disabled successfully.")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to disable {server_name}: {e}")
         raise ServiceError(f"Failed to disable {server_name}: {e}") from e
 
 
@@ -289,11 +310,12 @@ def _systemd_start_server(server_name, server_dir):
         ServerStartError: If the server fails to start.
         CommandNotFoundError: If the 'screen' command is not found.
     """
-
+    logger.debug(f"_systemd_start_server: starting server {server_name}...")
     # Clear server_output.txt
     try:
         with open(os.path.join(server_dir, "server_output.txt"), "w") as f:
             f.write("Starting Server\n")
+        logger.debug("Cleared server_output.txt")
     except OSError:
         logger.warning("Failed to truncate server_output.txt.  Continuing...")
         # Not critical, so don't raise an exception.
@@ -314,8 +336,10 @@ def _systemd_start_server(server_name, server_dir):
         subprocess.run(screen_command, check=True)
         logger.info(f"Server {server_name} started in screen session.")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to start server with screen: {e}")
         raise ServerStartError(f"Failed to start server with screen: {e}") from e
     except FileNotFoundError:
+        logger.error("screen command not found.  Is screen installed?")
         raise CommandNotFoundError(
             "screen", message="screen command not found.  Is screen installed?"
         ) from None
@@ -332,7 +356,7 @@ def _systemd_stop_server(server_name, server_dir):
         ServerStopError: If the server fails to stop.
         CommandNotFoundError: If pgrep or screen is not found
     """
-    logger.debug(f"Stopping server {server_name}...")
+    logger.debug(f"_systemd_stop_server: stopping server {server_name}...")
 
     # Find and kill the screen session.
     try:
@@ -361,10 +385,12 @@ def _systemd_stop_server(server_name, server_dir):
             )
 
     except FileNotFoundError:
+        logger.error("pgrep or screen command not found.")
         raise CommandNotFoundError(
             "pgrep or screen", message="pgrep or screen command not found."
         ) from None
     except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
         raise ServerStopError(f"An unexpected error occurred: {e}") from e
 
 
@@ -388,6 +414,7 @@ def get_server_cron_jobs(server_name):
 
     if not server_name:
         raise InvalidServerNameError("get_server_cron_jobs: server_name is empty.")
+    logger.debug(f"get_server_cron_jobs: getting cron jobs for server: {server_name}")
 
     try:
         result = subprocess.run(
@@ -399,6 +426,7 @@ def get_server_cron_jobs(server_name):
             return []
         elif result.returncode != 0:
             # Other error
+            logger.error(f"Error running crontab -l: {result.stderr}")
             raise ScheduleError(f"Error running crontab -l: {result.stderr}")
 
         cron_jobs = result.stdout
@@ -411,14 +439,16 @@ def get_server_cron_jobs(server_name):
         if not filtered_jobs:
             logger.warning(f"No scheduled cron jobs found for {server_name}.")
             return "undefined"  # No jobs found for this server
-
+        logger.debug(f"Found cron jobs for {server_name}: {filtered_jobs}")
         return filtered_jobs
 
     except FileNotFoundError:
+        logger.error("crontab command not found.  Is cron installed?")
         raise CommandNotFoundError(
             "crontab", message="crontab command not found.  Is cron installed?"
         ) from None
     except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
         raise ScheduleError(f"An unexpected error occurred: {e}") from e
 
 
@@ -489,6 +519,7 @@ def get_cron_jobs_table(cron_jobs):
     table_data = []
     if not cron_jobs:
         return table_data
+    logger.debug("Formatting cron jobs into table data")
 
     for line in cron_jobs:
         parsed_job = _parse_cron_line(line)
@@ -512,6 +543,7 @@ def get_cron_jobs_table(cron_jobs):
                     "schedule_time": schedule_time,
                 }
             )
+            logger.debug(f"Formatted cron job: {table_data[-1]}")
     return table_data
 
 
@@ -527,6 +559,7 @@ def _add_cron_job(cron_string):
     if platform.system() != "Linux":
         return
 
+    logger.info(f"Adding cron job: {cron_string}")
     try:
         # Get existing cron jobs
         result = subprocess.run(
@@ -537,6 +570,7 @@ def _add_cron_job(cron_string):
             if "no crontab for" in result.stderr.lower():
                 existing_crontab = ""  # Start with an empty crontab
             else:
+                logger.error(f"Error running crontab -l: {result.stderr}")
                 raise ScheduleError(f"Error running crontab -l: {result.stderr}")
 
         # Add the new job and write back to crontab
@@ -544,15 +578,19 @@ def _add_cron_job(cron_string):
         process = subprocess.Popen(["crontab", "-"], stdin=subprocess.PIPE, text=True)
         process.communicate(input=new_crontab)
         if process.returncode != 0:
+            logger.error(f"Failed to add cron job: {cron_string}")
             raise subprocess.CalledProcessError(process.returncode, "crontab")
         logger.debug(f"Cron job added: {cron_string}")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to add cron job: {e}")
         raise ScheduleError(f"Failed to add cron job: {e}") from e
     except FileNotFoundError:
+        logger.error("crontab command not found")
         raise CommandNotFoundError(
             "crontab", message="crontab command not found"
         ) from None
     except Exception as e:
+        logger.error(f"An unexpected error: {e}")
         raise ScheduleError(f"An unexpected error: {e}") from e
 
 
@@ -574,11 +612,15 @@ def validate_cron_input(value, min_val, max_val):
         # Check for simple integer values
         num = int(value)
         if not (min_val <= num <= max_val):
+            logger.error(
+                f"Invalid cron input: {value} is out of range ({min_val}-{max_val})"
+            )
             raise InvalidCronJobError(
                 f"Invalid cron input: {value} is out of range ({min_val}-{max_val})"
             )
 
     except ValueError:
+        logger.error(f"Invalid cron input: {value} is not a valid integer or '*'")
         raise InvalidCronJobError(
             f"Invalid cron input: {value} is not a valid integer or '*'"
         ) from None
@@ -592,7 +634,9 @@ def convert_to_readable_schedule(month, day_of_month, hour, minute, day_of_week)
     validate_cron_input(hour, 0, 23)
     validate_cron_input(minute, 0, 59)
     validate_cron_input(day_of_week, 0, 7)
-
+    logger.debug(
+        f"Converting cron schedule to readable format: {minute} {hour} {day_of_month} {month} {day_of_week}"
+    )
     # Handle the all-wildcards case FIRST.
     if (
         month == "*"
@@ -640,10 +684,16 @@ def convert_to_readable_schedule(month, day_of_month, hour, minute, day_of_week)
                     next_run = next_run.replace(year=now.year + 1)
                 return next_run.strftime("%m/%d/%Y %H:%M")
             except ValueError:
+                logger.error(
+                    f"Invalid date/time values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
+                )
                 raise InvalidCronJobError(
                     f"Invalid date/time values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
                 ) from None
     except ValueError:
+        logger.error(
+            f"Invalid values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
+        )
         raise InvalidCronJobError(
             f"Invalid values in cron schedule: {minute} {hour} {day_of_month} {month} {day_of_week}"
         ) from None
@@ -662,7 +712,7 @@ def _modify_cron_job(old_cron_string, new_cron_string):
     """
     if platform.system() != "Linux":
         return
-
+    logger.info(f"Modifying cron job. Old: {old_cron_string} New: {new_cron_string}")
     try:
         # Get existing cron jobs
         result = subprocess.run(
@@ -670,10 +720,12 @@ def _modify_cron_job(old_cron_string, new_cron_string):
         )
         existing_crontab = result.stdout
         if result.returncode != 0 and "no crontab" not in result.stderr.lower():
+            logger.error(f"Error running crontab -l: {result.stderr}")
             raise ScheduleError(f"Error running crontab -l: {result.stderr}")
 
         # Check if the old job exists.  If not, it's an error.
         if old_cron_string not in existing_crontab:
+            logger.error(f"Cron job to modify not found: {old_cron_string}")
             raise ScheduleError(f"Cron job to modify not found: {old_cron_string}")
 
         # Replace the old job with the new job
@@ -686,17 +738,21 @@ def _modify_cron_job(old_cron_string, new_cron_string):
         process = subprocess.Popen(["crontab", "-"], stdin=subprocess.PIPE, text=True)
         process.communicate(input=updated_crontab)
         if process.returncode != 0:
+            logger.error(f"Failed to add cron job: {new_cron_string}")
             raise subprocess.CalledProcessError(process.returncode, "crontab")
         logger.debug(
             f"Cron job modified. Old: {old_cron_string} New: {new_cron_string}"
         )
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to update crontab with modified job: {e}")
         raise ScheduleError(f"Failed to update crontab with modified job: {e}") from e
     except FileNotFoundError:
+        logger.error("crontab command not found")
         raise CommandNotFoundError(
             "crontab", message="crontab command not found"
         ) from None
     except Exception as e:
+        logger.error(f"Unexpected error: {e}")
         raise ScheduleError(f"Unexpected error: {e}") from e
 
 
@@ -712,7 +768,7 @@ def _delete_cron_job(cron_string):
     """
     if platform.system() != "Linux":
         return
-
+    logger.info(f"Deleting cron job: {cron_string}")
     try:
         # Get existing cron jobs
         result = subprocess.run(
@@ -720,6 +776,7 @@ def _delete_cron_job(cron_string):
         )
         existing_crontab = result.stdout
         if result.returncode != 0 and "no crontab" not in result.stderr.lower():
+            logger.error(f"Error running crontab -l: {result.stderr}")
             raise ScheduleError(f"Error running crontab -l: {result.stderr}")
 
         # Check if the job exists. If not, just return (not an error)
@@ -741,13 +798,17 @@ def _delete_cron_job(cron_string):
         process = subprocess.Popen(["crontab", "-"], stdin=subprocess.PIPE, text=True)
         process.communicate(input=updated_crontab)
         if process.returncode != 0:
+            logger.error(f"Failed to add cron job: {cron_string}")
             raise subprocess.CalledProcessError(process.returncode, "crontab")
         logger.debug(f"Cron job deleted: {cron_string}")
     except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to update crontab: {e}")
         raise ScheduleError(f"Failed to update crontab: {e}") from e
     except FileNotFoundError:
+        logger.error("crontab command not found")
         raise CommandNotFoundError(
             "crontab", message="crontab command not found"
         ) from None
     except Exception as e:
+        logger.error(f"An unexpected error has occurred: {e}")
         raise ScheduleError(f"An unexpected error has occurred: {e}") from e

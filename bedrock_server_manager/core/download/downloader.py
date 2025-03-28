@@ -6,7 +6,7 @@ import logging
 import glob
 import os
 import zipfile
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.error import (
     DownloadExtractError,
@@ -76,18 +76,23 @@ def lookup_bedrock_download_url(target_version):
         else:
             regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockWindows"'
     else:
+        logger.error("Unsupported operating system for server download.")
         raise OSError("Unsupported operating system for server download.")
 
     try:
         headers = {
-            "User-Agent": "zvortex11325/bedrock-server-manager",
+            "User-Agent": f"zvortex11325/{app_name}",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept": "text/html",
         }
         response = requests.get(download_page, headers=headers, timeout=30)
         response.raise_for_status()
         download_page_content = response.text
+        logger.debug(
+            f"Fetched download page content, length: {len(download_page_content)}"
+        )
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch download page content: {e}")
         raise InternetConnectivityError(
             f"Failed to fetch download page content: {e}"
         ) from e
@@ -103,9 +108,10 @@ def lookup_bedrock_download_url(target_version):
                 rf"\g<1>{custom_version}\g<2>",
                 resolved_download_url,
             )
-        logger.debug("Resolved download URL lookup OK.")
+        logger.info(f"Resolved download URL: {resolved_download_url}")
         return resolved_download_url
     else:
+        logger.error(f"Could not find a valid download URL for {version_type}.")
         raise DownloadExtractError(
             f"Could not find a valid download URL for {version_type}."
         )
@@ -130,8 +136,10 @@ def get_version_from_url(download_url):
     match = re.search(r"bedrock-server-([0-9.]+)", download_url)
     if match:
         version = match.group(1)
+        logger.debug(f"Extracted version from URL: {version}")
         return version.rstrip(".")
     else:
+        logger.error("Failed to extract version from URL.")
         raise DownloadExtractError("Failed to extract version from URL.")
 
 
@@ -179,8 +187,9 @@ def prune_old_downloads(download_dir, download_keep):
             for file_path in files_to_delete:
                 try:
                     os.remove(file_path)
-                    logger.debug(f"Deleted: {file_path}")
+                    logger.info(f"Deleted: {file_path}")
                 except OSError as e:
+                    logger.error(f"Failed to delete old server download: {e}")
                     raise FileOperationError(
                         f"Failed to delete old server download: {e}"
                     ) from e
@@ -190,6 +199,7 @@ def prune_old_downloads(download_dir, download_keep):
                 f"Found less than {download_keep} downloads. Skipping cleanup."
             )
     except (OSError, ValueError) as e:
+        logger.error(f"An error occurred while managing downloads: {e}")
         raise FileOperationError(
             f"An error occurred while managing downloads: {e}"
         ) from e
@@ -215,22 +225,27 @@ def download_server_zip_file(download_url, zip_file):
     logger.debug(f"Resolved download URL: {download_url}")
 
     try:
-        headers = {"User-Agent": "zvortex11325/bedrock-server-manager"}
+        headers = {"User-Agent": f"zvortex11325/{app_name}"}
         response = requests.get(download_url, headers=headers, stream=True, timeout=30)
         response.raise_for_status()
+        logger.debug(f"Download response status code: {response.status_code}")
 
         with open(zip_file, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+            logger.debug(f"Wrote {f.tell()} bytes to file")
 
-        logger.debug(f"Downloaded Bedrock server ZIP to: {zip_file}")
+        logger.info(f"Downloaded Bedrock server ZIP to: {zip_file}")
     except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to download Bedrock server from {download_url}: {e}")
         raise InternetConnectivityError(
             f"Failed to download Bedrock server from {download_url}: {e}"
         ) from e
     except OSError as e:
+        logger.error(f"Failed to write to ZIP file: {e}")
         raise FileOperationError(f"Failed to write to ZIP file: {e}") from e
     except Exception as e:
+        logger.error(f"An unexpected error occurred during download: {e}")
         raise FileOperationError(
             f"An unexpected error occurred during download: {e}"
         ) from e
@@ -256,6 +271,7 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
             "extract_server_files_from_zip: server_dir is empty."
         )
 
+    logger.debug(f"Extracting server files from {zip_file} to {server_dir}")
     try:
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             if in_update:
@@ -266,6 +282,7 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
                     "permissions.json",
                     "server.properties",
                 }
+                logger.debug(f"Files to exclude during update: {files_to_exclude}")
 
                 for zip_info in zip_ref.infolist():
                     normalized_filename = zip_info.filename.replace("\\", "/")
@@ -282,23 +299,34 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
 
                         if zip_info.is_dir():
                             os.makedirs(target_path, exist_ok=True)
+                            """logger.debug(f"Created directory: {target_path}")"""
                         else:
                             # Ensure the directory for the file exists:
                             os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                            """logger.debug(
+                                f"Created directory for file: {os.path.dirname(target_path)}"
+                            )"""
                             zip_ref.extract(zip_info, server_dir)
+                            """logger.debug(f"Extracted: {target_path}")"""
 
             else:
                 logger.info("Extracting server files...")
                 zip_ref.extractall(server_dir)
+                logger.debug(f"Extracted all files to: {server_dir}")
 
         logger.info("Server files extracted successfully.")
     except zipfile.BadZipFile:
+        logger.error(
+            f"Failed to extract server files: {zip_file} is not a valid ZIP file."
+        )
         raise DownloadExtractError(
             f"Failed to extract server files: {zip_file} is not a valid ZIP file."
         )
     except OSError as e:
+        logger.error(f"Failed to extract server files: {e}")
         raise FileOperationError(f"Failed to extract server files: {e}") from e
     except Exception as e:
+        logger.error(f"A unexpected error has occurred: {e}")
         raise FileOperationError(f"A unexpected error has occurred: {e}") from e
 
 
@@ -329,12 +357,16 @@ def download_bedrock_server(server_dir, target_version="LATEST"):
 
     try:
         os.makedirs(server_dir, exist_ok=True)
+        logger.debug(f"Created server directory: {server_dir}")
         os.makedirs(download_dir, exist_ok=True)
+        logger.debug(f"Created download directory: {download_dir}")
     except OSError as e:
+        logger.error(f"Failed to create directories: {e}")
         raise FileOperationError(f"Failed to create directories: {e}") from e
 
     download_url = lookup_bedrock_download_url(target_version)
     current_version = get_version_from_url(download_url)
+    logger.info(f"Current version: {current_version}")
 
     target_version_upper = target_version.upper()
 
@@ -349,7 +381,9 @@ def download_bedrock_server(server_dir, target_version="LATEST"):
 
     try:
         os.makedirs(download_dir, exist_ok=True)
+        logger.debug(f"Created download subdirectory: {download_dir}")
     except OSError as e:
+        logger.error(f"Failed to create download subdirectory: {e}")
         raise FileOperationError(f"Failed to create download subdirectory: {e}") from e
 
     zip_file = os.path.join(download_dir, f"bedrock-server-{current_version}.zip")
@@ -358,7 +392,7 @@ def download_bedrock_server(server_dir, target_version="LATEST"):
         logger.info(f"Downloading server version {current_version}.")
         download_server_zip_file(download_url, zip_file)  # Raises exception on failure
     else:
-        logger.debug(
+        logger.info(
             f"Bedrock server version {current_version} is already downloaded. Skipping download."
         )
 

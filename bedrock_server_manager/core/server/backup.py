@@ -40,12 +40,12 @@ def prune_old_backups(backup_dir, backup_keep, file_prefix="", file_extension=""
         raise MissingArgumentError("prune_old_backups: backup_dir is empty.")
 
     if not os.path.isdir(backup_dir):
-        logger.debug(
+        logger.info(
             f"Backup directory does not exist: {backup_dir}.  Nothing to prune."
         )
         return  # Not an error if the directory doesn't exist
 
-    logger.debug("Pruning old backups...")
+    logger.info("Pruning old backups...")
 
     # Construct the glob pattern
     if file_prefix and file_extension:
@@ -55,24 +55,34 @@ def prune_old_backups(backup_dir, backup_keep, file_prefix="", file_extension=""
     elif file_extension:
         glob_pattern = os.path.join(backup_dir, f"*.{file_extension}")
     else:
+        logger.error("Must have either file prefix or file extension")
         raise InvalidInputError("Must have either file prefix or file extension")
+
+    logger.debug(f"Glob pattern for pruning: {glob_pattern}")
 
     # Prune backups
     try:
         backups = sorted(glob.glob(glob_pattern), key=os.path.getmtime, reverse=True)
+        logger.debug(f"Found backups: {backups}")
         backups_to_keep = int(backup_keep)  # Could raise ValueError
         if len(backups) > backups_to_keep:
             logger.debug(f"Keeping the {backups_to_keep} most recent backups.")
             files_to_delete = backups[backups_to_keep:]
             for old_backup in files_to_delete:
                 try:
-                    logger.debug(f"Removing old backup: {old_backup}")
+                    logger.info(f"Removing old backup: {old_backup}")
                     os.remove(old_backup)
                 except OSError as e:
+                    logger.error(f"Failed to remove {old_backup}: {e}")
                     raise FileOperationError(
                         f"Failed to remove {old_backup}: {e}"
                     ) from e
+        else:
+            logger.debug(
+                f"Number of backups ({len(backups)}) is less than or equal to keep count ({backups_to_keep}). Skipping pruning."
+            )
     except ValueError:
+        logger.error("backup_keep must be a valid integer.")
         raise ValueError("backup_keep must be a valid integer.") from None
 
 
@@ -89,6 +99,9 @@ def backup_world(server_name, world_path, backup_dir):
         # Other exceptions may be raised by world.export_world
     """
     if not os.path.isdir(world_path):
+        logger.error(
+            f"World directory '{world_path}' does not exist. Skipping world backup."
+        )
         raise DirectoryError(
             f"World directory '{world_path}' does not exist. Skipping world backup."
         )
@@ -98,7 +111,7 @@ def backup_world(server_name, world_path, backup_dir):
         backup_dir, f"{os.path.basename(world_path)}_backup_{timestamp}.mcworld"
     )
 
-    logger.debug(f"Backing up world folder '{world_path}'...")
+    logger.info(f"Backing up world folder '{world_path}' to {backup_file}...")
     world.export_world(world_path, backup_file)  # Let export_world raise exceptions
 
 
@@ -116,6 +129,7 @@ def backup_config_file(file_to_backup, backup_dir):
     if not file_to_backup:
         raise MissingArgumentError("backup_config_file: file_to_backup is empty.")
     if not os.path.exists(file_to_backup):
+        logger.error(f"Configuration file '{file_to_backup}' not found!")
         raise FileOperationError(f"Configuration file '{file_to_backup}' not found!")
 
     file_name = os.path.basename(file_to_backup)
@@ -124,10 +138,12 @@ def backup_config_file(file_to_backup, backup_dir):
         backup_dir,
         f"{os.path.splitext(file_name)[0]}_backup_{timestamp}.{file_name.split('.')[-1]}",
     )
+    logger.debug(f"Backing up config file: {file_to_backup} to {destination}")
     try:
         shutil.copy2(file_to_backup, destination)
-        logger.debug(f"{file_name} backed up to {backup_dir}")
+        logger.info(f"{file_name} backed up to {backup_dir}")
     except OSError as e:
+        logger.error(f"Failed to copy '{file_to_backup}' to '{backup_dir}': {e}")
         raise FileOperationError(
             f"Failed to copy '{file_to_backup}' to '{backup_dir}': {e}"
         ) from e
@@ -155,20 +171,27 @@ def backup_server(server_name, backup_type, base_dir, file_to_backup=None):
 
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
     os.makedirs(backup_dir, exist_ok=True)
+    logger.debug(f"Backup directory: {backup_dir}")
 
     if backup_type == "world":
+        logger.info(f"Performing world backup for server: {server_name}")
         try:
             world_name = server.get_world_name(server_name, base_dir)
             if world_name is None or not world_name:  # check for empty string
+                logger.error("Could not determine world name; backup may not function")
                 raise BackupWorldError(
                     "Could not determine world name; backup may not function"
                 )
             world_path = os.path.join(base_dir, server_name, "worlds", world_name)
             backup_world(server_name, world_path, backup_dir)
         except Exception as e:
+            logger.error(f"World backup failed: {e}")
             raise BackupWorldError(f"World backup failed: {e}") from e
 
     elif backup_type == "config":
+        logger.info(
+            f"Performing config backup for server: {server_name}, file: {file_to_backup}"
+        )
         if not file_to_backup:
             raise MissingArgumentError(
                 "backup_server: file_to_backup is empty when backup_type is config."
@@ -178,6 +201,7 @@ def backup_server(server_name, backup_type, base_dir, file_to_backup=None):
         backup_config_file(full_file_path, backup_dir)  # Let it raise exceptions
 
     else:
+        logger.error(f"Invalid backup type: {backup_type}")
         raise InvalidInputError(f"Invalid backup type: {backup_type}")
 
 
@@ -197,16 +221,20 @@ def backup_all(server_name, base_dir=None):
     if not server_name:
         raise MissingArgumentError("backup_all: server_name is empty.")
 
+    logger.info(f"Performing full backup for server: {server_name}")
     try:
         backup_server(server_name, "world", base_dir, "")
     except Exception as e:  # Catch any exception
+        logger.error(f"World backup failed: {e}")
         raise BackupWorldError(f"World backup failed: {e}") from e
 
     config_files = ["allowlist.json", "permissions.json", "server.properties"]
     for config_file in config_files:
+        logger.info(f"Backing up config file: {config_file}")
         try:
             backup_server(server_name, "config", base_dir, file_to_backup=config_file)
         except Exception as e:
+            logger.error(f"Config file backup failed ({config_file}): {e}")
             raise BackupWorldError(
                 f"Config file backup failed ({config_file}): {e}"
             ) from e
@@ -228,6 +256,7 @@ def restore_config_file(backup_file, server_dir):
     if not server_dir:
         raise MissingArgumentError("restore_config_file: server_dir is empty.")
     if not os.path.exists(backup_file):
+        logger.error(f"Backup file '{backup_file}' not found!")
         raise FileOperationError(f"Backup file '{backup_file}' not found!")
 
     base_name = os.path.basename(backup_file).split("_backup_")[0]
@@ -239,11 +268,14 @@ def restore_config_file(backup_file, server_dir):
 
     target_file = os.path.join(server_dir, f"{base_name}.{file_extension}")
 
-    logger.debug(f"Restoring configuration file: {os.path.basename(backup_file)}")
+    logger.info(
+        f"Restoring configuration file: {os.path.basename(backup_file)} to {target_file}"
+    )
     try:
         shutil.copy2(backup_file, target_file)
         logger.info(f"Configuration file restored to {target_file}")
     except OSError as e:
+        logger.error(f"Failed to restore configuration file: {e}")
         raise FileOperationError(f"Failed to restore configuration file: {e}") from e
 
 
@@ -264,6 +296,7 @@ def restore_server(server_name, backup_file, restore_type, base_dir):
 
     """
     server_dir = os.path.join(base_dir, server_name)
+    logger.debug(f"Server directory: {server_dir}")
 
     if not server_name:
         raise MissingArgumentError("restore_server: server_name is empty.")
@@ -273,14 +306,20 @@ def restore_server(server_name, backup_file, restore_type, base_dir):
         raise MissingArgumentError("restore_server: restore_type is empty.")
 
     if not os.path.exists(backup_file):
+        logger.error(f"Backup file '{backup_file}' not found!")
         raise FileOperationError(f"Backup file '{backup_file}' not found!")
 
     if restore_type == "world":
+        logger.info(f"Restoring world for server: {server_name} from {backup_file}")
         world.import_world(server_name, backup_file, base_dir)
 
     elif restore_type == "config":
+        logger.info(
+            f"Restoring config file for server: {server_name} from {backup_file}"
+        )
         restore_config_file(backup_file, server_dir)
     else:
+        logger.error(f"Invalid restore type in restore_server: {restore_type}")
         raise InvalidInputError(
             f"Invalid restore type in restore_server: {restore_type}"
         )
@@ -299,21 +338,26 @@ def restore_all(server_name, base_dir):
         FileOperationError: If backup directory does not exist.
     """
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
+    logger.debug(f"Backup directory: {backup_dir}")
 
     if not server_name:
         raise MissingArgumentError("restore_all: server_name is empty.")
 
     if not os.path.isdir(backup_dir):
-        logger.debug(f"No backups found for {server_name}.")
+        logger.info(f"No backups found for {server_name}.")
         return  # Not an error if no backups exist
+
+    logger.info(f"Restoring all latest backups for server: {server_name}")
 
     # Find and restore the latest world backup
     world_backups = glob.glob(os.path.join(backup_dir, "*.mcworld"))
     if world_backups:
         latest_world = max(world_backups, key=os.path.getmtime)
+        logger.info(f"Latest world backup: {latest_world}")
         try:
             restore_server(server_name, latest_world, "world", base_dir)
         except Exception as e:
+            logger.error(f"Failed to restore world: {e}")
             raise RestoreError(f"Failed to restore world: {e}") from e
     else:
         logger.warning("No world backups found.")
@@ -324,9 +368,11 @@ def restore_all(server_name, base_dir):
     )
     if properties_backups:
         latest_properties = max(properties_backups, key=os.path.getmtime)
+        logger.info(f"Latest properties backup: {latest_properties}")
         try:
             restore_server(server_name, latest_properties, "config", base_dir)
         except Exception as e:
+            logger.error(f"Failed to restore server.properties: {e}")
             raise RestoreError(f"Failed to restore server.properties: {e}") from e
     else:
         logger.warning("No server.properties backup found to restore.")
@@ -337,11 +383,14 @@ def restore_all(server_name, base_dir):
     for config_file in sorted(json_backups, key=os.path.getmtime, reverse=True):
         filename = os.path.basename(config_file)
         config_type = filename.split("_backup_")[0]
+        logger.debug(f"Found JSON backup: {config_file}, type: {config_type}")
 
         if config_type not in restored_json_types:
+            logger.info(f"Restoring config file: {config_file}")
             try:
                 restore_server(server_name, config_file, "config", base_dir)
             except Exception as e:
+                logger.error(f"Failed to restore config file {config_file}: {e}")
                 raise RestoreError(
                     f"Failed to restore config file {config_file}: {e}"
                 ) from e

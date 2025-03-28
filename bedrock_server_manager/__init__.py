@@ -4,8 +4,12 @@ import argparse
 import os
 from bedrock_server_manager import cli
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.config.settings import settings
-from importlib.metadata import version, PackageNotFoundError
+from bedrock_server_manager.config.settings import (
+    settings,
+    app_name,
+    package_name,
+    __version__,
+)
 from bedrock_server_manager.core import logging as core_logging
 from bedrock_server_manager.utils.general import startup_checks
 from bedrock_server_manager.core.server import server as server_base
@@ -20,11 +24,6 @@ logger = core_logging.setup_logging(
     log_keep=settings.get("LOGS_KEEP"),
     log_level=settings.get("LOG_LEVEL"),
 )
-
-try:
-    __version__ = version("bedrock-server-manager")
-except PackageNotFoundError:
-    __version__ = "0.0.0"
 
 
 def run_cleanup(args):
@@ -51,13 +50,15 @@ def main():
     """
     Main entry point for the Bedrock Server Manager application.
     """
-    startup_checks()
+    startup_checks(app_name, __version__)
     system_base.check_prerequisites()
     config_dir = settings._config_dir
     base_dir = settings.get("BASE_DIR")
+    logger.debug(f"Base directory: {base_dir}")
+    logger.debug(f"Config directory: {config_dir}")
 
     # --- Argument Parsing ---
-    parser = argparse.ArgumentParser(description="Bedrock Server Manager")
+    parser = argparse.ArgumentParser(description=app_name)
     subparsers = parser.add_subparsers(title="commands", dest="subcommand")
 
     # --- Subparser Definitions ---
@@ -67,7 +68,7 @@ def main():
         parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # main-menu
-    main_parser = subparsers.add_parser("main", help="Open Bedrock Server Manager menu")
+    main_parser = subparsers.add_parser("main", help=f"Open {app_name} menu")
 
     # list-servers
     list_parser = subparsers.add_parser(
@@ -375,6 +376,27 @@ def main():
     )
     add_server_arg(systemd_start_parser)
 
+    # --- Web-Server ---
+    web_server_parser = subparsers.add_parser(
+        "start-webserver", help="Start the web server"
+    )
+    web_server_parser.add_argument(
+        "-H",
+        "--host",
+        help="Host address to bind to.  If omitted, binds to both IPv4 (0.0.0.0) and IPv6 (::).",
+        required=False,
+    )
+    web_server_parser.add_argument(
+        "-d", "--debug", help="Start in debug mode", action="store_true"
+    )
+    web_server_parser.add_argument(
+        "-m", "--mode", default="direct", help="Mode to start in"
+    )
+
+    web_server_parser = subparsers.add_parser(
+        "stop-webserver", help="Stop the web server"
+    )
+
     # --- Command Dispatch Table ---
     commands = {
         "main": lambda: cli.main_menu(base_dir, config_dir),
@@ -495,8 +517,12 @@ def main():
         ),
         "check-internet": lambda: print(system_base.check_internet_connectivity()),
         "cleanup": lambda: run_cleanup(args),
-        "systemd-stop": lambda: print(cli.handle_systemd_stop(args.server, base_dir)),
-        "systemd-start": lambda: print(cli.handle_systemd_start(args.server, base_dir)),
+        "systemd-stop": lambda: cli.handle_systemd_stop(args.server, base_dir),
+        "systemd-start": lambda: cli.handle_systemd_start(args.server, base_dir),
+        "start-webserver": lambda: cli.handle_start_web_server(
+            args.host, args.debug, args.mode
+        ),
+        "stop-webserver": lambda: cli.handle_stop_web_server(),
     }
 
     args = parser.parse_args()
@@ -504,7 +530,7 @@ def main():
         try:
             commands[args.subcommand]()  # Execute the function
         except KeyboardInterrupt:
-            print("\nOperation interrupted. Exiting...")
+            logger.info("User exited...")
             sys.exit(1)
         except Exception as e:
             logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")

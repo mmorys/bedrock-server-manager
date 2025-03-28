@@ -44,12 +44,13 @@ def process_addon(addon_file, server_name, base_dir):
         )
 
     if addon_file.lower().endswith(".mcaddon"):
-        logger.debug(f"Processing .mcaddon file: {os.path.basename(addon_file)}...")
+        logger.info(f"Processing .mcaddon file: {os.path.basename(addon_file)}...")
         process_mcaddon(addon_file, server_name, base_dir)  # Let it raise exceptions
     elif addon_file.lower().endswith(".mcpack"):
-        logger.debug(f"Processing .mcpack file: {os.path.basename(addon_file)}...")
+        logger.info(f"Processing .mcpack file: {os.path.basename(addon_file)}...")
         process_mcpack(addon_file, server_name, base_dir)  # Let it raise exceptions
     else:
+        logger.error(f"Unsupported addon file type: {addon_file}")
         raise InvalidAddonPackTypeError(f"Unsupported addon file type: {addon_file}")
 
 
@@ -78,18 +79,23 @@ def process_mcaddon(addon_file, server_name, base_dir):
         )
 
     temp_dir = tempfile.mkdtemp()
-    logger.debug(f"Extracting {os.path.basename(addon_file)} to {temp_dir}...")
+    logger.info(f"Extracting {os.path.basename(addon_file)} to {temp_dir}...")
 
     try:
         with zipfile.ZipFile(addon_file, "r") as zip_ref:
             zip_ref.extractall(temp_dir)
+        logger.debug(f"Extracted {os.path.basename(addon_file)} successfully")
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
+        logger.error(
+            f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
+        )
         raise AddonExtractError(
             f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
         ) from None
     except OSError as e:
         shutil.rmtree(temp_dir)
+        logger.error(f"Failed to unzip .mcaddon file: {e}")
         raise FileOperationError(f"Failed to unzip .mcaddon file: {e}") from e
 
     try:
@@ -97,6 +103,7 @@ def process_mcaddon(addon_file, server_name, base_dir):
             temp_dir, server_name, base_dir
         )  # Let it raise exceptions
     finally:
+        logger.debug(f"Removing temporary directory: {temp_dir}")
         shutil.rmtree(temp_dir)
 
 
@@ -121,16 +128,20 @@ def _process_mcaddon_files(temp_dir, server_name, base_dir):
     if not server_name:
         raise InvalidServerNameError("_process_mcaddon_files: server_name is empty.")
     if not os.path.isdir(temp_dir):
+        logger.error(
+            f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
+        )
         raise DirectoryError(
             f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
         )
 
     # Process .mcworld files
     for world_file in glob.glob(os.path.join(temp_dir, "*.mcworld")):
-        logger.debug(f"Processing .mcworld file: {os.path.basename(world_file)}")
+        logger.info(f"Processing .mcworld file: {os.path.basename(world_file)}")
         try:
             world_name = server.get_world_name(server_name, base_dir)
             if world_name is None or not world_name:
+                logger.error("Failed to determine world name. Can not install world.")
                 raise FileOperationError(
                     "Failed to determine world name. Can not install world."
                 )
@@ -139,13 +150,14 @@ def _process_mcaddon_files(temp_dir, server_name, base_dir):
                 world_file, extract_dir
             )  # Use core function and let it raise exceptions
         except Exception as e:
+            logger.error(f"Failed to extract world {world_file}: {e}")
             raise FileOperationError(
                 f"Failed to extract world {world_file}: {e}"
             ) from e
 
     # Process .mcpack files
     for pack_file in glob.glob(os.path.join(temp_dir, "*.mcpack")):
-        logger.debug(f"Processing .mcpack file: {os.path.basename(pack_file)}")
+        logger.info(f"Processing .mcpack file: {os.path.basename(pack_file)}")
         process_mcpack(pack_file, server_name, base_dir)  # Let it raise exceptions
 
 
@@ -174,23 +186,29 @@ def process_mcpack(pack_file, server_name, base_dir):
         )
 
     temp_dir = tempfile.mkdtemp()
-    logger.debug(f"Extracting {os.path.basename(pack_file)} to {temp_dir}...")
+    logger.info(f"Extracting {os.path.basename(pack_file)} to {temp_dir}...")
 
     try:
         with zipfile.ZipFile(pack_file, "r") as zip_ref:
             zip_ref.extractall(temp_dir)
+        logger.debug(f"Extracted {os.path.basename(pack_file)} successfully")
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir)
+        logger.error(
+            f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
+        )
         raise AddonExtractError(
             f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
         ) from None
     except OSError as e:
         shutil.rmtree(temp_dir)
+        logger.error(f"Failed to unzip .mcpack file: {e}")
         raise FileOperationError(f"Failed to unzip .mcpack file: {e}") from e
 
     try:
         _process_manifest(temp_dir, server_name, pack_file, base_dir)
     finally:
+        logger.debug(f"Removing temporary directory: {temp_dir}")
         shutil.rmtree(temp_dir)
 
 
@@ -218,11 +236,17 @@ def _process_manifest(temp_dir, server_name, pack_file, base_dir):
 
     manifest_info = _extract_manifest_info(temp_dir)
     if manifest_info is None:
+        logger.error(
+            f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
+        )
         raise FileOperationError(
             f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
         )
 
     pack_type, uuid, version, addon_name_from_manifest = manifest_info
+    logger.debug(
+        f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+    )
 
     install_pack(
         pack_type,
@@ -250,23 +274,30 @@ def _extract_manifest_info(temp_dir):
         FileOperationError: If manifest.json is missing, invalid, or data is missing.
     """
     manifest_file = os.path.join(temp_dir, "manifest.json")
+    logger.debug(f"Looking for manifest file at: {manifest_file}")
 
     if not temp_dir:
         raise MissingArgumentError("_extract_manifest_info: temp_dir is empty.")
     if not os.path.exists(manifest_file):
+        logger.error(f"manifest.json not found in {temp_dir}")
         raise FileOperationError(f"manifest.json not found in {temp_dir}")
 
     try:
         with open(manifest_file, "r") as f:
             manifest_data = json.load(f)
+        logger.debug(f"Loaded manifest data: {manifest_data}")
 
         pack_type = manifest_data["modules"][0]["type"]
         uuid = manifest_data["header"]["uuid"]
         version = manifest_data["header"]["version"]
         addon_name_from_manifest = manifest_data["header"]["name"]
 
+        logger.debug(
+            f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+        )
         return pack_type, uuid, version, addon_name_from_manifest
     except (OSError, json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.error(f"Failed to extract info from manifest.json: {e}")
         raise FileOperationError(
             f"Failed to extract info from manifest.json: {e}"
         ) from e
@@ -309,11 +340,17 @@ def install_pack(
     if not pack_file:
         raise MissingArgumentError("install_pack: pack_file is empty.")
 
+    logger.debug(
+        f"Installing pack: type={pack_type}, server={server_name}, file={pack_file}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+    )
+
     try:
         world_name = server.get_world_name(server_name, base_dir)
         if not world_name:
+            logger.error("Could not find level-name in server.properties")
             raise FileOperationError("Could not find level-name in server.properties")
     except Exception as e:
+        logger.error(f"Error getting world name: {e}")
         raise FileOperationError(f"Error getting world name: {e}") from e
 
     behavior_dir = os.path.join(
@@ -328,10 +365,16 @@ def install_pack(
     resource_json = os.path.join(
         base_dir, server_name, "worlds", world_name, "world_resource_packs.json"
     )
+    logger.debug(f"Behavior dir: {behavior_dir}")
+    logger.debug(f"Resource dir: {resource_dir}")
+    logger.debug(f"Behavior JSON: {behavior_json}")
+    logger.debug(f"Resource JSON: {resource_json}")
 
     # Create directories if they don't exist
     os.makedirs(behavior_dir, exist_ok=True)
+    logger.debug(f"Created directory: {behavior_dir}")
     os.makedirs(resource_dir, exist_ok=True)
+    logger.debug(f"Created directory: {resource_dir}")
 
     if pack_type == "data":
         logger.info(f"Installing behavior pack to {server_name}")
@@ -339,6 +382,7 @@ def install_pack(
             behavior_dir, f"{addon_name_from_manifest}_{'.'.join(map(str, version))}"
         )
         os.makedirs(addon_behavior_dir, exist_ok=True)
+        logger.debug(f"Created directory: {addon_behavior_dir}")
         try:
             # Copy all files from temp_dir to addon_behavior_dir
             for item in os.listdir(temp_dir):
@@ -346,11 +390,14 @@ def install_pack(
                 d = os.path.join(addon_behavior_dir, item)
                 if os.path.isdir(s):
                     shutil.copytree(s, d, dirs_exist_ok=True)
+                    logger.debug(f"Copied directory: {s} to {d}")
                 else:
                     shutil.copy2(s, d)
+                    logger.debug(f"Copied file: {s} to {d}")
             _update_pack_json(behavior_json, uuid, version)
             logger.info(f"Installed {os.path.basename(pack_file)} to {server_name}.")
         except OSError as e:
+            logger.error(f"Failed to copy behavior pack files: {e}")
             raise FileOperationError(f"Failed to copy behavior pack files: {e}") from e
 
     elif pack_type == "resources":
@@ -359,6 +406,7 @@ def install_pack(
             resource_dir, f"{addon_name_from_manifest}_{'.'.join(map(str, version))}"
         )
         os.makedirs(addon_resource_dir, exist_ok=True)
+        logger.debug(f"Created directory: {addon_resource_dir}")
         try:
             # Copy all files from temp_dir to addon_resource_dir
             for item in os.listdir(temp_dir):
@@ -366,13 +414,17 @@ def install_pack(
                 d = os.path.join(addon_resource_dir, item)
                 if os.path.isdir(s):
                     shutil.copytree(s, d, dirs_exist_ok=True)
+                    logger.debug(f"Copied directory: {s} to {d}")
                 else:
                     shutil.copy2(s, d)
+                    logger.debug(f"Copied file: {s} to {d}")
             _update_pack_json(resource_json, uuid, version)
             logger.info(f"Installed {os.path.basename(pack_file)} to {server_name}.")
         except OSError as e:
+            logger.error(f"Failed to copy resource pack files: {e}")
             raise FileOperationError(f"Failed to copy resource pack files: {e}") from e
     else:
+        logger.error(f"Unknown pack type: {pack_type}")
         raise InvalidAddonPackTypeError(f"Unknown pack type: {pack_type}")
 
 
@@ -402,6 +454,7 @@ def _update_pack_json(json_file, pack_id, version):
                 json.dump([], f)  # Create empty JSON array
             logger.debug(f"Created empty JSON file: {json_file}")
         except OSError as e:
+            logger.error(f"Failed to initialize JSON file: {json_file}: {e}")
             raise FileOperationError(
                 f"Failed to initialize JSON file: {json_file}: {e}"
             ) from e
@@ -415,6 +468,7 @@ def _update_pack_json(json_file, pack_id, version):
                     f"Failed to parse JSON in {json_file}.  Creating a new file"
                 )
                 packs = []
+        logger.debug(f"Loaded existing packs from {json_file}: {packs}")
 
         pack_exists = False
         for i, pack in enumerate(packs):
@@ -424,7 +478,7 @@ def _update_pack_json(json_file, pack_id, version):
                 input_version = tuple(version)
                 if input_version > pack_version:
                     packs[i] = {"pack_id": pack_id, "version": version}
-                    logger.debug(f"Updated existing pack entry in {json_file}")
+                    logger.info(f"Updated existing pack entry in {json_file}")
                 break
 
         if not pack_exists:
@@ -433,6 +487,8 @@ def _update_pack_json(json_file, pack_id, version):
 
         with open(json_file, "w") as f:
             json.dump(packs, f, indent=4)
+        logger.debug(f"Updated {json_file} with: {packs}")
 
     except (OSError, TypeError) as e:
+        logger.error(f"Failed to update {json_file}: {e}")
         raise FileOperationError(f"Failed to update {json_file}: {e}") from e

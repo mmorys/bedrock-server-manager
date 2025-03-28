@@ -9,7 +9,7 @@ from datetime import datetime
 from colorama import Fore, Style
 import xml.etree.ElementTree as ET
 from bedrock_server_manager import handlers
-from bedrock_server_manager.config.settings import EXPATH
+from bedrock_server_manager.config.settings import EXPATH, app_name
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import (
     select_option,
@@ -1199,6 +1199,32 @@ def restore_menu(server_name, base_dir):
                 print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
 
+def handle_start_web_server(host=None, debug=False, mode="direct"):
+    """Restores a server from a backup file."""
+
+    print("Starting web server...")
+
+    response = handlers.start_web_server_handler(host, debug, mode)
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Web server started successfully.")
+
+
+def handle_stop_web_server():
+    """Restores a server from a backup file."""
+
+    print("Stopping web server...")
+
+    response = handlers.stop_web_server_handler()
+
+    if response["status"] == "error":
+        print(f"{_ERROR_PREFIX}{response['message']}")
+    else:
+        print(f"{_OK_PREFIX}Web server stopeed successfully.")
+
+
 def handle_install_addon(server_name, addon_file, base_dir=None):
     """Handles the installation of an addon, including stopping/starting the server."""
 
@@ -1234,7 +1260,7 @@ def install_worlds(server_name, base_dir=None, content_dir=None):
     file_names = [os.path.basename(file) for file in mcworld_files]
 
     # Display the menu and get user selection
-    print(f"{_INFO_PREFIX}Available worlds to install:{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}Available worlds to install:{Style.RESET_ALL}")
     for i, file_name in enumerate(file_names):
         print(f"{i + 1}. {file_name}")
     print(f"{len(file_names) + 1}. Cancel")
@@ -1388,7 +1414,7 @@ def _cron_scheduler(server_name, base_dir):
 
     while True:
         os.system("cls" if platform.system() == "Windows" else "clear")
-        print(f"{Fore.MAGENTA}Bedrock Server Manager - Task Scheduler{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}{app_name} - Task Scheduler{Style.RESET_ALL}")
         print(
             f"{Fore.CYAN}Current scheduled task for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
@@ -1797,7 +1823,7 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
         raise OSError("This function is for Windows only.")
     os.system("cls")
     while True:
-        print(f"{Fore.MAGENTA}Bedrock Server Manager - Task Scheduler{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}{app_name} - Task Scheduler{Style.RESET_ALL}")
         print(
             f"{Fore.CYAN}Current scheduled tasks for {Fore.YELLOW}{server_name}{Fore.CYAN}:{Style.RESET_ALL}"
         )
@@ -2318,7 +2344,7 @@ def main_menu(base_dir, config_dir):
     """Displays the main menu and handles user interaction."""
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(f"\n{Fore.MAGENTA}Bedrock Server Manager{Style.RESET_ALL}")
+        print(f"\n{Fore.MAGENTA}{app_name}{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
 
         print("1) Install New Server")
@@ -2371,9 +2397,7 @@ def manage_server(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Manage Server{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Manage Server{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Update Server")
         print("2) Start Server")
@@ -2431,9 +2455,7 @@ def install_content(base_dir, config_dir=None):
         config_dir = settings._config_dir
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Install Content{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Import World")
         print("2) Import Addon")
@@ -2468,9 +2490,7 @@ def advanced_menu(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Advanced Menu{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Advanced Menu{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Configure Server Properties")
         print("2) Configure Allowlist")
@@ -2550,9 +2570,7 @@ def backup_restore(base_dir, config_dir=None):
 
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(
-            f"\n{Fore.MAGENTA}Bedrock Server Manager - Backup/Restore{Style.RESET_ALL}"
-        )
+        print(f"\n{Fore.MAGENTA}{app_name} - Backup/Restore{Style.RESET_ALL}")
         list_servers_status(base_dir, config_dir)
         print("1) Backup Server")
         print("2) Restore Server")

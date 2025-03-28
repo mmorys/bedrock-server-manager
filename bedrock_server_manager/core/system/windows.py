@@ -30,11 +30,12 @@ def _windows_start_server(server_name, server_dir):
         ServerStartError: If the server fails to start.
         ServerNotFoundError: If the server executable is not found.
     """
-
+    logger.debug(f"_windows_start_server: starting server {server_name}")
     # Write an initial message to the server output file
     output_file = os.path.join(server_dir, "server_output.txt")
     exe_path = os.path.join(server_dir, "bedrock_server.exe")
     if not os.path.exists(exe_path):
+        logger.error(f"Server executable not found: {exe_path}")
         raise ServerNotFoundError(exe_path)
 
     process = None  # Initialize process
@@ -43,8 +44,9 @@ def _windows_start_server(server_name, server_dir):
         # Attempt initial write (with "w").
         with open(output_file, "w") as f:
             f.write("Starting Server\n")
+        logger.debug(f"Initialized server_output.txt in: {server_dir}")
     except OSError:
-        logger.warning("Failed to truncate server_output.txt. Continuing...")
+        logger.warning("Failed to truncate server_output.txt.  Continuing...")
 
     # ALWAYS attempt to open for append, even if the initial write failed.
     try:
@@ -57,6 +59,9 @@ def _windows_start_server(server_name, server_dir):
                 stderr=f,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
+        logger.debug(
+            f"Started server process with PID: {process.pid}, output redirected to file"
+        )
     except (OSError, Exception) as e:
         logger.warning(
             f"Failed to open for redirection or start process: {e}. Using PIPE fallback."
@@ -70,10 +75,15 @@ def _windows_start_server(server_name, server_dir):
                 stderr=subprocess.PIPE,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
+            logger.debug(
+                f"Started server process with PID: {process.pid}, output redirected to PIPE"
+            )
         except Exception as e:
+            logger.error(f"Failed to start server executable: {e}")
             raise ServerStartError(f"Failed to start server executable: {e}") from e
 
     if process is None:  # This should never happen, but it's good practice.
+        logger.error("Failed to start server process.")
         raise ServerStartError("Failed to start server process.")
 
     logger.info(f"Server {server_name} started successfully. PID: {process.pid}")
@@ -91,7 +101,7 @@ def _windows_stop_server(server_name, server_dir):
         ServerStopError: If stopping the server fails.
     """
 
-    logger.debug(f"Stopping server {server_name}...")
+    logger.debug(f"_windows_stop_server: stopping server {server_name}...")
     try:
         # Iterate over all processes to find the one with the matching server name and cwd
         for proc in psutil.process_iter(["pid", "name", "cwd"]):
@@ -116,6 +126,7 @@ def _windows_stop_server(server_name, server_dir):
         )
 
     except Exception as e:
+        logger.error(f"Failed to stop server process for {server_name}: {e}")
         raise ServerStopError(
             f"Failed to stop server process for {server_name}: {e}"
         ) from e
@@ -136,7 +147,7 @@ def get_windows_task_info(task_names):
     """
     if not isinstance(task_names, list):
         raise TypeError("task_names must be a list")
-
+    logger.debug(f"get_windows_task_info: getting Windows task info for tasks: {task_names}")
     task_info_list = []
     for task_name in task_names:
         try:
@@ -174,6 +185,7 @@ def get_windows_task_info(task_names):
             task_info_list.append(
                 {"task_name": task_name, "command": command, "schedule": schedule}
             )
+            logger.debug(f"Task info: {task_info_list[-1]}")
 
         except subprocess.CalledProcessError as e:
             if "ERROR: The system cannot find the file specified." not in (
@@ -268,6 +280,7 @@ def get_server_task_names(server_name, config_dir):
         TaskError: If there is an error reading the tasks.
     """
     task_dir = os.path.join(config_dir, server_name)
+    logger.debug(f"Getting task names for server: {server_name} in dir: {task_dir}")
     if not os.path.exists(task_dir):
         return []
 
@@ -298,8 +311,9 @@ def get_server_task_names(server_name, config_dir):
                     continue
 
     except Exception as e:
+        logger.error(f"Error reading tasks from {task_dir}: {e}")
         raise TaskError(f"Error reading tasks from {task_dir}: {e}") from e
-
+    logger.debug(f"Found tasks: {task_files}")
     return task_files
 
 
@@ -323,7 +337,7 @@ def create_windows_task_xml(
     Raises:
         TaskError: If there's an error creating the XML or writing the file.
     """
-
+    logger.info(f"Creating Windows task XML for: {task_name}")
     task = ET.Element("Task", version="1.2")
     task.set("xmlns", "http://schemas.microsoft.com/windows/2004/02/mit/task")
 
@@ -349,9 +363,13 @@ def create_windows_task_xml(
             .strip('"')
         )
         ET.SubElement(principal, "UserId").text = sid
+        logger.debug(f"Using SID for UserId: {sid}")
     except (subprocess.CalledProcessError, IndexError, OSError):
         # Fallback to username if whoami fails or output is unexpected
         ET.SubElement(principal, "UserId").text = os.getenv("USERNAME")
+        logger.warning(
+            f"Failed to get SID, using USERNAME instead: {os.getenv('USERNAME')}"
+        )
     ET.SubElement(principal, "LogonType").text = "InteractiveToken"
     ET.SubElement(principal, "RunLevel").text = "LeastPrivilege"
 
@@ -380,6 +398,7 @@ def create_windows_task_xml(
 
     task_dir = os.path.join(config_dir, server_name)
     os.makedirs(task_dir, exist_ok=True)
+    logger.debug(f"Created task directory: {task_dir}")
 
     xml_file_name = f"{task_name}.xml"
     xml_file_path = os.path.join(task_dir, xml_file_name)
@@ -387,8 +406,10 @@ def create_windows_task_xml(
         ET.indent(task)
         tree = ET.ElementTree(task)
         tree.write(xml_file_path, encoding="utf-16", xml_declaration=True)
+        logger.info(f"Created task XML file: {xml_file_path}")
         return xml_file_path
     except Exception as e:
+        logger.error(f"Error writing XML file: {e}")
         raise TaskError(f"Error writing XML file: {e}") from e
 
 
@@ -407,10 +428,11 @@ def import_task_xml(xml_file_path, task_name):
     if not task_name:
         raise MissingArgumentError("import_task_xml: Task name is empty.")
     if not xml_file_path or not os.path.exists(xml_file_path):
+        logger.error(f"import_task_xml: XML file not found: {xml_file_path}")
         raise FileOperationError(
             f"import_task_xml: XML file not found: {xml_file_path}"
         )
-
+    logger.debug(f"Importing task XML: {xml_file_path} as {task_name}")
     try:
         result = subprocess.run(
             ["schtasks", "/Create", "/TN", task_name, "/XML", xml_file_path, "/F"],
@@ -418,15 +440,19 @@ def import_task_xml(xml_file_path, task_name):
             capture_output=True,
             text=True,
         )
-        logger.debug(f"Task '{task_name}' imported successfully.")
+        logger.info(f"Task '{task_name}' imported successfully.")
         logger.debug(result.stdout)
     except subprocess.CalledProcessError as e:
         error_output = e.stderr.strip() if e.stderr else ""
         stdout_output = e.stdout.strip() if e.stdout else ""
+        logger.error(
+            f"Failed to import task '{task_name}'. Return Code: {e.returncode}.  Error: {error_output}. Output: {stdout_output}"
+        )
         raise TaskError(
             f"Failed to import task '{task_name}'. Return Code: {e.returncode}.  Error: {error_output}. Output: {stdout_output}"
         ) from e
     except Exception as e:
+        logger.error(f"An unexpected error occurred while importing: {e}")
         raise TaskError(f"An unexpected error occurred while importing: {e}") from e
 
 
@@ -477,6 +503,7 @@ def _get_day_element_name(day_input):
         if 1 <= day_number <= 7:
             return days_by_number[day_number]
         else:
+            logger.error(f"Invalid day of week input: {day_input}")
             raise TaskError(f"Invalid day of week input: {day_input}")
     except ValueError:
         pass
@@ -484,7 +511,7 @@ def _get_day_element_name(day_input):
     # Check string input for full or abbreviated day names
     if day_input_str in days_mapping:
         return days_mapping[day_input_str]
-
+    logger.error(f"Invalid day of week input: {day_input}")
     raise TaskError(f"Invalid day of week input: {day_input}")
 
 
@@ -550,6 +577,7 @@ def _get_month_element_name(month_input):
         if 1 <= month_number <= 12:
             return months_by_number[month_number]
         else:
+            logger.error(f"Invalid month input: {month_input}")
             raise TaskError(f"Invalid month input: {month_input}")
     except ValueError:
         pass
@@ -559,6 +587,7 @@ def _get_month_element_name(month_input):
         return months_mapping[month_input_str]
 
     # Invalid input
+    logger.error(f"Invalid month input: {month_input}")
     raise TaskError(f"Invalid month input: {month_input}")
 
 
@@ -566,7 +595,7 @@ def add_trigger(triggers_element, trigger_data):
     """Adds a trigger to the triggers element based on the provided data."""
 
     trigger_type = trigger_data["type"]
-
+    logger.debug(f"Adding trigger: {trigger_data}")
     if trigger_type == "TimeTrigger":
         time_trigger = ET.SubElement(triggers_element, "TimeTrigger")
         ET.SubElement(time_trigger, "StartBoundary").text = trigger_data["start"]
@@ -614,6 +643,7 @@ def add_trigger(triggers_element, trigger_data):
             if month_element_name:
                 ET.SubElement(months_element, month_element_name)
     else:
+        logger.error(f"Unknown trigger type: {trigger_type}")
         raise InvalidInputError(f"Unknown trigger type: {trigger_type}")
 
 
@@ -629,7 +659,7 @@ def delete_task(task_name):
     """
     if not task_name:
         raise MissingArgumentError("delete_task: task_name is empty.")
-
+    logger.info(f"Deleting task: {task_name}")
     try:
         result = subprocess.run(
             ["schtasks", "/Delete", "/TN", task_name, "/F"],
@@ -637,17 +667,21 @@ def delete_task(task_name):
             capture_output=True,
             text=True,
         )
-        logger.debug(f"Task '{task_name}' deleted successfully.")
+        logger.info(f"Task '{task_name}' deleted successfully.")
         logger.debug(result.stdout)
     except subprocess.CalledProcessError as e:
         stderr = e.stderr or ""  # Handle None stderr
         if "does not exist" in stderr.lower():
             logger.debug(f"Task '{task_name}' not found.")
             return  # Task not found - not an error
+        logger.error(
+            f"Failed to delete task '{task_name}'. Return Code: {e.returncode}. Error: {stderr.strip()}. Output: {e.stdout.strip() if e.stdout else ''}"
+        )
         raise TaskError(
             f"Failed to delete task '{task_name}'. "
             f"Return Code: {e.returncode}. Error: {stderr.strip()}. "
             f"Output: {e.stdout.strip() if e.stdout else ''}"
         ) from e
     except Exception as e:
+        logger.error(f"An unexpected error occurred while deleting task: {e}")
         raise TaskError(f"An unexpected error occurred while deleting task: {e}") from e

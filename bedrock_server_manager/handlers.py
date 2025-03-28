@@ -8,7 +8,10 @@ import getpass
 import platform
 import time
 import json
-from bedrock_server_manager.config.settings import settings
+import sys
+from bedrock_server_manager.web.app import run_web_server
+from bedrock_server_manager.core import SCRIPT_DIR
+from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.core.player import player as player_base
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager.core.error import (
@@ -52,18 +55,24 @@ def validate_server_name_handler(server_name, base_dir=None):
         dict: {"status": "success"} if valid, {"status": "error", "message": ...} if invalid.
     """
     base_dir = get_base_dir(base_dir)
+    logger.debug(f"Validating server name: {server_name}")
     if not server_name:
+        logger.error("Server name cannot be empty in validate_server_name_handler")
         return {"status": "error", "message": "Server name cannot be empty."}
 
     try:
         if server_base.validate_server(server_name, base_dir):
+            logger.debug(f"Server {server_name} is valid.")
             return {"status": "success"}
         else:
             #  validate_server might already raise an exception, making this redundant
+            logger.warning(f"Server {server_name} not found.")
             return {"status": "error", "message": f"Server {server_name} not found."}
     except InvalidServerNameError as e:  # Catch specific exception
+        logger.error(f"Invalid server name: {e}")
         return {"status": "error", "message": str(e)}
     except Exception as e:  # Catch any other unexpected exceptions.
+        logger.exception(f"An unexpected error occurred: {e}")
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
@@ -80,8 +89,10 @@ def get_all_servers_status_handler(base_dir=None, config_dir=None):
     base_dir = get_base_dir(base_dir)
     if config_dir is None:
         config_dir = settings._config_dir
+    logger.debug(f"Getting status for all servers in: {base_dir}")
 
     if not os.path.isdir(base_dir):
+        logger.error(f"{base_dir} does not exist or is not a directory.")
         return {
             "status": "error",
             "message": f"{base_dir} does not exist or is not a directory.",
@@ -100,12 +111,78 @@ def get_all_servers_status_handler(base_dir=None, config_dir=None):
                     {"name": server_name, "status": status, "version": version}
                 )
             except Exception as e:
+                logger.exception(f"Error getting data for {server_name}: {e}")
                 return {
                     "status": "error",
                     "message": f"Error getting data for {server_name}: {e}",
                 }
-
+    logger.debug(f"Server statuses: {servers_data}")
     return {"status": "success", "servers": servers_data}
+
+
+def update_server_statuses_handler(base_dir=None, config_dir=None):
+    """Updates the status in config.json for all servers, based on runtime checks.
+
+    Iterates through all servers in the base directory.  If a server is
+    NOT running, but its config file says it IS running (or starting, etc.),
+    the config file is updated to reflect the STOPPED status.
+
+    Args:
+        base_dir (str, optional): The base directory for servers. Defaults to None.
+        config_dir (str, optional): config directory
+
+    Returns:
+        dict: {"status": "success"} or {"status": "error", "message": ...}
+    """
+    base_dir = get_base_dir(base_dir)
+    if config_dir is None:
+        config_dir = settings._config_dir
+    logger.debug("Updating server statuses in config files.")
+
+    if not os.path.isdir(base_dir):
+        logger.error(f"Base directory does not exist: {base_dir}")
+        return {
+            "status": "error",
+            "message": f"Base directory does not exist: {base_dir}",
+        }
+
+    try:
+        for server_folder in glob.glob(os.path.join(base_dir, "*/")):
+            server_name = os.path.basename(os.path.normpath(server_folder))
+            logger.debug(f"Checking status for server: {server_name}")
+
+            is_running = system_base.is_server_running(server_name, base_dir)
+            current_status = server_base.get_server_status_from_config(
+                server_name, config_dir
+            )
+            logger.debug(
+                f"Server {server_name}: Running={is_running}, Config Status={current_status}"
+            )
+            #  Statuses that indicate the server *should* be running
+            running_statuses = ("RUNNING", "STARTING", "RESTARTING")
+
+            if not is_running and current_status in running_statuses:
+                logger.debug(
+                    f"Updating status for {server_name}: Config says {current_status}, but server is not running.  Setting to STOPPED."
+                )
+                server_base.manage_server_config(
+                    server_name, "status", "write", "STOPPED", config_dir
+                )
+            # Add this for consistency
+            elif is_running and current_status == "STOPPED":
+                logger.debug(
+                    f"Updating status for {server_name}: Config says {current_status}, but server is running.  Setting to RUNNING."
+                )
+                server_base.manage_server_config(
+                    server_name, "status", "write", "RUNNING", config_dir
+                )
+
+        logger.debug("Server status updates complete.")
+        return {"status": "success"}
+
+    except Exception as e:  # Catch any unexpected errors during the process
+        logger.exception(f"Error updating server statuses: {e}")
+        return {"status": "error", "message": f"Error updating server statuses: {e}"}
 
 
 def configure_allowlist_handler(server_name, base_dir=None, new_players_data=None):
@@ -131,17 +208,21 @@ def configure_allowlist_handler(server_name, base_dir=None, new_players_data=Non
 
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
+    logger.info(f"Configuring allowlist for server: {server_name}")
 
     try:
         existing_players = server_base.configure_allowlist(server_dir)
         if existing_players is None:
             existing_players = []
     except FileOperationError as e:
+        logger.exception(f"Error reading existing allowlist: {e}")
         return {"status": "error", "message": f"Error reading existing allowlist: {e}"}
     except Exception as e:
+        logger.exception(f"An unexpected error occurred reading allowlist: {e}")
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
     if new_players_data is None:  # No new players provided
+        logger.debug("No new players provided to configure_allowlist_handler.")
         return {
             "status": "success",
             "existing_players": existing_players,
@@ -169,19 +250,23 @@ def configure_allowlist_handler(server_name, base_dir=None, new_players_data=Non
     if added_players:
         try:
             server_base.add_players_to_allowlist(server_dir, added_players)
+            logger.debug(f"Added players to allowlist: {added_players}")
             return {
                 "status": "success",
                 "existing_players": existing_players,
                 "added_players": added_players,
             }
         except FileOperationError as e:
+            logger.exception(f"Error adding players to allowlist: {e}")
             return {
                 "status": "error",
                 "message": f"Error adding players to allowlist: {e}",
             }
         except Exception as e:
+            logger.exception(f"An unexpected error occurred adding players: {e}")
             return {"status": "error", "message": f"An unexpected error occurred: {e}"}
     else:
+        logger.debug("No new players to add to allowlist.")
         return {
             "status": "success",
             "existing_players": existing_players,
@@ -207,12 +292,16 @@ def add_players_handler(players, config_dir):
         player_string = ",".join(players)  # Join the list into a comma-separated string
         player_list = player_base.parse_player_argument(player_string)
         player_base.save_players_to_json(player_list, config_dir)
+        logger.debug(f"Added players: {player_list}")
         return {"status": "success"}
     except PlayerDataError as e:  # Catch specific errors first
+        logger.error(f"Error parsing player data: {e}")
         return {"status": "error", "message": f"Error parsing player data: {e}"}
     except FileOperationError as e:
+        logger.error(f"Error saving player data: {e}")
         return {"status": "error", "message": f"Error saving player data: {e}"}
     except ValueError as e:
+        logger.error(f"Invalid player data format: {e}")
         return {"status": "error", "message": f"Invalid player data format: {e}"}
     except Exception as e:
         logger.exception(
@@ -234,8 +323,10 @@ def get_players_from_json_handler(config_dir=None):
         config_dir = settings._config_dir
 
     players_file = os.path.join(config_dir, "players.json")
+    logger.info(f"Retrieving player data from: {players_file}")
 
     if not os.path.exists(players_file):
+        logger.warning(f"No players.json file found at: {players_file}")
         return {
             "status": "error",
             "message": f"No players.json file found at: {players_file}",
@@ -250,11 +341,13 @@ def get_players_from_json_handler(config_dir=None):
                 or "players" not in players_data
                 or not isinstance(players_data["players"], list)
             ):
+                logger.error(f"Invalid players.json format in {players_file}")
                 return {"status": "error", "message": f"Invalid players.json format."}
-
+            logger.debug(f"Successfully loaded player data: {players_data}")
             return {"status": "success", "players": players_data["players"]}
 
     except (OSError, json.JSONDecodeError) as e:
+        logger.exception(f"Failed to read or parse players.json: {e}")
         return {
             "status": "error",
             "message": f"Failed to read or parse players.json: {e}",
@@ -287,11 +380,17 @@ def configure_player_permission_handler(
 
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
-
+    logger.info(
+        f"Configuring permission for {player_name} ({xuid}) on {server_name} to {permission}"
+    )
     try:
         server_base.configure_permissions(server_dir, xuid, player_name, permission)
+        logger.debug(f"Successfully configured permission for {player_name} ({xuid})")
         return {"status": "success"}
     except Exception as e:  # Catch potential exceptions from configure_permissions
+        logger.exception(
+            f"Error configuring permissions for {player_name} ({xuid}): {e}"
+        )
         return {"status": "error", "message": f"Error configuring permissions: {e}"}
 
 
@@ -308,8 +407,9 @@ def read_server_properties_handler(server_name, base_dir=None):
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
     server_properties_path = os.path.join(server_dir, "server.properties")
-
+    logger.debug(f"Reading server.properties for server: {server_name}")
     if not os.path.exists(server_properties_path):
+        logger.error(f"server.properties not found in: {server_properties_path}")
         return {
             "status": "error",
             "message": f"server.properties not found in: {server_properties_path}",
@@ -323,7 +423,9 @@ def read_server_properties_handler(server_name, base_dir=None):
                 if line and "=" in line:
                     key, value = line.split("=", 1)
                     properties[key] = value
+        logger.debug(f"Successfully read server.properties: {properties}")
     except OSError as e:
+        logger.exception(f"Failed to read server.properties: {e}")
         return {"status": "error", "message": f"Failed to read server.properties: {e}"}
 
     return {"status": "success", "properties": properties}
@@ -339,38 +441,51 @@ def validate_property_value_handler(property_name, value):
     Returns:
         {"status": "success"} or {"status": "error", "message": ...}
     """
+    logger.debug(f"Validating property: {property_name} = {value}")
     if property_name == "server-name":
         if ";" in value:
+            logger.warning(f"Invalid value for {property_name}: contains semicolons")
             return {
                 "status": "error",
                 "message": f"{property_name} cannot contain semicolons.",
             }
     elif property_name == "level-name":
         if not re.match(r"^[a-zA-Z0-9_-]+$", value):
+            logger.warning(
+                f"Invalid value for {property_name}: contains invalid characters"
+            )
             return {
                 "status": "error",
                 "message": f"Invalid {property_name}. Only alphanumeric characters, hyphens, and underscores are allowed.",
             }
     elif property_name in ("server-port", "server-portv6"):
         if not (re.match(r"^[0-9]+$", value) and 1024 <= int(value) <= 65535):
+            logger.warning(
+                f"Invalid value for {property_name}: Not a valid port number"
+            )
             return {
                 "status": "error",
                 "message": f"Invalid {property_name} number. Please enter a number between 1024 and 65535.",
             }
     elif property_name == "max-players":
         if not re.match(r"^[0-9]+$", value):
+            logger.warning(f"Invalid value for {property_name}: Not a number")
             return {
                 "status": "error",
                 "message": f"Invalid number for {property_name}.",
             }
     elif property_name == "view-distance":
         if not (re.match(r"^[0-9]+$", value) and int(value) >= 5):
+            logger.warning(f"Invalid value for {property_name}: Value less than 5")
             return {
                 "status": "error",
                 "message": f"Invalid {property_name}. Please enter a number greater than or equal to 5.",
             }
     elif property_name == "tick-distance":
         if not (re.match(r"^[0-9]+$", value) and 4 <= int(value) <= 12):
+            logger.warning(
+                f"Invalid value for {property_name}: Value not between 4 and 12."
+            )
             return {
                 "status": "error",
                 "message": f"Invalid {property_name}. Please enter a number between 4 and 12.",
@@ -393,6 +508,7 @@ def modify_server_properties_handler(server_name, properties_to_update, base_dir
     base_dir = get_base_dir(base_dir)
     server_dir = os.path.join(base_dir, server_name)
     server_properties_path = os.path.join(server_dir, "server.properties")
+    logger.info(f"Modifying properties for server: {server_name}")
 
     if not server_name:
         raise InvalidServerNameError(
@@ -404,6 +520,9 @@ def modify_server_properties_handler(server_name, properties_to_update, base_dir
         # Validate each property before attempting to modify it.
         validation_result = validate_property_value_handler(prop_name, prop_value)
         if validation_result["status"] == "error":
+            logger.error(
+                f"Validation error for {prop_name}={prop_value}: {validation_result['message']}"
+            )
             return validation_result  # Return immediately if validation fails
 
         try:
@@ -411,6 +530,7 @@ def modify_server_properties_handler(server_name, properties_to_update, base_dir
                 server_properties_path, prop_name, prop_value
             )
         except Exception as e:
+            logger.exception(f"Error modifying property {prop_name}: {e}")
             return {
                 "status": "error",
                 "message": f"Error modifying property {prop_name}: {e}",
@@ -458,8 +578,10 @@ def download_and_install_server_handler(
         logger.info("Bedrock server download and installation process finished")
         return {"status": "success", "version": current_version}
     except DownloadError as e:  # Catch specific exceptions from downloader
+        logger.exception(f"Download error: {e}")
         return {"status": "error", "message": f"Download error: {e}"}
     except InstallUpdateError as e:  # Catch specific exceptions from server_base
+        logger.exception(f"Installation error: {e}")
         return {"status": "error", "message": f"Installation error: {e}"}
     except Exception as e:
         logger.exception(f"An unexpected error occurred: {type(e).__name__}: {e}")
@@ -468,7 +590,9 @@ def download_and_install_server_handler(
 
 def validate_server_name_format_handler(server_name):
     """Validates the format of a server name (alphanumeric, hyphens, underscores)."""
+    logger.debug(f"Validating server name format: {server_name}")
     if not re.match(r"^[a-zA-Z0-9_-]+$", server_name):
+        logger.warning(f"Invalid server name format: {server_name}")
         return {
             "status": "error",
             "message": "Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed.",
@@ -488,10 +612,15 @@ def write_server_config_handler(server_name, key, value, config_dir=None):
     Returns:
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
+    logger.debug(
+        f"Writing server config: server={server_name}, key={key}, value={value}"
+    )
     try:
         server_base.manage_server_config(server_name, key, "write", value, config_dir)
+        logger.debug(f"Successfully wrote config: {key}={value} for {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Failed to write server config: {e}")
         return {"status": "error", "message": f"Failed to write server config: {e}"}
 
 
@@ -526,6 +655,7 @@ def install_new_server_handler(
     # --- Handle Existing Server ---
     server_dir = os.path.join(base_dir, server_name)
     if os.path.exists(server_dir):
+        logger.warning(f"Server directory {server_name} already exists.")
         return {
             "status": "error",
             "message": f"Server directory {server_name} already exists.",
@@ -587,6 +717,7 @@ def update_server_handler(
         try:
             bedrock_server = server_base.BedrockServer(server_name, base_dir)
             bedrock_server.send_command("say Checking for server updates..")
+            logger.info(f"Sent update notification to server: {server_name}")
         except Exception as e:
             #  Don't fail the entire update if sending the message fails.
             logger.warning(f"Failed to send message to server: {e}")
@@ -596,6 +727,7 @@ def update_server_handler(
         if installed_version == "UNKNOWN":
             logger.warning("Failed to get the installed version. Attempting update...")
     except Exception as e:
+        logger.exception(f"Error getting installed version for {server_name}: {e}")
         return {"status": "error", "message": f"Error getting installed version: {e}"}
 
     try:
@@ -606,6 +738,7 @@ def update_server_handler(
             logger.warning("Failed to read target_version from config. Using 'LATEST'.")
             target_version = "LATEST"
     except Exception as e:
+        logger.exception(f"Error getting target version for {server_name}: {e}")
         return {"status": "error", "message": f"Error getting target version: {e}"}
     # --- Check if Update is Needed ---
     if server_base.no_update_needed(server_name, installed_version, target_version):
@@ -639,6 +772,7 @@ def check_user_lingering_enabled_handler():
         return {"status": "success", "enabled": False}  # Not applicable
 
     username = getpass.getuser()
+    logger.debug(f"Checking if lingering is enabled for user: {username}")
     try:
         result = subprocess.run(
             ["loginctl", "show-user", username],
@@ -647,15 +781,19 @@ def check_user_lingering_enabled_handler():
             check=False,
         )
         if "Linger=yes" in result.stdout:
+            logger.debug(f"Lingering is enabled for user: {username}")
             return {"status": "success", "enabled": True}
         else:
+            logger.debug(f"Lingering is NOT enabled for user: {username}")
             return {"status": "success", "enabled": False}
     except FileNotFoundError:
+        logger.error("loginctl command not found. Lingering cannot be checked.")
         return {
             "status": "error",
             "message": "loginctl command not found. Lingering cannot be checked.",
         }
     except Exception as e:
+        logger.exception(f"Error checking lingering status: {e}")
         return {"status": "error", "message": f"Error checking lingering status: {e}"}
 
 
@@ -667,12 +805,16 @@ def enable_user_lingering_handler():
     """
     if platform.system() != "Linux":
         return {"status": "success"}  # Not applicable
+    logger.debug("Attempting to enable user lingering.")
     try:
         system_linux.enable_user_lingering()
+        logger.info("User lingering enabled.")
         return {"status": "success"}
     except CommandNotFoundError as e:  # Catch specific errors first.
+        logger.error(f"Command error enabling lingering: {e}")
         return {"status": "error", "message": f"Command error: {e}"}
     except Exception as e:
+        logger.exception(f"Failed to enable lingering: {e}")
         return {"status": "error", "message": f"Failed to enable lingering: {e}"}
 
 
@@ -694,6 +836,7 @@ def create_systemd_service_handler(
         return {"status": "success"}  # Not applicable
 
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Creating systemd service for server: {server_name}")
 
     if not server_name:
         raise InvalidServerNameError(
@@ -705,10 +848,13 @@ def create_systemd_service_handler(
         system_linux._create_systemd_service(server_name, base_dir, autoupdate)
         if autostart:
             system_linux._enable_systemd_service(server_name)
+            logger.info(f"Enabled autostart for systemd service: {server_name}")
         else:
             system_linux._disable_systemd_service(server_name)
+            logger.info(f"Disabled autostart for systemd service: {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Failed to create systemd service: {e}")
         return {"status": "error", "message": f"Failed to create systemd service: {e}"}
 
 
@@ -725,7 +871,7 @@ def set_windows_autoupdate_handler(server_name, autoupdate_value, base_dir=None)
     """
     if platform.system() != "Windows":
         return {"status": "success"}  # Not applicable
-
+    logger.info(f"Setting autoupdate for {server_name} to {autoupdate_value}")
     if not server_name:
         raise InvalidServerNameError(
             "set_windows_autoupdate_handler: server_name is empty"
@@ -736,8 +882,12 @@ def set_windows_autoupdate_handler(server_name, autoupdate_value, base_dir=None)
         server_base.manage_server_config(
             server_name, "autoupdate", "write", autoupdate_value, config_dir=base_dir
         )
+        logger.debug(
+            f"Successfully set autoupdate to {autoupdate_value} for {server_name}"
+        )
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Failed to update autoupdate config: {e}")
         return {
             "status": "error",
             "message": f"Failed to update autoupdate config: {e}",
@@ -748,10 +898,13 @@ def enable_service_handler(server_name, base_dir=None):
     if platform.system() != "Linux":
         return {"status": "success"}
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Enabling systemd service for {server_name}")
     try:
         system_linux._enable_systemd_service(server_name)
+        logger.debug(f"Enabled systemd service for {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Failed to enable systemd service: {e}")
         return {"status": "error", "message": f"Failed to enable service: {e}"}
 
 
@@ -759,10 +912,13 @@ def disable_service_handler(server_name, base_dir=None):
     if platform.system() != "Linux":
         return {"status": "success"}
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Disabling systemd service for {server_name}")
     try:
         system_linux._disable_systemd_service(server_name)
+        logger.debug(f"Disabled systemd service for {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Failed to disable systemd service: {e}")
         return {"status": "error", "message": f"Failed to disable service: {e}"}
 
 
@@ -777,11 +933,13 @@ def start_server_handler(server_name, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Starting server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("start_server_handler: server_name is empty.")
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if system_base.is_server_running(server_name, base_dir):
+        logger.warning(f"Server {server_name} is already running.")
         return {"status": "error", "message": f"{server_name} is already running."}
 
     try:
@@ -789,9 +947,14 @@ def start_server_handler(server_name, base_dir=None):
             server_name, os.path.join(base_dir, server_name)
         )
         bedrock_server.start()  # Call start method
+        logger.debug(f"Started server: {server_name}")
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": f"Failed to start server: {e}"}
+        logger.exception(f"Error starting server {server_name}: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to start server: {e}",
+        }  # Provide error message
 
 
 def systemd_start_server_handler(server_name, base_dir=None):
@@ -805,6 +968,7 @@ def systemd_start_server_handler(server_name, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Starting server via systemd: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "systemd_start_server_handler: server_name is empty."
@@ -812,14 +976,17 @@ def systemd_start_server_handler(server_name, base_dir=None):
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if system_base.is_server_running(server_name, base_dir):
+        logger.warning(f"Server {server_name} is already running (systemd start).")
         return {"status": "error", "message": f"{server_name} is already running."}
 
     try:
         system_linux._systemd_start_server(
             server_name, os.path.join(base_dir, server_name)
         )
+        logger.debug(f"Started server via systemd: {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error starting server via systemd: {e}")
         return {
             "status": "error",
             "message": f"Failed to start server via systemd: {e}",
@@ -837,12 +1004,14 @@ def stop_server_handler(server_name, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Stopping server: {server_name}")
 
     if not server_name:
         raise InvalidServerNameError("stop_server_handler: server_name is empty.")
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if not system_base.is_server_running(server_name, base_dir):
+        logger.warning(f"Server {server_name} is not running.")
         return {"status": "error", "message": f"{server_name} is not running."}
 
     try:
@@ -850,8 +1019,10 @@ def stop_server_handler(server_name, base_dir=None):
             server_name, os.path.join(base_dir, server_name)
         )
         bedrock_server.stop()  # Stop the server
+        logger.debug(f"Stopped server: {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error stopping server {server_name}: {e}")
         return {"status": "error", "message": f"Failed to stop server: {e}"}
 
 
@@ -866,6 +1037,7 @@ def systemd_stop_server_handler(server_name, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Stopping server via systemd: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "systemd_stop_server_handler: server_name is empty."
@@ -873,14 +1045,17 @@ def systemd_stop_server_handler(server_name, base_dir=None):
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if not system_base.is_server_running(server_name, base_dir):
+        logger.warning(f"Server {server_name} is not running (systemd stop).")
         return {"status": "error", "message": f"{server_name} is not running."}
 
     try:
         system_linux._systemd_stop_server(
             server_name, os.path.join(base_dir, server_name)
         )
+        logger.debug(f"Stopped server via systemd: {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error stopping server via systemd: {e}")
         return {"status": "error", "message": f"Failed to stop server via systemd: {e}"}
 
 
@@ -897,7 +1072,7 @@ def restart_server_handler(server_name, base_dir=None, send_message=True):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-
+    logger.info(f"Restarting server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("restart_server_handler: server_name is empty.")
         # return {"status": "error", "message": "Server name cannot be empty."}
@@ -914,6 +1089,7 @@ def restart_server_handler(server_name, base_dir=None, send_message=True):
         try:
             bedrock_server = server_base.BedrockServer(server_name, base_dir)
             bedrock_server.send_command("say Restarting server in 10 seconds..")
+            logger.info(f"Sent restart warning to server: {server_name}")
             time.sleep(10)
         except Exception as e:
             #  Don't fail the entire restart if sending the message fails.
@@ -930,7 +1106,7 @@ def restart_server_handler(server_name, base_dir=None, send_message=True):
     start_result = start_server_handler(server_name, base_dir)
     if start_result["status"] == "error":
         return start_result
-
+    logger.debug(f"Restarted server: {server_name}")
     return {"status": "success"}
 
 
@@ -946,7 +1122,7 @@ def get_bedrock_process_info_handler(server_name, base_dir=None):
             or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-
+    logger.debug(f"Getting process info for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "get_bedrock_process_info_handler: server_name is empty"
@@ -956,12 +1132,15 @@ def get_bedrock_process_info_handler(server_name, base_dir=None):
     try:
         process_info = system_base._get_bedrock_process_info(server_name, base_dir)
         if not process_info:
+            logger.warning(f"Server process information not found for: {server_name}")
             return {
                 "status": "error",
                 "message": "Server process information not found.",
             }
+        logger.debug(f"Retrieved process info: {process_info}")
         return {"status": "success", "process_info": process_info}
     except Exception as e:
+        logger.exception(f"Error getting process info for {server_name}: {e}")
         return {"status": "error", "message": f"Error getting process info: {e}"}
 
 
@@ -977,11 +1156,13 @@ def send_command_handler(server_name, command, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Sending command to {server_name}: {command}")
     try:
         bedrock_server = server_base.BedrockServer(
             server_name, os.path.join(base_dir, server_name)
         )
         bedrock_server.send_command(command)
+        logger.debug(f"Command sent to {server_name}: {command}")
         return {"status": "success"}
     except (
         MissingArgumentError,
@@ -990,8 +1171,10 @@ def send_command_handler(server_name, command, base_dir=None):
         CommandNotFoundError,
     ) as e:
         # Catch all the exceptions that BedrockServer.send_command can raise
+        logger.error(f"Error sending command to {server_name}: {e}")
         return {"status": "error", "message": str(e)}
     except Exception as e:  # also catch unexpected exceptions
+        logger.exception(f"Unexpected error sending command to {server_name}: {e}")
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
@@ -1006,7 +1189,7 @@ def attach_to_screen_session_handler(server_name, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-
+    logger.info(f"Attaching to screen session for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "attach_to_screen_session_handler: server_name is empty."
@@ -1014,26 +1197,32 @@ def attach_to_screen_session_handler(server_name, base_dir=None):
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if platform.system() != "Linux":
+        logger.warning("Attaching to screen session is only supported on Linux.")
         return {"status": "success"}  # Not applicable
 
     if not system_base.is_server_running(server_name, base_dir):
+        logger.warning(f"Server {server_name} is not running.")
         return {"status": "error", "message": f"{server_name} is not running."}
 
     try:
         subprocess.run(["screen", "-r", f"bedrock-{server_name}"], check=True)
+        logger.debug(f"Attached to screen session for: {server_name}")
         return {"status": "success"}
     except subprocess.CalledProcessError:
         # This likely means the screen session doesn't exist.
+        logger.warning(f"Failed to attach to screen session for: {server_name}")
         return {
             "status": "error",
             "message": f"Failed to attach to screen session for: {server_name}",
         }
     except FileNotFoundError:
+        logger.error("screen command not found. Is screen installed?")
         return {
             "status": "error",
             "message": "screen command not found. Is screen installed?",
         }
     except Exception as e:
+        logger.exception(f"An unexpected error occurred attaching to screen: {e}")
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
@@ -1052,7 +1241,7 @@ def delete_server_data_handler(
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-
+    logger.info(f"Deleting server data for: {server_name}")
     if not server_name:
         raise InvalidServerNameError(
             "delete_server_data_handler: server_name is empty."
@@ -1068,10 +1257,15 @@ def delete_server_data_handler(
 
     try:
         server_base.delete_server_data(server_name, base_dir, config_dir)
+        logger.info(f"Server data deleted for: {server_name}")
         return {"status": "success"}
     except FileOperationError as e:  # Catch specific exceptions
+        logger.exception(f"Error deleting server data for {server_name}: {e}")
         return {"status": "error", "message": f"Error deleting server data: {e}"}
     except Exception as e:
+        logger.exception(
+            f"Unexpected error deleting server data for {server_name}: {e}"
+        )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
@@ -1086,15 +1280,23 @@ def get_world_name_handler(server_name, base_dir=None):
         dict: {"status": "success", "world_name": ...} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.debug(
+        f"get_world_name_handler: Getting world name for server: {server_name}"
+    )
     try:
         world_name = server_base.get_world_name(server_name, base_dir)
         if world_name is None or not world_name:  # Check for None or empty
+            logger.error(
+                f"Failed to get world name from server.properties for {server_name}"
+            )
             return {
                 "status": "error",
                 "message": "Failed to get world name from server.properties.",
             }
+        logger.debug(f"World name for {server_name}: {world_name}")
         return {"status": "success", "world_name": world_name}
     except Exception as e:
+        logger.exception(f"Error getting world name for {server_name}: {e}")
         return {"status": "error", "message": f"Error getting world name: {e}"}
 
 
@@ -1116,6 +1318,7 @@ def extract_world_handler(
     base_dir = get_base_dir(base_dir)
     if not server_name:
         raise InvalidServerNameError("extract_world_handler: server_name is empty.")
+    logger.info(f"Extracting world for server: {server_name}, file: {selected_file}")
 
     server_dir = os.path.join(base_dir, server_name)
     world_name_result = get_world_name_handler(server_name, base_dir)
@@ -1129,19 +1332,21 @@ def extract_world_handler(
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} before world extraction")
             # stop the server
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
 
-    logger.info(f"Installing world {os.path.basename(selected_file)}...")
-
     try:
         world.extract_world(selected_file, extract_dir)
+        logger.debug(f"Extracted world to: {extract_dir}")
     except Exception as e:
+        logger.exception(f"Error extracting world: {e}")
         return {"status": "error", "message": f"Error extracting world: {e}"}
 
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after world extraction")
         # Start the server if it was running
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
@@ -1162,6 +1367,7 @@ def export_world_handler(server_name, base_dir=None):
         dict: {"status": "success", "backup_file": ...} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Exporting world for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("export_world_handler: server_name is empty.")
 
@@ -1172,6 +1378,9 @@ def export_world_handler(server_name, base_dir=None):
 
     world_path = os.path.join(base_dir, server_name, "worlds", world_folder)
     if not os.path.isdir(world_path):
+        logger.error(
+            f"World directory '{world_folder}' does not exist for {server_name}"
+        )
         return {
             "status": "error",
             "message": f"World directory '{world_folder}' does not exist.",
@@ -1180,12 +1389,14 @@ def export_world_handler(server_name, base_dir=None):
     timestamp = get_timestamp()
     backup_dir = settings.get("BACKUP_DIR")
     backup_file = os.path.join(backup_dir, f"{world_folder}_backup_{timestamp}.mcworld")
+    logger.debug(f"Exporting world to: {backup_file}")
 
-    logger.info(f"Backing up world folder '{world_folder}'...")
     try:
         world.export_world(world_path, backup_file)
+        logger.info(f"World backup created: {backup_file}")
         return {"status": "success", "backup_file": backup_file}
     except Exception as e:
+        logger.exception(f"Error exporting world: {e}")
         return {"status": "error", "message": f"Error exporting world: {e}"}
 
 
@@ -1205,16 +1416,20 @@ def prune_old_backups_handler(
     """
     base_dir = get_base_dir(base_dir)
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-
+    logger.info(f"Pruning old backups for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("prune_old_backups_handler: server_name is empty")
         # return {"status": "error", "message": "Server name cannot be empty."}
 
     if backup_keep is None:
         backup_keep = settings.get("BACKUP_KEEP")  # Get from config
+        logger.debug(f"Using default backup keep value: {backup_keep}")
         try:
             backup_keep = int(backup_keep)
         except ValueError:
+            logger.error(
+                "Invalid value for BACKUP_KEEP in config file, must be an integer."
+            )
             return {
                 "status": "error",
                 "message": "Invalid value for BACKUP_KEEP in config file, must be an integer.",
@@ -1226,9 +1441,15 @@ def prune_old_backups_handler(
     try:
         if world_name_result["status"] == "error":
             #  If we can't get the world name, still try to prune with just the extension
+            logger.debug(
+                f"Pruning world backups using only extension for: {server_name}"
+            )
             backup.prune_old_backups(backup_dir, backup_keep, file_extension="mcworld")
         else:
             level_name = world_name_result["world_name"]
+            logger.debug(
+                f"Pruning world backups using prefix and extension for: {server_name}"
+            )
             backup.prune_old_backups(
                 backup_dir,
                 backup_keep,
@@ -1236,10 +1457,14 @@ def prune_old_backups_handler(
                 file_extension="mcworld",
             )
     except Exception as e:
+        logger.exception(f"Error pruning world backups for {server_name}: {e}")
         return {"status": "error", "message": f"Error pruning world backups: {e}"}
 
     # Prune config file backups (if file_name is provided)
     if file_name:
+        logger.debug(
+            f"Pruning config file backups for {server_name} with filename: {file_name}"
+        )
         try:
             backup.prune_old_backups(
                 backup_dir,
@@ -1248,6 +1473,7 @@ def prune_old_backups_handler(
                 file_extension=file_name.split(".")[-1],
             )
         except Exception as e:
+            logger.exception(f"Error pruning config backups for {server_name}: {e}")
             return {"status": "error", "message": f"Error pruning config backups: {e}"}
 
     return {"status": "success"}
@@ -1269,6 +1495,7 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
     server_dir = os.path.join(base_dir, server_name)
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
     os.makedirs(backup_dir, exist_ok=True)  # Ensure backup dir exists
+    logger.info(f"Backing up world for server: {server_name}")
 
     if not server_name:
         raise InvalidServerNameError("backup_world_handler: server_name is empty.")
@@ -1277,6 +1504,7 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} for world backup")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
@@ -1288,17 +1516,18 @@ def backup_world_handler(server_name, base_dir=None, stop_start_server=True):
         world_name = world_name_result["world_name"]
         world_path = os.path.join(server_dir, "worlds", world_name)
         if not os.path.exists(world_path):  # Changed to exists
+            logger.error(f"World path does not exist: {world_path}")
             return {
                 "status": "error",
                 "message": f"World path does not exist: {world_path}",
             }
-
-        logger.info("Backing up world...")
         backup.backup_world(server_name, world_path, backup_dir)
-
+        logger.debug(f"World backed up for server: {server_name}")
     except Exception as e:
+        logger.exception(f"World backup failed for {server_name}: {e}")
         return {"status": "error", "message": f"World backup failed: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after world backup")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1325,36 +1554,41 @@ def backup_config_file_handler(
     server_dir = os.path.join(base_dir, server_name)
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
     os.makedirs(backup_dir, exist_ok=True)
-
+    logger.info(f"Backing up config file for {server_name}: {file_to_backup}")
     if not server_name:
         raise InvalidServerNameError(
             "backup_config_file_handler: server_name is empty."
         )
         # return {"status": "error", "message": "Server name cannot be empty."}
     if not file_to_backup:
+        logger.error(f"No file specified for config backup on server {server_name}.")
         return {"status": "error", "message": "File to backup cannot be empty."}
 
     was_running = False
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} for config file backup")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
 
     full_file_path = os.path.join(server_dir, file_to_backup)
     if not os.path.exists(full_file_path):
+        logger.error(f"Config file does not exist: {full_file_path}")
         return {
             "status": "error",
             "message": f"Config file does not exist: {full_file_path}",
         }
-    logger.info(f"Backing up config file: {file_to_backup}")
     try:
         backup.backup_config_file(full_file_path, backup_dir)
+        logger.debug(f"Config file backed up for {server_name}: {file_to_backup}")
 
     except Exception as e:
+        logger.exception(f"Config file backup failed for {server_name}: {e}")
         return {"status": "error", "message": f"Config file backup failed: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after config file backup")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1373,6 +1607,7 @@ def backup_all_handler(server_name, base_dir=None, stop_start_server=True):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Performing full backup for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("backup_all_handler: server_name is empty.")
 
@@ -1380,16 +1615,18 @@ def backup_all_handler(server_name, base_dir=None, stop_start_server=True):
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} for full backup")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
-    logger.info("Performing full backup...")
     try:
         backup.backup_all(server_name, base_dir)
         logger.info("All files backed up successfully.")
     except Exception as e:
+        logger.exception(f"Error during full backup for {server_name}: {e}")
         return {"status": "error", "message": f"Error during full backup: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after full backup")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1409,8 +1646,9 @@ def list_backups_handler(server_name, backup_type, base_dir=None):
     """
     base_dir = get_base_dir(base_dir)
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
-
+    logger.info(f"Listing backups for server: {server_name}, type: {backup_type}")
     if not os.path.isdir(backup_dir):
+        logger.warning(f"No backups found for {server_name} in {backup_dir}")
         return {"status": "error", "message": f"No backups found for {server_name}."}
 
     if backup_type == "world":
@@ -1421,8 +1659,9 @@ def list_backups_handler(server_name, backup_type, base_dir=None):
             os.path.join(backup_dir, "server_backup_*.properties")
         )
     else:
+        logger.error(f"Invalid backup type specified: {backup_type}")
         return {"status": "error", "message": f"Invalid backup type: {backup_type}"}
-
+    logger.debug(f"Found backups: {backup_files}")
     return {"status": "success", "backups": backup_files}
 
 
@@ -1442,27 +1681,34 @@ def restore_world_handler(
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Restoring world for {server_name} from {backup_file}")
     if not server_name:
         raise InvalidServerNameError("restore_world_handler: server_name is empty.")
     if not backup_file:
+        logger.error(
+            f"No backup file specified for world restore on server {server_name}."
+        )
         return {"status": "error", "message": "Backup file cannot be empty."}
     if not os.path.exists(backup_file):
+        logger.error(f"Backup file not found: {backup_file}")
         return {"status": "error", "message": f"Backup file '{backup_file}' not found."}
 
     was_running = False
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} for world restore")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
-
-    logger.info(f"Restoring world from {backup_file}...")
     try:
         backup.restore_server(server_name, backup_file, "world", base_dir)
+        logger.debug(f"World restored for {server_name} from {backup_file}")
     except Exception as e:
+        logger.exception(f"Error restoring world for {server_name}: {e}")
         return {"status": "error", "message": f"Error restoring world: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after world restore")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1485,33 +1731,41 @@ def restore_config_file_handler(
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Restoring config file for {server_name} from {backup_file}")
     if not server_name:
         raise InvalidServerNameError(
             "restore_config_file_handler: server_name is empty."
         )
     if not backup_file:
+        logger.error(
+            f"No backup file specified for config restore on server {server_name}"
+        )
         return {"status": "error", "message": "Backup file cannot be empty."}
     if not os.path.exists(backup_file):
+        logger.error(f"Backup file not found: {backup_file}")
         return {"status": "error", "message": f"Backup file '{backup_file}' not found."}
 
     was_running = False
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} for config restore")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
 
-    logger.info(f"Restoring config file: {os.path.basename(backup_file)}")
     try:
         restore_result = backup.restore_server(
             server_name, backup_file, "config", base_dir
         )
+        logger.debug(f"Config file restored for {server_name} from {backup_file}")
         if restore_result["status"] == "error":
             return restore_result
     except Exception as e:
+        logger.exception(f"Error restoring config file for {server_name}: {e}")
         return {"status": "error", "message": f"Error restoring config file: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after config file restore")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1528,21 +1782,25 @@ def restore_all_handler(server_name, base_dir=None, stop_start_server=True):
             Defaults to True.
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Restoring all files for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("restore_all_handler: server_name is empty.")
     was_running = False
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} before restoring all files")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
-    logger.info("Restoring all files...")
     try:
         backup.restore_all(server_name, base_dir)
+        logger.info(f"All files restored for {server_name}")
     except Exception as e:
+        logger.exception(f"Error restoring all files for {server_name}: {e}")
         return {"status": "error", "message": f"Error restoring all files: {e}"}
     if stop_start_server and was_running:
+        logger.debug(f"Restarting server {server_name} after restoring all files")
         start_result = start_server_handler(server_name, base_dir)
         if start_result["status"] == "error":
             return start_result
@@ -1562,18 +1820,23 @@ def list_backups_handler(server_name, backup_type, base_dir=None):
     """
     base_dir = get_base_dir(base_dir)
     backup_dir = os.path.join(settings.get("BACKUP_DIR"), server_name)
+    logger.info(f"Listing backups for server: {server_name}, type: {backup_type}")
 
     if not os.path.isdir(backup_dir):
+        logger.warning(f"Backup directory does not exist: {backup_dir}")
         return {"status": "error", "message": f"No backups found for {server_name}."}
 
     if backup_type == "world":
         backup_files = glob.glob(os.path.join(backup_dir, "*.mcworld"))
+        logger.debug(f"Found world backups: {backup_files}")
     elif backup_type == "config":
         backup_files = glob.glob(os.path.join(backup_dir, "*_backup_*.json"))
         backup_files += glob.glob(
             os.path.join(backup_dir, "server_backup_*.properties")
         )
+        logger.debug(f"Found config backups: {backup_files}")
     else:
+        logger.error(f"Invalid backup type: {backup_type}")
         return {"status": "error", "message": f"Invalid backup type: {backup_type}"}
 
     return {"status": "success", "backups": backup_files}
@@ -1589,7 +1852,11 @@ def list_content_files_handler(content_dir, extensions):
     Returns:
         dict: {"status": "success", "files": [...]} or {"status": "error", "message": ...}
     """
+    logger.info(
+        f"Listing content files in: {content_dir} with extensions: {extensions}"
+    )
     if not os.path.isdir(content_dir):
+        logger.error(f"Content directory not found: {content_dir}")
         return {
             "status": "error",
             "message": f"Content directory not found: {content_dir}.",
@@ -1600,11 +1867,12 @@ def list_content_files_handler(content_dir, extensions):
         files.extend(glob.glob(os.path.join(content_dir, f"*.{ext}")))
 
     if not files:
+        logger.warning(f"No files found with extensions: {extensions} in {content_dir}")
         return {
             "status": "error",
             "message": f"No files found with extensions: {extensions}",
         }
-
+    logger.debug(f"Found content files: {files}")
     return {"status": "success", "files": files}
 
 
@@ -1624,12 +1892,14 @@ def install_addon_handler(
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
-
+    logger.info(f"Installing addon {addon_file} for server: {server_name}")
     if not server_name:
         raise InvalidServerNameError("install_addon_handler: server_name is empty.")
     if not addon_file:
+        logger.error("Addon file cannot be empty.")
         return {"status": "error", "message": "Addon file cannot be empty."}
     if not os.path.exists(addon_file):
+        logger.error(f"Addon file does not exist: {addon_file}")
         return {
             "status": "error",
             "message": f"Addon file does not exist: {addon_file}",
@@ -1639,18 +1909,21 @@ def install_addon_handler(
     if stop_start_server:
         was_running = system_base.is_server_running(server_name, base_dir)
         if was_running:
+            logger.debug(f"Stopping server {server_name} before addon installation")
             stop_result = stop_server_handler(server_name, base_dir)
             if stop_result["status"] == "error":
                 return stop_result
 
-    logger.info(f"Installing addon {addon_file}...")
     try:
         addon.process_addon(addon_file, server_name, base_dir)
+        logger.info(f"Addon {addon_file} installed successfully for {server_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error installing addon {addon_file} for {server_name}: {e}")
         return {"status": "error", "message": f"Error installing addon: {e}"}
     finally:  # Always restart if needed, even if process_addon fails
         if stop_start_server and was_running:
+            logger.debug(f"Restarting server {server_name} after addon installation")
             start_result = start_server_handler(server_name, base_dir)
             if start_result["status"] == "error":
                 return start_result
@@ -1666,7 +1939,11 @@ def list_content_files_handler(content_dir, extensions):
     Returns:
         dict: {"status": "success", "files": [...]} or {"status": "error", "message": ...}
     """
+    logger.debug(
+        f"Listing content files in directory: {content_dir} with extensions: {extensions}"
+    )
     if not os.path.isdir(content_dir):
+        logger.error(f"Content directory not found: {content_dir}.")
         return {
             "status": "error",
             "message": f"Content directory not found: {content_dir}.",
@@ -1674,14 +1951,19 @@ def list_content_files_handler(content_dir, extensions):
 
     files = []
     for ext in extensions:
-        files.extend(glob.glob(os.path.join(content_dir, f"*.{ext}")))
+        logger.debug(f"Searching for files with extension: .{ext}")
+        found_files = glob.glob(os.path.join(content_dir, f"*.{ext}"))
+        files.extend(found_files)
+        logger.debug(f"Found files with extension .{ext}: {found_files}")
 
     if not files:
+        logger.warning(f"No files found with extensions: {extensions} in {content_dir}")
         return {
             "status": "error",
             "message": f"No files found with extensions: {extensions}",
         }
 
+    logger.debug(f"Total files found: {files}")
     return {"status": "success", "files": files}
 
 
@@ -1705,6 +1987,7 @@ def scan_player_data_handler(base_dir=None, config_dir=None):
     all_players_data = []
 
     if not os.path.isdir(base_dir):
+        logger.error(f"Error: {base_dir} does not exist or is not a directory.")
         return {
             "status": "error",
             "message": f"Error: {base_dir} does not exist or is not a directory.",
@@ -1713,6 +1996,7 @@ def scan_player_data_handler(base_dir=None, config_dir=None):
     for server_folder in glob.glob(os.path.join(base_dir, "*/")):
         server_name = os.path.basename(os.path.normpath(server_folder))
         log_file = os.path.join(server_folder, "server_output.txt")
+        logger.debug(f"Scanning for player data in: {log_file}")
 
         if not os.path.exists(log_file):
             logger.warning(f"Log file not found for {server_name}, skipping.")
@@ -1721,8 +2005,10 @@ def scan_player_data_handler(base_dir=None, config_dir=None):
         try:
             players_data = player_base.scan_log_for_players(log_file)
             if players_data:
+                logger.debug(f"Found player data for {server_name}: {players_data}")
                 all_players_data.extend(players_data)
         except Exception as e:
+            logger.exception(f"Error scanning log for {server_name}: {e}")
             return {
                 "status": "error",
                 "message": f"Error scanning log for {server_name}: {e}",
@@ -1731,8 +2017,10 @@ def scan_player_data_handler(base_dir=None, config_dir=None):
     if all_players_data:
         try:
             player_base.save_players_to_json(all_players_data, config_dir)
+            logger.info(f"Saved player data to {config_dir}/players.json")
             return {"status": "success", "players_found": True}
         except Exception as e:
+            logger.exception(f"Error saving player data: {e}")
             return {"status": "error", "message": f"Error saving player data: {e}"}
     else:
         logger.info("No player data found across all servers.")
@@ -1750,10 +2038,13 @@ def get_server_cron_jobs_handler(server_name, base_dir=None):
         dict: {"status": "success", "cron_jobs": [...]} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.debug(f"Getting cron jobs for server: {server_name}")
     try:
         cron_jobs = system_linux.get_server_cron_jobs(server_name)
+        logger.debug(f"Cron jobs for {server_name}: {cron_jobs}")
         return {"status": "success", "cron_jobs": cron_jobs}
     except Exception as e:
+        logger.exception(f"Failed to retrieve cron jobs for {server_name}: {e}")
         return {"status": "error", "message": f"Failed to retrieve cron jobs: {e}"}
 
 
@@ -1766,10 +2057,13 @@ def get_cron_jobs_table_handler(cron_jobs):
     Returns:
         dict: {"status": "success", "table_data": [...]} or {"status": "error", "message": ...}
     """
+    logger.debug(f"Formatting cron jobs for table display: {cron_jobs}")
     try:
         table_data = system_linux.get_cron_jobs_table(cron_jobs)
+        logger.debug(f"Formatted cron job table data: {table_data}")
         return {"status": "success", "table_data": table_data}
     except Exception as e:
+        logger.exception(f"Error formatting cron job table: {e}")
         return {"status": "error", "message": f"Error formatting cron job table: {e}"}
 
 
@@ -1784,10 +2078,13 @@ def add_cron_job_handler(cron_job_string, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Adding cron job: {cron_job_string}")
     try:
         system_linux._add_cron_job(cron_job_string)
+        logger.debug(f"Cron job added: {cron_job_string}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error adding cron job: {e}")
         return {"status": "error", "message": f"Error adding cron job: {e}"}
 
 
@@ -1803,10 +2100,17 @@ def modify_cron_job_handler(old_cron_job_string, new_cron_job_string, base_dir=N
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(
+        f"Modifying cron job: Old: {old_cron_job_string} New: {new_cron_job_string}"
+    )
     try:
         system_linux._modify_cron_job(old_cron_job_string, new_cron_job_string)
+        logger.debug(
+            f"Cron job modified. Old: {old_cron_job_string}  New: {new_cron_job_string}"
+        )
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error modifying cron job: {e}")
         return {"status": "error", "message": f"Error modifying cron job: {e}"}
 
 
@@ -1821,10 +2125,13 @@ def delete_cron_job_handler(cron_job_string, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Deleting cron job: {cron_job_string}")
     try:
         system_linux._delete_cron_job(cron_job_string)
+        logger.debug(f"Cron job deleted: {cron_job_string}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error deleting cron job {cron_job_string}: {e}")
         return {"status": "error", "message": f"Error deleting cron job: {e}"}
 
 
@@ -1832,23 +2139,32 @@ def validate_cron_input_handler(value, min_val, max_val):
     """Validates a single cron input value (minute, hour, day, etc.).
     This is now a handler.
     """
+    logger.debug(f"Validating cron input: value={value}, min={min_val}, max={max_val}")
     try:
         system_linux.validate_cron_input(value, min_val, max_val)
+        logger.debug(f"Cron input {value} is valid.")
         return {"status": "success"}
     except InvalidCronJobError as e:
+        logger.error(f"Invalid cron input: {e}")
         return {"status": "error", "message": str(e)}
 
 
 def convert_to_readable_schedule_handler(month, day, hour, minute, weekday):
     """Converts cron schedule components to a human-readable string."""
+    logger.debug(
+        f"Converting cron schedule to readable format: month={month}, day={day}, hour={hour}, minute={minute}, weekday={weekday}"
+    )
     try:
         schedule_time = system_linux.convert_to_readable_schedule(
             month, day, hour, minute, weekday
         )
         if schedule_time is None:
+            logger.error("Error converting schedule to readable format")
             return {"status": "error", "message": "Error Converting Schedule"}
+        logger.debug(f"Converted schedule: {schedule_time}")
         return {"status": "success", "schedule_time": schedule_time}
     except Exception as e:
+        logger.exception(f"Error converting schedule: {e}")
         return {"status": "error", "message": str(e)}
 
 
@@ -1864,11 +2180,13 @@ def get_server_task_names_handler(server_name, config_dir=None):
     """
     if config_dir is None:
         config_dir = settings._config_dir
-
+    logger.debug(f"Getting task names for server: {server_name}")
     try:
         task_names = system_windows.get_server_task_names(server_name, config_dir)
+        logger.debug(f"Task names for {server_name}: {task_names}")
         return {"status": "success", "task_names": task_names}
     except Exception as e:
+        logger.exception(f"Error getting task names for {server_name}: {e}")
         return {"status": "error", "message": f"Error getting task names: {e}"}
 
 
@@ -1881,10 +2199,13 @@ def get_windows_task_info_handler(task_names):
     Returns:
         dict: {"status": "success", "task_info": [...]} or {"status": "error", "message": ...}
     """
+    logger.debug(f"Getting Windows task info for tasks: {task_names}")
     try:
         task_info = system_windows.get_windows_task_info(task_names)
+        logger.debug(f"Task info: {task_info}")
         return {"status": "success", "task_info": task_info}
     except Exception as e:
+        logger.exception(f"Error getting task info: {e}")
         return {"status": "error", "message": f"Error getting task info: {e}"}
 
 
@@ -1905,13 +2226,16 @@ def create_windows_task_handler(
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)  # Keep for consistency
+    logger.info(f"Creating Windows task: {task_name} for server: {server_name}")
     try:
         xml_file_path = system_windows.create_windows_task_xml(
             server_name, command, command_args, task_name, config_dir, triggers
         )
         system_windows.import_task_xml(xml_file_path, task_name)
+        logger.info(f"Created Windows task: {task_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error creating Windows task {task_name}: {e}")
         return {"status": "error", "message": f"Error creating task: {e}"}
 
 
@@ -1927,7 +2251,9 @@ def modify_windows_task_handler(
 ):
     """Modifies an existing Windows scheduled task (by deleting and recreating)."""
     base_dir = get_base_dir(base_dir)  # Keep for consistency
-
+    logger.info(
+        f"Modifying Windows task. Old: {old_task_name}, New: {new_task_name} for server: {server_name}"
+    )
     old_xml_file_path = os.path.join(config_dir, server_name, f"{old_task_name}.xml")
 
     try:
@@ -1940,24 +2266,33 @@ def modify_windows_task_handler(
         # 2. Delete the old task
         try:
             system_windows.delete_task(old_task_name)
+            logger.debug(f"Deleted old task: {old_task_name}")
         except Exception as e:
             logger.warning(f"Failed to remove task XML: {e}")
 
         if os.path.exists(old_xml_file_path):
             try:
                 os.remove(old_xml_file_path)
+                logger.debug(f"Deleted old task XML file: {old_xml_file_path}")
             except OSError as e:
                 logger.warning(f"Failed to remove task XML file: {e}")
 
         # 3. Import the new task
         system_windows.import_task_xml(new_xml_file_path, new_task_name)
+        logger.info(
+            f"Modified Windows task. Old: {old_task_name}, New: {new_task_name}"
+        )
         return {"status": "success"}
     except Exception as e:
+        logger.exception(
+            f"Error modifying Windows task. Old: {old_task_name}, New: {new_task_name}: {e}"
+        )
         return {"status": "error", "message": f"Error modifying task: {e}"}
 
 
 def create_task_name_handler(server_name, command_args):
     """Cleans up task names for modify windows task."""
+    logger.debug(f"Creating task name for server: {server_name}, args: {command_args}")
     # Remove '--server' and the server name using regex
     cleaned_args = re.sub(
         r"--server\s+" + re.escape(server_name) + r"\s*", "", command_args
@@ -1966,6 +2301,7 @@ def create_task_name_handler(server_name, command_args):
     sanitized_args = re.sub(r"\W+", "_", cleaned_args)
 
     new_task_name = f"bedrock_{server_name}_{sanitized_args}_{get_timestamp()}"
+    logger.debug(f"Created task name: {new_task_name}")
     return new_task_name
 
 
@@ -1981,31 +2317,102 @@ def delete_windows_task_handler(task_name, task_file_path, base_dir=None):
         dict: {"status": "success"} or {"status": "error", "message": ...}
     """
     base_dir = get_base_dir(base_dir)
+    logger.info(f"Deleting Windows task: {task_name}")
     try:
         system_windows.delete_task(task_name)
         # Also remove the XML file
         try:
             os.remove(task_file_path)
+            logger.debug(f"Deleted task XML file: {task_file_path}")
         except OSError as e:
             logger.warning(f"Failed to remove task XML file: {e}")  # Log but don't fail
+        logger.debug(f"Deleted task: {task_name}")
         return {"status": "success"}
     except Exception as e:
+        logger.exception(f"Error deleting task {task_name}: {e}")
         return {"status": "error", "message": f"Error deleting task: {e}"}
 
 
 def get_day_element_name_handler(day_input):
     """Gets the XML element name for a day of the week."""
+    logger.debug(f"Getting day element name for: {day_input}")
     try:
         day_name = system_windows._get_day_element_name(day_input)
+        logger.debug(f"Day element name: {day_name}")
         return {"status": "success", "day_name": day_name}
     except Exception as e:
+        logger.exception(f"Error getting day element name for: {day_input} - {e}")
         return {"status": "error", "message": str(e)}
 
 
 def get_month_element_name_handler(month_input):
     """Gets the XML element name for a month."""
+    logger.debug(f"Getting month element name for: {month_input}")
     try:
         month_name = system_windows._get_month_element_name(month_input)
+        logger.debug(f"Month element name: {month_name}")
         return {"status": "success", "month_name": month_name}
     except Exception as e:
+        logger.exception(f"Error getting month element name for {month_input} - {e}")
         return {"status": "error", "message": str(e)}
+
+
+def start_web_server_handler(host=None, debug=False, mode="direct"):
+    """Starts the web server with defined host with optional debug mode
+
+    Args:
+        host (str, optional): The base directory for servers. Defaults to None.
+        debug (bool, optional): Starts the server in debug mode
+    """
+    if mode == "direct":
+        logger.info("Running web-server directly...")
+        try:
+            run_web_server(host, debug)
+            return {"status": "success"}
+        except Exception as e:
+            logger.exception(f"Error updating server statuses: {e}")
+            return {
+                "status": "error",
+                "message": f"Error updating server statuses: {e}",
+            }
+
+    elif mode == "detached":
+        logger.info("Running web-server in detached mode...")
+        try:
+            command = [str(EXPATH), "start-webserver"]
+            if host:
+                command.extend(["--host", host])
+            if debug:
+                command.append("--debug")
+            command.extend(["--mode", "direct"])
+
+            process = subprocess.Popen(
+                command,
+                cwd=SCRIPT_DIR,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=(
+                    subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+                ),  # Don't open a console
+            )
+
+            logger.info(f"Started web server with PID: {process.pid}")
+            return {"status": "success", "process": process.pid}
+
+        except FileNotFoundError:
+            logger.error(f"Executable or script not found: {EXPATH}")
+            return {"status": "error", "message": f"Executable not found: {EXPATH}"}
+        except Exception as e:
+            logger.exception(f"Error starting process: {e}")
+            return {"status": "error", "message": str(e)}
+
+
+def stop_web_server_handler(script_dir=SCRIPT_DIR):
+    script_dir = settings.get("BASE_DIR")
+    try:
+        logger.warning("Not implemented")
+    except Exception as e:
+        logger.exception(f"Error starting process: {e}")
+        return {"status": "error", "message": str(e)}
+    return {"status": "success"}
