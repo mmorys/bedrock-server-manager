@@ -1370,3 +1370,25 @@ function triggerInstallServer(buttonElement) {
         }); // End of .then() for initial API call
     console.log("Returned from initiating sendServerActionRequest call for trigger install server (async).");
 }
+
+
+/**
+ * Triggers the 'update' action for a specific server via API.
+ * @param {HTMLElement} buttonElement The button that was clicked.
+ * @param {string} serverName The name of the server to update.
+ */
+function triggerServerUpdate(buttonElement, serverName) {
+    console.log(`triggerServerUpdate called for server: ${serverName}`);
+    if (serverName) {
+        // Call sendServerActionRequest:
+        // - serverName: The name passed from the button
+        // - actionPath: 'update' (matches the part of the URL after the server name)
+        // - method: 'POST' (matches the method required by the Flask route)
+        // - body: null (the update route doesn't need data in the body)
+        // - buttonElement: Pass the button so it gets disabled during the request
+        sendServerActionRequest(serverName, 'update', 'POST', null, buttonElement);
+    } else {
+        console.error("triggerServerUpdate called without serverName.");
+        showStatusMessage("Error: Server name missing for update action.", "error");
+    }
+}
