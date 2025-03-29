@@ -6,38 +6,43 @@
     <title>{{ app_name }} - Select Backup</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}"></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Select Backup to Restore for {{ server_name }}</h1>
-            <p>Restore Type: {{ restore_type }}</p>
+            <p>Restore Type: {{ restore_type | title }}</p>
         </header>
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
 
         <section class="restore-select-section">
             {% if backups %}
-                <form action="{{ url_for('server_routes.restore_action_route', server_name=server_name) }}" method="post">
-                    <input type="hidden" name="restore_type" value="{{ restore_type }}">
-                    <table class="server-table">
-                        <thead><tr><th>Backup File</th><th>Action</th></tr></thead>
-                        <tbody>
-                        {% for backup in backups %}
-                            <tr>
-                                <td>{{ backup|basename }}</td>
-                                <td>
-                                    <button type="submit" name="backup_file" value="{{ backup }}" class="action-link">Restore</button>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </form>
+                <table class="server-table">
+                    <thead><tr><th>Backup File</th><th>Action</th></tr></thead>
+                    <tbody>
+                    {% for backup in backups %}
+                        <tr>
+                            <td>{{ backup|basename }}</td>
+                            <td>
+                                <button type="button"
+                                        class="action-button restore-button"
+                                        onclick="triggerRestore(this, '{{ server_name }}', '{{ restore_type }}', '{{ backup | replace('\\', '\\\\') }}')">
+                                    Restore This Backup
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             {% else %}
-                <p>No backups found for {{ server_name }} of type {{ restore_type }}.</p>
+                <p>No backups found for {{ server_name }} of type '{{ restore_type }}'.</p>
             {% endif %}
-            <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
+            <br>
+            <a href="{{ url_for('server_routes.restore_menu_route', server_name=server_name) }}" class="action-link">Back to Restore Options</a>
         </section>
     </div>
 </body>

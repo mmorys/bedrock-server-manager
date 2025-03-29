@@ -9,7 +9,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/server_actions.js') }}"></script>
 </head>
 <body>
     <div class="container">
@@ -62,10 +63,10 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <td>
-                              <a href="{{ url_for('server_routes.update_server_route', server_name=server.name) }}" class="action-link">Update Server</a>
+                              <button type="button" onclick="triggerServerUpdate(this, '{{ server.name }}')" class="action-link action-button">Update Server</button>
                               <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
                               <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
-                              <a href="#" onclick="confirmDelete('{{ server.name }}')" class="action-link">Delete</a>
+                              <button type="button" onclick="deleteServer(this, '{{ server.name }}')" class="action-link delete-button">Delete</button>
                             </td>
                         </tr>
                         {% endfor %}

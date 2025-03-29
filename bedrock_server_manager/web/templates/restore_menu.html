@@ -1,4 +1,4 @@
-<!-- bedrock-server-manager/bedrock_server_manager/web/templates/backup_menu.html -->
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/restore_menu.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}"></script>
 </head>
 <body>
     <div class="container">
@@ -14,14 +17,24 @@
             <h1>Restore Server: {{ server_name }}</h1>
         </header>
 
+
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
         <section class="restore-menu-section">
-            <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post">
-                <p>What do you want to restore?</p>
-                <button type="submit" name="restore_type" value="world" class="action-link">Restore World</button>
-                <button type="submit" name="restore_type" value="config" class="action-link">Restore Configuration File</button>
-                <button type="submit" name="restore_type" value="all" class="action-link">Restore All</button>
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
+            <p>What do you want to restore?</p>
+
+            <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+                <button type="submit" name="restore_type" value="world" class="action-button">Select World Backup...</button>
             </form>
+            <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+                <button type="submit" name="restore_type" value="config" class="action-button">Select Config Backup...</button>
+            </form>
+
+            <button type="button" onclick="triggerRestoreAll(this, '{{ server_name }}')" class="action-button">Restore All Now</button>
+
+            <br><br>
+            <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel / Back to Main Menu</a>
+
         </section>
     </div>
 </body>

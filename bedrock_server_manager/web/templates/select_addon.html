@@ -7,37 +7,48 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/content_management.js') }}"></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>Select Addon to Install for {{ server_name }}</h1>
+            <h1>Select Addon to Install for: {{ server_name }}</h1>
         </header>
+
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
 
         <section class="select-addon-section">
             {% if addon_files %}
-                <form action="{{ url_for('server_routes.install_addon_route', server_name=server_name) }}" method="post">
-                     <table class="server-table">
-                      <thead>
-                        <tr>
-                          <th>Addon Name</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                    <tbody>
-                    {% for addon_file in addon_files %}
-                        <tr>
-                            <td>{{ addon_file|basename }}</td>
-                            <td> <button type="submit" name="selected_file" value="{{ addon_file }}" class="action-link">Install</button></td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                    </table>
-                    <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
-                </form>
+                <p>Click "Install" next to the addon file you want to install:</p>
+                <table class="server-table">
+                  <thead>
+                    <tr>
+                      <th>Addon Name</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                <tbody>
+                {% for addon_file in addon_files %}
+                    <tr>
+                        <td>{{ addon_file|basename }}</td>
+                        <td>
+                            <button type="button"
+                                    class="action-button install-button"
+                                    onclick="triggerAddonInstall(this, '{{ server_name }}', '{{ addon_file | replace('\\', '\\\\') }}')">
+                                Install
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                </table>
+                <br>
+                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% else %}
-                <p>No addon files (.mcaddon or .mcpack) found in the content directory.</p>
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
+                <p>No .mcaddon or .mcpack files found in the content/addons directory.</p>
+                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% endif %}
         </section>
     </div>

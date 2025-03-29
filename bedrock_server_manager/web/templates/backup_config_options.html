@@ -7,20 +7,25 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}"></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Select Configuration File to Backup: {{ server_name }}</h1>
         </header>
+
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
         <section class="backup-config-section">
-          <form action="{{ url_for('server_routes.backup_action_route', server_name=server_name) }}" method="post">
-            <input type="hidden" name="backup_type" value="config">
-              <button type="submit" name="file_to_backup" value="allowlist.json" class="action-link">allowlist.json</button>
-              <button type="submit" name="file_to_backup" value="permissions.json" class="action-link">permissions.json</button>
-              <button type="submit" name="file_to_backup" value="server.properties" class="action-link">server.properties</button>
-              <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
-            </form>
+            <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'allowlist.json')" class="action-link">Backup allowlist.json</button>
+            <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'permissions.json')" class="action-link">Backup permissions.json</button>
+            <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'server.properties')" class="action-link">Backup server.properties</button>
+
+            <br><br>
+            <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
         </section>
     </div>
 </body>
