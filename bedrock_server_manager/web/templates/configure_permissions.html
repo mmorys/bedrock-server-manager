@@ -8,52 +8,75 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Configure Permissions for {{ server_name }}</h1>
+             {% if new_install %}
+                <p class="step-indicator">Step 3 of 4 (New Installation)</p>
+             {% endif %}
         </header>
 
-        <section class="permissions-form-section">
-            <form action="{{ url_for('server_routes.configure_permissions_route', server_name=server_name, new_install=new_install) }}" method="post">
-                <table class="server-table">
-                    <thead>
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message-box message-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div id="validation-error-area" style="color: #721c24; margin-bottom: 15px;"></div>
+
+
+        <section class="permissions-config-section">
+            <p>Set the permission level for each known player.</p>
+            <table class="server-table">
+                <thead>
+                    <tr>
+                        <th>Player Name</th>
+                        <th>XUID</th>
+                        <th>Permission Level</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if players %}
+                        {% for player in players %}
                         <tr>
-                            <th>Player Name</th>
-                            <th>XUID</th>
-                            <th>Permission Level</th>
+                            <td>{{ player.name }}</td>
+                            <td>{{ player.xuid }}</td>
+                            <td>
+                                <!-- Added data-xuid attribute, kept name for potential selection ease -->
+                                <select name="{{ player.xuid }}" data-xuid="{{ player.xuid }}" class="form-input permission-select">
+                                    {# Default to member if not found in permissions map #}
+                                    <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
+                                    <option value="member" {% if permissions.get(player.xuid, 'member') == 'member' %}selected{% endif %}>Member</option>
+                                    <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
+                                </select>
+                                <div class="validation-error" data-field="{{ player.xuid }}"></div> <!-- Error placeholder per player -->
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% if players %}  <!-- Check if players list is not empty -->
-                            {% for player in players %}
-                            <tr>
-                                <td>{{ player.name }}</td>
-                                <td>{{ player.xuid }}</td>
-                                <td>
-                                    <select name="{{ player.xuid }}" class="form-input">
-                                        <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
-                                        <option value="member" {% if permissions.get(player.xuid) == 'member' %}selected{% endif %}>Member</option>
-                                        <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
-                                    </select>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="3">No players found.</td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-                <button type="submit" class="main-button">Save Permissions</button>
-                {% if new_install %}
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Return</a>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3">No players found or loaded. Cannot set permissions.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            <div style="margin-top: 20px;">
+                 <!-- Changed button type and added onclick -->
+                <button type="button" onclick="savePermissions(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button" {% if not players %}disabled{% endif %}>Save Permissions</button>
+                 {% if new_install %}
+                    <a href="{{ url_for('server_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link" style="margin-left: 15px;">Skip/Next Step →</a>
                 {% else %}
-                 <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
+                     <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Cancel / Back</a>
                 {% endif %}
-            </form>
+            </div>
         </section>
     </div>
 </body>

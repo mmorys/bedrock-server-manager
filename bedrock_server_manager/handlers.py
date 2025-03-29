@@ -1757,13 +1757,11 @@ def restore_config_file_handler(
                 return stop_result
 
     try:
-        backup.restore_server(
-            server_name, backup_file, "config", base_dir
-        )
+        backup.restore_server(server_name, backup_file, "config", base_dir)
     except Exception as e:
         logger.exception(f"Error restoring config file for {server_name}: {e}")
         return {"status": "error", "message": f"Error restoring config file: {e}"}
-        
+
     logger.debug(f"Config file restored for {server_name} from {backup_file}")
 
     if stop_start_server and was_running:

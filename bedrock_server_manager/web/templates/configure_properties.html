@@ -7,25 +7,52 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <!-- Add other CSS files if needed -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
+    <style>
+        .validation-error {
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>Configure Server Properties: {{ server_name }}</h1>
+            <h1>Configure Properties: {{ server_name }}</h1>
+             {% if new_install %}
+                <p class="step-indicator">Step 1 of 4 (New Installation)</p>
+             {% endif %}
         </header>
 
-        <section class="config-form-section">
-            <form action="{{ url_for('server_routes.configure_properties_route', server_name=server_name, new_install=new_install) }}" method="post">
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message-box message-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div id="validation-error-area" style="color: #721c24; margin-bottom: 15px;"></div>
+
+
+        <section class="properties-config-section">
+            <div class="form-grid">
 
                 <div class="form-group">
                     <label for="server-name" class="form-label">Server Name:</label>
                     <input type="text" id="server-name" name="server-name" class="form-input" value="{{ properties.get('server-name', '') }}" required>
+                    <div class="validation-error" data-field="server-name"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="level-name" class="form-label">Level Name:</label>
                     <input type="text" id="level-name" name="level-name" class="form-input" value="{{ properties.get('level-name', '') }}" required>
+                     <small>Folder name for the world. Spaces/special chars replaced with '_'.</small>
+                    <div class="validation-error" data-field="level-name"></div>
                 </div>
 
                 <div class="form-group">
@@ -34,10 +61,11 @@
                         <option value="survival" {% if properties.get('gamemode') == 'survival' %}selected{% endif %}>Survival</option>
                         <option value="creative" {% if properties.get('gamemode') == 'creative' %}selected{% endif %}>Creative</option>
                         <option value="adventure" {% if properties.get('gamemode') == 'adventure' %}selected{% endif %}>Adventure</option>
+                         <option value="spectator" {% if properties.get('gamemode') == 'spectator' %}selected{% endif %}>Spectator</option>
                     </select>
+                    <div class="validation-error" data-field="gamemode"></div>
                 </div>
 
-                <!-- Add other form fields for difficulty, allow-cheats, port, etc. similarly -->
                 <div class="form-group">
                     <label for="difficulty" class="form-label">Difficulty:</label>
                     <select id="difficulty" name="difficulty" class="form-input">
@@ -46,91 +74,113 @@
                         <option value="normal" {% if properties.get('difficulty') == 'normal' %}selected{% endif %}>Normal</option>
                         <option value="hard" {% if properties.get('difficulty') == 'hard' %}selected{% endif %}>Hard</option>
                     </select>
+                    <div class="validation-error" data-field="difficulty"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="allow-cheats" class="form-label">Allow Cheats:</label>
                     <select id="allow-cheats" name="allow-cheats" class="form-input">
+                        <option value="false" {% if properties.get('allow-cheats') == 'false' or not properties.get('allow-cheats') %}selected{% endif %}>False</option> <!-- Default to false -->
                         <option value="true" {% if properties.get('allow-cheats') == 'true' %}selected{% endif %}>True</option>
-                        <option value="false" {% if properties.get('allow-cheats') == 'false' %}selected{% endif %}>False</option>
                     </select>
+                    <div class="validation-error" data-field="allow-cheats"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="max-players" class="form-label">Max Players:</label>
+                    <input type="number" id="max-players" name="max-players" class="form-input" value="{{ properties.get('max-players', '10') }}" min="1" required>
+                    <div class="validation-error" data-field="max-players"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="server-port" class="form-label">Server Port (IPv4):</label>
-                    <input type="number" id="server-port" name="server-port" class="form-input" value="{{ properties.get('server-port', '19132') }}" min="1024" max="65535" required>
+                    <input type="number" id="server-port" name="server-port" class="form-input" value="{{ properties.get('server-port', '19132') }}" min="1" max="65535" required> <!-- Changed min to 1 -->
+                    <div class="validation-error" data-field="server-port"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="server-portv6" class="form-label">Server Port (IPv6):</label>
-                    <input type="number" id="server-portv6" name="server-portv6" class="form-input" value="{{ properties.get('server-portv6', '19133') }}" min="1024" max="65535" required>
+                    <input type="number" id="server-portv6" name="server-portv6" class="form-input" value="{{ properties.get('server-portv6', '19133') }}" min="1" max="65535" required> <!-- Changed min to 1 -->
+                    <div class="validation-error" data-field="server-portv6"></div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="enable-lan-visibility" class="form-label">Enable Lan Visibility</label>
+                    <label for="enable-lan-visibility" class="form-label">Enable Lan Visibility:</label> <!-- Corrected typo -->
                     <select id="enable-lan-visibility" name="enable-lan-visibility" class="form-input">
+                         <option value="false" {% if properties.get('enable-lan-visibility') == 'false' or not properties.get('enable-lan-visibility') %}selected{% endif %}>False</option> <!-- Default to false -->
                         <option value="true" {% if properties.get('enable-lan-visibility') == 'true' %}selected{% endif %}>True</option>
-                        <option value="false" {% if properties.get('enable-lan-visibility') == 'false' %}selected{% endif %}>False</option>
                     </select>
+                    <div class="validation-error" data-field="enable-lan-visibility"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="allow-list" class="form-label">Enable Allow List:</label>
                     <select id="allow-list" name="allow-list" class="form-input">
+                         <option value="false" {% if properties.get('allow-list') == 'false' or not properties.get('allow-list') %}selected{% endif %}>False</option> <!-- Default to false -->
                         <option value="true" {% if properties.get('allow-list') == 'true' %}selected{% endif %}>True</option>
-                        <option value="false" {% if properties.get('allow-list') == 'false' %}selected{% endif %}>False</option>
                     </select>
+                    <div class="validation-error" data-field="allow-list"></div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="max-players" class="form-label">Max Players:</label>
-                    <input type="number" id="max-players" name="max-players" class="form-input" value="{{ properties.get('max-players', '10') }}" min="1" required>
-                </div>
-                
+
                 <div class="form-group">
                     <label for="default-player-permission-level" class="form-label">Default Player Permission:</label>
                     <select id="default-player-permission-level" name="default-player-permission-level" class="form-input">
                         <option value="visitor" {% if properties.get('default-player-permission-level') == 'visitor' %}selected{% endif %}>Visitor</option>
-                        <option value="member" {% if properties.get('default-player-permission-level') == 'member' %}selected{% endif %}>Member</option>
+                        <option value="member" {% if properties.get('default-player-permission-level') == 'member' or not properties.get('default-player-permission-level') %}selected{% endif %}>Member</option> <!-- Default to member -->
                         <option value="operator" {% if properties.get('default-player-permission-level') == 'operator' %}selected{% endif %}>Operator</option>
                     </select>
+                     <div class="validation-error" data-field="default-player-permission-level"></div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="view-distance" class="form-label">Render Distance</label>
+                    <label for="view-distance" class="form-label">Render Distance (Chunks):</label> <!-- Clarified label -->
                     <input type="number" id="view-distance" name="view-distance" class="form-input" value="{{ properties.get('view-distance', '10') }}" min="5" required>
+                     <div class="validation-error" data-field="view-distance"></div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="tick-distance" class="form-label">Tick Distance</label>
+                    <label for="tick-distance" class="form-label">Tick Distance (Chunks):</label> <!-- Clarified label -->
                     <input type="number" id="tick-distance" name="tick-distance" class="form-input" value="{{ properties.get('tick-distance', '4') }}" min="4" max="12" required>
+                     <div class="validation-error" data-field="tick-distance"></div>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="level-seed" class="form-label">Level Seed:</label>
                     <input type="text" id="level-seed" name="level-seed" class="form-input" value="{{ properties.get('level-seed', '') }}">
+                    <small>Leave empty for random seed.</small>
+                     <div class="validation-error" data-field="level-seed"></div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="online-mode" class="form-label">Enable Online Mode:</label>
+                    <label for="online-mode" class="form-label">Online Mode (Xbox Live Auth):</label> <!-- Clarified label -->
                     <select id="online-mode" name="online-mode" class="form-input">
-                        <option value="true" {% if properties.get('online-mode') == 'true' %}selected{% endif %}>True</option>
+                        <option value="true" {% if properties.get('online-mode', 'true') == 'true' %}selected{% endif %}>True</option> <!-- Default to true -->
                         <option value="false" {% if properties.get('online-mode') == 'false' %}selected{% endif %}>False</option>
                     </select>
+                     <div class="validation-error" data-field="online-mode"></div>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="texturepack-required" class="form-label">Require Texture Pack:</label>
                     <select id="texturepack-required" name="texturepack-required" class="form-input">
+                         <option value="false" {% if properties.get('texturepack-required') == 'false' or not properties.get('texturepack-required') %}selected{% endif %}>False</option> <!-- Default to false -->
                         <option value="true" {% if properties.get('texturepack-required') == 'true' %}selected{% endif %}>True</option>
-                        <option value="false" {% if properties.get('texturepack-required') == 'false' %}selected{% endif %}>False</option>
                     </select>
+                     <div class="validation-error" data-field="texturepack-required"></div>
                 </div>
 
-                <button type="submit" class="action-link">Save Properties</button>
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
+            </div> <!-- End form-grid -->
 
-            </form>
+            <div style="margin-top: 20px;">
+                <button type="button" onclick="saveProperties(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button">Save Properties</button>
+
+                 {% if new_install %}
+                    <a href="{{ url_for('server_routes.configure_allowlist_route', server_name=server_name, new_install='True') }}" class="action-link" style="margin-left: 15px;">Skip/Next Step →</a>
+                {% else %}
+                     <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Cancel / Back</a>
+                {% endif %}
+            </div>
+
         </section>
     </div>
 </body>

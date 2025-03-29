@@ -6,38 +6,47 @@
     <title>{{ app_name }} - Select World</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Select World to Import for {{ server_name }}</h1>
         </header>
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
 
         <section class="select-world-section">
             {% if world_files %}
-                <form action="{{ url_for('server_routes.install_world_route', server_name=server_name) }}" method="post">
-                    <table class="server-table">
-                      <thead>
-                        <tr>
-                          <th>World Name</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                    <tbody>
-                    {% for world_file in world_files %}
-                        <tr>
-                            <td>{{ world_file|basename }}</td>
-                            <td><button type="submit" name="selected_file" value="{{ world_file }}" class="action-link">Import</button></td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                    </table>
-                    <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
-                </form>
+                <p>Click "Import" next to the world file you want to install:</p>
+                <table class="server-table">
+                  <thead>
+                    <tr>
+                      <th>World Name</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                <tbody>
+                {% for world_file in world_files %}
+                    <tr>
+                        <td>{{ world_file|basename }}</td>
+                        <td>
+                            <button type="button"
+                                    class="action-button import-button"
+                                    onclick="triggerWorldInstall(this, '{{ server_name }}', '{{ world_file | replace('\\', '\\\\') }}')">
+                                Import
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+                </table>
+                <br>
+                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% else %}
-                <p>No world files (.mcworld) found in the content directory.</p>
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
+                <p>No world files (.mcworld) found in the content/worlds directory.</p>
+                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% endif %}
         </section>
     </div>

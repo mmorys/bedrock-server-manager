@@ -7,42 +7,63 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <script src="{{ url_for('static', filename='js/scripts.js') }}" defer></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>Configure Allowlist for {{ server_name }}</h1>
+            <h1>Configure Allowlist: {{ server_name }}</h1>
+             {% if new_install %}
+                <p class="step-indicator">Step 2 of 4 (New Installation)</p>
+             {% endif %}
         </header>
 
+        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="message-box message-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <section class="allowlist-form-section">
-            <form action="{{ url_for('server_routes.configure_allowlist_route', server_name=server_name, new_install=new_install) }}" method="post">
-                <div class="form-group">
-                    <label for="player-names" class="form-label">Player Names (one per line):</label>
-                    <textarea id="player-names" name="player_names" class="form-input" rows="5" placeholder="Enter player names, one per line"></textarea>
-                </div>
+            <div class="form-group">
+                <label for="player-names-add" class="form-label">Players to Add (one per line):</label>
+                <textarea id="player-names-add" name="player_names_add" class="form-input" rows="5" placeholder="Enter player names to add..."></textarea>
+            </div>
 
-                <div class="form-group">
-                    <label for="ignore-limit" class="form-label">Ignore Player Limit:</label>
-                    <input type="checkbox" id="ignore-limit" name="ignore_limit" class="form-checkbox">
-                </div>
+            <div class="form-group">
+                 <label for="ignore-limit-add" class="form-label">
+                     <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add" class="form-checkbox">
+                     Ignore Player Limit for players being added
+                 </label>
+            </div>
 
-                <button type="submit" class="main-button">Add Players</button>
-                {% if new_install %}
-                <a href="{{ url_for('server_routes.index') }}" class="action-link">Return</a>
-                {% else %}
-                 <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel</a>
-                {% endif %}
-            </form>
+            <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name }}')" class="main-button">Add Players</button>
 
+             {% if new_install %}
+                <a href="{{ url_for('server_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link" style="margin-left: 15px;">Skip/Next Step →</a>
+            {% else %}
+                 <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Cancel / Back</a>
+            {% endif %}
+
+        </section>
+
+        <section class="current-allowlist-section" style="margin-top: 20px;">
             <h2>Current Allowlist</h2>
-            <ul>
+            <!-- Added ID to the list for easier JS targeting -->
+            <ul id="current-allowlist-display">
                 {% for player in existing_players %}
                 <li>{{ player.name }} (Ignores Limit: {{ player.ignoresPlayerLimit }})</li>
                 {% else %}
-                <li>No players in allowlist.</li>
+                <li id="no-players-message">No players currently in allowlist.</li>
                 {% endfor %}
             </ul>
         </section>
+
     </div>
 </body>
 </html>

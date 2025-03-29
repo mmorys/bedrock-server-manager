@@ -1,6 +1,7 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/server_routes.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 import os
+import re
 import platform
 import logging
 import json
@@ -180,190 +181,146 @@ def update_server_route(server_name):
     return jsonify(response), status_code
 
 
-@server_bp.route("/install", methods=["GET", "POST"])
+@server_bp.route("/install", methods=["GET"])
 @login_required
 def install_server_route():
-    if request.method == "POST":
-        server_name = request.form["server_name"]
-        server_version = request.form["server_version"]
-
-        if not server_name:
-            flash("Server name cannot be empty.", "error")
-            logger.warning("Attempted to install server with empty name.")
-            return render_template("install.html", app_name=app_name)
-        if not server_version:
-            flash("Server version cannot be empty.", "error")
-            logger.warning(
-                f"Attempted to install server {server_name} with empty version."
-            )
-            return render_template(
-                "install.html", server_name=server_name, app_name=app_name
-            )
-        if ";" in server_name:
-            flash("Server name cannot contain semicolons.", "error")
-            logger.warning(
-                f"Attempted to install server with invalid name: {server_name}"
-            )
-            return render_template("install.html", app_name=app_name)
-        # Validate the format
-        validation_result = handlers.validate_server_name_format_handler(server_name)
-        if validation_result["status"] == "error":
-            flash(validation_result["message"], "error")
-            logger.warning(
-                f"Server name validation failed: {validation_result['message']}"
-            )
-            return render_template(
-                "install.html",
-                server_name=server_name,
-                server_version=server_version,
-                app_name=app_name,
-            )
-
-        base_dir = get_base_dir()
-        config_dir = settings.get("CONFIG_DIR")
-
-        # Check if server exists *before* calling the handler.
-        server_dir = os.path.join(base_dir, server_name)
-        if os.path.exists(server_dir):
-            logger.info(
-                f"Server {server_name} already exists.  Prompting for confirmation."
-            )
-            # Render install.html with confirm_delete=True and the server_name.
-            return render_template(
-                "install.html",
-                confirm_delete=True,
-                server_name=server_name,
-                server_version=server_version,
-                app_name=app_name,
-            )
-
-        # If server doesn't exist, proceed with installation.
-        logger.info(f"Installing new server: {server_name}, version: {server_version}")
-        result = handlers.install_new_server_handler(
-            server_name, server_version, base_dir, config_dir
-        )
-
-        if result["status"] == "error":
-            flash(result["message"], "error")
-            logger.error(f"Error installing server {server_name}: {result['message']}")
-            return render_template(
-                "install.html",
-                server_name=server_name,
-                server_version=server_version,
-                app_name=app_name,
-            )
-        elif result["status"] == "confirm":
-            logger.info(
-                f"Server {server_name} requires confirmation to proceed (should not occur here)."
-            )
-            return render_template(
-                "install.html",
-                confirm_delete=True,
-                server_name=result["server_name"],
-                server_version=result["server_version"],
-                app_name=app_name,
-            )
-        elif result["status"] == "success":
-            logger.info(
-                f"Server {server_name} installed successfully.  Redirecting to configure_properties."
-            )
-            return redirect(
-                url_for(
-                    "server_routes.configure_properties_route",
-                    server_name=result["server_name"],
-                    new_install=True,
-                )
-            )
-        else:
-            logger.error("An unexpected error occurred during installation.")
-            flash("An unexpected error occurred.", "error")
-            return redirect(url_for("server_routes.index"))
-
-    else:  # request.method == 'GET'
-        return render_template("install.html", app_name=app_name)
+    logger.debug("Displaying install server page.")
+    # Pass empty strings initially if needed by template value attributes
+    return render_template(
+        "install.html", server_name="", server_version="", app_name=app_name
+    )
 
 
-@server_bp.route("/install/confirm", methods=["POST"])
+@server_bp.route("/api/server/install", methods=["POST"])
 @login_required
-def confirm_install_route():
-    server_name = request.form.get("server_name")
-    server_version = request.form.get("server_version")
-    confirm = request.form.get("confirm")
+def install_server_api_route():
     base_dir = get_base_dir()
     config_dir = settings.get("CONFIG_DIR")
+    data = request.get_json()
 
-    if not server_name or not server_version:
-        flash("Missing server name or version.", "error")
-        logger.warning("Confirmation request with missing server name or version.")
-        return redirect(url_for("server_routes.index"))
-
-    if confirm == "yes":
-        logger.info(f"Confirmed deletion and reinstallation of server: {server_name}")
-        # Delete existing server data.
-        delete_result = handlers.delete_server_data_handler(
-            server_name, base_dir, config_dir
+    if not data:
+        logger.warning(f"API Install Server request: Empty or invalid JSON body.")
+        return (
+            jsonify({"status": "error", "message": "Invalid or empty JSON body."}),
+            400,
         )
-        if delete_result["status"] == "error":
-            flash(
-                f"Error deleting existing server data: {delete_result['message']}",
-                "error",
-            )
-            logger.error(
-                f"Error deleting existing server data for {server_name}: {delete_result['message']}"
-            )
-            return render_template(
-                "install.html",
-                server_name=server_name,
-                server_version=server_version,
-                app_name=app_name,
-            )
 
-        # Call install_new_server_handler AGAIN, after deletion.
+    server_name = data.get("server_name")
+    server_version = data.get("server_version")
+    overwrite = data.get("overwrite", False)
+
+    # --- Basic Input Validation ---
+    if not server_name or not server_version:
+        logger.warning(
+            f"API Install Server request: Missing server_name or server_version."
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing server_name or server_version."}
+            ),
+            400,
+        )
+
+    # --- Server Name Format Validation ---
+    if ";" in server_name:  # Simple semicolon check from old route
+        logger.warning(
+            f"API Install Server: Invalid server name format (contains ';'): {server_name}"
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Server name cannot contain semicolons."}
+            ),
+            400,
+        )
+    # Call specific format validation handler
+    validation_result = handlers.validate_server_name_format_handler(server_name)
+    if validation_result["status"] == "error":
+        logger.warning(
+            f"API Install Server: Server name validation failed: {validation_result['message']}"
+        )
+        return jsonify(validation_result), 400  # Return validation error
+
+    logger.info(
+        f"API request received to install server: {server_name}, Version: {server_version}, Overwrite: {overwrite}"
+    )
+
+    # --- Check if Server Exists ---
+    server_dir = os.path.join(base_dir, server_name)
+    server_exists = os.path.exists(server_dir)
+
+    # --- Handle Confirmation / Overwrite Logic ---
+    if server_exists and not overwrite:
+        logger.info(
+            f"Server '{server_name}' already exists. Requesting confirmation from client."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "confirm_needed",
+                    "message": f"Server directory '{server_name}' already exists. Do you want to delete existing data and reinstall?",
+                    "server_name": server_name,
+                    "server_version": server_version,
+                }
+            ),
+            200,
+        )
+
+    # --- Proceed with Installation (Either new or overwrite confirmed) ---
+    result = None
+    status_code = 500  # Default to error
+
+    try:
+        if server_exists and overwrite:
+            # Delete existing data first
+            logger.info(
+                f"Overwrite confirmed for '{server_name}'. Deleting existing data..."
+            )
+            delete_result = handlers.delete_server_data_handler(
+                server_name, base_dir, config_dir
+            )
+            if delete_result["status"] == "error":
+                logger.error(
+                    f"API Install Server: Failed to delete existing data for '{server_name}': {delete_result['message']}"
+                )
+                # Return the delete error
+                return jsonify(delete_result), 500
+
+        # Perform the installation (for new or after successful delete)
+        logger.info(f"Proceeding with installation for '{server_name}'...")
         install_result = handlers.install_new_server_handler(
             server_name, server_version, base_dir, config_dir
         )
 
-        if install_result["status"] == "error":
-            flash(install_result["message"], "error")
-            logger.error(
-                f"Error installing server {server_name} after deletion: {install_result['message']}"
-            )
-            return render_template(
-                "install.html",
+        # Check install result status
+        if install_result.get("status") == "success":
+            logger.info(f"Server '{server_name}' installed successfully via API.")
+            result = install_result
+            result["next_step_url"] = url_for(
+                "server_routes.configure_properties_route",
                 server_name=server_name,
-                server_version=server_version,
-                app_name=app_name,
+                new_install=True,
             )
-
-        elif install_result["status"] == "success":
-            logger.info(
-                f"Server {server_name} reinstalled successfully.  Redirecting to configuration."
-            )
-            return redirect(
-                url_for(
-                    "server_routes.configure_properties_route",
-                    server_name=install_result["server_name"],
-                    new_install=True,
-                )
-            )
-
+            status_code = 200
         else:
             logger.error(
-                "An unexpected error occurred during installation after deletion."
+                f"API Install Server: Installation handler failed for '{server_name}': {install_result.get('message')}"
             )
-            flash("An unexpected error occurred during installation.", "error")
-            return redirect(url_for("server_routes.index"))
+            result = install_result
+            status_code = 500
 
-    elif confirm == "no":
-        logger.info(f"Server installation cancelled for {server_name}.")
-        flash("Server installation cancelled.", "info")
-        return redirect(url_for("server_routes.index"))
-    else:
-        logger.warning(
-            f"Invalid confirmation value for server {server_name}: {confirm}"
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error during server installation process for '{server_name}': {e}"
         )
-        flash("Invalid confirmation value.", "error")
-        return redirect(url_for("server_routes.index"))
+        result = {
+            "status": "error",
+            "message": f"An unexpected error occurred during installation: {e}",
+        }
+        status_code = 500
+
+    logger.debug(f"Returning JSON for install API: {result}")
+
+    return jsonify(result), status_code
 
 
 @server_bp.route("/server/<server_name>/delete", methods=["DELETE"])
@@ -391,7 +348,7 @@ def delete_server_route(server_name):
     return jsonify(result), status_code
 
 
-@server_bp.route("/server/<server_name>/configure_properties", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/configure_properties", methods=["GET"])
 @login_required
 def configure_properties_route(server_name):
     base_dir = get_base_dir()
@@ -402,443 +359,701 @@ def configure_properties_route(server_name):
         flash(f"server.properties not found for server: {server_name}", "error")
         logger.error(f"server.properties not found for server: {server_name}")
         return redirect(url_for("server_routes.advanced_menu_route"))
-    # Check if new_install is True, convert to boolean
-    new_install_str = request.args.get(
-        "new_install", "False"
-    )  # Get as string, default "False"
+
+    new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
     logger.debug(
-        f"Configuring properties for server: {server_name}, new_install: {new_install}"
+        f"Displaying configure properties page for {server_name}, new_install: {new_install}"
     )
-    if request.method == "POST":
-        # Handle form submission (save properties)
-        properties_to_update = {}
-        allowed_keys = [
-            "server-name",
-            "level-name",
-            "gamemode",
-            "difficulty",
-            "allow-cheats",
-            "server-port",
-            "server-portv6",
-            "enable-lan-visibility",
-            "allow-list",
-            "max-players",
-            "default-player-permission-level",
-            "view-distance",
-            "tick-distance",
-            "level-seed",
-            "online-mode",
-            "texturepack-required",
-        ]
-        for key in allowed_keys:
-            value = request.form.get(key)
-            if value is not None:
-                if key == "level-name":
-                    value = value.replace(" ", "_")
-                validation_response = handlers.validate_property_value_handler(
-                    key, value
+
+    properties_response = handlers.read_server_properties_handler(server_name, base_dir)
+    if properties_response["status"] == "error":
+        flash(f"Error loading properties: {properties_response['message']}", "error")
+        logger.error(
+            f"Error loading properties for {server_name}: {properties_response['message']}"
+        )
+        return redirect(url_for("server_routes.advanced_menu_route"))
+
+    return render_template(
+        "configure_properties.html",  # Ensure this template exists and is updated next
+        server_name=server_name,
+        properties=properties_response.get("properties", {}),  # Use .get with default
+        new_install=new_install,
+        app_name=app_name,
+    )
+
+
+@server_bp.route("/api/server/<server_name>/properties", methods=["POST"])
+@login_required
+def configure_properties_api_route(server_name):
+    """API endpoint to update server properties."""
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")  # Get config dir early
+    properties_data = request.get_json()
+
+    if not properties_data or not isinstance(properties_data, dict):
+        logger.warning(
+            f"API Configure Properties for {server_name}: Empty or invalid JSON body."
+        )
+        return (
+            jsonify({"status": "error", "message": "Invalid or empty JSON body."}),
+            400,
+        )
+
+    logger.info(
+        f"API request received to configure properties for server: {server_name}"
+    )
+    logger.debug(f"Properties data received: {properties_data}")
+
+    # Define allowed keys and maybe default values/types for stricter validation
+    allowed_keys = [
+        "server-name",
+        "level-name",
+        "gamemode",
+        "difficulty",
+        "allow-cheats",
+        "server-port",
+        "server-portv6",
+        "enable-lan-visibility",
+        "allow-list",
+        "max-players",
+        "default-player-permission-level",
+        "view-distance",
+        "tick-distance",
+        "level-seed",
+        "online-mode",
+        "texturepack-required",
+        # Add any other properties your form allows editing
+    ]
+
+    properties_to_update = {}
+    validation_errors = {}  # Dictionary to hold field-specific errors
+
+    # Iterate through data received FROM THE API request
+    for key, value in properties_data.items():
+        if key not in allowed_keys:
+            logger.warning(
+                f"API Configure Properties: Received unexpected key '{key}'. Ignoring."
+            )
+            continue  # Skip keys not explicitly allowed/handled by the form
+
+        # --- Validation ---
+        # Ensure value is a string before validation (JSON might send numbers/booleans)
+        value_str = str(value)
+
+        # Specific cleaning (like level-name)
+        if key == "level-name":
+            original_value = value_str
+            value_str = re.sub(
+                r'[<>:"/\\|?* ]+', "_", original_value.strip()
+            )  # Replace invalid chars + spaces with _
+            if value_str != original_value:
+                logger.info(
+                    f"Cleaned 'level-name' from '{original_value}' to '{value_str}'"
                 )
-                if validation_response["status"] == "error":
-                    flash(validation_response["message"], "error")
-                    logger.error(
-                        f"Validation error for {key}={value}: {validation_response['message']}"
-                    )
-                    current_properties = handlers.read_server_properties_handler(
-                        server_name, base_dir
-                    )["properties"]
-                    return render_template(
-                        "configure_properties.html",
-                        server_name=server_name,
-                        properties=current_properties,
-                        new_install=new_install,
-                        app_name=app_name,
-                    )
-                properties_to_update[key] = value
-        modify_response = handlers.modify_server_properties_handler(
-            server_name, properties_to_update, base_dir
-        )
-        if modify_response["status"] == "error":
-            flash(
-                f"Error updating server properties: {modify_response['message']}",
-                "error",
-            )
-            logger.error(
-                f"Error updating server properties for {server_name}: {modify_response['message']}"
-            )
-            current_properties = handlers.read_server_properties_handler(
-                server_name, base_dir
-            )["properties"]
-            return render_template(
-                "configure_properties.html",
-                server_name=server_name,
-                properties=current_properties,
-                new_install=new_install,
-                app_name=app_name,
-            )
 
-        # Write server config
-        config_dir = settings.get("CONFIG_DIR")
-        write_config_response = handlers.write_server_config_handler(
-            server_name, "server_name", server_name, config_dir
-        )
-        if write_config_response["status"] == "error":
-            flash(write_config_response["message"], "error")
-            logger.error(
-                f"Error writing server_name to config: {write_config_response['message']}"
+        # Call your existing validation handler
+        validation_response = handlers.validate_property_value_handler(key, value_str)
+        if validation_response["status"] == "error":
+            logger.warning(
+                f"API Validation error for {key}='{value_str}': {validation_response['message']}"
             )
-
-        level_name = request.form.get("level-name")
-        write_config_response = handlers.write_server_config_handler(
-            server_name, "target_version", level_name, config_dir
-        )
-        if write_config_response["status"] == "error":
-            flash(write_config_response["message"], "error")
-            logger.error(
-                f"Error writing target_version to config: {write_config_response['message']}"
-            )
-
-        write_config_response = handlers.write_server_config_handler(
-            server_name, "status", "INSTALLED", config_dir
-        )
-        if write_config_response["status"] == "error":
-            flash(write_config_response["message"], "error")
-            logger.error(
-                f"Error writing status to config: {write_config_response['message']}"
-            )
-        flash(f"Server properties for '{server_name}' updated successfully!", "success")
-        logger.info(f"Server properties for '{server_name}' updated successfully!")
-
-        # Redirect based on new_install flag
-        if new_install:
-            return redirect(
-                url_for(
-                    "server_routes.configure_allowlist_route",
-                    server_name=server_name,
-                    new_install=new_install,
-                )
-            )
+            validation_errors[key] = validation_response["message"]
+            # Don't return immediately - collect all errors
         else:
-            return redirect(url_for("server_routes.advanced_menu_route"))
+            # Only add valid properties to the update dict
+            properties_to_update[key] = value_str
 
-    else:  # GET request
-        properties_response = handlers.read_server_properties_handler(
-            server_name, base_dir
+    # --- Check if any validation errors occurred ---
+    if validation_errors:
+        logger.error(
+            f"API Configure Properties validation failed for {server_name}: {validation_errors}"
         )
-        if properties_response["status"] == "error":
-            flash(
-                f"Error loading properties: {properties_response['message']}", "error"
-            )
-            logger.error(
-                f"Error loading properties for {server_name}: {properties_response['message']}"
-            )
-            return redirect(url_for("server_routes.advanced_menu_route"))
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Validation failed for one or more properties.",
+                    "errors": validation_errors,  # Send specific errors back to the client
+                }
+            ),
+            400,
+        )  # Bad Request status code for validation errors
 
-        return render_template(
-            "configure_properties.html",
-            server_name=server_name,
-            properties=properties_response["properties"],
-            new_install=new_install,
-            app_name=app_name,
+    # --- If validation passed, attempt to modify properties ---
+    if not properties_to_update:
+        logger.warning(
+            f"API Configure Properties for {server_name}: No valid properties were provided for update."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": "No valid properties provided to update.",
+                }
+            ),
+            200,
+        )  # Or maybe 400?
+
+    logger.debug(
+        f"Calling modify_server_properties_handler with: {properties_to_update}"
+    )
+    modify_response = handlers.modify_server_properties_handler(
+        server_name, properties_to_update, base_dir
+    )
+
+    if modify_response["status"] == "error":
+        logger.error(
+            f"API Error updating server properties for {server_name}: {modify_response['message']}"
+        )
+        # Return 500 Internal Server Error if the handler itself fails
+        return jsonify(modify_response), 500
+
+    # --- Return final success response ---
+    logger.info(f"Server properties for '{server_name}' updated successfully via API!")
+    # Ensure message exists
+    if "message" not in modify_response:
+        modify_response["message"] = (
+            f"Server properties for '{server_name}' updated successfully!"
         )
 
+    return jsonify(modify_response), 200
 
-@server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET", "POST"])
+
+@server_bp.route("/server/<server_name>/configure_allowlist", methods=["GET"])
 @login_required
 def configure_allowlist_route(server_name):
     base_dir = get_base_dir()
-    new_install_str = request.args.get(
-        "new_install", "False"
-    )  # Get as string, default "False"
+    new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
     logger.debug(
-        f"Configuring allowlist for server: {server_name}, new_install: {new_install}"
+        f"Displaying configure allowlist page for server: {server_name}, new_install: {new_install}"
     )
 
-    if request.method == "POST":
-        player_names_raw = request.form.get("player_names", "")
-        ignore_limit = (
-            request.form.get("ignore_limit") == "on"
-        )  # Convert checkbox to boolean
+    # --- Call handler to get existing players ---
+    result = handlers.configure_allowlist_handler(server_name, base_dir)
+    existing_players = []  # Default
+    if result["status"] == "error":
+        flash(f"Error loading current allowlist: {result['message']}", "error")
+        logger.error(f"Error loading allowlist for {server_name}: {result['message']}")
+    else:
+        existing_players = result.get("existing_players", [])  # Get list of dicts
 
-        # Process player names (split into a list, remove empty lines)
-        player_names = [
-            name.strip() for name in player_names_raw.splitlines() if name.strip()
-        ]
+    return render_template(
+        "configure_allowlist.html",
+        server_name=server_name,
+        existing_players=existing_players,  # Pass the list of player dicts
+        new_install=new_install,
+        app_name=app_name,
+    )
 
-        new_players_data = []
-        for name in player_names:
-            new_players_data.append({"name": name, "ignoresPlayerLimit": ignore_limit})
-            logger.debug(f"Adding player to allowlist data: {name}")
 
-        result = handlers.configure_allowlist_handler(
-            server_name, base_dir, new_players_data
+@server_bp.route("/api/server/<server_name>/allowlist/add", methods=["POST"])
+@login_required
+def add_allowlist_players_api_route(server_name):
+    """API endpoint to ADD players to the server allowlist."""
+    base_dir = get_base_dir()
+    data = request.get_json()
+
+    if data is None:
+        logger.warning(
+            f"API Add Allowlist request for {server_name}: Empty or invalid JSON body received."
+        )
+        return (
+            jsonify({"status": "error", "message": "Invalid or empty JSON body."}),
+            400,
         )
 
-        if result["status"] == "success":
-            flash(f"Allowlist for '{server_name}' updated successfully!", "success")
-            logger.info(f"Allowlist for '{server_name}' updated successfully!")
-            if new_install:
-                return redirect(
-                    url_for(
-                        "server_routes.configure_permissions_route",
-                        server_name=server_name,
-                        new_install=new_install,
-                    )
-                )
-            else:
-                return redirect(url_for("server_routes.advanced_menu_route"))
-        else:
-            flash(f"Error updating allowlist: {result['message']}", "error")
-            logger.error(
-                f"Error updating allowlist for {server_name}: {result['message']}"
-            )
-            # Re-render the form with the existing and attempted new players
-            return render_template(
-                "configure_allowlist.html",
-                server_name=server_name,
-                existing_players=result.get("existing_players", []),
-                new_install=new_install,
-                app_name=app_name,
-            )
+    players_to_add_names = data.get("players")  # List of names from JSON
+    ignore_limit = data.get("ignoresPlayerLimit", False)
 
-    else:  # GET request
-        result = handlers.configure_allowlist_handler(server_name, base_dir)
-        if result["status"] == "error":
-            flash(f"Error loading allowlist: {result['message']}", "error")
-            logger.error(
-                f"Error loading allowlist for {server_name}: {result['message']}"
-            )
-            return redirect(url_for("server_routes.advanced_menu_route"))
-
-        existing_players = result.get("existing_players", [])  # Default to empty list
-        return render_template(
-            "configure_allowlist.html",
-            server_name=server_name,
-            existing_players=existing_players,
-            new_install=new_install,
-            app_name=app_name,
+    if players_to_add_names is None or not isinstance(players_to_add_names, list):
+        logger.warning(
+            f"API Add Allowlist request for {server_name}: Missing or invalid 'players' list in JSON body."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Request body must contain a 'players' list.",
+                }
+            ),
+            400,
+        )
+    if not isinstance(ignore_limit, bool):
+        logger.warning(
+            f"API Add Allowlist request for {server_name}: Invalid 'ignoresPlayerLimit' value."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "'ignoresPlayerLimit' must be true or false.",
+                }
+            ),
+            400,
         )
 
+    # Filter out empty names
+    players_to_add_names = [
+        name.strip()
+        for name in players_to_add_names
+        if isinstance(name, str) and name.strip()
+    ]
 
-@server_bp.route("/server/<server_name>/configure_permissions", methods=["GET", "POST"])
+    if not players_to_add_names:
+        logger.warning(
+            f"API Add Allowlist request for {server_name}: No valid player names provided to add."
+        )
+        return (
+            jsonify({"status": "error", "message": "No player names provided to add."}),
+            400,
+        )
+
+    logger.info(
+        f"API request received to ADD players to allowlist for server: {server_name}. Players: {players_to_add_names}"
+    )
+
+    new_players_data_for_handler = [
+        {"name": name, "ignoresPlayerLimit": ignore_limit}
+        for name in players_to_add_names
+    ]
+    logger.debug(
+        f"Data formatted for configure_allowlist_handler: {new_players_data_for_handler}"
+    )
+
+    result = handlers.configure_allowlist_handler(
+        server_name, base_dir, new_players_data=new_players_data_for_handler
+    )
+
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(
+            f"Players processed for allowlist add for '{server_name}' successfully via API. Added: {result.get('added_players', [])}"
+        )
+    else:
+        error_message = (
+            result.get("message", "Unknown error adding players")
+            if result
+            else "Add players handler failed unexpectedly"
+        )
+        logger.error(f"API Add Allowlist failed for {server_name}: {error_message}")
+        if not result:
+            result = {
+                "status": "error",
+                "message": "Add players handler failed unexpectedly",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
+
+    # Return the result from the handler
+    return jsonify(result), status_code
+
+
+@server_bp.route("/api/server/<server_name>/allowlist", methods=["GET"])
+@login_required
+def get_allowlist_api_route(server_name):
+    """API endpoint to retrieve the current server allowlist."""
+    base_dir = get_base_dir()
+    logger.debug(f"API GET request for allowlist for server: {server_name}")
+    # Call the handler with new_players_data=None to read existing
+    result = handlers.configure_allowlist_handler(
+        server_name, base_dir, new_players_data=None
+    )
+    if result.get("status") != "success":
+        logger.error(
+            f"Failed to retrieve allowlist for API GET: {result.get('message')}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": result.get("message", "Failed to load allowlist"),
+                    "existing_players": [],
+                }
+            ),
+            500,
+        )
+    else:
+        response_data = {
+            "status": "success",
+            "existing_players": result.get(
+                "existing_players", []
+            ),  # Use the key returned by the handler
+        }
+        return jsonify(response_data), 200
+
+
+@server_bp.route("/server/<server_name>/configure_permissions", methods=["GET"])
 @login_required
 def configure_permissions_route(server_name):
     base_dir = get_base_dir()
     new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
-
     logger.debug(
-        f"Configuring permissions for server: {server_name}, new_install: {new_install}"
+        f"Displaying configure permissions page for {server_name}, new_install: {new_install}"
     )
 
-    if request.method == "POST":
-        # Handle form submission (save permissions)
-        permissions_data = {}
-        for xuid, permission in request.form.items():
-            if permission.lower() not in ("visitor", "member", "operator"):
-                flash(
-                    f"Invalid permission level for XUID {xuid}: {permission}", "error"
-                )
-                logger.error(f"Invalid permission level for XUID {xuid}: {permission}")
-                return redirect(
-                    url_for(
-                        "server_routes.configure_permissions_route",
-                        server_name=server_name,
-                        new_install=new_install,
-                    )
-                )
+    # Get known players (e.g., from players.json or allowlist.json)
+    # Using get_players_from_json_handler as before
+    players_response = handlers.get_players_from_json_handler()
+    players = []  # Default
+    if players_response["status"] == "error":
+        flash(
+            f"Warning: Could not load player names: {players_response['message']}. Only XUIDs may be shown.",
+            "warning",
+        )
+        logger.warning(
+            f"Error loading player data for permissions page: {players_response['message']}"
+        )
+    else:
+        players = players_response.get("players", [])
+        logger.debug(f"Loaded players for permissions configuration: {players}")
 
-            permissions_data[xuid] = permission.lower()
-
-        players_response = handlers.get_players_from_json_handler()
-        if players_response["status"] == "error":
-            # We still want to continue even if we cannot load player names.
-            player_names = {}  # Just use an empty dict.
-            logger.warning("Failed to load player names from players.json.")
-        else:
-            player_names = {
-                player["xuid"]: player["name"] for player in players_response["players"]
-            }
-
-        for xuid, permission in permissions_data.items():
-            player_name = player_names.get(xuid, "Unknown Player")
-            result = handlers.configure_player_permission_handler(
-                server_name, xuid, player_name, permission, base_dir
-            )
-            if result["status"] == "error":
-                flash(
-                    f"Error setting permission for {player_name}: {result['message']}",
-                    "error",
-                )
-                logger.error(
-                    f"Error setting permission for {player_name} ({xuid}): {result['message']}"
-                )
-                # Continue to the next player, even on error
-
-        flash(f"Permissions for server '{server_name}' updated.", "success")
-        logger.info(f"Permissions for server '{server_name}' updated.")
-        if new_install:
-            return redirect(
-                url_for(
-                    "server_routes.configure_service_route",
-                    server_name=server_name,
-                    new_install=new_install,
-                )
-            )
-        return redirect(url_for("server_routes.advanced_menu_route"))
-
-    else:  # GET request
-        players_response = handlers.get_players_from_json_handler()
-        if players_response["status"] == "error":
-            # Instead of redirecting, flash a message and continue rendering the template.
-            flash(
-                f"Error loading player data: {players_response['message']}.  No players found.",
-                "warning",
-            )
-            logger.warning(f"Error loading player data: {players_response['message']}")
-            players = []  # Provide an empty list so the template doesn't break.
-        else:
-            players = players_response["players"]
-            logger.debug(f"Loaded players for permissions configuration: {players}")
-
-        permissions = {}
-        try:
-            server_dir = os.path.join(base_dir, server_name)
-            permissions_file = os.path.join(server_dir, "permissions.json")
-            if os.path.exists(permissions_file):
-                with open(permissions_file, "r") as f:
-                    permissions_data = json.load(f)
-                    for player_entry in permissions_data:
+    # Get current permissions from permissions.json
+    permissions = {}  # Default
+    try:
+        server_dir = os.path.join(base_dir, server_name)
+        permissions_file = os.path.join(server_dir, "permissions.json")
+        if os.path.exists(permissions_file):
+            with open(permissions_file, "r") as f:
+                permissions_data = json.load(f)  # Should be a list of dicts
+                # Convert list of dicts to map {xuid: permission} for easier template lookup
+                for player_entry in permissions_data:
+                    if "xuid" in player_entry and "permission" in player_entry:
                         permissions[player_entry["xuid"]] = player_entry["permission"]
-                logger.debug(f"Loaded existing permissions: {permissions}")
-        except (OSError, json.JSONDecodeError) as e:
-            flash(f"Error reading permissions.json: {e}", "error")
-            logger.error(f"Error reading permissions.json for {server_name}: {e}")
+            logger.debug(f"Loaded existing permissions map: {permissions}")
+        else:
+            logger.debug(
+                f"permissions.json not found for {server_name}. Will use defaults."
+            )
 
-        return render_template(
-            "configure_permissions.html",
-            server_name=server_name,
-            players=players,
-            permissions=permissions,
-            new_install=new_install,
-            app_name=app_name,
+    except (OSError, json.JSONDecodeError) as e:
+        flash(f"Error reading existing permissions.json: {e}", "error")
+        logger.error(f"Error reading permissions.json for {server_name}: {e}")
+        # Proceed with empty permissions map, defaults will apply in template
+
+    # Ensure players list contains entries for everyone in the permissions map, even if name unknown
+    current_player_xuids = {p.get("xuid") for p in players if p.get("xuid")}
+    for xuid in permissions:
+        if xuid not in current_player_xuids:
+            players.append(
+                {"xuid": xuid, "name": f"Unknown (XUID: {xuid})"}
+            )  # Add placeholder entry
+            logger.debug(
+                f"Added placeholder for XUID {xuid} found only in permissions.json"
+            )
+
+    return render_template(
+        "configure_permissions.html",  # Ensure this template exists and is updated next
+        server_name=server_name,
+        players=players,  # List of player dicts {'name': ..., 'xuid': ...}
+        permissions=permissions,  # Dict mapping {xuid: permission_level}
+        new_install=new_install,
+        app_name=app_name,
+    )
+
+
+@server_bp.route("/api/server/<server_name>/permissions", methods=["PUT"])
+@login_required
+def configure_permissions_api_route(server_name):
+    """API endpoint to update permissions by applying changes for each player."""
+    base_dir = get_base_dir()
+    data = request.get_json()
+
+    if not data or not isinstance(data, dict) or "permissions" not in data:
+        logger.warning(
+            f"API Configure Permissions for {server_name}: Invalid or missing 'permissions' key in JSON body."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Request body must contain a 'permissions' object.",
+                }
+            ),
+            400,
         )
 
+    permissions_map = data.get("permissions")
+    if not isinstance(permissions_map, dict):
+        logger.warning(
+            f"API Configure Permissions for {server_name}: 'permissions' value is not an object."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "'permissions' value must be an object mapping XUIDs to permission levels.",
+                }
+            ),
+            400,
+        )
 
-@server_bp.route("/server/<server_name>/configure_service", methods=["GET", "POST"])
+    logger.info(
+        f"API request received to configure permissions for server: {server_name}"
+    )
+    logger.debug(f"Permissions map received: {permissions_map}")
+
+    # --- Validation ---
+    valid_levels = ("visitor", "member", "operator")
+    validation_errors = {}
+    players_to_process = {}  # Store validated data {xuid: level}
+    for xuid, level in permissions_map.items():
+        if not isinstance(level, str) or level.lower() not in valid_levels:
+            validation_errors[xuid] = (
+                f"Invalid permission level '{level}'. Must be one of {valid_levels}."
+            )
+        else:
+            players_to_process[xuid] = level.lower()
+
+    if validation_errors:
+        logger.error(
+            f"API Configure Permissions validation failed for {server_name}: {validation_errors}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Validation failed for one or more permission levels.",
+                    "errors": validation_errors,
+                }
+            ),
+            400,
+        )
+
+    # --- Get Player Names (needed for existing handler) ---
+    # It's inefficient to do this here AND in the GET route, but necessary
+    # if the single-player handler requires the name.
+    players_response = handlers.get_players_from_json_handler()
+    player_name_map = {}  # Map xuid to name
+    if players_response["status"] == "success":
+        player_name_map = {
+            player.get("xuid"): player.get(
+                "name", f"Unknown (XUID: {player.get('xuid')})"
+            )
+            for player in players_response.get("players", [])
+            if player.get("xuid")
+        }
+    else:
+        logger.warning(
+            f"Could not load player names for permission update: {players_response.get('message')}. Using placeholders."
+        )
+
+    # --- Loop and call existing handler for each player ---
+    all_success = True
+    handler_errors = {}  # Store errors from the handler calls
+    processed_count = 0
+
+    for xuid, level in players_to_process.items():
+        player_name = player_name_map.get(
+            xuid, f"Unknown (XUID: {xuid})"
+        )  # Get name or use placeholder
+        logger.debug(
+            f"Calling configure_player_permission_handler for {player_name} ({xuid}) -> {level}"
+        )
+
+        # Call the existing handler for each player
+        result = handlers.configure_player_permission_handler(
+            server_name,
+            xuid,
+            player_name,
+            level,
+            base_dir,
+            # Pass config_dir if your handler uses it, otherwise remove
+            # config_dir=settings.get("CONFIG_DIR")
+        )
+        processed_count += 1
+
+        if result.get("status") != "success":
+            all_success = False
+            handler_errors[xuid] = result.get("message", "Unknown handler error")
+            logger.error(
+                f"Error configuring permission for {xuid}: {handler_errors[xuid]}"
+            )
+            # Decide whether to stop on first error or continue processing others
+            # Let's continue processing others for now
+
+    # --- Determine final response based on handler results ---
+    if all_success:
+        logger.info(
+            f"Permissions updated successfully via API for {server_name} ({processed_count} players processed)."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": f"Permissions updated successfully for {processed_count} players.",
+                }
+            ),
+            200,
+        )
+    else:
+        logger.error(
+            f"Errors occurred during permission configuration for {server_name}: {handler_errors}"
+        )
+        # Return a summary error, including specific errors if needed
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "One or more errors occurred while setting permissions.",
+                    "errors": handler_errors,  # Map of xuid: error message
+                }
+            ),
+            500,
+        )  # Internal Server Error because the handler failed
+
+
+@server_bp.route(
+    "/server/<server_name>/configure_service", methods=["GET"]
+)  # REMOVED POST
 @login_required
 def configure_service_route(server_name):
     base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
     new_install_str = request.args.get("new_install", "False")
     new_install = new_install_str.lower() == "true"
+    current_os = platform.system()
+
     logger.debug(
-        f"Configuring service for server: {server_name}, new_install: {new_install}"
+        f"Displaying configure service page for {server_name}, OS: {current_os}, new_install: {new_install}"
     )
-    if request.method == "POST":
-        if platform.system() == "Linux":
-            autoupdate = request.form.get("autoupdate") == "on"
-            autostart = request.form.get("autostart") == "on"
-            response = handlers.create_systemd_service_handler(
-                server_name, base_dir, autoupdate, autostart
-            )
-            if response["status"] == "error":
-                flash(response["message"], "error")
-                logger.error(
-                    f"Error creating systemd service for {server_name}: {response['message']}"
-                )
-                # Re-render the form with current values
-                return render_template(
-                    "configure_service.html",
-                    server_name=server_name,
-                    os=platform.system(),
-                    autoupdate=autoupdate,
-                    autostart=autostart,
-                    new_install=new_install,
-                    app_name=app_name,
-                )
 
-        elif platform.system() == "Windows":
-            autoupdate = request.form.get("autoupdate") == "on"
-            response = handlers.set_windows_autoupdate_handler(
-                server_name, "true" if autoupdate else "false"
-            )  # Convert boolean to string
-            if response["status"] == "error":
-                flash(response["message"], "error")
-                logger.error(
-                    f"Error setting Windows autoupdate for {server_name}: {response['message']}"
-                )
-                # Re-render the form
-                return render_template(
-                    "configure_service.html",
-                    server_name=server_name,
-                    os=platform.system(),
-                    autoupdate=autoupdate,
-                    new_install=new_install,
-                    app_name=app_name,
-                )
-        else:
-            flash("Unsupported operating system for service configuration.", "error")
-            logger.error(
-                f"Unsupported OS for service configuration: {platform.system()}"
-            )
-            return redirect(url_for("server_routes.advanced_menu_route"))
+    template_data = {
+        "server_name": server_name,
+        "os": current_os,
+        "new_install": new_install,
+        "app_name": app_name,
+        "autoupdate": False,
+        "autostart": False,
+    }
 
-        flash(f"Service settings for '{server_name}' updated successfully!", "success")
-        logger.info(f"Service settings for '{server_name}' updated successfully!")
+    if current_os == "Linux":
+        logger.debug("Rendering configure_service.html for Linux (defaults shown)")
 
-        # Check if we should start the server
-        if new_install:
-            if request.form.get("start_server") == "on":  # Check if checkbox is checked
-                start_result = handlers.start_server_handler(server_name, base_dir)
-                if start_result["status"] == "error":
-                    flash(f"Error starting server: {start_result['message']}", "error")
-                    logger.error(
-                        f"Error starting server {server_name} after install: {start_result['message']}"
-                    )
-                    #  Even if start fails, continue to index.  User can start manually.
-                else:
-                    flash(f"Server '{server_name}' started.", "success")
-                    logger.info(f"Server '{server_name}' started after install.")
-            return redirect(url_for("server_routes.advanced_menu_route"))
-        return redirect(url_for("server_routes.advanced_menu_route"))
+    elif current_os == "Windows":
+        autoupdate_value = server_base.manage_server_config(
+            server_name, "autoupdate", "read", config_dir=config_dir
+        )
 
-    else:  # GET request
-        if platform.system() == "Linux":
-            # For Linux, we don't need to pre-populate any values. systemd handles it.
-            logger.debug("Rendering configure_service.html for Linux")
-            return render_template(
-                "configure_service.html",
-                server_name=server_name,
-                os=platform.system(),
-                new_install=new_install,
-                app_name=app_name,
+        template_data["autoupdate"] = (
+            autoupdate_value == "true" if autoupdate_value else False
+        )
+        logger.debug(
+            f"Rendering configure_service.html for Windows, autoupdate: {template_data['autoupdate']}"
+        )
+
+    else:
+        flash("Unsupported operating system for service configuration.", "warning")
+        logger.warning(
+            f"Rendering configure_service page but OS is unsupported: {current_os}"
+        )
+
+    return render_template("configure_service.html", **template_data)
+
+
+@server_bp.route("/api/server/<server_name>/service", methods=["POST"])
+@login_required
+def configure_service_api_route(server_name):
+    """API endpoint to configure service settings (systemd or windows autoupdate)."""
+    base_dir = get_base_dir()
+    config_dir = settings.get("CONFIG_DIR")
+    data = request.get_json()
+    current_os = platform.system()
+
+    if data is None:
+        logger.warning(
+            f"API Configure Service request for {server_name}: Empty or invalid JSON body."
+        )
+        return (
+            jsonify({"status": "error", "message": "Invalid or empty JSON body."}),
+            400,
+        )
+
+    logger.info(
+        f"API request received to configure service for server: {server_name} on OS: {current_os}"
+    )
+    logger.debug(f"Service config data received: {data}")
+
+    result = {"status": "error", "message": "Unsupported operating system"}
+    status_code = 501
+
+    if current_os == "Linux":
+        autoupdate = data.get("autoupdate", False)
+        autostart = data.get("autostart", False)
+        if not isinstance(autoupdate, bool) or not isinstance(autostart, bool):
+            logger.warning(
+                f"API Configure Service (Linux) for {server_name}: Invalid boolean value for autoupdate/autostart."
             )
-        elif platform.system() == "Windows":
-            # Get current autoupdate setting from config.json
-            config_dir = settings.get("CONFIG_DIR")
-            autoupdate_value = server_base.manage_server_config(
-                server_name, "autoupdate", "read", config_dir=config_dir
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "'autoupdate' and 'autostart' must be true or false.",
+                    }
+                ),
+                400,
             )
-            # Convert config value to boolean for checkbox
-            autoupdate = autoupdate_value == "true" if autoupdate_value else False
-            logger.debug(
-                f"Rendering configure_service.html for Windows, autoupdate: {autoupdate}"
+
+        logger.info(
+            f"Calling create_systemd_service_handler for {server_name} (Update={autoupdate}, Start={autostart})"
+        )
+        result = handlers.create_systemd_service_handler(
+            server_name, base_dir, autoupdate, autostart
+        )
+        status_code = 200 if result and result.get("status") == "success" else 500
+
+    elif current_os == "Windows":
+        autoupdate = data.get("autoupdate", False)
+        if not isinstance(autoupdate, bool):
+            logger.warning(
+                f"API Configure Service (Windows) for {server_name}: Invalid boolean value for autoupdate."
             )
-            return render_template(
-                "configure_service.html",
-                server_name=server_name,
-                os=platform.system(),
-                autoupdate=autoupdate,  # Pass the boolean value
-                new_install=new_install,
-                app_name=app_name,
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "'autoupdate' must be true or false.",
+                    }
+                ),
+                400,
             )
-        else:
-            flash("Unsupported operating system for service configuration.", "error")
-            logger.error(
-                f"Unsupported OS for service configuration: {platform.system()}"
-            )
-            return redirect(url_for("server_routes.advanced_menu_route"))
+
+        logger.info(
+            f"Calling set_windows_autoupdate_handler for {server_name} (Update={autoupdate})"
+        )
+        result = handlers.set_windows_autoupdate_handler(
+            server_name, "true" if autoupdate else "false", config_dir
+        )
+        status_code = 200 if result and result.get("status") == "success" else 500
+    else:
+        logger.error(f"API Configure Service called on unsupported OS: {current_os}")
+
+    # Log final result
+    if status_code == 200:
+        logger.info(
+            f"Service settings for '{server_name}' updated successfully via API."
+        )
+    else:
+        error_message = (
+            result.get("message", "Unknown service configuration error")
+            if result
+            else "Service configuration handler failed unexpectedly"
+        )
+        logger.error(
+            f"API Configure Service failed for {server_name} on {current_os}: {error_message}"
+        )
+        if not result:
+            result = {
+                "status": "error",
+                "message": "Service configuration handler failed unexpectedly",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
+
+    return jsonify(result), status_code
 
 
 @server_bp.route("/server/<server_name>/backup", methods=["GET"])
@@ -862,52 +1077,90 @@ def backup_config_select_route(server_name):
 def backup_action_route(server_name):
     """API endpoint to trigger a server backup."""
     base_dir = get_base_dir()
-    data = request.get_json() # Expect JSON data
+    data = request.get_json()  # Expect JSON data
 
     if not data:
-        logger.warning(f"API Backup request for {server_name}: Empty JSON body received.")
+        logger.warning(
+            f"API Backup request for {server_name}: Empty JSON body received."
+        )
         return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
 
     backup_type = data.get("backup_type")  # "world", "config", or "all"
-    file_to_backup = data.get("file_to_backup") # Optional, only for type "config"
+    file_to_backup = data.get("file_to_backup")  # Optional, only for type "config"
 
     if not backup_type:
-        logger.warning(f"API Backup request for {server_name}: Missing 'backup_type' in JSON body.")
-        return jsonify({"status": "error", "message": "Missing 'backup_type' in request body."}), 400
+        logger.warning(
+            f"API Backup request for {server_name}: Missing 'backup_type' in JSON body."
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing 'backup_type' in request body."}
+            ),
+            400,
+        )
 
     # Validate config backup request
     if backup_type == "config" and not file_to_backup:
-        logger.warning(f"API Backup request for {server_name}: Missing 'file_to_backup' for config backup type.")
-        return jsonify({"status": "error", "message": "Missing 'file_to_backup' for config backup type."}), 400
+        logger.warning(
+            f"API Backup request for {server_name}: Missing 'file_to_backup' for config backup type."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Missing 'file_to_backup' for config backup type.",
+                }
+            ),
+            400,
+        )
 
-    logger.info(f"API request received to perform backup for server: {server_name}, type: {backup_type}, file: {file_to_backup or 'N/A'}")
+    logger.info(
+        f"API request received to perform backup for server: {server_name}, type: {backup_type}, file: {file_to_backup or 'N/A'}"
+    )
 
     result = None
     if backup_type == "world":
         result = handlers.backup_world_handler(server_name, base_dir)
     elif backup_type == "config":
-        result = handlers.backup_config_file_handler(server_name, file_to_backup, base_dir)
+        result = handlers.backup_config_file_handler(
+            server_name, file_to_backup, base_dir
+        )
     elif backup_type == "all":
         result = handlers.backup_all_handler(server_name, base_dir)
     else:
-        logger.error(f"API Backup request for {server_name}: Invalid backup_type specified: {backup_type}")
-        return jsonify({"status": "error", "message": "Invalid backup type specified."}), 400
+        logger.error(
+            f"API Backup request for {server_name}: Invalid backup_type specified: {backup_type}"
+        )
+        return (
+            jsonify({"status": "error", "message": "Invalid backup type specified."}),
+            400,
+        )
 
     # Determine status code - backups might take time, so 202 Accepted could also be suitable
     # For now, let's use 200 on success reported by handler, 500 on error.
     status_code = 200 if result and result.get("status") == "success" else 500
 
     if status_code == 200:
-        logger.info(f"Backup API request for {server_name} (type: {backup_type}) completed successfully according to handler.")
+        logger.info(
+            f"Backup API request for {server_name} (type: {backup_type}) completed successfully according to handler."
+        )
     else:
-        error_message = result.get('message', 'Unknown backup error') if result else 'Backup handler failed unexpectedly'
-        logger.error(f"API Backup failed for {server_name} (type: {backup_type}): {error_message}")
+        error_message = (
+            result.get("message", "Unknown backup error")
+            if result
+            else "Backup handler failed unexpectedly"
+        )
+        logger.error(
+            f"API Backup failed for {server_name} (type: {backup_type}): {error_message}"
+        )
         # Ensure result is a dict even if handler failed badly
         if not result:
-             result = {"status": "error", "message": "Backup handler failed unexpectedly"}
+            result = {
+                "status": "error",
+                "message": "Backup handler failed unexpectedly",
+            }
         elif "status" not in result:
-             result["status"] = "error" # Ensure status is set
-
+            result["status"] = "error"  # Ensure status is set
 
     # Return JSON result from the handler
     return jsonify(result), status_code
@@ -928,51 +1181,84 @@ def restore_menu_route(server_name):
 def restore_action_route(server_name):
     """API endpoint to trigger a server restoration from a specific backup."""
     base_dir = get_base_dir()
-    data = request.get_json() # Expect JSON data
+    data = request.get_json()  # Expect JSON data
 
     if not data:
-        logger.warning(f"API Restore request for {server_name}: Empty JSON body received.")
+        logger.warning(
+            f"API Restore request for {server_name}: Empty JSON body received."
+        )
         return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
 
     backup_file = data.get("backup_file")
-    restore_type = data.get("restore_type") # "world" or "config"
+    restore_type = data.get("restore_type")  # "world" or "config"
 
     if not backup_file or not restore_type:
-        logger.warning(f"API Restore request for {server_name}: Missing 'backup_file' or 'restore_type' in JSON body.")
-        return jsonify({"status": "error", "message": "Missing 'backup_file' or 'restore_type' in request body."}), 400
+        logger.warning(
+            f"API Restore request for {server_name}: Missing 'backup_file' or 'restore_type' in JSON body."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Missing 'backup_file' or 'restore_type' in request body.",
+                }
+            ),
+            400,
+        )
 
-    # Optional: Add extra validation for file names or types if needed
-
-    logger.info(f"API request received to restore server: {server_name}, type: {restore_type}, file: {backup_file}")
+    logger.info(
+        f"API request received to restore server: {server_name}, type: {restore_type}, file: {backup_file}"
+    )
 
     result = None
     if restore_type == "world":
         result = handlers.restore_world_handler(server_name, backup_file, base_dir)
     elif restore_type == "config":
-        # Make sure your handler can deduce the original filename from the backup filename
-        # or that the backup_file variable contains enough info.
-        result = handlers.restore_config_file_handler(server_name, backup_file, base_dir)
-        # Note: Restore 'all' is handled directly in restore_select_backup_route currently.
-        # If you wanted an API for that, you'd add another elif here or a separate route.
+
+        result = handlers.restore_config_file_handler(
+            server_name, backup_file, base_dir
+        )
+
     else:
-        logger.error(f"API Restore request for {server_name}: Invalid restore_type specified: {restore_type}")
-        return jsonify({"status": "error", "message": "Invalid restore type specified (must be 'world' or 'config')."}), 400
+        logger.error(
+            f"API Restore request for {server_name}: Invalid restore_type specified: {restore_type}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Invalid restore type specified (must be 'world' or 'config').",
+                }
+            ),
+            400,
+        )
 
     status_code = 200 if result and result.get("status") == "success" else 500
 
     if status_code == 200:
-        logger.info(f"Restore API request for {server_name} (type: {restore_type}, file: {backup_file}) completed successfully according to handler.")
+        logger.info(
+            f"Restore API request for {server_name} (type: {restore_type}, file: {backup_file}) completed successfully according to handler."
+        )
     else:
-        error_message = result.get('message', 'Unknown restore error') if result else 'Restore handler failed unexpectedly'
-        logger.error(f"API Restore failed for {server_name} (type: {restore_type}, file: {backup_file}): {error_message}")
+        error_message = (
+            result.get("message", "Unknown restore error")
+            if result
+            else "Restore handler failed unexpectedly"
+        )
+        logger.error(
+            f"API Restore failed for {server_name} (type: {restore_type}, file: {backup_file}): {error_message}"
+        )
         # Ensure result is a dict even if handler failed badly
         if not result:
-             result = {"status": "error", "message": "Restore handler failed unexpectedly"}
+            result = {
+                "status": "error",
+                "message": "Restore handler failed unexpectedly",
+            }
         elif "status" not in result:
-             result["status"] = "error" # Ensure status is set
+            result["status"] = "error"  # Ensure status is set
 
     return jsonify(result), status_code
-    
+
 
 @server_bp.route("/server/<server_name>/restore/select", methods=["POST"])
 @login_required
@@ -983,27 +1269,37 @@ def restore_select_backup_route(server_name):
 
     if not restore_type or restore_type not in ["world", "config"]:
         flash("Invalid restore type selected.", "error")
-        logger.warning(f"Restore selection request for {server_name} with invalid type: {restore_type}")
+        logger.warning(
+            f"Restore selection request for {server_name} with invalid type: {restore_type}"
+        )
         # Redirect back to the menu where they came from
-        return redirect(url_for("server_routes.restore_menu_route", server_name=server_name))
+        return redirect(
+            url_for("server_routes.restore_menu_route", server_name=server_name)
+        )
 
-    logger.info(f"Listing backups for restore type '{restore_type}' for server: {server_name}")
+    logger.info(
+        f"Listing backups for restore type '{restore_type}' for server: {server_name}"
+    )
 
     # List backups for 'world' or 'config'
     list_response = handlers.list_backups_handler(server_name, restore_type, base_dir)
 
     if list_response["status"] == "error":
         flash(f"Error listing backups: {list_response['message']}", "error")
-        logger.error(f"Error listing backups for {server_name} ({restore_type}): {list_response['message']}")
+        logger.error(
+            f"Error listing backups for {server_name} ({restore_type}): {list_response['message']}"
+        )
         # Redirect back to the menu
-        return redirect(url_for("server_routes.restore_menu_route", server_name=server_name))
+        return redirect(
+            url_for("server_routes.restore_menu_route", server_name=server_name)
+        )
 
     # Render the selection page
     return render_template(
         "restore_select_backup.html",
         server_name=server_name,
         restore_type=restore_type,
-        backups=list_response.get("backups", []), # Use .get with default
+        backups=list_response.get("backups", []),
         app_name=app_name,
     )
 
@@ -1021,12 +1317,23 @@ def restore_all_api_route(server_name):
     status_code = 200 if result and result.get("status") == "success" else 500
 
     if status_code == 200:
-        logger.info(f"Restore All API request for {server_name} completed successfully.")
+        logger.info(
+            f"Restore All API request for {server_name} completed successfully."
+        )
     else:
-        error_message = result.get('message', 'Unknown restore error') if result else 'Restore All handler failed unexpectedly'
+        error_message = (
+            result.get("message", "Unknown restore error")
+            if result
+            else "Restore All handler failed unexpectedly"
+        )
         logger.error(f"API Restore All failed for {server_name}: {error_message}")
-        if not result: result = {"status": "error", "message": "Restore All handler failed unexpectedly"}
-        elif "status" not in result: result["status"] = "error"
+        if not result:
+            result = {
+                "status": "error",
+                "message": "Restore All handler failed unexpectedly",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
 
     return jsonify(result), status_code
 
@@ -1046,157 +1353,165 @@ def install_content_menu_route():
     return render_template("install_content.html", servers=servers, app_name=app_name)
 
 
-@server_bp.route("/server/<server_name>/install_world", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/install_world")
 @login_required
 def install_world_route(server_name):
     base_dir = get_base_dir()
     content_dir = os.path.join(settings.get("CONTENT_DIR"), "worlds")
-    logger.info(f"Installing world for server: {server_name}")
-
-    if request.method == "POST":
-        selected_file = request.form.get("selected_file")
-        if not selected_file:
-            flash("No world file selected.", "error")
-            logger.warning(
-                f"Install world request for {server_name} with no file selected."
-            )
-            return redirect(url_for("server_routes.install_content_menu_route"))
-
-        # Check if world exists *before* calling handler
-        world_name_result = handlers.get_world_name_handler(server_name, base_dir)
-        if world_name_result["status"] == "success":  # world exists.
-            world_name = world_name_result["world_name"]
-            world_path = os.path.join(base_dir, server_name, "worlds", world_name)
-            if os.path.exists(world_path):
-                # World Exists, confirm overwrite
-                logger.info(
-                    f"World already exists for {server_name}. Prompting for overwrite."
-                )
-                return render_template(
-                    "confirm_world_overwrite.html",
-                    server_name=server_name,
-                    selected_file=selected_file,
-                    app_name=app_name,
-                )
-            else:
-                # World does not exist
-                logger.info(
-                    f"World does not exist for {server_name}. Proceeding with installation."
-                )
-                result = handlers.extract_world_handler(
-                    server_name, selected_file, base_dir
-                )
-                if result["status"] == "error":
-                    flash(f"Error importing world: {result['message']}", "error")
-                    logger.error(
-                        f"Error importing world for {server_name}: {result['message']}"
-                    )
-                else:
-                    flash("World imported successfully!", "success")
-                    logger.info(f"World imported successfully for {server_name}")
-                return redirect(url_for("server_routes.install_content_menu_route"))
-        else:
-            # Error getting world.
-            flash(f"Error getting world: {world_name_result['message']}", "error")
-            logger.error(
-                f"Error getting world name for {server_name}: {world_name_result['message']}"
-            )
-            return redirect(url_for("server_routes.install_content_menu_route"))
-
-    else:  # GET request
-        result = handlers.list_content_files_handler(content_dir, ["mcworld"])
-        if result["status"] == "error":
-            flash(result["message"], "error")
-            logger.error(f"Error listing world files: {result['message']}")
-            world_files = []
-        else:
-            world_files = result["files"]
-            logger.debug(f"Found world files: {world_files}")
-        return render_template(
-            "select_world.html",
-            server_name=server_name,
-            world_files=world_files,
-            app_name=app_name,
-        )
-
-
-@server_bp.route("/server/<server_name>/install_world/confirm", methods=["POST"])
-@login_required
-def confirm_world_overwrite_route(server_name):
-    base_dir = get_base_dir()
-    selected_file = request.form.get("selected_file")
-    confirm = request.form.get("confirm")
-    logger.info(
-        f"Confirming world overwrite for server: {server_name}, file: {selected_file}, confirm: {confirm}"
+    logger.info(f"Displaying world selection page for server: {server_name}")
+    result = handlers.list_content_files_handler(content_dir, ["mcworld"])
+    if result["status"] == "error":
+        flash(result["message"], "error")
+        logger.error(f"Error listing world files: {result['message']}")
+        world_files = []
+    else:
+        world_files = result.get("files", [])
+        logger.debug(f"Found world files: {world_files}")
+    return render_template(
+        "select_world.html",
+        server_name=server_name,
+        world_files=world_files,
+        app_name=app_name,
     )
 
-    if not selected_file:
-        flash("No world file selected.", "error")
+
+@server_bp.route("/api/server/<server_name>/world/install", methods=["POST"])
+@login_required
+def install_world_api_route(server_name):
+    """API endpoint to install a world from an .mcworld file."""
+    base_dir = get_base_dir()
+    data = request.get_json()
+
+    if not data:
         logger.warning(
-            f"World overwrite confirmation request for {server_name} with no file selected."
+            f"API Install World request for {server_name}: Empty JSON body received."
         )
-        return redirect(url_for("server_routes.install_content_menu_route"))
+        return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
 
-    if confirm == "yes":
-        # Proceed with world extraction (overwriting existing)
-        result = handlers.extract_world_handler(server_name, selected_file, base_dir)
-        if result["status"] == "error":
-            flash(f"Error importing world: {result['message']}", "error")
-            logger.error(
-                f"Error importing world (overwrite) for {server_name}: {result['message']}"
-            )
-        else:
-            flash("World imported successfully!", "success")
-            logger.info(f"World imported successfully (overwrite) for {server_name}")
+    selected_file = data.get("filename")  # Expect 'filename' in JSON
+
+    if not selected_file:
+        logger.warning(
+            f"API Install World request for {server_name}: Missing 'filename' in JSON body."
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing 'filename' in request body."}
+            ),
+            400,
+        )
+
+    logger.info(
+        f"API request received to install world '{selected_file}' for server: {server_name}"
+    )
+
+    result = handlers.extract_world_handler(server_name, selected_file, base_dir)
+
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(
+            f"World '{selected_file}' installed successfully for {server_name} via API."
+        )
     else:
-        flash("World import cancelled.", "info")
-        logger.info(f"World import cancelled for {server_name}")
+        error_message = (
+            result.get("message", "Unknown world extraction error")
+            if result
+            else "World extraction handler failed unexpectedly"
+        )
+        logger.error(
+            f"API Install World failed for {server_name} (file: {selected_file}): {error_message}"
+        )
+        if not result:
+            result = {
+                "status": "error",
+                "message": "World extraction handler failed unexpectedly",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
 
-    return redirect(url_for("server_routes.install_content_menu_route"))
+    return jsonify(result), status_code
 
 
-@server_bp.route("/server/<server_name>/install_addon", methods=["GET", "POST"])
+@server_bp.route("/server/<server_name>/install_addon")
 @login_required
 def install_addon_route(server_name):
     base_dir = get_base_dir()
     content_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
-    logger.info(f"Installing addon for server: {server_name}")
+    # --- Keep ONLY the GET request logic ---
+    logger.info(f"Displaying addon selection page for server: {server_name}")
+    result = handlers.list_content_files_handler(content_dir, ["mcaddon", "mcpack"])
+    if result["status"] == "error":
+        flash(result["message"], "error")
+        logger.error(f"Error listing addon files: {result['message']}")
+        addon_files = []
+    else:
+        addon_files = result.get("files", [])
+        logger.debug(f"Found addon files: {addon_files}")
+    return render_template(
+        "select_addon.html",
+        server_name=server_name,
+        addon_files=addon_files,
+        app_name=app_name,
+    )
 
-    if request.method == "POST":
-        selected_file = request.form.get("selected_file")
-        if not selected_file:
-            flash("No addon file selected.", "error")
-            logger.warning(
-                f"Addon install request for {server_name} with no file selected."
-            )
-            return redirect(url_for("server_routes.install_content_menu_route"))
 
-        result = handlers.install_addon_handler(server_name, selected_file, base_dir)
-        if result["status"] == "error":
-            flash(f"Error installing addon: {result['message']}", "error")
-            logger.error(
-                f"Error installing addon for {server_name}: {result['message']}"
-            )
-        else:
-            flash("Addon installed successfully!", "success")
-            logger.info(f"Addon installed successfully for {server_name}")
-        return redirect(url_for("server_routes.install_content_menu_route"))
+@server_bp.route("/api/server/<server_name>/addon/install", methods=["POST"])
+@login_required
+def install_addon_api_route(server_name):
+    """API endpoint to install an addon (.mcaddon, .mcpack)"""
+    base_dir = get_base_dir()
+    data = request.get_json()
 
-    else:  # GET request
-        result = handlers.list_content_files_handler(content_dir, ["mcaddon", "mcpack"])
-        if result["status"] == "error":
-            flash(result["message"], "error")
-            logger.error(f"Error listing addon files: {result['message']}")
-            addon_files = []
-        else:
-            addon_files = result["files"]
-            logger.debug(f"Found addon files: {addon_files}")
-        return render_template(
-            "select_addon.html",
-            server_name=server_name,
-            addon_files=addon_files,
-            app_name=app_name,
+    if not data:
+        logger.warning(
+            f"API Install Addon request for {server_name}: Empty JSON body received."
         )
+        return jsonify({"status": "error", "message": "Invalid JSON body."}), 400
+
+    selected_file = data.get("filename")
+
+    if not selected_file:
+        logger.warning(
+            f"API Install Addon request for {server_name}: Missing 'filename' in JSON body."
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing 'filename' in request body."}
+            ),
+            400,
+        )
+
+    logger.info(
+        f"API request received to install addon '{selected_file}' for server: {server_name}"
+    )
+
+    result = handlers.install_addon_handler(server_name, selected_file, base_dir)
+
+    status_code = 200 if result and result.get("status") == "success" else 500
+
+    if status_code == 200:
+        logger.info(
+            f"Addon '{selected_file}' installed successfully for {server_name} via API."
+        )
+    else:
+        error_message = (
+            result.get("message", "Unknown addon installation error")
+            if result
+            else "Addon installation handler failed unexpectedly"
+        )
+        logger.error(
+            f"API Install Addon failed for {server_name} (file: {selected_file}): {error_message}"
+        )
+        if not result:
+            result = {
+                "status": "error",
+                "message": "Addon installation handler failed unexpectedly",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
+
+    return jsonify(result), status_code
 
 
 @server_bp.route("/server/<server_name>/monitor")
