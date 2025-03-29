@@ -15,7 +15,7 @@
  */
 function updateStatus() {
     // Log the start of the function execution, including the target server
-    // Note: 'serverName' must be accessible in this scope (e.g., globally defined in the HTML template)
+    // Note: 'serverName' must be accessible in this scope
     if (typeof serverName === 'undefined') {
         console.error(`[${new Date().toISOString()}] updateStatus: CRITICAL - 'serverName' variable is not defined.`);
         // Optionally update the status element to indicate this critical configuration error
@@ -116,6 +116,4 @@ document.addEventListener('DOMContentLoaded', function() {
     const updateIntervalMilliseconds = 2000; // Update every 2 seconds
     console.log(`[${new Date().toISOString()}] DOMContentLoaded: Setting status update interval to ${updateIntervalMilliseconds}ms.`);
     setInterval(updateStatus, updateIntervalMilliseconds);
-    // Note: For more complex applications, consider storing the interval ID returned by setInterval
-    //       if you might need to clear it later (e.g., using clearInterval(intervalId)).
 });
