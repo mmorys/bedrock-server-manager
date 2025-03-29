@@ -1,4 +1,4 @@
-// bedrock_server_manager/web/static/js/scripts.js
+// bedrock-server-manager/bedrock_server_manager/web/static/js/utils.js
 
 // --- Helper: Display Status Messages ---
 /**

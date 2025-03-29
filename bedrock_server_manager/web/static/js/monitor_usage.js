@@ -1,4 +1,4 @@
-// bedrock_server_manager/web/static/js/monitor_usage.js
+// bedrock-server-manager/bedrock_server_manager/web/static/js/monitor_usage.js
 // ------------------------------------------------------
 // This script monitors the status (CPU, Memory, Uptime, PID) of a specific
 // Bedrock server instance by periodically fetching data from the backend API
