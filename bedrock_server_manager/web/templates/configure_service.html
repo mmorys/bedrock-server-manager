@@ -76,15 +76,15 @@
                 <button type="button" onclick="saveServiceSettings(this, '{{ server_name }}', '{{ os }}', {{ new_install | tojson }})" class="action-button">Save Service Settings</button>
 
                  {% if new_install %}
-                    <a href="{{ url_for('server_routes.index') }}" class="action-link" style="margin-left: 15px;">Finish / To Main Menu</a>
+                    <a href="{{ url_for('main_routes.index') }}" class="action-link" style="margin-left: 15px;">Finish / To Main Menu</a>
                 {% else %}
-                     <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Cancel / Back</a>
+                     <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Return</a>
                 {% endif %}
             </div>
 
         {% else %}
              <div style="margin-top: 20px;">
-                 <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="action-link">Back</a>
+                 <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link">Back</a>
              </div>
         {% endif %}
 

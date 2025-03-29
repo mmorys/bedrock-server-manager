@@ -64,8 +64,8 @@
                             <td>{{ server.version }}</td>
                             <td>
                               <button type="button" onclick="triggerServerUpdate(this, '{{ server.name }}')" class="action-link action-button">Update Server</button>
-                              <a href="{{ url_for('server_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
-                              <a href="{{ url_for('server_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
+                              <a href="{{ url_for('backup_restore_routes.backup_menu_route', server_name=server.name) }}" class="action-link">Backup</a>
+                              <a href="{{ url_for('backup_restore_routes.restore_menu_route', server_name=server.name) }}" class="action-link">Restore</a>
                               <button type="button" onclick="deleteServer(this, '{{ server.name }}')" class="action-link delete-button">Delete</button>
                             </td>
                         </tr>
@@ -80,9 +80,9 @@
         </section>
 
         <section class="main-menu-buttons">
-            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
-            <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
         </section>
     </div>
 </body>

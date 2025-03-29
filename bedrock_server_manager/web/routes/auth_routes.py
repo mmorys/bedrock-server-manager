@@ -149,7 +149,7 @@ def login():
         logger.debug(
             f"User '{session.get('username')}' already logged in. Redirecting to index."
         )
-        return redirect(url_for("server_routes.index"))
+        return redirect(url_for("main_routes.index"))
 
     if request.method == "POST":
         username_attempt = request.form.get("username")
@@ -185,10 +185,10 @@ def login():
             flash("You were successfully logged in!", "success")
             next_url = request.args.get("next")  # For redirecting after login
             logger.debug(
-                f"Redirecting logged in user to: {next_url or url_for('server_routes.index')}"
+                f"Redirecting logged in user to: {next_url or url_for('main_routes.index')}"
             )
             return redirect(
-                next_url or url_for("server_routes.index")
+                next_url or url_for("main_routes.index")
             )  # Redirect to next or main page
         else:
             logger.warning(

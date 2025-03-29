@@ -44,10 +44,10 @@
                 </tbody>
                 </table>
                 <br>
-                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
+                <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% else %}
                 <p>No world files (.mcworld) found in the content/worlds directory.</p>
-                <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
+                <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
             {% endif %}
         </section>
     </div>

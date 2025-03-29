@@ -42,7 +42,7 @@
                 <p>No backups found for {{ server_name }} of type '{{ restore_type }}'.</p>
             {% endif %}
             <br>
-            <a href="{{ url_for('server_routes.restore_menu_route', server_name=server_name) }}" class="action-link">Back to Restore Options</a>
+            <a href="{{ url_for('backup_restore_routes.restore_menu_route', server_name=server_name) }}" class="action-link">Back to Restore Options</a>
         </section>
     </div>
 </body>

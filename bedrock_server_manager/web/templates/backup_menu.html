@@ -24,9 +24,9 @@
             <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-link">Backup World Now</button>
             <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-link">Backup All Now</button>
 
-            <a href="{{ url_for('server_routes.backup_config_select_route', server_name=server_name) }}" class="action-link">Backup Specific Config File...</a>
+            <a href="{{ url_for('backup_restore_routes.backup_config_select_route', server_name=server_name) }}" class="action-link">Backup Specific Config File...</a>
 
-            <a href="{{ url_for('server_routes.index') }}" class="action-link">Back to Main Menu</a>
+            <a href="{{ url_for('main_routes.index') }}" class="action-link">Back to Main Menu</a>
         </section>
     </div>
 </body>

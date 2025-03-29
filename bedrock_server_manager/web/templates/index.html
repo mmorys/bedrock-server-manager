@@ -62,7 +62,7 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <!--<td>
-                              <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
+                              <a href="{{ url_for('main_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
                             </td> -->
                         </tr>
                         {% endfor %}
@@ -76,10 +76,10 @@
         </section>
 
         <section class="main-menu-buttons">
-            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('server_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
-            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
-            <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('main_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
+            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
             <!-- <button class="main-button advanced-button" disabled>Advanced Options</button>
             <button class="main-button exit-button" disabled>Exit</button> -->
         </section>

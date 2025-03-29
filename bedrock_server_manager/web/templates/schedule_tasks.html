@@ -52,7 +52,7 @@
             {% else %}
                 <p>No cron jobs scheduled for this server.</p>
             {% endif %}
-        <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Server List</a>
+        <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Server List</a>
         </section>
 
         <section class="add-cron-job-section">
@@ -122,7 +122,7 @@
             commandPart = commandPart.split('/').pop().split('\\').pop(); // Extract command name
             commandPart = commandPart.replace('.exe', '').replace('.py','').replace('bedrock-server-manager','').replace('bedrock_server_manager','');
             document.getElementById('command').value = commandPart
-            document.getElementById('cron-form').action = "{{ url_for('server_routes.modify_cron_job_route', server_name = server_name) }}";
+            document.getElementById('cron-form').action = "{{ url_for('schedule_tasks_routes.modify_cron_job_route', server_name = server_name) }}";
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -147,10 +147,10 @@
 
             let submitUrl;
             if (originalCronString) {
-                submitUrl = "{{ url_for('server_routes.modify_cron_job_route', server_name = server_name) }}";
+                submitUrl = "{{ url_for('schedule_tasks_routes.modify_cron_job_route', server_name = server_name) }}";
                 }
              else {
-                submitUrl = "{{ url_for('server_routes.add_cron_job_route', server_name = server_name) }}";
+                submitUrl = "{{ url_for('schedule_tasks_routes.add_cron_job_route', server_name = server_name) }}";
             }
 
             // Send the command using fetch (POST request)

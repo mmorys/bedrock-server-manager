@@ -34,7 +34,7 @@
                             <td>{{ task.command }}</td>
                             <td>{{ task.schedule }}</td>
                             <td>
-                                <a href="{{ url_for('server_routes.modify_windows_task_route', server_name=server_name, task_name=task.task_name) }}" class="action-link">Modify</a>
+                                <a href="{{ url_for('schedule_tasks_routes.modify_windows_task_route', server_name=server_name, task_name=task.task_name) }}" class="action-link">Modify</a>
                                 <a href="#" onclick="confirmDelete('{{ task.task_name }}', '{{ task.file_path }}')" class="action-link">Delete</a>
                             </td>
                         </tr>
@@ -45,8 +45,8 @@
                 <p>No scheduled tasks found for this server.</p>
             {% endif %}
 
-            <a href="{{ url_for('server_routes.add_windows_task_route', server_name=server_name) }}" class="main-button">Add Task</a>
-            <a href="{{ url_for('server_routes.index') }}" class="main-button">Back to Server List</a>
+            <a href="{{ url_for('schedule_tasks_routes.add_windows_task_route', server_name=server_name) }}" class="main-button">Add Task</a>
+            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Server List</a>
         </section>
         <form id="deleteForm" action="" method="post" style="display: none;"></form>
     </div>
@@ -56,7 +56,7 @@
                 // If user confirms, submit a form to the delete route
                 var form = document.createElement('form');
                 form.method = 'POST';
-                form.action = "{{ url_for('server_routes.delete_windows_task_route', server_name = server_name) }}";
+                form.action = "{{ url_for('schedule_tasks_routes.delete_windows_task_route', server_name = server_name) }}";
                 var taskNameInput = document.createElement('input');
                 taskNameInput.type = 'hidden';
                 taskNameInput.name = 'task_name';

@@ -23,17 +23,17 @@
         <section class="restore-menu-section">
             <p>What do you want to restore?</p>
 
-            <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+            <form action="{{ url_for('backup_restore_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
                 <button type="submit" name="restore_type" value="world" class="action-button">Select World Backup...</button>
             </form>
-            <form action="{{ url_for('server_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+            <form action="{{ url_for('backup_restore_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
                 <button type="submit" name="restore_type" value="config" class="action-button">Select Config Backup...</button>
             </form>
 
             <button type="button" onclick="triggerRestoreAll(this, '{{ server_name }}')" class="action-button">Restore All Now</button>
 
             <br><br>
-            <a href="{{ url_for('server_routes.index') }}" class="action-link">Cancel / Back to Main Menu</a>
+            <a href="{{ url_for('main_routes.index') }}" class="action-link">Return to Main Menu</a>
 
         </section>
     </div>

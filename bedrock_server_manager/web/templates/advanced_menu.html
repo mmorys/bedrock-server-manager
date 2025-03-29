@@ -63,11 +63,11 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <td>
-                              <a href="{{ url_for('server_routes.configure_properties_route', server_name=server.name) }}" class="action-link">Configure Properties</a>
-                              <a href="{{ url_for('server_routes.configure_allowlist_route', server_name=server.name) }}" class="action-link">Configure Allowlist</a>
-                              <a href="{{ url_for('server_routes.configure_permissions_route', server_name=server.name) }}" class="action-link">Configure Permissions</a>
-                              <a href="{{ url_for('server_routes.monitor_server_route', server_name=server.name) }}" class="action-link">Monitor Usage</a>
-                              <a href="{{ url_for('server_routes.configure_service_route', server_name=server.name) }}" class="action-link">Configure Auto-Update</a>
+                              <a href="{{ url_for('install_config_routes.configure_properties_route', server_name=server.name) }}" class="action-link">Configure Properties</a>
+                              <a href="{{ url_for('install_config_routes.configure_allowlist_route', server_name=server.name) }}" class="action-link">Configure Allowlist</a>
+                              <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server.name) }}" class="action-link">Configure Permissions</a>
+                              <a href="{{ url_for('main_routes.monitor_server_route', server_name=server.name) }}" class="action-link">Monitor Usage</a>
+                              <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server.name) }}" class="action-link">Configure Auto-Update</a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -81,9 +81,9 @@
         </section>
 
         <section class="main-menu-buttons">
-            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('server_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
-            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('main_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
+            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
         </section>
     </div>
 </body>
