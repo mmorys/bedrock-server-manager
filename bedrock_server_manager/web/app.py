@@ -64,7 +64,6 @@ def create_app():
             "API environment variable token_env is not set. API access will be disabled."
         )
     else:
-        # Avoid logging the token itself!
         logger.debug("API token loaded from environment variable.")
 
     # --- Log a warning if credentials are not set ---
@@ -72,11 +71,6 @@ def create_app():
         logger.warning(
             f"Authentication environment variables ({username_env}, {password_env}) are not set."
         )
-        logger.warning(
-            f"Using default admin:admin (username:password). Consider changing these immediately."
-        )
-        app.config[username_env] = "admin"
-        app.config[password_env] = "admin"
     else:
         logger.info("Web authentication credentials loaded from environment variables.")
 
@@ -111,15 +105,15 @@ def run_web_server(host=None, debug=False):
     """
     app = create_app()
 
-    # --- Check credentials before starting server (optional but recommended) ---
+    # --- Check credentials before starting server ---
     username_env = f"{env_name}_WEB_USERNAME"
     password_env = f"{env_name}_WEB_PASSWORD"
     if not app.config.get(username_env) or not app.config.get(password_env):
         logger.error(
             f"Cannot start web server: {username_env} or {password_env} environment variables are not set."
         )
-        # You might want to exit here instead of just logging
-        # return
+
+        return
 
     port = settings.get(f"{env_name}_PORT")
     logger.info(f"Starting web server. Debug mode: {debug}, Port: {port}")
