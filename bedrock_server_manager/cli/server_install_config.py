@@ -231,7 +231,7 @@ def configure_server_properties(server_name, base_dir=None):
             f"{Fore.CYAN}Enter IPV4 Port [Default: {Fore.YELLOW}{current_properties.get('server-port', DEFAULT_PORT)}{Fore.CYAN}]:{Style.RESET_ALL} "
         ).strip()
         input_port = input_port or current_properties.get("server-port", DEFAULT_PORT)
-        validation_result = server_install_config.validate_property_value("server-port", input_port)
+        validation_result = server_install_config.validate_server_property_value("server-port", input_port)
         if validation_result["status"] == "success":
             properties_to_update["server-port"] = input_port
             break
@@ -243,7 +243,7 @@ def configure_server_properties(server_name, base_dir=None):
         input_port_v6 = input_port_v6 or current_properties.get(
             "server-portv6", DEFAULT_IPV6_PORT
         )
-        validation_result = server_install_config.validate_property_value("server-portv6", input_port_v6)
+        validation_result = server_install_config.validate_server_property_value("server-portv6", input_port_v6)
         if validation_result["status"] == "success":
             properties_to_update["server-portv6"] = input_port_v6
             break
@@ -270,7 +270,7 @@ def configure_server_properties(server_name, base_dir=None):
         input_max_players = input_max_players or current_properties.get(
             "max-players", "10"
         )
-        validation_result = server_install_config.validate_property_value("max-players", input_max_players)
+        validation_result = server_install_config.validate_server_property_value("max-players", input_max_players)
         if validation_result["status"] == "success":
             properties_to_update["max-players"] = input_max_players
             break
@@ -290,7 +290,7 @@ def configure_server_properties(server_name, base_dir=None):
         input_render_distance = input_render_distance or current_properties.get(
             "view-distance", "10"
         )
-        validation_result = server_install_config.validate_property_value(
+        validation_result = server_install_config.validate_server_property_value(
             "view-distance", input_render_distance
         )
         if validation_result["status"] == "success":
@@ -304,7 +304,7 @@ def configure_server_properties(server_name, base_dir=None):
         input_tick_distance = input_tick_distance or current_properties.get(
             "tick-distance", "4"
         )
-        validation_result = server_install_config.validate_property_value(
+        validation_result = server_install_config.validate_server_property_value(
             "tick-distance", input_tick_distance
         )
         if validation_result["status"] == "success":
@@ -384,7 +384,7 @@ def install_new_server(base_dir=None, config_dir=None):
         target_version = "LATEST"
 
     # Main installation call
-    install_result = api_server.install_new_server(
+    install_result = server_install_config.install_new_server(
         server_name, target_version, base_dir, config_dir
     )
     if install_result["status"] == "error":

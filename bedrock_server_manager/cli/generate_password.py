@@ -5,7 +5,6 @@ from bedrock_server_manager.config.settings import env_name
 
 try:
 
-    env_name = "BEDROCK_SERVER_MANAGER"
     plaintext_password = getpass.getpass("Enter the password for the web interface: ")
     # Confirm password
     confirm_password = getpass.getpass("Confirm the password: ")

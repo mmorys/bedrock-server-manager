@@ -2,7 +2,6 @@
 import sys
 from datetime import datetime
 from colorama import Fore, Style, init
-from bedrock_server_manager.api import utils as api_utils
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.logging import log_separator
 import os
@@ -35,9 +34,6 @@ def startup_checks(app_name=None, version=None):
     logger.debug(f"Created directory: {content_dir}/worlds")
     os.makedirs(f"{content_dir}/addons", exist_ok=True)
     logger.debug(f"Created directory: {content_dir}/addons")
-    api_utils.update_server_statuses(
-        settings.get("BASE_DIR"), settings._config_dir
-    )
     logger.debug("Startup checks complete")
 
 
