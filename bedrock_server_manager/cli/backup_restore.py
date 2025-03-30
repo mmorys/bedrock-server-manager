@@ -203,7 +203,7 @@ def restore_menu(server_name, base_dir):
             continue
 
         # List available backups
-        list_response = backup_restore.list_backups(server_name, restore_type, base_dir)
+        list_response = backup_restore.list_backups_files(server_name, restore_type, base_dir)
         if list_response["status"] == "error":
             print(f"{_ERROR_PREFIX}{list_response['message']}")
             return  # Exit if no backups found

@@ -89,7 +89,7 @@ def show_addon_selection_menu(server_name, addon_files, base_dir):
             print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
 
     # Use the to install the addon
-    install_response = addon.install_addon(
+    install_response = addon.import_addon(
         server_name, selected_addon, base_dir
     )  # Always stop/start
     if install_response["status"] == "error":
