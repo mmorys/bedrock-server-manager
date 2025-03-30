@@ -859,7 +859,7 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
     new_task_name = api_task_scheduler.create_task_name(server_name, command_args)
 
     # Modify the task
-    modify_response = modify_windows_task(
+    modify_response = api_task_scheduler.modify_windows_task(
         selected_task_name,
         server_name,
         command,
