@@ -15,11 +15,11 @@ from bedrock_server_manager.web.routes.auth_routes import login_required
 logger = logging.getLogger("bedrock_server_manager")
 
 # Create Blueprint for installation and configuration routes
-install_config_bp = Blueprint("install_config_routes", __name__)
+server_install_config_bp = Blueprint("install_config_routes", __name__)
 
 
 # --- Route: Install Server Page ---
-@install_config_bp.route("/install", methods=["GET"])
+@server_install_config_bp.route("/install", methods=["GET"])
 @login_required
 def install_server_route():
     """Renders the page for installing a new server."""
@@ -31,7 +31,7 @@ def install_server_route():
 
 
 # --- API Route: Install Server ---
-@install_config_bp.route("/api/server/install", methods=["POST"])
+@server_install_config_bp.route("/api/server/install", methods=["POST"])
 @login_required
 def install_server_api_route():
     """API endpoint to handle the server installation process."""
@@ -203,7 +203,9 @@ def install_server_api_route():
 
 
 # --- Route: Configure Server Properties Page ---
-@install_config_bp.route("/server/<server_name>/configure_properties", methods=["GET"])
+@server_install_config_bp.route(
+    "/server/<server_name>/configure_properties", methods=["GET"]
+)
 @login_required
 def configure_properties_route(server_name):
     """Renders the page for configuring server.properties."""
@@ -265,7 +267,9 @@ def configure_properties_route(server_name):
 
 
 # --- API Route: Configure Server Properties ---
-@install_config_bp.route("/api/server/<server_name>/properties", methods=["POST"])
+@server_install_config_bp.route(
+    "/api/server/<server_name>/properties", methods=["POST"]
+)
 @login_required
 def configure_properties_api_route(server_name):
     """API endpoint to validate and update server.properties."""
@@ -422,7 +426,9 @@ def configure_properties_api_route(server_name):
 
 
 # --- Route: Configure Allowlist Page ---
-@install_config_bp.route("/server/<server_name>/configure_allowlist", methods=["GET"])
+@server_install_config_bp.route(
+    "/server/<server_name>/configure_allowlist", methods=["GET"]
+)
 @login_required
 def configure_allowlist_route(server_name):
     """Renders the page for configuring the server allowlist."""
@@ -472,7 +478,7 @@ def configure_allowlist_route(server_name):
 
 
 # --- API Route: Save Allowlist (used during initial setup or full replacement) ---
-@install_config_bp.route("/api/server/<server_name>/allowlist", methods=["POST"])
+@server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["POST"])
 @login_required
 def save_allowlist_api_route(server_name):
     """API endpoint to SAVE/REPLACE the server allowlist (typically used during initial setup)."""
@@ -605,7 +611,9 @@ def save_allowlist_api_route(server_name):
 
 
 # --- API Route: Add Players to Allowlist ---
-@install_config_bp.route("/api/server/<server_name>/allowlist/add", methods=["POST"])
+@server_install_config_bp.route(
+    "/api/server/<server_name>/allowlist/add", methods=["POST"]
+)
 @login_required
 def add_allowlist_players_api_route(server_name):
     """API endpoint to ADD players to the server allowlist."""
@@ -750,7 +758,7 @@ def add_allowlist_players_api_route(server_name):
 
 
 # --- API Route: Get Allowlist ---
-@install_config_bp.route("/api/server/<server_name>/allowlist", methods=["GET"])
+@server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["GET"])
 @login_required
 def get_allowlist_api_route(server_name):
     """API endpoint to retrieve the current server allowlist."""
@@ -799,7 +807,9 @@ def get_allowlist_api_route(server_name):
 
 
 # --- Route: Configure Permissions Page ---
-@install_config_bp.route("/server/<server_name>/configure_permissions", methods=["GET"])
+@server_install_config_bp.route(
+    "/server/<server_name>/configure_permissions", methods=["GET"]
+)
 @login_required
 def configure_permissions_route(server_name):
     """Renders the page for configuring player permissions."""
@@ -894,7 +904,9 @@ def configure_permissions_route(server_name):
 
 
 # --- API Route: Configure Permissions ---
-@install_config_bp.route("/api/server/<server_name>/permissions", methods=["PUT"])
+@server_install_config_bp.route(
+    "/api/server/<server_name>/permissions", methods=["PUT"]
+)
 @login_required
 def configure_permissions_api_route(server_name):
     """API endpoint to update player permissions using PUT (replaces permissions for submitted players)."""
@@ -1079,7 +1091,9 @@ def configure_permissions_api_route(server_name):
 
 
 # --- Route: Configure Service Page ---
-@install_config_bp.route("/server/<server_name>/configure_service", methods=["GET"])
+@server_install_config_bp.route(
+    "/server/<server_name>/configure_service", methods=["GET"]
+)
 @login_required
 def configure_service_route(server_name):
     """Renders the page for configuring OS-specific service settings (systemd/autoupdate)."""
@@ -1156,7 +1170,7 @@ def configure_service_route(server_name):
 
 
 # --- API Route: Configure Service ---
-@install_config_bp.route("/api/server/<server_name>/service", methods=["POST"])
+@server_install_config_bp.route("/api/server/<server_name>/service", methods=["POST"])
 @login_required
 def configure_service_api_route(server_name):
     """API endpoint to configure OS-specific service settings."""

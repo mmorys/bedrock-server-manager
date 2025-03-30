@@ -41,62 +41,6 @@ def check_service_exists(server_name):
     return os.path.exists(service_file)
 
 
-def enable_user_lingering():
-    """Enables user lingering on Linux (systemd systems).
-
-    This is required for user services to start on boot and run after logout.
-    On non-Linux systems, this function does nothing.
-
-    Raises:
-        CommandNotFoundError: If loginctl or sudo is not found.
-        SystemdReloadError: If enabling lingering fails.
-    """
-    if platform.system() != "Linux":
-        return  # Not applicable
-
-    username = getpass.getuser()
-
-    # Check if lingering is already enabled
-    try:
-        result = subprocess.run(
-            ["loginctl", "show-user", username],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if "Linger=yes" in result.stdout:
-            logger.debug(f"Lingering is already enabled for {username}")
-            return  # Already enabled
-    except FileNotFoundError:
-        logger.error("loginctl command not found. Lingering cannot be checked/enabled.")
-        raise CommandNotFoundError(
-            "loginctl",
-            message="loginctl command not found. Lingering cannot be checked/enabled.",
-        ) from None
-
-    # If not already enabled, try to enable it
-    logger.debug(f"Attempting to enable lingering for user {username}")
-    try:
-        subprocess.run(
-            ["sudo", "loginctl", "enable-linger", username],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        logger.info(f"Lingering enabled for {username}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to enable lingering for {username}.  Error: {e}")
-        raise SystemdReloadError(
-            f"Failed to enable lingering for {username}.  Error: {e}"
-        ) from e
-    except FileNotFoundError:
-        logger.error("loginctl or sudo command not found. Lingering cannot be enabled.")
-        raise CommandNotFoundError(
-            "loginctl or sudo",
-            message="loginctl or sudo command not found. Lingering cannot be enabled.",
-        ) from None
-
-
 def _create_systemd_service(server_name, base_dir, autoupdate):
     """Creates a systemd service file (Linux-specific).
 

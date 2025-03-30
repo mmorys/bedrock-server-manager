@@ -3,6 +3,7 @@ import sys
 import argparse
 import os
 from bedrock_server_manager import cli
+from bedrock_server_manager.cli import main_menus
 from bedrock_server_manager.core.download import downloader
 from bedrock_server_manager.config.settings import (
     settings,
@@ -399,7 +400,7 @@ def main():
 
     # --- Command Dispatch Table ---
     commands = {
-        "main": lambda: cli.main_menu(base_dir, config_dir),
+        "main": lambda: main_menus.main_menu(base_dir, config_dir),
         "list-servers": lambda: (
             cli.list_servers_loop(base_dir, config_dir)
             if args.loop
