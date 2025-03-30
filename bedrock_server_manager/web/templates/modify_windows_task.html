@@ -4,6 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ app_name }} - Modify Windows Task</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
      <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
@@ -16,7 +21,7 @@
 
         <section class="add-task-section">
             <!--  action will be set by JavaScript based on whether it's an add or modify operation -->
-            <form id= "task-form" action= "{{ url_for('server_routes.add_windows_task_route', server_name=server_name) }}" method="post">
+            <form id= "task-form" action= "{{ url_for('schedule_tasks_routes.add_windows_task_route', server_name=server_name) }}" method="post">
                 <div class="form-group">
                     <label for="command" class="form-label">Command:</label>
                     <select id="command" name="command" class="form-input">
@@ -34,7 +39,7 @@
 
                 <button type="button" class="main-button" onclick="addTrigger()">Add Trigger</button>
                 <button type="submit" class="main-button">Add Task</button>
-                <a href="{{ url_for('server_routes.index') }}" class="main-button">Cancel</a>
+                <a href="{{ url_for('main_routes.index') }}" class="main-button">Cancel</a>
             </form>
         </section>
     </div>

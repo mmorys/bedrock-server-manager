@@ -4,6 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ app_name }}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
@@ -62,7 +67,7 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <!--<td>
-                              <a href="{{ url_for('server_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
+                              <a href="{{ url_for('main_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
                             </td> -->
                         </tr>
                         {% endfor %}
@@ -76,10 +81,10 @@
         </section>
 
         <section class="main-menu-buttons">
-            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('server_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
-            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
-            <a href="{{ url_for('server_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('main_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
+            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
             <!-- <button class="main-button advanced-button" disabled>Advanced Options</button>
             <button class="main-button exit-button" disabled>Exit</button> -->
         </section>

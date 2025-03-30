@@ -7,7 +7,12 @@ from waitress import serve
 from os.path import basename
 from flask import Flask, session
 from bedrock_server_manager.config.settings import settings, env_name
-from bedrock_server_manager.web.routes import server_routes
+from bedrock_server_manager.web.routes.main_routes import main_bp
+from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
+from bedrock_server_manager.web.routes.action_routes import action_bp
+from bedrock_server_manager.web.routes.install_config_routes import install_config_bp
+from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
+from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.auth_routes import auth_bp
 
 
@@ -76,9 +81,14 @@ def create_app():
         logger.info("Web authentication credentials loaded from environment variables.")
 
     # --- Register Blueprints ---
-    app.register_blueprint(server_routes.server_bp)
-    app.register_blueprint(auth_bp)  # Register the auth blueprint
-    logger.debug("Registered blueprints: server_routes, auth_routes")
+    app.register_blueprint(main_bp)
+    app.register_blueprint(schedule_tasks_bp)
+    app.register_blueprint(action_bp)
+    app.register_blueprint(install_config_bp)
+    app.register_blueprint(backup_restore_bp)
+    app.register_blueprint(content_bp)
+    app.register_blueprint(auth_bp)
+    logger.debug("Registered blueprints...")
 
     # --- Add context processor to make login status available to templates ---
     @app.context_processor

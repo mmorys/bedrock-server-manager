@@ -4,6 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ app_name }} - Advanced Menu</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
@@ -63,11 +68,11 @@
                             <td>{{ server.status }}</td>
                             <td>{{ server.version }}</td>
                             <td>
-                              <a href="{{ url_for('server_routes.configure_properties_route', server_name=server.name) }}" class="action-link">Configure Properties</a>
-                              <a href="{{ url_for('server_routes.configure_allowlist_route', server_name=server.name) }}" class="action-link">Configure Allowlist</a>
-                              <a href="{{ url_for('server_routes.configure_permissions_route', server_name=server.name) }}" class="action-link">Configure Permissions</a>
-                              <a href="{{ url_for('server_routes.monitor_server_route', server_name=server.name) }}" class="action-link">Monitor Usage</a>
-                              <a href="{{ url_for('server_routes.configure_service_route', server_name=server.name) }}" class="action-link">Configure Auto-Update</a>
+                              <a href="{{ url_for('install_config_routes.configure_properties_route', server_name=server.name) }}" class="action-link">Configure Properties</a>
+                              <a href="{{ url_for('install_config_routes.configure_allowlist_route', server_name=server.name) }}" class="action-link">Configure Allowlist</a>
+                              <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server.name) }}" class="action-link">Configure Permissions</a>
+                              <a href="{{ url_for('main_routes.monitor_server_route', server_name=server.name) }}" class="action-link">Monitor Usage</a>
+                              <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server.name) }}" class="action-link">Configure Auto-Update</a>
                             </td>
                         </tr>
                         {% endfor %}
@@ -81,9 +86,9 @@
         </section>
 
         <section class="main-menu-buttons">
-            <a href="{{ url_for('server_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('server_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
-            <a href="{{ url_for('server_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
+            <a href="{{ url_for('main_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
+            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
         </section>
     </div>
 </body>

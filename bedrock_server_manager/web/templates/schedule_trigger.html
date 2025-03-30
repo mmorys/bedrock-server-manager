@@ -1,4 +1,11 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_trigger.html -->
+<head>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
+</head>
 {% macro render_trigger_fields(trigger_num) %}
 <div class="trigger-group" id="trigger-group-{{ trigger_num }}">
     <h3>Trigger {{ trigger_num }}</h3>
