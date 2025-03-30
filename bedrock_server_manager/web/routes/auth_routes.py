@@ -3,6 +3,7 @@ import os
 import functools
 import logging
 import secrets
+from werkzeug.security import check_password_hash
 from bedrock_server_manager.config.settings import env_name, app_name
 from flask import (
     Blueprint,
@@ -143,62 +144,71 @@ def login_required(view):
 # --- Login Route ---
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Handles user login."""
-    # Redirect if already logged in
+    """Handles user login using hashed passwords."""
     if "logged_in" in session:
-        logger.debug(
-            f"User '{session.get('username')}' already logged in. Redirecting to index."
-        )
         return redirect(url_for("main_routes.index"))
 
     if request.method == "POST":
         username_attempt = request.form.get("username")
-        # Avoid logging password attempts directly
+        password_attempt = request.form.get("password")
         logger.info(
             f"Login attempt for username: '{username_attempt}' from {request.remote_addr}"
         )
-        password_attempt = request.form.get("password")
 
         # Get credentials from app config
-        expected_username = current_app.config.get(f"{env_name}_WEB_USERNAME")
-        expected_password = current_app.config.get(f"{env_name}_WEB_PASSWORD")
+        expected_username_env = f"{env_name}_WEB_USERNAME"
+        stored_password_hash_env = f"{env_name}_WEB_PASSWORD"
 
-        # Basic validation (ensure env vars are set)
-        if not expected_username or not expected_password:
+        expected_username = current_app.config.get(expected_username_env)
+        # This now retrieves the HASHED password from the env_var
+        stored_password_hash = current_app.config.get(stored_password_hash_env)
+
+        # --- VALIDATION ---
+        if not expected_username or not stored_password_hash:
             flash("Application authentication is not configured correctly.", "danger")
-            # Log this error server-side as well
-            logger.error(f"{env_name}_WEB_USERNAME or {env_name}_WEB_PASSWORD not set!")
-            return render_template(
-                "login.html", error="Server configuration error.", app_name=app_name
+            logger.error(
+                f"{expected_username_env} or {stored_password_hash_env} not set correctly!"
             )
+            # Check if the password hash looks like a hash (basic check)
+            if stored_password_hash and not ":" in stored_password_hash:
+                logger.error(
+                    f"The value configured for {stored_password_hash_env} does not look like a valid password hash!"
+                )
+            return (
+                render_template(
+                    "login.html", error="Server configuration error.", app_name=app_name
+                ),
+                500,
+            )  # Internal Server Error better reflects config issue
 
-        # Check credentials
-        if (
-            username_attempt == expected_username
-            and password_attempt == expected_password
+        # --- Check Credentials using Hashing ---
+        # 1. Check username first (quick fail)
+        # 2. Use check_password_hash to compare submitted plaintext against stored hash
+        if username_attempt == expected_username and check_password_hash(
+            stored_password_hash, password_attempt
         ):
+            # --- Login Success ---
             session["logged_in"] = True
             session["username"] = username_attempt
             logger.info(
                 f"User '{username_attempt}' logged in successfully from {request.remote_addr}."
             )
             flash("You were successfully logged in!", "success")
-            next_url = request.args.get("next")  # For redirecting after login
+            next_url = request.args.get("next")
             logger.debug(
                 f"Redirecting logged in user to: {next_url or url_for('main_routes.index')}"
             )
-            return redirect(
-                next_url or url_for("main_routes.index")
-            )  # Redirect to next or main page
+            return redirect(next_url or url_for("main_routes.index"))
         else:
+            # --- Login Failure ---
             logger.warning(
                 f"Invalid login attempt for username: '{username_attempt}' from {request.remote_addr}."
             )
             flash("Invalid username or password. Please try again.", "danger")
             return (
                 render_template("login.html", app_name=app_name),
-                401,
-            )  # Unauthorized status code
+                401,  # Unauthorized
+            )
 
     # GET request: show the login form
     logger.debug(f"Rendering login page for GET request from {request.remote_addr}")
