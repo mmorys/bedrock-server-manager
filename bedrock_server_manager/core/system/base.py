@@ -241,7 +241,7 @@ def _get_bedrock_process_info(server_name, base_dir):
         ResourceMonitorError: If there is any error during monitoring.
     """
 
-    global _last_cpu_times, _last_timestamp
+    global _last_timestamp
     logger.debug(f"Getting Bedrock process info for: {server_name}")
 
     if platform.system() == "Linux":
