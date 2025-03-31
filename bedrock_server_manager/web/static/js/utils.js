@@ -117,7 +117,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             }
         };
         // If a body is provided and method allows a body, stringify and set Content-Type
-        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) { // Added PATCH
+        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method == 'DELETE')) {
             fetchOptions.headers['Content-Type'] = 'application/json';
             fetchOptions.body = JSON.stringify(body);
             console.log("Added JSON body and Content-Type header.");

@@ -108,7 +108,7 @@ def display_cron_job_table(cron_jobs):
             f"{Fore.GREEN}{job['minute']} {job['hour']} {job['day_of_month']} {job['month']} {job['day_of_week']}{Style.RESET_ALL}".ljust(
                 15
             )
-            + f"{Fore.CYAN}{job['schedule_time']:<25}{Style.RESET_ALL} {Fore.YELLOW}{job['command']}{Style.RESET_ALL}"
+            + f"{Fore.CYAN}{job['schedule_time']:<25}{Style.RESET_ALL} {Fore.YELLOW}{job['command_display']}{Style.RESET_ALL}"
         )
 
     print("-------------------------------------------------------")

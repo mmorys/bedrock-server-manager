@@ -72,7 +72,7 @@ def schedule_tasks_route(server_name):
 
 
 # --- API Route: Add Cron Job ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule/add", methods=["POST"])
+@schedule_tasks_bp.route("/api/server/<server_name>/schedule/add", methods=["POST"])
 @login_required
 def add_cron_job_route(server_name):
     """API endpoint to add a new cron job."""
@@ -254,12 +254,14 @@ def modify_cron_job_route(server_name):
 
 
 # --- API Route: Delete Cron Job ---
-@schedule_tasks_bp.route("/api/server/<server_name>/schedule/delete", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/schedule/delete", methods=["DELETE"]
+)
 @login_required
 def delete_cron_job_route(server_name):
     """API endpoint to delete a specific cron job."""
     logger.info(
-        f"API POST request received to delete cron job (context: server '{server_name}')."
+        f"API DELETE request received to delete cron job (context: server '{server_name}')."
     )
 
     # Get JSON data

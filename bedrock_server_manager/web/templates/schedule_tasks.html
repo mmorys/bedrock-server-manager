@@ -13,12 +13,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}"> 
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>Schedule Tasks for {{ server_name }}</h1>
         </header>
+
+        <!-- Area for displaying status messages -->
+        <div id="status-message-area" class="message-box" style="opacity: 0;"></div>
 
         <section class="schedule-tasks-section">
             <h2>Current Scheduled Tasks</h2>
@@ -28,9 +33,9 @@
                         <tr>
                             <th>Minute</th>
                             <th>Hour</th>
-                            <th>Day of Month</th>
+                            <th>DayOfMonth</th>
                             <th>Month</th>
-                            <th>Day of Week</th>
+                            <th>DayOfWeek</th>
                             <th>Schedule</th>
                             <th>Command</th>
                             <th>Actions</th>
@@ -45,9 +50,11 @@
                                 <td>{{ job.month }}</td>
                                 <td>{{ job.day_of_week }}</td>
                                 <td>{{ job.schedule_time }}</td>
-                                <td>{{ job.command }}</td>
+                                <td>{{ job.command_display }}</td>
                                 <td>
+                                    <!-- Modify Link: Pass all parts needed to reconstruct the original full cron string and pre-fill form -->
                                     <a href="#" onclick="fillModifyForm('{{ job.minute }}', '{{ job.hour }}', '{{ job.day_of_month }}', '{{ job.month }}', '{{ job.day_of_week }}', '{{ job.command }}')" class="action-link">Modify</a>
+                                    <!-- Delete Link: Pass the full, original cron string as expected by the delete API endpoint -->
                                     <a href="#" onclick="confirmDelete('{{ job.minute }} {{ job.hour }} {{ job.day_of_month }} {{ job.month }} {{ job.day_of_week }} {{ job.command }}')" class="action-link">Delete</a>
                                 </td>
                             </tr>
@@ -57,132 +64,226 @@
             {% else %}
                 <p>No cron jobs scheduled for this server.</p>
             {% endif %}
-        <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Server List</a>
+            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Server List</a>
         </section>
 
         <section class="add-cron-job-section">
           <h2>Add/Modify Cron Job</h2>
-          <form id="cron-form" action="" method="post">
-              <div class="form-group">
+          <form id="cron-form">
+                <div class="form-group">
                     <label for="command">Command:</label>
-                    <select id="command" name="command" class="form-input">
+                    <select id="command" name="command" class="form-input" required>
+                        <option value="" disabled selected>-- Select Command --</option>
                         <option value="update-server">Update Server</option>
                         <option value="backup-all">Backup Server</option>
                         <option value="start-server">Start Server</option>
                         <option value="stop-server">Stop Server</option>
                         <option value="restart-server">Restart Server</option>
                         <option value="scan-players">Scan Players</option>
+                        <!-- Add other command options as needed -->
                     </select>
                 </div>
               <div class="form-group">
-                  <label for="minute">Minute:</label>
-                  <input type="text" id="minute" name="minute" class="form-input" value="*" required>
+                  <label for="minute">Minute (0-59):</label>
+                  <input type="text" id="minute" name="minute" class="form-input" value="*" required pattern="^(\*|([0-5]?\d)(-[0-5]?\d)?(,[0-5]?\d(-[0-5]?\d)?)*|\*\/([1-9]|[1-5]\d))$">
+                  <small>Examples: *, 0, 15, 0-30, */15, 0,30</small>
               </div>
               <div class="form-group">
-                  <label for="hour">Hour:</label>
-                  <input type="text" id="hour" name="hour" class="form-input" value="*" required>
+                  <label for="hour">Hour (0-23):</label>
+                  <input type="text" id="hour" name="hour" class="form-input" value="*" required pattern="^(\*|([01]?\d|2[0-3])(-([01]?\d|2[0-3]))?(,([01]?\d|2[0-3])(-([01]?\d|2[0-3]))?)*|\*\/([1-9]|1\d|2[0-3]))$">
+                   <small>Examples: *, 0, 10, 8-17, */2, 9,17</small>
               </div>
               <div class="form-group">
-                  <label for="day">Day of Month:</label>
-                  <input type="text" id="day" name="day" class="form-input" value="*" required>
+                  <label for="day">Day of Month (1-31):</label>
+                  <input type="text" id="day" name="day" class="form-input" value="*" required pattern="^(\*|([1-9]|[12]\d|3[01])(-([1-9]|[12]\d|3[01]))?(,([1-9]|[12]\d|3[01])(-([1-9]|[12]\d|3[01]))?)*|\*\/([1-9]|[12]\d|3[01]))$">
+                   <small>Examples: *, 1, 15, 1-15, */5</small>
               </div>
               <div class="form-group">
-                  <label for="month">Month:</label>
-                  <input type="text" id="month" name="month" class="form-input" value="*" required>
+                  <label for="month">Month (1-12):</label>
+                  <input type="text" id="month" name="month" class="form-input" value="*" required pattern="^(\*|([1-9]|1[0-2])(-([1-9]|1[0-2]))?(,([1-9]|1[0-2])(-([1-9]|1[0-2]))?)*|\*\/([1-9]|1[0-2]))$">
+                   <small>Examples: *, 1, 6, 1-3, */2</small>
               </div>
               <div class="form-group">
-                  <label for="weekday">Day of Week:</label>
-                  <input type="text" id="weekday" name="weekday" class="form-input" value="*" required>
+                  <label for="weekday">Day of Week (0-6, Sun=0):</label>
+                  <input type="text" id="weekday" name="weekday" class="form-input" value="*" required pattern="^(\*|[0-6](-[0-6])?(,[0-6](-[0-6])?)*|\*\/[1-6])$">
+                  <small>Examples: *, 0, 5, 1-5, 0,6</small>
               </div>
+              <!-- Hidden field to store the original full cron string when modifying -->
               <input type="hidden" id="original_cron_string" name="original_cron_string" value="">
               <button type="submit" class="main-button">Add/Modify Job</button>
           </form>
       </section>
-    </div>
-      <script>
-        function confirmDelete(cronString) {
-            if (confirm(`Are you sure you want to delete the cron job:\n${cronString}?`)) {
-                // If user confirms, submit a form to the delete route
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/server/${serverName}/schedule/delete`;
-                var cronInput = document.createElement('input');
-                cronInput.type = 'hidden';
-                cronInput.name = 'cron_string';
-                cronInput.value = cronString;
-                form.appendChild(cronInput);
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
+    </div> <!-- End container -->
+    <!-- Inline script for page-specific logic -->
+    <script>
+        // --- Function to pre-fill the form for modification ---
         function fillModifyForm(minute, hour, day, month, weekday, command) {
             document.getElementById('minute').value = minute;
             document.getElementById('hour').value = hour;
             document.getElementById('day').value = day;
             document.getElementById('month').value = month;
             document.getElementById('weekday').value = weekday;
-            document.getElementById('original_cron_string').value = `${minute} ${hour} ${day} ${month} ${weekday} ${command}`
-            // Extract just the command part, handling paths
-            let commandPart = command.split('--')[0].trim();  // Split on -- and take first part
-            commandPart = commandPart.split('/').pop().split('\\').pop(); // Extract command name
-            commandPart = commandPart.replace('.exe', '').replace('.py','').replace('bedrock-server-manager','').replace('bedrock_server_manager','');
-            document.getElementById('command').value = commandPart
-            document.getElementById('cron-form').action = "{{ url_for('schedule_tasks_routes.modify_cron_job_route', server_name = server_name) }}";
+            // Store the original cron string for the modify API call
+            document.getElementById('original_cron_string').value = `${minute} ${hour} ${day} ${month} ${weekday} ${command}`;
+
+            // --- Extract the base command part to select in the dropdown ---
+            // 1. Take everything before the first '--' (like --server)
+            let commandPart = command.split('--')[0].trim();
+             // 2. Get the last part after any path separators ('/' or '\')
+            commandPart = commandPart.split('/').pop().split('\\').pop();
+            // 3. Remove common executable suffixes and prefixes used by the manager
+            commandPart = commandPart.replace(/\.(?:exe|py)$/i, '') // Remove .exe or .py (case-insensitive)
+                                 .replace(/^bedrock-server-manager-?/i, '') // Remove prefix bedrock-server-manager- (case-insensitive)
+                                 .replace(/^bedrock_server_manager_?/i, ''); // Remove prefix bedrock_server_manager_ (case-insensitive)
+
+            const commandSelect = document.getElementById('command');
+            let foundOption = false;
+            for (let i = 0; i < commandSelect.options.length; i++) {
+                // Compare values case-insensitively
+                if (commandSelect.options[i].value.toLowerCase() === commandPart.toLowerCase()) {
+                    commandSelect.value = commandSelect.options[i].value;
+                    foundOption = true;
+                    break;
+                }
+            }
+            if (!foundOption) {
+                 console.warn(`Could not find matching option in dropdown for command: '${commandPart}'. The full command was: '${command}'`);
+                 // Set dropdown to default or clear it
+                 commandSelect.value = ""; // Set to the disabled default option
+            }
+            // --- End Command Extraction ---
+
+            console.log(`Form filled for modifying job. Original string set to: ${document.getElementById('original_cron_string').value}`);
+            // Scroll the form into view for better UX
+            document.getElementById('cron-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-          const serverName = "{{ server_name }}";  // Get server_name from Jinja2 context
-          const EXPATH = "{{ EXPATH }}";  // Get server_name from Jinja2 context
+        // --- Function to handle deletion confirmation and API call ---
+        async function confirmDelete(cronString) {
+            if (confirm(`Are you sure you want to delete the cron job:\n${cronString}?`)) {
+                const serverName = "{{ server_name }}"; // Get server name from Jinja2 context
+                // Define the path for the delete API endpoint
+                const actionPath = 'schedule/delete'; // Will be combined with serverName by utils.js
+                const method = 'DELETE';
+                // The backend delete route expects the cron string in a 'cron_string' field
+                const body = { cron_string: cronString };
 
+                console.log(`Attempting to delete cron job via API: Server=${serverName}, Path=${actionPath}`);
+                // Call the utility function, passing serverName and the relative actionPath
+                const responseData = await sendServerActionRequest(serverName, actionPath, method, body, null); // No specific button for delete link
 
-          document.getElementById('cron-form').addEventListener('submit', function(event) {
-            event.preventDefault(); // Prevent the default form submission
-
-            const command = document.getElementById('command').value;
-            const minute = document.getElementById('minute').value;
-            const hour = document.getElementById('hour').value;
-            const day = document.getElementById('day').value;
-            const month = document.getElementById('month').value;
-            const weekday = document.getElementById('weekday').value;
-            const originalCronString = document.getElementById('original_cron_string').value;
-
-            const fullCommand = `${EXPATH} ${command} --server ${serverName}`;
-            const cronString = `${minute} ${hour} ${day} ${month} ${weekday} ${fullCommand}`;
-
-
-            let submitUrl;
-            if (originalCronString) {
-                submitUrl = "{{ url_for('schedule_tasks_routes.modify_cron_job_route', server_name = server_name) }}";
+                // Check the result returned by the utility function
+                if (responseData && responseData.status === 'success') {
+                    console.log(`Cron job deletion successful for: ${cronString}. Reloading page.`);
+                    // Reload after a short delay to allow user to see success message
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500); // Reload after 1.5 seconds
+                } else {
+                    // Error messages are handled by sendServerActionRequest via showStatusMessage
+                    console.warn(`Cron job deletion reported non-success or failed for: ${cronString}. See status message area or console logs.`);
+                    // No page reload on failure.
                 }
-             else {
-                submitUrl = "{{ url_for('schedule_tasks_routes.add_cron_job_route', server_name = server_name) }}";
+            } else {
+                 console.log("User cancelled cron job deletion.");
+            }
+        }
+
+        // --- Add/Modify Form Submission Handler ---
+        document.addEventListener('DOMContentLoaded', function() {
+            const serverName = "{{ server_name }}";
+            // EXPATH is the path/command prefix needed for the full command string
+            const EXPATH = "{{ EXPATH | e }}"; // Use 'e' filter for safety if EXPATH might contain special chars
+            const cronForm = document.getElementById('cron-form');
+            const submitButton = cronForm.querySelector('button[type="submit"]');
+
+            // Basic check to ensure form and button exist
+            if (!cronForm) {
+                console.error("Fatal Error: Cron form element (#cron-form) not found!");
+                alert("Error: Could not initialize the scheduling form. Please contact support.");
+                return;
+            }
+            if (!submitButton) {
+                console.error("Error: Submit button not found within the cron form!");
+                // Allow script to continue but log warning
             }
 
-            // Send the command using fetch (POST request)
-            fetch(submitUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ new_cron_job : cronString, old_cron_job: originalCronString })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    flashMessage('Cron job added/modified successfully!', 'success');
-                } else {
-                    flashMessage(`Error: ${data.message}`, 'error');
-                }
-                window.location.reload()
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                flashMessage(`Error: ${error}`, 'error');
-                window.location.reload();
-            });
+            cronForm.addEventListener('submit', async function(event) { // Mark the listener as async
+                event.preventDefault(); // Prevent the browser's default form submission
 
+                // Get values from form fields, trim whitespace
+                const command = document.getElementById('command').value;
+                const minute = document.getElementById('minute').value.trim();
+                const hour = document.getElementById('hour').value.trim();
+                const day = document.getElementById('day').value.trim();
+                const month = document.getElementById('month').value.trim();
+                const weekday = document.getElementById('weekday').value.trim();
+                const originalCronString = document.getElementById('original_cron_string').value; // Get value from hidden field
+
+                // Client-side validation
+                if (!command) {
+                    showStatusMessage("Please select a command.", "error");
+                    console.warn("Form submission stopped: Command not selected.");
+                    return; // Stop processing
+                }
+                if (!minute || !hour || !day || !month || !weekday) {
+                    showStatusMessage("Please fill in all time fields (Minute, Hour, Day, Month, Weekday). Use '*' for any.", "error");
+                    console.warn("Form submission stopped: Missing time fields.");
+                    return; // Stop processing
+                }
+
+                // Construct the full command part of the cron string
+                const fullCommand = `${EXPATH} ${command} --server ${serverName}`;
+                // Construct the complete new cron string
+                const newCronString = `${minute} ${hour} ${day} ${month} ${weekday} ${fullCommand}`;
+
+                let actionPath; // Relative API path ('schedule/add' or 'schedule/modify')
+                let requestBody;
+                const method = 'POST'; // Both add and modify routes use POST
+
+                if (originalCronString) {
+                    // --- This is a MODIFY operation ---
+                    actionPath = 'schedule/modify';
+                    // The modify API endpoint expects 'old_cron_job' and 'new_cron_job'
+                    requestBody = {
+                        old_cron_job: originalCronString,
+                        new_cron_job: newCronString
+                    };
+                    console.log(`Preparing MODIFY request: Server=${serverName}, Path=${actionPath}, From='${originalCronString}', To='${newCronString}'`);
+                } else {
+                    // --- This is an ADD operation ---
+                    actionPath = 'schedule/add';
+                    // The add API endpoint expects 'new_cron_job'
+                    requestBody = {
+                        new_cron_job: newCronString
+                    };
+                    console.log(`Preparing ADD request: Server=${serverName}, Path=${actionPath}, Job='${newCronString}'`);
+                }
+
+                // Use the utility function to send the request
+                // Pass serverName, relative actionPath, method, JSON body, and the button element
+                const responseData = await sendServerActionRequest(serverName, actionPath, method, requestBody, submitButton);
+
+                // Check the result
+                if (responseData && responseData.status === 'success') {
+                    console.log(`Cron job add/modify successful. Response:`, responseData);
+                    // Clear the hidden field to reset form state to 'Add' mode
+                    document.getElementById('original_cron_string').value = '';
+                    // cronForm.reset(); // Resets all fields to initial values (like '*')
+                    // document.getElementById('command').value = ""; // Reset command dropdown
+
+                    // Reload the page to show the updated table after a short delay
+                    setTimeout(() => {
+                         window.location.reload();
+                    }, 1500);
+                } else {
+                     // Error messages are handled by sendServerActionRequest
+                     console.warn(`Cron job add/modify failed or reported non-success. Response:`, responseData);
+                     // Do NOT clear original_cron_string on failure, allow user to correct and retry modification
+                     // The button is re-enabled automatically by the utility function on failure.
+                }
+            });
         });
-      });
 
     </script>
 </body>
