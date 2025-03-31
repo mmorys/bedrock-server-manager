@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 import xml.etree.ElementTree as ET
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.error import InvalidCronJobError
+from bedrock_server_manager.error import InvalidCronJobError
 from bedrock_server_manager.utils.general import get_base_dir, get_timestamp
 from bedrock_server_manager.core.system import (
     linux as system_linux,

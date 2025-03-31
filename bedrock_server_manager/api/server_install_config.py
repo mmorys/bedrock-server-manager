@@ -9,7 +9,7 @@ from bedrock_server_manager.api.server import write_server_config
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.api.utils import validate_server_name_format
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
     DownloadError,

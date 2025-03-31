@@ -4,7 +4,7 @@ import logging
 from bedrock_server_manager.core.server import addon
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 from bedrock_server_manager.api.server import start_server, stop_server
 
 

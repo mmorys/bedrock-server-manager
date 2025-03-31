@@ -7,7 +7,7 @@ import platform
 import subprocess
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import base as system_base
 

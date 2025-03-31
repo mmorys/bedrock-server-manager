@@ -7,7 +7,7 @@ import json
 import platform
 import shutil
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     ServerStartError,
     ServerStopError,
     ServerNotRunningError,

@@ -8,7 +8,7 @@ from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
 )
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
     CommandNotFoundError,

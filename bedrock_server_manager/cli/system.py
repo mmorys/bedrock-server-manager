@@ -6,7 +6,7 @@ import platform
 from colorama import Fore, Style
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api import system
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 from bedrock_server_manager.utils.general import (
     get_base_dir,
     _INFO_PREFIX,

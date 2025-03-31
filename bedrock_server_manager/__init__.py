@@ -4,7 +4,7 @@ import argparse
 import os
 from bedrock_server_manager.api import utils as api_utils
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.core import logging as core_logging
+from bedrock_server_manager import logging as self_logging
 from bedrock_server_manager.utils.general import startup_checks
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
@@ -32,7 +32,7 @@ from bedrock_server_manager.cli import (
 
 
 # Configure logging
-logger = core_logging.setup_logging(
+logger = self_logging.setup_logging(
     log_dir=settings.get("LOG_DIR"),
     log_keep=settings.get("LOGS_KEEP"),
     log_level=settings.get("LOG_LEVEL"),
@@ -43,7 +43,7 @@ def run_cleanup(args):
     """
     Performs cleanup operations based on command line arguments
     """
-    from bedrock_server_manager import cleanup
+    from bedrock_server_manager.utils import cleanup
 
     # Check for cleanup options and ensure at least one is provided
     if not any([args.cache, args.logs]):
@@ -391,23 +391,23 @@ def main():
     add_server_arg(systemd_start_parser)
 
     # --- Web-Server ---
-    web_server_parser = subparsers.add_parser(
+    web_server_start_parser = subparsers.add_parser(
         "start-webserver", help="Start the web server"
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-H",
         "--host",
         help="Host address to bind to.  If omitted, binds to both IPv4 (0.0.0.0) and IPv6 (::).",
         required=False,
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-d", "--debug", help="Start in debug mode", action="store_true"
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-m", "--mode", default="direct", help="Mode to start in"
     )
 
-    web_server_parser = subparsers.add_parser(
+    web_server_stop_parser = subparsers.add_parser(
         "stop-webserver", help="Stop the web server"
     )
 

@@ -1,10 +1,18 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/action_routes.py
-from flask import Blueprint, request, jsonify
 import logging
-from bedrock_server_manager import handlers
-from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.web.routes.auth_routes import login_required
+from flask import (
+    Blueprint,
+    request,
+    jsonify,
+)
+from bedrock_server_manager.api import (
+    server,
+    server_install_config,
+    system,
+)
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -24,7 +32,7 @@ def start_server_route(server_name):
 
     # Call the start server handler
     logger.debug(f"Calling start_server_handler for server '{server_name}'...")
-    response = handlers.start_server_handler(server_name, base_dir)
+    response = server.start_server(server_name, base_dir)
     logger.debug(f"Handler response for start server '{server_name}': {response}")
 
     # Determine HTTP status code based on handler response
@@ -65,7 +73,7 @@ def stop_server_route(server_name):
 
     # Call the stop server handler
     logger.debug(f"Calling stop_server_handler for server '{server_name}'...")
-    response = handlers.stop_server_handler(server_name, base_dir)
+    response = server.stop_server(server_name, base_dir)
     logger.debug(f"Handler response for stop server '{server_name}': {response}")
 
     # Determine HTTP status code
@@ -101,7 +109,7 @@ def restart_server_route(server_name):
 
     # Call the restart server handler
     logger.debug(f"Calling restart_server_handler for server '{server_name}'...")
-    response = handlers.restart_server_handler(server_name, base_dir)
+    response = server.restart_server_handler(server_name, base_dir)
     logger.debug(f"Handler response for restart server '{server_name}': {response}")
 
     # Determine HTTP status code
@@ -180,7 +188,7 @@ def send_command_route(server_name):
 
     # Call the send command handler
     logger.debug(f"Calling send_command_handler for server '{server_name}'...")
-    result = handlers.send_command_handler(server_name, trimmed_command, base_dir)
+    result = server.send_command(server_name, trimmed_command, base_dir)
     logger.debug(f"Handler response for send command '{server_name}': {result}")
 
     # Determine HTTP status code
@@ -218,7 +226,7 @@ def update_server_route(server_name):
 
     # Call the update server handler
     logger.debug(f"Calling update_server_handler for server '{server_name}'...")
-    response = handlers.update_server_handler(server_name, base_dir=base_dir)
+    response = server_install_config.update_server(server_name, base_dir=base_dir)
     logger.debug(f"Handler response for update server '{server_name}': {response}")
 
     # Determine HTTP status code
@@ -257,7 +265,7 @@ def delete_server_route(server_name):
 
     # Call the handler to delete the server data
     logger.debug(f"Calling delete_server_data_handler for '{server_name}'...")
-    result = handlers.delete_server_data_handler(server_name, base_dir, config_dir)
+    result = server.delete_server_data(server_name, base_dir, config_dir)
     logger.debug(f"Delete handler result for '{server_name}': {result}")
 
     # Determine appropriate HTTP status code
@@ -293,7 +301,7 @@ def server_status_api(server_name):
 
     # Call the handler to get process information
     logger.debug(f"Calling get_bedrock_process_info_handler for '{server_name}'...")
-    result = handlers.get_bedrock_process_info_handler(server_name, base_dir)
+    result = system.get_bedrock_process_info(server_name, base_dir)
     logger.debug(f"Get process info handler result for '{server_name}': {result}")
 
     status_code = 200

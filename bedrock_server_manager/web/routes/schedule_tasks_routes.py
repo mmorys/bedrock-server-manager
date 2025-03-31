@@ -72,13 +72,10 @@ def schedule_tasks_route(server_name):
 
 
 # --- API Route: Add Cron Job ---
-# Note: These cron routes might need refinement based on how server-specific jobs are managed.
-# Currently, they seem to operate on the system's crontab directly via handlers.
 @schedule_tasks_bp.route("/server/<server_name>/schedule/add", methods=["POST"])
 @login_required
 def add_cron_job_route(server_name):
     """API endpoint to add a new cron job."""
-    # The server_name is in the URL but might not be strictly needed by the handler if it adds globally?
     logger.info(
         f"API POST request received to add cron job (context: server '{server_name}')."
     )
@@ -151,7 +148,7 @@ def add_cron_job_route(server_name):
 
 
 # --- API Route: Modify Cron Job ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule/modify", methods=["POST"])
+@schedule_tasks_bp.route("/api/server/<server_name>/schedule/modify", methods=["POST"])
 @login_required
 def modify_cron_job_route(server_name):
     """API endpoint to modify an existing cron job."""
@@ -257,7 +254,7 @@ def modify_cron_job_route(server_name):
 
 
 # --- API Route: Delete Cron Job ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule/delete", methods=["POST"])
+@schedule_tasks_bp.route("/api/server/<server_name>/schedule/delete", methods=["POST"])
 @login_required
 def delete_cron_job_route(server_name):
     """API endpoint to delete a specific cron job."""

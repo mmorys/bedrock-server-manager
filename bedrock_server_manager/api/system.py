@@ -1,7 +1,7 @@
 # bedrock-server-manager/bedrock_server_manager/api/system.py
 import logging
 import platform
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
     base as system_base,

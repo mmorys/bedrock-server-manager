@@ -1,4 +1,4 @@
-# bedrock_server_manager/bedrock_server_manager/cleanup.py
+# bedrock_server_manager/bedrock_server_manager/utils/cleanup.py
 import os
 import shutil
 import logging

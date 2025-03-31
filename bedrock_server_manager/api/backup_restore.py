@@ -7,7 +7,7 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api.world import get_world_name
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 from bedrock_server_manager.api.server import start_server, stop_server
 
 logger = logging.getLogger("bedrock_server_manager")

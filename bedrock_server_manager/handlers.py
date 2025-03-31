@@ -15,7 +15,7 @@ from bedrock_server_manager.core import SCRIPT_DIR
 from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.core.player import player as player_base
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
     PlayerDataError,

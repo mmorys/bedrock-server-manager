@@ -6,7 +6,7 @@ import logging
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.core.player import player as player_base
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     FileOperationError,
     PlayerDataError,
 )

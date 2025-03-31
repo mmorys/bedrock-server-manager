@@ -5,7 +5,7 @@ from colorama import Fore, Style
 from bedrock_server_manager.api import addon
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api.utils import list_content_files
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     MissingArgumentError,
     InvalidServerNameError,
 )

@@ -9,7 +9,7 @@ import subprocess
 import os
 import time
 from datetime import timedelta
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     SetFolderPermissionsError,
     DirectoryError,
     MissingArgumentError,

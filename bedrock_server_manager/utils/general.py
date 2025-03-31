@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 from colorama import Fore, Style, init
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.logging import log_separator
+from bedrock_server_manager.logging import log_separator
 import os
 import logging
 

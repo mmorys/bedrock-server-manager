@@ -9,7 +9,7 @@ from bedrock_server_manager.utils.general import (
     _OK_PREFIX,
     _ERROR_PREFIX,
 )
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
 )
 

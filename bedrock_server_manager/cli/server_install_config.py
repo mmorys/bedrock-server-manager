@@ -16,7 +16,7 @@ from bedrock_server_manager.utils.general import (
     _WARN_PREFIX,
     _ERROR_PREFIX,
 )
-from bedrock_server_manager.core.error import InvalidServerNameError
+from bedrock_server_manager.error import InvalidServerNameError
 
 logger = logging.getLogger("bedrock_server_manager")
 

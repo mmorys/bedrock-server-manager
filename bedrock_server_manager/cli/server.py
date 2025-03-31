@@ -2,7 +2,7 @@
 import logging
 from colorama import Fore, Style
 from bedrock_server_manager.api import server
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
 )
 from bedrock_server_manager.utils.general import (

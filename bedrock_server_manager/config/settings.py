@@ -3,7 +3,7 @@ import os
 import json
 import logging
 from importlib.metadata import version, PackageNotFoundError
-from bedrock_server_manager.core.error import ConfigError
+from bedrock_server_manager.error import ConfigError
 from bedrock_server_manager.utils import package_finder
 
 logger = logging.getLogger("bedrock_server_manager")

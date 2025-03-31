@@ -7,7 +7,7 @@ import getpass
 import time
 from datetime import datetime
 from bedrock_server_manager.config.settings import EXPATH
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     CommandNotFoundError,
     SystemdReloadError,
     ServiceError,
