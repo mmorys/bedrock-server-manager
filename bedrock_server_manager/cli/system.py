@@ -60,7 +60,9 @@ def create_service(server_name, base_dir=None):
             else:
                 print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
-        response = system.create_systemd_service(server_name, base_dir, autoupdate, autostart)
+        response = system.create_systemd_service(
+            server_name, base_dir, autoupdate, autostart
+        )
         if response["status"] == "error":
             print(f"{_ERROR_PREFIX}{response['message']}")
             return
@@ -83,7 +85,9 @@ def create_service(server_name, base_dir=None):
             else:
                 print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
 
-        response = system.set_windows_autoupdate(server_name, autoupdate_value, base_dir)
+        response = system.set_windows_autoupdate(
+            server_name, autoupdate_value, base_dir
+        )
         if response["status"] == "error":
             print(f"{_ERROR_PREFIX}{response['message']}")
         else:
@@ -101,7 +105,7 @@ def enable_service(server_name, base_dir=None):
     if not server_name:
         raise InvalidServerNameError("enable_service: server_name is empty.")
 
-    response = system.enable_service(server_name, base_dir)
+    response = system.enable_server_service(server_name, base_dir)
     if response["status"] == "error":
         print(f"{_ERROR_PREFIX}{response['message']}")
     elif platform.system() == "Windows":
@@ -119,7 +123,7 @@ def disable_service(server_name, base_dir=None):
     if not server_name:
         raise InvalidServerNameError("disable_service: server_name is empty.")
 
-    response = system.disable_service(server_name, base_dir)
+    response = system.disable_server_service(server_name, base_dir)
     if response["status"] == "error":
         print(f"{_ERROR_PREFIX}{response['message']}")
     elif platform.system() == "Windows":

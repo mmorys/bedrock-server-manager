@@ -21,7 +21,7 @@ from bedrock_server_manager.core.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def check_service_exists(server_name):
+def check_service_exist(server_name):
     """Checks if a systemd service file exists for the given server.
 
     Args:
@@ -155,7 +155,7 @@ def _enable_systemd_service(server_name):
     service_name = f"bedrock-{server_name}"
     logger.debug(f"Enabling systemd service: {service_name}")
 
-    if not check_service_exists(server_name):
+    if not check_service_exist(server_name):
         logger.error(f"Service file for {server_name} does not exist. Cannot enable.")
         raise ServiceError(
             f"Service file for {server_name} does not exist. Cannot enable."
@@ -209,7 +209,7 @@ def _disable_systemd_service(server_name):
     service_name = f"bedrock-{server_name}"
     logger.debug(f"Disabling systemd service: {service_name}")
 
-    if not check_service_exists(server_name):
+    if not check_service_exist(server_name):
         logger.debug(
             f"Service file for {server_name} does not exist.  No need to disable."
         )

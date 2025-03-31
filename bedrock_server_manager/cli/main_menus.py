@@ -182,7 +182,9 @@ def advanced_menu(base_dir, config_dir=None):
             if choice == "1":
                 server_name = cli_utils.get_server_name(base_dir)
                 if server_name:
-                    server_install_config.configure_server_properties(server_name, base_dir)
+                    server_install_config.configure_server_properties(
+                        server_name, base_dir
+                    )
                 else:
                     logger.info("Configuration canceled.")
             elif choice == "2":
@@ -194,7 +196,9 @@ def advanced_menu(base_dir, config_dir=None):
             elif choice == "3":
                 server_name = cli_utils.get_server_name(base_dir)
                 if server_name:
-                    server_install_config.select_player_for_permission(server_name, base_dir, config_dir)
+                    server_install_config.select_player_for_permission(
+                        server_name, base_dir, config_dir
+                    )
                 else:
                     logger.info("Configuration canceled.")
             elif choice == "4":
@@ -254,13 +258,17 @@ def backup_restore(base_dir, config_dir=None):
             if choice == "1":
                 server_name = cli_utils.get_server_name(base_dir)
                 if server_name:
-                    cli_backup_restore.backup_menu(server_name, base_dir)  # Let it raise exceptions
+                    cli_backup_restore.backup_menu(
+                        server_name, base_dir
+                    )  # Let it raise exceptions
                 else:
                     logger.info("Backup canceled.")
             elif choice == "2":
                 server_name = cli_utils.get_server_name(base_dir)
                 if server_name:
-                    cli_backup_restore.restore_menu(server_name, base_dir)  # Let it raise exceptions
+                    cli_backup_restore.restore_menu(
+                        server_name, base_dir
+                    )  # Let it raise exceptions
                 else:
                     logger.info("Restore canceled.")
             elif choice == "3":

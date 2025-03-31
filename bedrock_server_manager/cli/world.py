@@ -42,7 +42,7 @@ def export_world(server_name, base_dir=None):
     if response["status"] == "error":
         print(f"{_ERROR_PREFIX}{response['message']}")
     else:
-        print(f"{_OK_PREFIX}World exported successfully to: {response['backup_file']}")
+        print(f"{_OK_PREFIX}World exported successfully to: {response['export_file']}")
 
 
 def install_worlds(server_name, base_dir=None, content_dir=None):

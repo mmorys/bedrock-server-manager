@@ -196,7 +196,9 @@ def add_cron_job(server_name, base_dir):
         break  # All inputs are valid
 
     # Get readable schedule time
-    schedule_response = api_task_scheduler.convert_to_readable_schedule(month, day, hour, minute, weekday)
+    schedule_response = api_task_scheduler.convert_to_readable_schedule(
+        month, day, hour, minute, weekday
+    )
     if schedule_response["status"] == "error":
         schedule_time = "ERROR CONVERTING"
         print(
@@ -322,7 +324,9 @@ def modify_cron_job(server_name, base_dir):
         break  # All inputs are valid
 
     # Get readable schedule time
-    schedule_response = api_task_scheduler.convert_to_readable_schedule(month, day, hour, minute, weekday)
+    schedule_response = api_task_scheduler.convert_to_readable_schedule(
+        month, day, hour, minute, weekday
+    )
     if schedule_response["status"] == "error":
         schedule_time = "ERROR CONVERTING"
         print(
@@ -453,7 +457,9 @@ def _windows_scheduler(server_name, base_dir, config_dir=None):
         )
 
         # Get task names
-        task_names_response = api_task_scheduler.get_server_task_names(server_name, config_dir)
+        task_names_response = api_task_scheduler.get_server_task_names(
+            server_name, config_dir
+        )
         if task_names_response["status"] == "error":
             print(f"{_ERROR_PREFIX}{task_names_response['message']}")
             time.sleep(2)
@@ -492,7 +498,9 @@ def display_windows_task_table(task_names):
     """Displays a table of Windows scheduled tasks."""
 
     # Get detailed task information
-    task_info_response = api_task_scheduler.get_windows_task_info([task[0] for task in task_names])
+    task_info_response = api_task_scheduler.get_windows_task_info(
+        [task[0] for task in task_names]
+    )
     if task_info_response["status"] == "error":
         print(f"{_ERROR_PREFIX}{task_info_response['message']}")
         return
@@ -759,7 +767,9 @@ def get_trigger_details():
                 months = [month.strip() for month in months_str.split(",")]
                 valid_months = []
                 for month_input in months:
-                    month_response = api_task_scheduler.get_month_element_name(month_input)
+                    month_response = api_task_scheduler.get_month_element_name(
+                        month_input
+                    )
                     if month_response["status"] == "success":  # Use core function
                         valid_months.append(month_input)
                     else:
@@ -790,7 +800,9 @@ def modify_windows_task(server_name, base_dir, config_dir=None):
         print(f"{_ERROR_PREFIX}This function is for Windows only.")
         return
     # Get task names
-    task_names_response = api_task_scheduler.get_server_task_names(server_name, config_dir)
+    task_names_response = api_task_scheduler.get_server_task_names(
+        server_name, config_dir
+    )
     if task_names_response["status"] == "error":
         print(f"{_ERROR_PREFIX}{task_names_response['message']}")
         return
@@ -888,7 +900,9 @@ def delete_windows_task(server_name, base_dir, config_dir=None):
         print(f"{_ERROR_PREFIX}This function is for Windows only.")
         return
     # Get task names
-    task_names_response = api_task_scheduler.get_server_task_names(server_name, config_dir)
+    task_names_response = api_task_scheduler.get_server_task_names(
+        server_name, config_dir
+    )
 
     if task_names_response["status"] == "error":
         print(f"{_ERROR_PREFIX}{task_names_response['message']}")

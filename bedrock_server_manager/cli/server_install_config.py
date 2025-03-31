@@ -33,9 +33,7 @@ def configure_allowlist(server_name, base_dir=None):
         # Other exceptions may be raised by configure_allowlist/add_players_to_allowlist
     """
     if not server_name:
-        raise InvalidServerNameError(
-            "configure_allowlist: server_name is empty."
-        )
+        raise InvalidServerNameError("configure_allowlist: server_name is empty.")
     # Get existing players
     response = server_install_config.configure_allowlist(server_name, base_dir)
     if response["status"] == "error":
@@ -79,7 +77,9 @@ def configure_allowlist(server_name, base_dir=None):
         )
 
     # Call the api with the new player data
-    response = server_install_config.configure_allowlist(server_name, base_dir, new_players_data)
+    response = server_install_config.configure_allowlist(
+        server_name, base_dir, new_players_data
+    )
 
     if response["status"] == "error":
         print(f"{_ERROR_PREFIX}{response['message']}")
@@ -169,7 +169,9 @@ def configure_server_properties(server_name, base_dir=None):
     print(f"Configuring server properties for {server_name}")
 
     # --- Get Existing Properties ---
-    properties_response = server_install_config.read_server_properties(server_name, base_dir)
+    properties_response = server_install_config.read_server_properties(
+        server_name, base_dir
+    )
     if properties_response["status"] == "error":
         print(f"{_ERROR_PREFIX}{properties_response['message']}")
         return
@@ -231,7 +233,9 @@ def configure_server_properties(server_name, base_dir=None):
             f"{Fore.CYAN}Enter IPV4 Port [Default: {Fore.YELLOW}{current_properties.get('server-port', DEFAULT_PORT)}{Fore.CYAN}]:{Style.RESET_ALL} "
         ).strip()
         input_port = input_port or current_properties.get("server-port", DEFAULT_PORT)
-        validation_result = server_install_config.validate_server_property_value("server-port", input_port)
+        validation_result = server_install_config.validate_server_property_value(
+            "server-port", input_port
+        )
         if validation_result["status"] == "success":
             properties_to_update["server-port"] = input_port
             break
@@ -243,7 +247,9 @@ def configure_server_properties(server_name, base_dir=None):
         input_port_v6 = input_port_v6 or current_properties.get(
             "server-portv6", DEFAULT_IPV6_PORT
         )
-        validation_result = server_install_config.validate_server_property_value("server-portv6", input_port_v6)
+        validation_result = server_install_config.validate_server_property_value(
+            "server-portv6", input_port_v6
+        )
         if validation_result["status"] == "success":
             properties_to_update["server-portv6"] = input_port_v6
             break
@@ -270,7 +276,9 @@ def configure_server_properties(server_name, base_dir=None):
         input_max_players = input_max_players or current_properties.get(
             "max-players", "10"
         )
-        validation_result = server_install_config.validate_server_property_value("max-players", input_max_players)
+        validation_result = server_install_config.validate_server_property_value(
+            "max-players", input_max_players
+        )
         if validation_result["status"] == "success":
             properties_to_update["max-players"] = input_max_players
             break
@@ -366,7 +374,9 @@ def install_new_server(base_dir=None, config_dir=None):
                 .strip()
             )
             if continue_response in ("yes", "y"):
-                delete_response = api_server.delete_server_data(server_name, base_dir, config_dir)
+                delete_response = api_server.delete_server_data(
+                    server_name, base_dir, config_dir
+                )
                 if delete_response["status"] == "error":
                     print(f"{_ERROR_PREFIX}{delete_response['message']}")
                     return  # Exit if deletion failed.
