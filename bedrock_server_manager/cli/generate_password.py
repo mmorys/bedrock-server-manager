@@ -22,7 +22,7 @@ try:
 
         print("\n--- PASSWORD HASH ---")
         print("Copy the following hash and set it as the value for your")
-        print(f"'{env_name}_WEB_PASSWORD' environment variable:")
+        print(f"'{env_name}_PASSWORD' environment variable:")
         print("\n" + hashed_password + "\n")
         print("---------------------\n")
 

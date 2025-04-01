@@ -55,9 +55,9 @@ def create_app():
     logger.debug("SECRET_KEY set")
 
     # --- Load Authentication Credentials ---
-    username_env = f"{env_name}_WEB_USERNAME"
-    password_env = f"{env_name}_WEB_PASSWORD"
-    token_env = f"{env_name}_WEB_TOKEN"
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
+    token_env = f"{env_name}_TOKEN"
     app.config[username_env] = os.environ.get(username_env)
     app.config[password_env] = os.environ.get(password_env)
     app.config[token_env] = os.environ.get(token_env)
@@ -108,8 +108,8 @@ def run_web_server(host=None, debug=False):
     app = create_app()
 
     # --- Check credentials before starting server ---
-    username_env = f"{env_name}_WEB_USERNAME"
-    password_env = f"{env_name}_WEB_PASSWORD"
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
     if not app.config.get(username_env) or not app.config.get(password_env):
         logger.error(
             f"Cannot start web server: {username_env} or {password_env} environment variables are not set."

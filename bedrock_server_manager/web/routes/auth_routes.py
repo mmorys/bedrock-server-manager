@@ -41,7 +41,7 @@ def login_required(view):
             return view(**kwargs)  # User is logged in via browser session
 
         # 2. Check for API Token Authentication
-        expected_token = current_app.config.get(f"{env_name}_WEB_TOKEN")
+        expected_token = current_app.config.get(f"{env_name}_TOKEN")
         auth_header = request.headers.get("Authorization")
 
         if expected_token:
@@ -91,7 +91,7 @@ def login_required(view):
                 )
         else:
             logger.debug(
-                f"{env_name}_WEB_TOKEN is not configured. Skipping token check."
+                f"{env_name}_TOKEN is not configured. Skipping token check."
             )
 
         # 3. If neither session nor valid token found:
@@ -117,7 +117,7 @@ def login_required(view):
             # It's likely an API client (or doesn't prefer HTML), return 401 JSON
             if not expected_token:
                 logger.error(
-                    f"API access attempted to {request.path} from {request.remote_addr} but {env_name}_WEB_TOKEN is not configured."
+                    f"API access attempted to {request.path} from {request.remote_addr} but {env_name}_TOKEN is not configured."
                 )
                 return (
                     jsonify(
@@ -156,8 +156,8 @@ def login():
         )
 
         # Get credentials from app config
-        expected_username_env = f"{env_name}_WEB_USERNAME"
-        stored_password_hash_env = f"{env_name}_WEB_PASSWORD"
+        expected_username_env = f"{env_name}_USERNAME"
+        stored_password_hash_env = f"{env_name}_PASSWORD"
 
         expected_username = current_app.config.get(expected_username_env)
         # This now retrieves the HASHED password from the env_var
