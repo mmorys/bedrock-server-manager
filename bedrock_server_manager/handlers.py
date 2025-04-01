@@ -2239,107 +2239,154 @@ def create_windows_task_handler(
 
 
 def get_windows_task_details_handler(task_file_path):
-    """Reads a Windows Task Scheduler XML file and extracts command and trigger details.
+    """
+    Reads a Windows Task Scheduler XML file and extracts detailed information
+    including command path, full arguments, base command, and triggers.
 
     Args:
         task_file_path (str): Path to the XML file for the scheduled task.
 
     Returns:
-        dict: {"status": "success", "task_details": {"command": "...", "triggers": [...]}}
+        dict: {
+                  "status": "success",
+                  "task_details": {
+                      "command_path": "...", # e.g., C:\Python\python.exe or bedrock-server-manager.exe path
+                      "command_args": "...", # Full arguments string, e.g., "start-server --server s1"
+                      "base_command": "...", # e.g., "start-server"
+                      "triggers": [...]
+                  }
+              }
               or {"status": "error", "message": ...}
     """
-    logger.debug(f"Loading existing task data from XML: {task_file_path}")
+    logger.debug(f"Handler: Loading existing task data from XML: {task_file_path}")
     if not os.path.exists(task_file_path):
-        logger.error(f"Task XML file not found: {task_file_path}")
-        return {"status": "error", "message": "Task XML file not found."}
+        logger.error(f"Handler: Task XML file not found: {task_file_path}")
+        return {"status": "error", "message": "Task configuration file not found."}
 
     try:
         tree = ET.parse(task_file_path)
         root = tree.getroot()
+        # Define namespace (adjust if different in your XML)
         namespaces = {"ns": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 
-        # --- Extract Command Part ---
-        command_part = ""
-        arguments_element = root.find(".//ns:Arguments", namespaces)
-        if arguments_element is not None and arguments_element.text is not None:
-            command_args = arguments_element.text.strip()
-            if command_args:
-                command_part = command_args.split()[
-                    0
-                ]  # Get the first argument as command
-        logger.debug(f"Extracted command part: {command_part}")
+        # --- Extract Command Path and Arguments ---
+        command_path = ""
+        command_args = ""
+        base_command = ""
 
-        # --- Extract Triggers ---
+        command_element = root.find(".//ns:Command", namespaces)
+        if command_element is not None and command_element.text:
+            command_path = command_element.text.strip()
+
+        arguments_element = root.find(".//ns:Arguments", namespaces)
+        if arguments_element is not None and arguments_element.text:
+            command_args = arguments_element.text.strip()
+            # Try to extract base command (first word of args)
+            if command_args:
+                try:
+                    base_command = command_args.split()[0]
+                except IndexError:
+                    logger.warning(
+                        f"Could not extract base command from arguments in {task_file_path}"
+                    )
+                    base_command = ""  # Or maybe set based on command_path? Depends on your structure.
+
+        logger.debug(
+            f"Extracted from XML: Path='{command_path}', Args='{command_args}', BaseCmd='{base_command}'"
+        )
+
+        # --- Extract Triggers (Keep existing logic, ensure it matches JS needs) ---
         triggers = []
         trigger_elements = root.findall(".//ns:Triggers/*", namespaces)
+        logger.debug(f"Found {len(trigger_elements)} trigger elements in XML.")
         for trigger_elem in trigger_elements:
             trigger_data = {
-                "type": trigger_elem.tag.replace(f"{{{namespaces['ns']}}}", "")
+                "type": trigger_elem.tag.replace(
+                    f"{{{namespaces['ns']}}}", ""
+                )  # e.g., TimeTrigger, CalendarTrigger
             }
             start_elem = trigger_elem.find("ns:StartBoundary", namespaces)
             if start_elem is not None and start_elem.text:
                 try:
+                    # Parse ISO string from XML (likely includes T and maybe Z or offset)
                     iso_dt = datetime.fromisoformat(start_elem.text)
-                    # Format for <input type="datetime-local">
+                    # Format consistently for datetime-local input: YYYY-MM-DDTHH:MM
                     trigger_data["start"] = iso_dt.strftime("%Y-%m-%dT%H:%M")
                 except ValueError:
                     logger.warning(
-                        f"Could not parse start boundary format: {start_elem.text}"
+                        f"Could not parse start boundary format: {start_elem.text} in {task_file_path}"
                     )
-                    trigger_data["start"] = ""
+                    trigger_data["start"] = ""  # Or handle error differently
 
-            # -- Parse Calendar Triggers --
+            # -- Parse Calendar Trigger Subtypes --
             if trigger_data["type"] == "CalendarTrigger":
                 schedule_by_day = trigger_elem.find("ns:ScheduleByDay", namespaces)
                 schedule_by_week = trigger_elem.find("ns:ScheduleByWeek", namespaces)
                 schedule_by_month = trigger_elem.find("ns:ScheduleByMonth", namespaces)
 
                 if schedule_by_day is not None:
-                    trigger_data["type"] = "Daily"
+                    trigger_data["subtype"] = "Daily"  # Use 'subtype' or refine 'type'
                     interval_elem = schedule_by_day.find("ns:DaysInterval", namespaces)
-                    if interval_elem is not None and interval_elem.text:
-                        trigger_data["interval"] = int(interval_elem.text)
+                    trigger_data["interval"] = (
+                        int(interval_elem.text)
+                        if interval_elem is not None and interval_elem.text
+                        else 1
+                    )
+
                 elif schedule_by_week is not None:
-                    trigger_data["type"] = "Weekly"
+                    trigger_data["subtype"] = "Weekly"
                     interval_elem = schedule_by_week.find(
                         "ns:WeeksInterval", namespaces
                     )
-                    if interval_elem is not None and interval_elem.text:
-                        trigger_data["interval"] = int(interval_elem.text)
+                    trigger_data["interval"] = (
+                        int(interval_elem.text)
+                        if interval_elem is not None and interval_elem.text
+                        else 1
+                    )
                     days_elem = schedule_by_week.find("ns:DaysOfWeek", namespaces)
+                    days_list = []
                     if days_elem is not None:
-                        # Map back to user-friendly input format (comma-separated)
+                        # Map XML tag names (Monday, Tuesday) to consistent values (e.g., full names)
                         day_mapping = {
-                            "Sunday": "Sun",
-                            "Monday": "Mon",
-                            "Tuesday": "Tue",
-                            "Wednesday": "Wed",
-                            "Thursday": "Thu",
-                            "Friday": "Fri",
-                            "Saturday": "Sat",
+                            "Sunday": "Sunday",
+                            "Monday": "Monday",
+                            "Tuesday": "Tuesday",
+                            "Wednesday": "Wednesday",
+                            "Thursday": "Thursday",
+                            "Friday": "Friday",
+                            "Saturday": "Saturday",
                         }
                         days_list = [
                             day_mapping.get(
-                                day.tag.replace(f"{{{namespaces['ns']}}}", ""),
-                                day.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                                day.tag.replace(f"{{{namespaces['ns']}}}", ""), None
                             )
                             for day in days_elem
                         ]
-                        trigger_data["days_of_week"] = ",".join(days_list)
+                        days_list = [
+                            d for d in days_list if d
+                        ]  # Filter out None if mapping fails
+                    # Store as list for JS processing (JS will handle checkbox state)
+                    trigger_data["days"] = (
+                        days_list  # Changed key to 'days' to match JS expectation
+                    )
+
                 elif schedule_by_month is not None:
-                    trigger_data["type"] = "Monthly"
+                    trigger_data["subtype"] = "Monthly"
+                    days_of_month_list = []
                     days_elem = schedule_by_month.find("ns:DaysOfMonth", namespaces)
                     if days_elem is not None:
-                        trigger_data["days_of_month"] = ",".join(
-                            [
-                                d.text
-                                for d in days_elem.findall("ns:Day", namespaces)
-                                if d.text
-                            ]
-                        )
+                        days_of_month_list = [
+                            d.text
+                            for d in days_elem.findall("ns:Day", namespaces)
+                            if d.text
+                        ]
+                    # Store as list of strings for JS (JS will handle input value)
+                    trigger_data["days_of_month"] = days_of_month_list  # Changed key
+
+                    months_of_year_list = []
                     months_elem = schedule_by_month.find("ns:Months", namespaces)
                     if months_elem is not None:
-                        # Map back to user-friendly input format (comma-separated)
+                        # Map XML tag names (January, February) to consistent values (e.g., short names Jan, Feb)
                         month_mapping = {
                             "January": "Jan",
                             "February": "Feb",
@@ -2354,34 +2401,63 @@ def get_windows_task_details_handler(task_file_path):
                             "November": "Nov",
                             "December": "Dec",
                         }
-                        months_list = [
+                        months_of_year_list = [
                             month_mapping.get(
-                                m.tag.replace(f"{{{namespaces['ns']}}}", ""),
-                                m.tag.replace(f"{{{namespaces['ns']}}}", ""),
+                                m.tag.replace(f"{{{namespaces['ns']}}}", ""), None
                             )
                             for m in months_elem
                         ]
-                        trigger_data["months"] = ",".join(months_list)
+                        months_of_year_list = [
+                            m for m in months_of_year_list if m
+                        ]  # Filter out None
+                    # Store as list for JS (JS will handle input value)
+                    trigger_data["months"] = months_of_year_list  # Changed key
+
                 else:
                     logger.warning(
                         f"Unknown CalendarTrigger subtype in {task_file_path}"
                     )
-            triggers.append(trigger_data)
+                    # Keep original type 'CalendarTrigger' or mark as unknown?
+                    trigger_data["subtype"] = "UnknownCalendar"
+
+            # Add parsed trigger to list if it has a valid type
+            if trigger_data.get("type"):
+                # Refine type based on subtype if present
+                if trigger_data.get("subtype"):
+                    trigger_data["type"] = trigger_data.pop(
+                        "subtype"
+                    )  # Replace 'CalendarTrigger' with 'Daily', 'Weekly', etc.
+
+                triggers.append(trigger_data)
+            else:
+                logger.warning(
+                    f"Skipping trigger element with no discernible type: {ET.tostring(trigger_elem, encoding='unicode')}"
+                )
 
         logger.debug(
-            f"Extracted task details: command={command_part}, triggers={triggers}"
+            f"Handler: Extracted details: BaseCmd='{base_command}', Triggers={triggers}"
         )
         return {
             "status": "success",
-            "task_details": {"command": command_part, "triggers": triggers},
+            "task_details": {
+                "command_path": command_path,  # Full path to executable (optional for JS)
+                "command_args": command_args,  # Full arguments string (optional for JS)
+                "base_command": base_command,  # The command name for the dropdown
+                "triggers": triggers,  # List of parsed trigger dictionaries
+            },
         }
 
     except ET.ParseError as e:
-        logger.error(f"Error parsing task XML {task_file_path}: {e}")
-        return {"status": "error", "message": f"Error parsing task XML: {e}"}
+        logger.error(f"Handler: Error parsing task XML {task_file_path}: {e}")
+        return {"status": "error", "message": f"Error parsing task configuration: {e}"}
     except Exception as e:  # Catch unexpected errors
-        logger.exception(f"Unexpected error loading task XML {task_file_path}: {e}")
-        return {"status": "error", "message": f"Unexpected error loading task XML: {e}"}
+        logger.exception(
+            f"Handler: Unexpected error loading task XML {task_file_path}: {e}"
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error loading task configuration: {e}",
+        }
 
 
 def modify_windows_task_handler(
