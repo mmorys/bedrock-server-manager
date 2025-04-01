@@ -3,7 +3,6 @@ import platform
 import os
 import logging
 import subprocess
-import getpass
 import time
 from datetime import datetime
 from bedrock_server_manager.config.settings import EXPATH

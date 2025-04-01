@@ -4,7 +4,6 @@ import glob
 import logging
 import re
 import subprocess
-import getpass
 import platform
 import time
 import json
@@ -761,62 +760,6 @@ def update_server_handler(
         "updated": True,
         "new_version": download_result["version"],
     }
-
-
-def check_user_lingering_enabled_handler():
-    """Checks if user lingering is already enabled.
-
-    Returns:
-        dict: {"status": "success", "enabled": True/False} or {"status": "error", "message": ...}
-    """
-    if platform.system() != "Linux":
-        return {"status": "success", "enabled": False}  # Not applicable
-
-    username = getpass.getuser()
-    logger.debug(f"Checking if lingering is enabled for user: {username}")
-    try:
-        result = subprocess.run(
-            ["loginctl", "show-user", username],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if "Linger=yes" in result.stdout:
-            logger.debug(f"Lingering is enabled for user: {username}")
-            return {"status": "success", "enabled": True}
-        else:
-            logger.debug(f"Lingering is NOT enabled for user: {username}")
-            return {"status": "success", "enabled": False}
-    except FileNotFoundError:
-        logger.error("loginctl command not found. Lingering cannot be checked.")
-        return {
-            "status": "error",
-            "message": "loginctl command not found. Lingering cannot be checked.",
-        }
-    except Exception as e:
-        logger.exception(f"Error checking lingering status: {e}")
-        return {"status": "error", "message": f"Error checking lingering status: {e}"}
-
-
-def enable_user_lingering_handler():
-    """Enables user lingering.
-
-    Returns:
-        dict: {"status": "success"} or {"status": "error", "message": ...}
-    """
-    if platform.system() != "Linux":
-        return {"status": "success"}  # Not applicable
-    logger.debug("Attempting to enable user lingering.")
-    try:
-        system_linux.enable_user_lingering()
-        logger.info("User lingering enabled.")
-        return {"status": "success"}
-    except CommandNotFoundError as e:  # Catch specific errors first.
-        logger.error(f"Command error enabling lingering: {e}")
-        return {"status": "error", "message": f"Command error: {e}"}
-    except Exception as e:
-        logger.exception(f"Failed to enable lingering: {e}")
-        return {"status": "error", "message": f"Failed to enable lingering: {e}"}
 
 
 def create_systemd_service_handler(
