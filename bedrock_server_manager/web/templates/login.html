@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ app_name }} - Login</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
@@ -18,6 +19,15 @@
         .login-container {
             max-width: 450px;
             margin-top: 80px;
+        }
+        .form-error { /* Style for WTForms errors */
+            color: red;
+            font-size: 0.9em;
+            list-style: none;
+            padding-left: 0;
+        }
+        .form-group input.is-invalid { /* Style for invalid fields */
+             border-color: red;
         }
     </style>
 </head>
@@ -35,20 +45,39 @@
             {% endif %}
         {% endwith %}
 
-        {% if error %}
-            <div class="message-box message-error">{{ error }}</div>
-        {% endif %}
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}">
             <div class="form-group">
-                <label for="username" class="form-label">Username:</label>
-                <input type="text" id="username" name="username" class="form-input" required>
+                {{ form.username.label(class="form-label") }}
+
+                <!-- Render the field using the form object -->
+                {{ form.username(class="form-input" + (" is-invalid" if form.username.errors else "")) }}
+
+                <!-- Display validation errors for this field -->
+                {% if form.username.errors %}
+                    <ul class="form-error">
+                        {% for error in form.username.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
             </div>
+
             <div class="form-group">
-                <label for="password" class="form-label">Password:</label>
-                <input type="password" id="password" name="password" class="form-input" required>
+                {{ form.password.label(class="form-label") }}
+                {{ form.password(class="form-input" + (" is-invalid" if form.password.errors else "")) }}
+                {% if form.password.errors %}
+                    <ul class="form-error">
+                        {% for error in form.password.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
             </div>
-            <button type="submit" class="main-button">Login</button>
+
+            <!-- Render the submit button -->
+            {{ form.submit(class="main-button") }}
         </form>
     </div>
 </body>

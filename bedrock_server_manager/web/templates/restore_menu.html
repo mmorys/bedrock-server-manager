@@ -3,6 +3,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ app_name }} - Restore Menu</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
@@ -29,9 +31,11 @@
             <p>What do you want to restore?</p>
 
             <form action="{{ url_for('backup_restore_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" name="restore_type" value="world" class="action-button">Select World Backup...</button>
             </form>
             <form action="{{ url_for('backup_restore_routes.restore_select_backup_route', server_name=server_name) }}" method="post" style="display: inline-block; margin-right: 10px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" name="restore_type" value="config" class="action-button">Select Config Backup...</button>
             </form>
 

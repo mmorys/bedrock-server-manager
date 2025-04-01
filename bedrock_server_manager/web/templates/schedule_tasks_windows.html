@@ -3,6 +3,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ app_name }} - Task Scheduler</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
@@ -87,7 +89,6 @@
                 <hr>
                 <h3>Triggers</h3>
                 <div id="triggers-container">
-                    <!-- Trigger groups will be added here dynamically by JavaScript -->
                 </div>
                 <button type="button" onclick="addTrigger()" class="secondary-button">Add Another Trigger</button>
                 <hr>
@@ -99,7 +100,6 @@
 
     </div>{# End container #}
 
-    <!-- Include utility script FIRST -->
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
 
     <!-- Inline JavaScript for Windows Task Scheduler Page -->

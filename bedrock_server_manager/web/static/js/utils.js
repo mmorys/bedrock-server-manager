@@ -58,6 +58,7 @@ function showStatusMessage(message, type = 'info') {
 // --- Helper: Send API Request ---
 /**
  * Sends an asynchronous request to a server action endpoint using Fetch API.
+ * Includes CSRF token automatically via the X-CSRFToken header.
  * Displays status/error messages using showStatusMessage.
  * Handles JSON responses, including specific handling for validation errors (status 400 with data.errors).
  * Handles 204 No Content responses as success.
@@ -73,6 +74,19 @@ function showStatusMessage(message, type = 'info') {
 async function sendServerActionRequest(serverName, actionPath, method = 'POST', body = null, buttonElement = null) {
     // Log function entry and parameters
     console.log(`sendServerActionRequest initiated. Server: ${serverName || 'N/A'}, Path: ${actionPath}, Method: ${method}, Body:`, body, "Button:", buttonElement);
+
+    // --- Get CSRF Token ---
+    const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : null;
+
+    if (!csrfToken) {
+        console.error("CSRF token meta tag not found!");
+        showStatusMessage("Error: CSRF protection token missing in page. Cannot send request.", "error");
+        if (buttonElement) buttonElement.disabled = false; // Re-enable button if applicable
+        return false; // Stop execution
+    }
+    // Avoid logging the actual token for security
+    console.log("CSRF Token found:", csrfToken ? 'Yes (available)' : 'No');
 
     // --- Construct URL ---
     let url;
@@ -112,15 +126,20 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             method: method,
             headers: {
                 'Accept': 'application/json', // Expect JSON response
-                // Note: Add CSRF token header here if your framework requires it
-                // 'X-CSRFToken': getCsrfTokenFromSomewhere(),
+                // --- ADD CSRF TOKEN HEADER ---
+                'X-CSRFToken': csrfToken
+                // --- END CSRF TOKEN HEADER ---
             }
         };
         // If a body is provided and method allows a body, stringify and set Content-Type
-        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method == 'DELETE')) {
+        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
+             // Ensure Content-Type is set *only* if there's a body to send
             fetchOptions.headers['Content-Type'] = 'application/json';
             fetchOptions.body = JSON.stringify(body);
             console.log("Added JSON body and Content-Type header.");
+        } else {
+             // Log if no body is being sent or method doesn't usually have one
+            console.log("No body provided or method doesn't typically use one (e.g., GET, DELETE without body).");
         }
 
         // --- Make Fetch Request ---
@@ -193,6 +212,12 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
                      console.log("Displaying general validation errors.");
                      generalErrorArea.innerHTML = '<strong>Field Errors:</strong><ul><li>' + generalErrors.join('</li><li>') + '</li></ul>';
                  }
+            } else if (response.status === 400 && response.statusText === "CSRF token missing or invalid.") {
+                // --- Specific CSRF Error Handling ---
+                // Flask-WTF often returns 400 Bad Request with this specific status text
+                console.error("CSRF Token Error detected!");
+                showStatusMessage("Security token error. Please refresh the page and try again.", "error");
+                 // --- End Specific CSRF Error Handling ---
             } else {
                  // For other non-2xx errors (or 400 without specific .errors structure), just show the main message
                  console.log("Displaying general HTTP error message.");
@@ -232,9 +257,6 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             showStatusMessage(appMessage, 'error'); // Show error message from the application
             // We still return the data object here as the HTTP request succeeded,
             // but the caller should check the status within it to confirm the action's success.
-            // Example: return responseData might be appropriate if caller needs error details.
-            // However, returning false might be simpler if the convention is boolean success/fail for the caller.
-            // Let's stick to returning the object for now, as the initial comment suggested.
             // Re-enable button here as the operation did complete (albeit with an app-level failure).
             if (buttonElement) {
                 console.log("Re-enabling button after HTTP success but application-level failure/unexpected status.");
@@ -264,6 +286,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
                   console.log("Button was already enabled in finally block (likely handled in error/success path).");
              }
         } else {
+            // Button remains disabled if confirm_needed or was never disabled/already re-enabled
             console.log("Button remains disabled (likely due to 'confirm_needed' status or prior re-enabling).");
         }
     }

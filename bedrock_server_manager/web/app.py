@@ -6,6 +6,7 @@ import secrets
 from waitress import serve
 from os.path import basename
 from flask import Flask, session
+from flask_wtf.csrf import CSRFProtect
 from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes.main_routes import main_bp
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
@@ -52,7 +53,14 @@ def create_app():
             f"Using randomly generated SECRET_KEY. "
             f"Set {secret_key_env} environment variable for persistent sessions across restarts."
         )
+        # --- Ensure SECRET_KEY is always set before initializing CSRF ---
+        if not app.config["SECRET_KEY"]:
+            logger.error("SECRET_KEY is not set. Web server cannot be enabled.")
+            raise RuntimeError("SECRET_KEY must be set for CSRF protection")
     logger.debug("SECRET_KEY set")
+
+    csrf = CSRFProtect(app)
+    logger.debug("Initialized Flask-WTF CSRF Protection")
 
     # --- Load Authentication Credentials ---
     username_env = f"{env_name}_USERNAME"
@@ -63,7 +71,7 @@ def create_app():
     app.config[token_env] = os.environ.get(token_env)
     if not app.config[token_env]:
         logger.warning(
-            "API environment variable token_env is not set. API access will be disabled."
+            f"API environment variable {token_env} is not set. API access will be disabled."
         )
     else:
         logger.debug("API token loaded from environment variable.")

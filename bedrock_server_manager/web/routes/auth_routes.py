@@ -3,7 +3,10 @@ import os
 import functools
 import logging
 import secrets
+from flask_wtf import FlaskForm
 from werkzeug.security import check_password_hash
+from wtforms.validators import DataRequired, Length
+from wtforms import StringField, PasswordField, SubmitField
 from bedrock_server_manager.config.settings import env_name, app_name
 from flask import (
     Blueprint,
@@ -21,6 +24,24 @@ from flask import (
 logger = logging.getLogger("bedrock_server_manager")
 
 auth_bp = Blueprint("auth", __name__)
+
+
+class LoginForm(FlaskForm):
+    """Login form using Flask-WTF."""
+    username = StringField(
+        'Username',
+        validators=[
+            DataRequired(message="Username is required."),
+            Length(min=1, max=80) # Example validator
+        ]
+    )
+    password = PasswordField(
+        'Password',
+        validators=[
+            DataRequired(message="Password is required.")
+        ]
+    )
+    submit = SubmitField('Login')
 
 
 # --- Helper Function / Decorator for Route Protection ---
@@ -90,9 +111,7 @@ def login_required(view):
                     f"No Authorization header found for API check on path '{request.path}'"
                 )
         else:
-            logger.debug(
-                f"{env_name}_TOKEN is not configured. Skipping token check."
-            )
+            logger.debug(f"{env_name}_TOKEN is not configured. Skipping token check.")
 
         # 3. If neither session nor valid token found:
         # Differentiate between browser and API request failure
@@ -144,46 +163,39 @@ def login_required(view):
 # --- Login Route ---
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Handles user login using hashed passwords."""
+    """Handles user login using Flask-WTF Form."""
     if "logged_in" in session:
         return redirect(url_for("main_routes.index"))
 
-    if request.method == "POST":
-        username_attempt = request.form.get("username")
-        password_attempt = request.form.get("password")
+    # --- Instantiate the form ---
+    form = LoginForm()
+    logger.debug(f"LoginForm instantiated for request method: {request.method}")
+
+    # --- Use form.validate_on_submit() ---
+    if form.validate_on_submit():
+        # --- Form submitted and validated ---
+        username_attempt = form.username.data # Access data via form object
+        password_attempt = form.password.data
         logger.info(
-            f"Login attempt for username: '{username_attempt}' from {request.remote_addr}"
+            f"Login attempt (validated) for username: '{username_attempt}' from {request.remote_addr}"
         )
 
         # Get credentials from app config
         expected_username_env = f"{env_name}_USERNAME"
         stored_password_hash_env = f"{env_name}_PASSWORD"
-
         expected_username = current_app.config.get(expected_username_env)
-        # This now retrieves the HASHED password from the env_var
         stored_password_hash = current_app.config.get(stored_password_hash_env)
 
-        # --- VALIDATION ---
+        # --- VALIDATION (Server-side config check) ---
         if not expected_username or not stored_password_hash:
+            # Log error as before
+            logger.error(f"{expected_username_env} or {stored_password_hash_env} not set correctly!")
+            # Flash message is good, but form validation might already show required field errors
             flash("Application authentication is not configured correctly.", "danger")
-            logger.error(
-                f"{expected_username_env} or {stored_password_hash_env} not set correctly!"
-            )
-            # Check if the password hash looks like a hash (basic check)
-            if stored_password_hash and not ":" in stored_password_hash:
-                logger.error(
-                    f"The value configured for {stored_password_hash_env} does not look like a valid password hash!"
-                )
-            return (
-                render_template(
-                    "login.html", error="Server configuration error.", app_name=app_name
-                ),
-                500,
-            )  # Internal Server Error better reflects config issue
+            # Render the template again, passing the form to show errors
+            return render_template("login.html", app_name=app_name, form=form), 500
 
         # --- Check Credentials using Hashing ---
-        # 1. Check username first (quick fail)
-        # 2. Use check_password_hash to compare submitted plaintext against stored hash
         if username_attempt == expected_username and check_password_hash(
             stored_password_hash, password_attempt
         ):
@@ -194,25 +206,23 @@ def login():
                 f"User '{username_attempt}' logged in successfully from {request.remote_addr}."
             )
             flash("You were successfully logged in!", "success")
-            next_url = request.args.get("next")
-            logger.debug(
-                f"Redirecting logged in user to: {next_url or url_for('main_routes.index')}"
-            )
-            return redirect(next_url or url_for("main_routes.index"))
+            next_url = request.args.get("next") or url_for('main_routes.index')
+            logger.debug(f"Redirecting logged in user to: {next_url}")
+            return redirect(next_url)
         else:
             # --- Login Failure ---
             logger.warning(
                 f"Invalid login attempt for username: '{username_attempt}' from {request.remote_addr}."
             )
-            flash("Invalid username or password. Please try again.", "danger")
-            return (
-                render_template("login.html", app_name=app_name),
-                401,  # Unauthorized
-            )
+            flash("Invalid username or password.", "danger")
+            # Render the template again, passing the form (validation might add errors)
+            return render_template("login.html", app_name=app_name, form=form), 401
 
-    # GET request: show the login form
-    logger.debug(f"Rendering login page for GET request from {request.remote_addr}")
-    return render_template("login.html", app_name=app_name)
+    # --- GET request OR POST request with validation errors ---
+    # Pass the form object to the template context
+    logger.debug(f"Rendering login page for GET request or failed validation from {request.remote_addr}")
+    # Any validation errors from a failed POST will be in 'form.errors'
+    return render_template("login.html", app_name=app_name, form=form)
 
 
 # --- Logout Route ---
