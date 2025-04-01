@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/logging.py
+# bedrock-server-manager/bedrock_server_manager/logging.py
 import logging
 import logging.handlers
 import os

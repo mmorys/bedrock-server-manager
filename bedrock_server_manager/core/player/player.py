@@ -3,7 +3,7 @@ import re
 import os
 import json
 import logging
-from bedrock_server_manager.core.error import FileOperationError, InvalidInputError
+from bedrock_server_manager.error import FileOperationError, InvalidInputError
 
 logger = logging.getLogger("bedrock_server_manager")
 

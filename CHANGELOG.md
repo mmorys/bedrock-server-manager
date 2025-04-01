@@ -145,9 +145,9 @@ The switch to python allows cross platform support, standardized processes, and 
 ### 3.0.0
 1. BREAKING CHANGE: Completely refactored .py script to a pip package
    - Now installed/updated with `pip` command
-2. Use `BEDROCK_SERVER_MANAGER_DATA_DIR` env variable for default data location
+2. Use `BEDROCK_SERVER_MANAGER_DATA_DIR` Environment Variable for default data location
    - Defaults to `$HOME/bedrock-server-manager` if variable doesnt exist
-   - Follow your platforms documentation for setting Enviroment Variables
+   - Follow your platforms documentation for setting Environment Variables
 3. Logging refactored to use standard python logging
    - Most functions now raise Exceptions instead of returning an error code
 4. Removed windows-start/stop commands

@@ -3,11 +3,10 @@ import platform
 import os
 import logging
 import subprocess
-import getpass
 import time
 from datetime import datetime
 from bedrock_server_manager.config.settings import EXPATH
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     CommandNotFoundError,
     SystemdReloadError,
     ServiceError,
@@ -21,7 +20,7 @@ from bedrock_server_manager.core.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def check_service_exists(server_name):
+def check_service_exist(server_name):
     """Checks if a systemd service file exists for the given server.
 
     Args:
@@ -39,62 +38,6 @@ def check_service_exists(server_name):
     )
     logger.debug(f"Checking if service file exists: {service_file}")
     return os.path.exists(service_file)
-
-
-def enable_user_lingering():
-    """Enables user lingering on Linux (systemd systems).
-
-    This is required for user services to start on boot and run after logout.
-    On non-Linux systems, this function does nothing.
-
-    Raises:
-        CommandNotFoundError: If loginctl or sudo is not found.
-        SystemdReloadError: If enabling lingering fails.
-    """
-    if platform.system() != "Linux":
-        return  # Not applicable
-
-    username = getpass.getuser()
-
-    # Check if lingering is already enabled
-    try:
-        result = subprocess.run(
-            ["loginctl", "show-user", username],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if "Linger=yes" in result.stdout:
-            logger.debug(f"Lingering is already enabled for {username}")
-            return  # Already enabled
-    except FileNotFoundError:
-        logger.error("loginctl command not found. Lingering cannot be checked/enabled.")
-        raise CommandNotFoundError(
-            "loginctl",
-            message="loginctl command not found. Lingering cannot be checked/enabled.",
-        ) from None
-
-    # If not already enabled, try to enable it
-    logger.debug(f"Attempting to enable lingering for user {username}")
-    try:
-        subprocess.run(
-            ["sudo", "loginctl", "enable-linger", username],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        logger.info(f"Lingering enabled for {username}")
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to enable lingering for {username}.  Error: {e}")
-        raise SystemdReloadError(
-            f"Failed to enable lingering for {username}.  Error: {e}"
-        ) from e
-    except FileNotFoundError:
-        logger.error("loginctl or sudo command not found. Lingering cannot be enabled.")
-        raise CommandNotFoundError(
-            "loginctl or sudo",
-            message="loginctl or sudo command not found. Lingering cannot be enabled.",
-        ) from None
 
 
 def _create_systemd_service(server_name, base_dir, autoupdate):
@@ -211,7 +154,7 @@ def _enable_systemd_service(server_name):
     service_name = f"bedrock-{server_name}"
     logger.debug(f"Enabling systemd service: {service_name}")
 
-    if not check_service_exists(server_name):
+    if not check_service_exist(server_name):
         logger.error(f"Service file for {server_name} does not exist. Cannot enable.")
         raise ServiceError(
             f"Service file for {server_name} does not exist. Cannot enable."
@@ -265,7 +208,7 @@ def _disable_systemd_service(server_name):
     service_name = f"bedrock-{server_name}"
     logger.debug(f"Disabling systemd service: {service_name}")
 
-    if not check_service_exists(server_name):
+    if not check_service_exist(server_name):
         logger.debug(
             f"Service file for {server_name} does not exist.  No need to disable."
         )
@@ -518,32 +461,79 @@ def get_cron_jobs_table(cron_jobs):
 
     table_data = []
     if not cron_jobs:
-        return table_data
-    logger.debug("Formatting cron jobs into table data")
+        logger.debug("No cron jobs provided to format.")
+        return table_data  # Return empty list if input is empty
+
+    logger.debug(f"Formatting {len(cron_jobs)} cron jobs into table data")
 
     for line in cron_jobs:
         parsed_job = _parse_cron_line(line)
-        if parsed_job:
-            minute, hour, day_of_month, month, day_of_week, command = parsed_job
-            schedule_time = convert_to_readable_schedule(
-                month, day_of_month, hour, minute, day_of_week
-            )
-            if schedule_time is None:
-                schedule_time = "Invalid Schedule"
+        if not parsed_job:
+            logger.warning(f"Skipping unparseable line: {line}")
+            continue  # Skip to the next line if parsing failed
 
-            command = _format_cron_command(command)
-            table_data.append(
-                {
-                    "minute": minute,
-                    "hour": hour,
-                    "day_of_month": day_of_month,
-                    "month": month,
-                    "day_of_week": day_of_week,
-                    "command": command,
-                    "schedule_time": schedule_time,
-                }
+        # Unpack the parsed job details
+        minute, hour, day_of_month, month, day_of_week, original_command = parsed_job
+
+        # --- Attempt to convert schedule to readable format with error handling ---
+        raw_schedule_str = f"{minute} {hour} {day_of_month} {month} {day_of_week}"
+        try:
+            # Call with the CORRECT standard cron argument order
+            schedule_time = convert_to_readable_schedule(
+                minute, hour, day_of_month, month, day_of_week
             )
-            logger.debug(f"Formatted cron job: {table_data[-1]}")
+            # Handle if the conversion function returns None without erroring
+            if schedule_time is None:
+                logger.warning(
+                    f"convert_to_readable_schedule returned None for: {raw_schedule_str}"
+                )
+                schedule_time = raw_schedule_str  # Fallback to raw schedule string
+        except InvalidCronJobError as e:
+            # Log the specific error but use the raw schedule as fallback
+            logger.error(
+                f"Error converting schedule to readable format for '{raw_schedule_str}': {e}"
+            )
+            schedule_time = raw_schedule_str  # Fallback to raw schedule string
+        except Exception as e:
+            # Catch any other unexpected errors during conversion
+            logger.exception(
+                f"Unexpected error in convert_to_readable_schedule for '{raw_schedule_str}': {e}"
+            )
+            schedule_time = raw_schedule_str  # Fallback to raw schedule string
+        # --- End schedule conversion ---
+
+        # --- Prepare command strings ---
+        # Keep the original command FOR THE API (ensure no extra whitespace)
+        command_for_api = original_command.strip()
+
+        # Create the simplified command ONLY FOR DISPLAY
+        try:
+            command_for_display = _format_cron_command(original_command)
+        except Exception as e:
+            # Handle potential errors during command formatting too
+            logger.exception(
+                f"Error formatting command for display: {original_command}"
+            )
+            command_for_display = command_for_api  # Fallback to showing the full command if formatting fails
+        # --- End command preparation ---
+
+        # --- Append the structured data for the table ---
+        table_data.append(
+            {
+                "minute": minute,
+                "hour": hour,
+                "day_of_month": day_of_month,
+                "month": month,
+                "day_of_week": day_of_week,
+                "command": command_for_api,
+                "command_display": command_for_display,
+                "schedule_time": schedule_time,
+            }
+        )
+        # Log the dictionary just created for debugging
+        logger.debug(f"Formatted cron job entry: {table_data[-1]}")
+
+    logger.debug(f"Finished formatting cron jobs. Returning {len(table_data)} entries.")
     return table_data
 
 

@@ -1,11 +1,19 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/backup_restore_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 import os
 import logging
-from bedrock_server_manager import handlers
-from bedrock_server_manager.utils.general import get_base_dir
+from bedrock_server_manager.api import backup_restore
 from bedrock_server_manager.config.settings import app_name
+from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.web.routes.auth_routes import login_required
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+)
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -32,20 +40,16 @@ def backup_menu_route(server_name):
 @login_required
 def backup_config_select_route(server_name):
     """Renders the page for selecting specific config files to backup."""
-    # Note: This route currently just renders a template.
-    # The actual selection might happen via JS or another mechanism in the template.
-    # If dynamic listing of config files is needed, this route would need to call a handler.
     logger.info(
         f"Route '/server/{server_name}/backup/config' accessed - Rendering config backup options page."
     )
-    # TODO: Potentially list available config files here by calling a handler.
     return render_template(
         "backup_config_options.html", server_name=server_name, app_name=app_name
     )
 
 
 # --- API Route: Backup Action ---
-@backup_restore_bp.route("/server/<server_name>/backup/action", methods=["POST"])
+@backup_restore_bp.route("/api/server/<server_name>/backup/action", methods=["POST"])
 @login_required
 def backup_action_route(server_name):
     """API endpoint to trigger a server backup (world, config file, or all)."""
@@ -125,26 +129,23 @@ def backup_action_route(server_name):
     result = None  # Store handler result
     if backup_type == "world":
         logger.debug(f"Calling backup_world_handler for '{server_name}'...")
-        result = handlers.backup_world_handler(server_name, base_dir)
+        result = backup_restore.backup_world(server_name, base_dir)
     elif backup_type == "config":
         logger.debug(
             f"Calling backup_config_file_handler for '{server_name}', file: '{file_to_backup}'..."
         )
-        result = handlers.backup_config_file_handler(
+        result = backup_restore.backup_config_file(
             server_name, file_to_backup, base_dir
         )
     elif backup_type == "all":
         logger.debug(f"Calling backup_all_handler for '{server_name}'...")
-        result = handlers.backup_all_handler(server_name, base_dir)
-    # No else needed due to prior validation
+        result = backup_restore.backup_all(server_name, base_dir)
 
     logger.debug(
         f"Backup handler response for '{server_name}' (type: {backup_type}): {result}"
     )
 
     # --- Determine Status Code and Final Response ---
-    # Backups can take time. 200 OK implies synchronous completion reported by handler.
-    # 202 Accepted might be better if handlers initiate background tasks. Assuming 200 for now.
     status_code = 200 if result and result.get("status") == "success" else 500
 
     if status_code == 200:
@@ -191,7 +192,7 @@ def restore_menu_route(server_name):
 
 
 # --- API Route: Restore Action ---
-@backup_restore_bp.route("/server/<server_name>/restore/action", methods=["POST"])
+@backup_restore_bp.route("/api/server/<server_name>/restore/action", methods=["POST"])
 @login_required
 def restore_action_route(server_name):
     """API endpoint to trigger a server restoration from a specific backup file."""
@@ -263,16 +264,14 @@ def restore_action_route(server_name):
         logger.debug(
             f"Calling restore_world_handler for '{server_name}', file: '{backup_file}'..."
         )
-        result = handlers.restore_world_handler(server_name, backup_file, base_dir)
+        result = backup_restore.restore_world(server_name, backup_file, base_dir)
     elif restore_type == "config":
         # Note: Restoring a specific config file might require more complex logic
         # if the backup contains multiple files. Assuming the handler manages this.
         logger.debug(
             f"Calling restore_config_file_handler for '{server_name}', file: '{backup_file}'..."
         )
-        result = handlers.restore_config_file_handler(
-            server_name, backup_file, base_dir
-        )
+        result = backup_restore.restore_config_file(server_name, backup_file, base_dir)
     # No else needed due to prior validation
 
     logger.debug(
@@ -347,11 +346,13 @@ def restore_select_backup_route(server_name):
         f"Listing available backups of type '{restore_type}' for server: '{server_name}'..."
     )
 
-    # Call the handler to list available backups of the specified type
+    # Call the api to list available backups of the specified type
     logger.debug(
         f"Calling list_backups_handler for '{server_name}', type: '{restore_type}'..."
     )
-    list_response = handlers.list_backups_handler(server_name, restore_type, base_dir)
+    list_response = backup_restore.list_backups_files(
+        server_name, restore_type, base_dir
+    )
     logger.debug(f"List backups handler response: {list_response}")
 
     # Handle errors from the listing handler
@@ -383,7 +384,7 @@ def restore_select_backup_route(server_name):
 
 
 # --- API Route: Restore All ---
-@backup_restore_bp.route("/server/<server_name>/restore/all", methods=["POST"])
+@backup_restore_bp.route("/api/server/<server_name>/restore/all", methods=["POST"])
 @login_required
 def restore_all_api_route(server_name):
     """API endpoint to trigger restoring all files (world and configs) from the latest backups."""
@@ -395,7 +396,7 @@ def restore_all_api_route(server_name):
 
     # Call the restore_all handler directly
     logger.debug(f"Calling restore_all_handler for '{server_name}'...")
-    result = handlers.restore_all_handler(server_name, base_dir)
+    result = backup_restore.restore_all(server_name, base_dir)
     logger.debug(f"Restore all handler response for '{server_name}': {result}")
 
     # Determine status code

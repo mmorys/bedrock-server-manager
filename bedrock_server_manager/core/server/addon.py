@@ -8,7 +8,7 @@ import json
 import logging
 from bedrock_server_manager.core.server import server
 from bedrock_server_manager.core.server import world
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
     InvalidAddonPackTypeError,

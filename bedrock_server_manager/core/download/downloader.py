@@ -8,7 +8,7 @@ import os
 import zipfile
 from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     DownloadExtractError,
     MissingArgumentError,
     InternetConnectivityError,

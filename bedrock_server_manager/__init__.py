@@ -2,24 +2,37 @@
 import sys
 import argparse
 import os
-from bedrock_server_manager import cli
+from bedrock_server_manager.api import utils as api_utils
 from bedrock_server_manager.core.download import downloader
-from bedrock_server_manager.config.settings import (
-    settings,
-    app_name,
-    package_name,
-    __version__,
-)
-from bedrock_server_manager.core import logging as core_logging
+from bedrock_server_manager import logging as self_logging
 from bedrock_server_manager.utils.general import startup_checks
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
 )
+from bedrock_server_manager.config.settings import (
+    settings,
+    app_name,
+    __version__,
+)
+from bedrock_server_manager.cli import (
+    main_menus,
+    utils as cli_utils,
+    server_install_config as cli_server_install_config,
+    server as cli_server,
+    world as cli_world,
+    addon as cli_addon,
+    backup_restore,
+    player as cli_player,
+    system as cli_system,
+    web as cli_web,
+    addon as cli_addon,
+)
+
 
 # Configure logging
-logger = core_logging.setup_logging(
+logger = self_logging.setup_logging(
     log_dir=settings.get("LOG_DIR"),
     log_keep=settings.get("LOGS_KEEP"),
     log_level=settings.get("LOG_LEVEL"),
@@ -30,7 +43,7 @@ def run_cleanup(args):
     """
     Performs cleanup operations based on command line arguments
     """
-    from bedrock_server_manager import cleanup
+    from bedrock_server_manager.utils import cleanup
 
     # Check for cleanup options and ensure at least one is provided
     if not any([args.cache, args.logs]):
@@ -54,6 +67,7 @@ def main():
     system_base.check_prerequisites()
     config_dir = settings._config_dir
     base_dir = settings.get("BASE_DIR")
+    api_utils.update_server_statuses(base_dir, config_dir)
     logger.debug(f"Base directory: {base_dir}")
     logger.debug(f"Config directory: {config_dir}")
 
@@ -218,7 +232,7 @@ def main():
         "scan-players", help="Scan server logs for player data"
     )
 
-    # add-players (manual player entry - you might want to revisit this)
+    # add-players (manual player entry )
     add_players_parser = subparsers.add_parser(
         "add-players", help="Manually add player:xuid to players.json"
     )
@@ -300,10 +314,10 @@ def main():
     add_server_arg(get_world_name_parser)
 
     # check-service-exists, create-service, enable-service, disable-service (systemd)
-    check_service_exists_parser = subparsers.add_parser(
-        "check-service-exists", help="Check if systemd service exists (Linux)"
+    check_service_exist_parser = subparsers.add_parser(
+        "check-service-exist", help="Check if systemd service exists (Linux)"
     )
-    add_server_arg(check_service_exists_parser)
+    add_server_arg(check_service_exist_parser)
     create_service_parser = subparsers.add_parser(
         "create-service", help="Create systemd service (Linux)"
     )
@@ -377,41 +391,41 @@ def main():
     add_server_arg(systemd_start_parser)
 
     # --- Web-Server ---
-    web_server_parser = subparsers.add_parser(
+    web_server_start_parser = subparsers.add_parser(
         "start-webserver", help="Start the web server"
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-H",
         "--host",
         help="Host address to bind to.  If omitted, binds to both IPv4 (0.0.0.0) and IPv6 (::).",
         required=False,
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-d", "--debug", help="Start in debug mode", action="store_true"
     )
-    web_server_parser.add_argument(
+    web_server_start_parser.add_argument(
         "-m", "--mode", default="direct", help="Mode to start in"
     )
 
-    web_server_parser = subparsers.add_parser(
+    web_server_stop_parser = subparsers.add_parser(
         "stop-webserver", help="Stop the web server"
     )
 
     # --- Command Dispatch Table ---
     commands = {
-        "main": lambda: cli.main_menu(base_dir, config_dir),
+        "main": lambda: main_menus.main_menu(base_dir, config_dir),
         "list-servers": lambda: (
-            cli.list_servers_loop(base_dir, config_dir)
+            cli_utils.list_servers_loop(base_dir, config_dir)
             if args.loop
-            else cli.list_servers_status(base_dir, config_dir)
+            else cli_utils.list_servers_status(base_dir, config_dir)
         ),
         "get-status": lambda: print(
             server_base.get_server_status_from_config(args.server, config_dir)
         ),
-        "configure-allowlist": lambda: cli.handle_configure_allowlist(
+        "configure-allowlist": lambda: cli_server_install_config.configure_allowlist(
             args.server, base_dir
         ),
-        "configure-permissions": lambda: cli.select_player_for_permission(
+        "configure-permissions": lambda: cli_server_install_config.select_player_for_permission(
             args.server, base_dir, config_dir
         ),
         "configure-properties": lambda: server_base.modify_server_properties(
@@ -419,7 +433,9 @@ def main():
             property_name=args.property,
             property_value=args.value,
         ),
-        "install-server": lambda: cli.install_new_server(base_dir, config_dir),
+        "install-server": lambda: cli_server_install_config.install_new_server(
+            base_dir, config_dir
+        ),
         "update-server": lambda: (
             (
                 server_base.manage_server_config(
@@ -428,39 +444,45 @@ def main():
                 if args.version
                 else None
             ),
-            cli.update_server(args.server, base_dir, config_dir),
+            cli_server_install_config.update_server(args.server, base_dir, config_dir),
         ),
-        "start-server": lambda: cli.handle_start_server(args.server, base_dir),
-        "stop-server": lambda: cli.handle_stop_server(args.server, base_dir),
+        "start-server": lambda: cli_server.start_server(args.server, base_dir),
+        "stop-server": lambda: cli_server.stop_server(args.server, base_dir),
         "install-world": lambda: (
-            cli.handle_extract_world(args.server, args.file, base_dir)
+            cli_world.extract_world(args.server, args.file, base_dir)
             if args.file
-            else cli.install_worlds(args.server, base_dir)
+            else cli_world.install_worlds(args.server, base_dir)
         ),
         "install-addon": lambda: (
-            cli.handle_install_addon(args.server, args.file, base_dir)
+            cli_addon.import_addon(args.server, args.file, base_dir)
             if args.file
-            else cli.install_addons(args.server, base_dir)
+            else cli_addon.install_addons(args.server, base_dir)
         ),
-        "restart-server": lambda: cli.restart_server(args.server, base_dir),
-        "attach-console": lambda: cli.attach_console(args.server, base_dir),
-        "delete-server": lambda: cli.delete_server(args.server, base_dir, config_dir),
-        "backup-server": lambda: cli.handle_backup_server(
+        "restart-server": lambda: cli_server.restart_server(args.server, base_dir),
+        "attach-console": lambda: cli_utils.attach_console(args.server, base_dir),
+        "delete-server": lambda: cli_server.delete_server(
+            args.server, base_dir, config_dir
+        ),
+        "backup-server": lambda: backup_restore.backup_server(
             args.server, args.type, args.file, args.change_status, base_dir
         ),
-        "backup-all": lambda: cli.handle_backup_server(
+        "backup-all": lambda: backup_restore.backup_server(
             args.server, "all", None, args.change_status, base_dir
         ),
-        "restore-server": lambda: cli.handle_restore_server(
+        "restore-server": lambda: backup_restore.restore_server(
             args.server, args.file, args.type, args.change_status, base_dir
         ),
-        "restore-all": lambda: cli.handle_restore_server(
+        "restore-all": lambda: backup_restore.restore_server(
             args.server, None, "all", args.change_status, base_dir
         ),
-        "scan-players": lambda: cli.scan_player_data(base_dir, config_dir),
-        "add-players": lambda: cli.handle_add_players(args.players, config_dir),
-        "monitor-usage": lambda: cli.monitor_service_usage(args.server, base_dir),
-        "prune-old-backups": lambda: cli.handle_prune_old_backups(
+        "scan-players": lambda: cli_player.scan_for_players(base_dir, config_dir),
+        "add-players": lambda: cli_player.add_players_to_config(
+            args.players, config_dir
+        ),
+        "monitor-usage": lambda: cli_system.monitor_service_usage(
+            args.server, base_dir
+        ),
+        "prune-old-backups": lambda: backup_restore.prune_old_backups(
             args.server,
             file_name=args.file_name,
             backup_keep=args.keep,
@@ -497,32 +519,32 @@ def main():
         "get-world-name": lambda: print(
             server_base.get_world_name(args.server, base_dir)
         ),
-        "check-service-exists": lambda: print(
-            system_linux.check_service_exists(args.server)
+        "check-service-exist": lambda: print(
+            system_linux.check_service_exist(args.server)
         ),
-        "create-service": lambda: cli.create_service(args.server, base_dir),
-        "enable-service": lambda: cli.enable_service(args.server),
-        "disable-service": lambda: cli.disable_service(args.server),
+        "create-service": lambda: cli_system.create_service(args.server, base_dir),
+        "enable-service": lambda: cli_system.enable_service(args.server),
+        "disable-service": lambda: cli_system.disable_service(args.server),
         "is-server-running": lambda: print(
             system_base.is_server_running(args.server, base_dir)
         ),
-        "send-command": lambda: cli.handle_send_command(
+        "send-command": lambda: cli_server.send_command(
             server_name=args.server,
             command=" ".join(args.command),
             base_dir=settings.get("BASE_DIR"),
         ),
-        "export-world": lambda: cli.handle_export_world(args.server, base_dir),
+        "export-world": lambda: cli_world.export_world(args.server, base_dir),
         "validate-server": lambda: print(
-            server_base.validate_server(args.server, base_dir)
+            api_utils.validate_server_exist(args.server, base_dir)
         ),
         "check-internet": lambda: print(system_base.check_internet_connectivity()),
         "cleanup": lambda: run_cleanup(args),
-        "systemd-stop": lambda: cli.handle_systemd_stop(args.server, base_dir),
-        "systemd-start": lambda: cli.handle_systemd_start(args.server, base_dir),
-        "start-webserver": lambda: cli.handle_start_web_server(
+        "systemd-stop": lambda: cli_server.systemd_stop(args.server, base_dir),
+        "systemd-start": lambda: cli_server.systemd_start(args.server, base_dir),
+        "start-webserver": lambda: cli_web.start_web_server(
             args.host, args.debug, args.mode
         ),
-        "stop-webserver": lambda: cli.handle_stop_web_server(),
+        "stop-webserver": lambda: cli_web.stop_web_server(),
     }
 
     args = parser.parse_args()

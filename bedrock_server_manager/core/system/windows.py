@@ -6,7 +6,7 @@ import logging
 import psutil
 from datetime import datetime
 from bedrock_server_manager.config.settings import EXPATH
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     TaskError,
     FileOperationError,
     MissingArgumentError,

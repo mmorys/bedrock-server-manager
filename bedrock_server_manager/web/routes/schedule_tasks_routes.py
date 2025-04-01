@@ -1,13 +1,23 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/schedule_tasks_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 import os
 import platform
 import logging
 from bedrock_server_manager import handlers
-from bedrock_server_manager.utils.general import get_base_dir
+from bedrock_server_manager.error import InvalidInputError
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.utils.general import get_base_dir
+from bedrock_server_manager.utils.general import get_timestamp
 from bedrock_server_manager.config.settings import EXPATH, app_name
 from bedrock_server_manager.web.routes.auth_routes import login_required
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+)
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -72,13 +82,10 @@ def schedule_tasks_route(server_name):
 
 
 # --- API Route: Add Cron Job ---
-# Note: These cron routes might need refinement based on how server-specific jobs are managed.
-# Currently, they seem to operate on the system's crontab directly via handlers.
-@schedule_tasks_bp.route("/server/<server_name>/schedule/add", methods=["POST"])
+@schedule_tasks_bp.route("/api/server/<server_name>/schedule/add", methods=["POST"])
 @login_required
 def add_cron_job_route(server_name):
     """API endpoint to add a new cron job."""
-    # The server_name is in the URL but might not be strictly needed by the handler if it adds globally?
     logger.info(
         f"API POST request received to add cron job (context: server '{server_name}')."
     )
@@ -151,7 +158,7 @@ def add_cron_job_route(server_name):
 
 
 # --- API Route: Modify Cron Job ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule/modify", methods=["POST"])
+@schedule_tasks_bp.route("/api/server/<server_name>/schedule/modify", methods=["POST"])
 @login_required
 def modify_cron_job_route(server_name):
     """API endpoint to modify an existing cron job."""
@@ -257,12 +264,14 @@ def modify_cron_job_route(server_name):
 
 
 # --- API Route: Delete Cron Job ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule/delete", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/schedule/delete", methods=["DELETE"]
+)
 @login_required
 def delete_cron_job_route(server_name):
     """API endpoint to delete a specific cron job."""
     logger.info(
-        f"API POST request received to delete cron job (context: server '{server_name}')."
+        f"API DELETE request received to delete cron job (context: server '{server_name}')."
     )
 
     # Get JSON data
@@ -339,7 +348,7 @@ def schedule_tasks_windows_route(server_name):
         f"Route '/server/{server_name}/tasks' accessed - Rendering Windows task schedule page."
     )
     base_dir = get_base_dir()  # Needed? Not directly used here.
-    config_dir = settings.get("CONFIG_DIR")
+    config_dir = settings._config_dir
     logger.debug(f"Config directory: {config_dir}")
 
     # Ensure this is running on Windows
@@ -401,643 +410,541 @@ def schedule_tasks_windows_route(server_name):
     )
 
 
-# --- Route: Add Windows Task Page ---
-# Uses GET to display form, POST to handle submission
-@schedule_tasks_bp.route("/server/<server_name>/tasks/add", methods=["GET", "POST"])
+# --- API Route: Add Windows Task ---
+@schedule_tasks_bp.route("/api/server/<server_name>/tasks/add", methods=["POST"])
 @login_required
-def add_windows_task_route(server_name):
-    """Displays form (GET) or handles submission (POST) for adding a new Windows scheduled task."""
-    logger.info(
-        f"Route '/server/{server_name}/tasks/add' accessed, method: {request.method}."
-    )
+def add_windows_task_api(server_name):
+    """API endpoint to add a new Windows scheduled task."""
+    logger.info(f"API POST request received for /api/server/{server_name}/tasks/add")
     base_dir = get_base_dir()
-    config_dir = settings.get("CONFIG_DIR")
-    logger.debug(f"Base directory: {base_dir}, Config directory: {config_dir}")
+    config_dir = settings._config_dir
 
     # Ensure Windows OS
     if platform.system() != "Windows":
-        flash("Windows Task Scheduling is only available on Windows.", "error")
         logger.error(
-            f"Attempted to access add Windows task page for '{server_name}' from non-Windows OS."
+            f"Add Windows task API called from non-Windows OS for server '{server_name}'."
         )
-        return redirect(url_for("main_routes.index"))
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Task scheduling only available on Windows.",
+                }
+            ),
+            403,
+        )  # Forbidden
 
-    # Handle POST request (form submission)
-    if request.method == "POST":
-        logger.info(f"Processing POST request to add Windows task for '{server_name}'.")
-        try:
-            # Extract common task parameters
-            command = request.form.get("command")
-            logger.debug(f"Form data - command: '{command}'")
+    # Get JSON data from the request body
+    data = request.get_json()
+    if not data:
+        logger.warning("API Add Windows Task request: Missing JSON body.")
+        return (
+            jsonify(
+                {"status": "error", "message": "Missing or invalid JSON request body."}
+            ),
+            400,
+        )
 
-            # Determine command arguments based on selected command
-            command_args = f"--server {server_name}"  # Default args
-            valid_commands = [
-                "update-server",
-                "backup-all",
-                "start-server",
-                "stop-server",
-                "restart-server",
-                "scan-players",
-            ]
-            if command not in valid_commands:
-                flash(
-                    "Invalid command selected. Please choose a valid task action.",
-                    "error",
-                )
-                logger.warning(
-                    f"Invalid command '{command}' selected for Windows task creation."
-                )
-                # Re-render form on validation error
-                return render_template(
-                    "add_windows_task.html", server_name=server_name, app_name=app_name
-                )
+    logger.debug(f"Received JSON data for add task: {data}")
 
-            if command == "scan-players":
-                command_args = (
-                    ""  # Scan players might not need server arg? Check handler.
-                )
+    # --- Extract data from JSON ---
+    command = data.get("command")
+    triggers = data.get(
+        "triggers"
+    )  # Expecting a list of trigger dicts [{type: "...", start: "...", ...}, ...]
 
-            logger.debug(f"Determined command_args: '{command_args}'")
-
-            # Generate a task name (ensure uniqueness or handle collisions)
-            task_name_base = command.replace(
-                "-", "_"
-            )  # Convert command to snake_case for task name
-            task_name = f"bedrock_{server_name}_{task_name_base}"
-            # TODO: Consider adding a timestamp or check for existing task_name to prevent collisions if needed.
-            logger.debug(f"Generated task name: '{task_name}'")
-
-            # --- Process Trigger Data ---
-            triggers = []
-            trigger_num = 1
-            logger.debug("Parsing trigger data from form...")
-            while (
-                True
-            ):  # Loop through potential trigger sections in the form (trigger_1, trigger_2, ...)
-                trigger_type = request.form.get(f"trigger_type_{trigger_num}")
-                if not trigger_type:
-                    logger.debug(
-                        f"No trigger data found for trigger number {trigger_num}. Stopping trigger parsing."
-                    )
-                    break  # No more triggers found in form
-
-                logger.debug(f"Processing trigger {trigger_num}: Type='{trigger_type}'")
-                trigger_data = {"type": trigger_type}
-
-                # Get common start time/date
-                start_datetime = request.form.get(f"start_{trigger_num}")
-                if not start_datetime:
-                    flash(
-                        f"Missing start date/time for trigger {trigger_num}.", "error"
-                    )
-                    logger.warning(f"Missing start datetime for trigger {trigger_num}.")
-                    # Re-render form on validation error
-                    return render_template(
-                        "add_windows_task.html",
-                        server_name=server_name,
-                        app_name=app_name,
-                    )
-                trigger_data["start"] = start_datetime
-                logger.debug(f"Trigger {trigger_num} - Start: '{start_datetime}'")
-
-                # Get type-specific details
-                if trigger_type == "Daily":
-                    interval_str = request.form.get(f"interval_{trigger_num}")
-                    if (
-                        not interval_str
-                        or not interval_str.isdigit()
-                        or int(interval_str) < 1
-                    ):
-                        flash(
-                            f"Invalid daily interval for trigger {trigger_num}. Must be a positive number.",
-                            "error",
-                        )
-                        logger.warning(
-                            f"Invalid daily interval '{interval_str}' for trigger {trigger_num}."
-                        )
-                        return render_template(
-                            "add_windows_task.html",
-                            server_name=server_name,
-                            app_name=app_name,
-                        )
-                    trigger_data["interval"] = int(interval_str)
-                    logger.debug(
-                        f"Trigger {trigger_num} - Daily Interval: {trigger_data['interval']}"
-                    )
-                elif trigger_type == "Weekly":
-                    interval_str = request.form.get(f"interval_{trigger_num}")
-                    days_of_week_str = request.form.get(
-                        f"days_of_week_{trigger_num}", ""
-                    )
-                    if (
-                        not interval_str
-                        or not interval_str.isdigit()
-                        or int(interval_str) < 1
-                    ):
-                        flash(
-                            f"Invalid weekly interval for trigger {trigger_num}. Must be a positive number.",
-                            "error",
-                        )
-                        logger.warning(
-                            f"Invalid weekly interval '{interval_str}' for trigger {trigger_num}."
-                        )
-                        return render_template(
-                            "add_windows_task.html",
-                            server_name=server_name,
-                            app_name=app_name,
-                        )
-                    trigger_data["interval"] = int(interval_str)
-                    trigger_data["days"] = [
-                        day.strip()
-                        for day in days_of_week_str.split(",")
-                        if day.strip()
-                    ]
-                    if not trigger_data["days"]:
-                        flash(
-                            f"At least one day must be selected for weekly trigger {trigger_num}.",
-                            "error",
-                        )
-                        logger.warning(
-                            f"No days selected for weekly trigger {trigger_num}."
-                        )
-                        return render_template(
-                            "add_windows_task.html",
-                            server_name=server_name,
-                            app_name=app_name,
-                        )
-                    logger.debug(
-                        f"Trigger {trigger_num} - Weekly Interval: {trigger_data['interval']}, Days: {trigger_data['days']}"
-                    )
-                elif trigger_type == "Monthly":
-                    # Add validation for monthly triggers if needed (days, months)
-                    days_of_month_str = request.form.get(
-                        f"days_of_month_{trigger_num}", ""
-                    )
-                    months_str = request.form.get(f"months_{trigger_num}", "")
-                    trigger_data["days"] = [
-                        int(day.strip())
-                        for day in days_of_month_str.split(",")
-                        if day.strip().isdigit()
-                    ]
-                    trigger_data["months"] = [
-                        month.strip()
-                        for month in months_str.split(",")
-                        if month.strip()
-                    ]
-                    # Add validation checks for days/months if necessary
-                    logger.debug(
-                        f"Trigger {trigger_num} - Monthly Days: {trigger_data['days']}, Months: {trigger_data['months']}"
-                    )
-
-                triggers.append(trigger_data)
-                trigger_num += 1
-
-            if not triggers:
-                flash("At least one trigger must be defined for the task.", "error")
-                logger.warning(
-                    f"No triggers were defined for the new task '{task_name}'."
-                )
-                return render_template(
-                    "add_windows_task.html", server_name=server_name, app_name=app_name
-                )
-
-            logger.debug(f"Parsed triggers for task creation: {triggers}")
-
-            # --- Call handler to create the task ---
-            logger.info(
-                f"Calling create_windows_task_handler for task '{task_name}'..."
+    # --- Basic Validation ---
+    valid_commands = [  # Keep this list aligned with your capabilities/frontend options
+        "update-server",
+        "backup-all",
+        "start-server",
+        "stop-server",
+        "restart-server",
+        "scan-players",
+    ]
+    if not command or command not in valid_commands:
+        logger.warning(f"API Add Windows Task: Invalid or missing command '{command}'.")
+        return (
+            jsonify(
+                {"status": "error", "message": f"Invalid or missing command specified."}
+            ),
+            400,
+        )
+    if not triggers or not isinstance(triggers, list) or len(triggers) == 0:
+        logger.warning(
+            f"API Add Windows Task: Missing, empty, or invalid triggers data."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "At least one trigger definition is required.",
+                }
+            ),
+            400,
+        )
+    # TODO: Add deeper validation for the structure and values within each trigger dictionary
+    # Example: check if 'type' and 'start' exist in each trigger, check specific fields per type
+    for i, trigger in enumerate(triggers):
+        if (
+            not isinstance(trigger, dict)
+            or not trigger.get("type")
+            or not trigger.get("start")
+        ):
+            logger.warning(
+                f"API Add Windows Task: Invalid trigger structure at index {i}: {trigger}"
             )
-            result = handlers.create_windows_task_handler(
-                server_name=server_name,
-                command=command,
-                command_args=command_args,
-                task_name=task_name,
-                config_dir=config_dir,
-                triggers=triggers,
-                base_dir=base_dir,  # Pass base_dir if handler needs it
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Invalid trigger structure at index {i}.",
+                    }
+                ),
+                400,
             )
-            logger.debug(f"Create task handler result: {result}")
+        # Add more checks based on trigger type here if needed
 
-            # Handle handler response
-            if result["status"] == "success":
-                success_msg = f"Windows task '{task_name}' added successfully for server '{server_name}'!"
-                flash(success_msg, "success")
-                logger.info(success_msg)
-                # Redirect to the task list page on success
-                return redirect(
-                    url_for(
-                        "schedule_tasks_routes.schedule_tasks_windows_route",
-                        server_name=server_name,
-                    )
-                )
-            else:
-                error_msg = f"Error adding Windows task '{task_name}': {result.get('message', 'Unknown handler error')}"
-                flash(error_msg, "error")
-                logger.error(error_msg)
-                # Re-render the form, potentially pre-filling with submitted data (complex)
-                # For simplicity, just re-render the blank form with the error message.
-                return render_template(
-                    "add_windows_task.html", server_name=server_name, app_name=app_name
-                )
+    # --- Determine command arguments and task name ---
+    # (This logic assumes task name is derived from command; adjust if needed)
+    command_args = f"--server {server_name}"
+    if command == "scan-players":
+        command_args = (
+            ""  # scan-players doesn't need --server arg based on previous examples
+        )
 
-        except Exception as e:
-            # Catch unexpected errors during form processing
-            error_msg = f"An unexpected error occurred while processing the task creation form: {e}"
-            flash(error_msg, "error")
-            logger.exception(error_msg)  # Log full traceback
-            return render_template(
-                "add_windows_task.html", server_name=server_name, app_name=app_name
-            )
-
-    # Handle GET request (display the form)
-    logger.debug(f"Rendering add_windows_task.html form for '{server_name}'.")
-    return render_template(
-        "add_windows_task.html", server_name=server_name, app_name=app_name
+    # Generate task name - IMPORTANT: Consider adding a unique identifier (timestamp/UUID)
+    # to allow multiple tasks with the same command, otherwise adding again will overwrite.
+    task_name_base = command.replace("-", "_")
+    # Example with timestamp:
+    # from ...utils import get_timestamp # Assuming you have a timestamp util
+    # timestamp = get_timestamp(format="%Y%m%d%H%M%S")
+    # task_name = f"bedrock_{server_name}_{task_name_base}_{timestamp}"
+    # Simpler version (overwrites if command is the same):
+    task_name = f"bedrock_{server_name}_{task_name_base}"
+    logger.debug(
+        f"API Add Windows Task: Determined args='{command_args}', task_name='{task_name}'"
     )
 
+    # --- Call handler to create the task ---
+    logger.info(
+        f"Calling create_windows_task_handler for task '{task_name}' via API..."
+    )
+    try:
+        result = handlers.create_windows_task_handler(
+            server_name=server_name,
+            command=command,  # Base command name
+            command_args=command_args,  # Generated arguments
+            task_name=task_name,  # Generated task name
+            config_dir=config_dir,
+            triggers=triggers,  # Pass the list of trigger dicts directly
+            base_dir=base_dir,
+        )
+        logger.debug(f"Create task handler result: {result}")
 
-# --- Helper Function for Modify Task Route ---
-def _load_existing_task_data_for_modify(xml_file_path):
-    """Helper to load task details for the modify form."""
-    logger.debug(f"Loading existing task data from XML: {xml_file_path}")
-    if not os.path.exists(xml_file_path):
-        logger.error(f"Task XML file not found: {xml_file_path}")
-        return {"error": "Task configuration file not found."}
+    except InvalidInputError as e:  # Catch specific validation errors from handler/core
+        logger.warning(f"Invalid input during task creation for '{task_name}': {e}")
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:  # Catch unexpected errors during handler execution
+        logger.exception(
+            f"Unexpected error during create_windows_task_handler call for '{task_name}': {e}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "An unexpected error occurred while creating the task.",
+                }
+            ),
+            500,
+        )
 
-    # Call handler to parse XML
-    result = handlers.get_windows_task_details_handler(xml_file_path)
-    if result.get("status") == "error":
-        logger.error(f"Error parsing task XML {xml_file_path}: {result.get('message')}")
-        return {"error": result.get("message", "Failed to parse task configuration.")}
+    # --- Return JSON Response based on handler result ---
+    if result and result.get("status") == "success":
+        status_code = 201  # HTTP 201 Created is appropriate for successful creation
+        logger.info(f"Windows task '{task_name}' added successfully via API.")
+        if (
+            "message" not in result
+        ):  # Add a default success message if handler doesn't provide one
+            result["message"] = f"Task '{task_name}' created successfully."
+        # Optionally include the created task name or details in the response body
+        result["created_task_name"] = task_name
+        return jsonify(result), status_code
+    else:
+        status_code = 500  # Default Internal Server Error for handler failure
+        logger.error(
+            f"API Add Windows Task failed for '{task_name}': {result.get('message', 'Unknown handler error')}"
+        )
+        # Ensure result is a dict even if handler failed unexpectedly
+        if not isinstance(result, dict):
+            result = {"status": "error", "message": "Handler failed unexpectedly."}
+        elif "status" not in result:
+            result["status"] = "error"
+        return jsonify(result), status_code
 
-    logger.debug(f"Successfully loaded task data from XML: {result}")
-    # Return the dictionary containing 'command', 'triggers', etc.
-    return result
 
-
-# --- Route: Modify Windows Task Page ---
+# --- API Route: Get Windows Task Details ---
 @schedule_tasks_bp.route(
-    "/server/<server_name>/tasks/modify/<task_name>", methods=["GET", "POST"]
+    "/api/server/<server_name>/tasks/details/<path:task_name>", methods=["GET"]
 )
 @login_required
-def modify_windows_task_route(server_name, task_name):
-    """Displays form (GET) or handles submission (POST) for modifying an existing Windows task."""
+def get_windows_task_details_api(server_name, task_name):
+    """API endpoint to get details for a specific Windows scheduled task by parsing its XML config."""
     logger.info(
-        f"Route '/server/{server_name}/tasks/modify/{task_name}' accessed, method: {request.method}."
+        f"API GET request received for /api/server/{server_name}/tasks/details/{task_name}"
     )
-    base_dir = get_base_dir()
-    config_dir = settings.CONFIG_DIR  # Use attribute access if possible
-    xml_file_path = os.path.join(config_dir, server_name, f"{task_name}.xml")
-    logger.debug(
-        f"Base directory: {base_dir}, Config directory: {config_dir}, XML path: {xml_file_path}"
-    )
+    config_dir = settings._config_dir
 
     # Ensure Windows OS
     if platform.system() != "Windows":
-        flash("Windows Task Scheduling is only available on Windows.", "error")
         logger.error(
-            f"Attempted to access modify Windows task page for '{task_name}' from non-Windows OS."
+            f"Get Windows task details API called from non-Windows OS for task '{task_name}'."
         )
-        return redirect(url_for("main_routes.index"))
-
-    # Handle POST request (form submission for modification)
-    if request.method == "POST":
-        logger.info(
-            f"Processing POST request to modify Windows task '{task_name}' for '{server_name}'."
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Task scheduling only available on Windows.",
+                }
+            ),
+            403,
         )
-        try:
-            # Extract command from form
-            command = request.form.get("command")
-            logger.debug(f"Form data - command: '{command}'")
 
-            # Determine command arguments (similar logic to add route)
-            command_args = f"--server {server_name}"
-            valid_commands = [
-                "update-server",
-                "backup-all",
-                "start-server",
-                "stop-server",
-                "restart-server",
-                "scan-players",
-            ]
-            if command not in valid_commands:
-                flash("Invalid command selected.", "error")
-                logger.warning(
-                    f"Invalid command '{command}' selected for Windows task modification."
-                )
-                # Reload existing data to re-render form with error
-                existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
-                return render_template(
-                    "modify_windows_task.html",
-                    server_name=server_name,
-                    task_name=task_name,
-                    **existing_task_data,
-                    app_name=app_name,
-                )
+    if not task_name:
+        logger.warning(f"API Get Windows Task Details request: Missing task name.")
+        return jsonify({"status": "error", "message": "Task name is required."}), 400
 
-            if command == "scan-players":
-                command_args = ""
-            logger.debug(f"Determined command_args: '{command_args}'")
-
-            # Generate the potentially new task name based on the selected command
-            new_task_name_base = command.replace("-", "_")
-            new_task_name = f"bedrock_{server_name}_{new_task_name_base}"
-            logger.debug(
-                f"New task name based on selected command: '{new_task_name}' (Old name: '{task_name}')"
-            )
-
-            # --- Process Trigger Data (similar logic to add route) ---
-            triggers = []
-            trigger_num = 1
-            logger.debug("Parsing trigger data from modification form...")
-            # (Include the same trigger parsing and validation as in the add route)
-            while True:
-                trigger_type = request.form.get(f"trigger_type_{trigger_num}")
-                if not trigger_type:
+    # --- Find the task file path using the HANDLER ---
+    task_file_path = None
+    try:
+        task_list_result = handlers.get_server_task_names_handler(
+            server_name, config_dir
+        )
+        if task_list_result and task_list_result.get("status") == "success":
+            task_names_with_paths = task_list_result.get("task_names", [])
+            for name, path in task_names_with_paths:
+                normalized_name = str(name).lstrip("\\") if name else ""
+                if normalized_name == task_name:
+                    task_file_path = path
                     break
-                logger.debug(f"Processing trigger {trigger_num}: Type='{trigger_type}'")
-                trigger_data = {"type": trigger_type}
-                start_datetime = request.form.get(f"start_{trigger_num}")
-                if not start_datetime:
-                    flash(
-                        f"Missing start date/time for trigger {trigger_num}.", "error"
-                    )
-                    logger.warning(
-                        f"Missing start datetime for trigger {trigger_num} during modification."
-                    )
-                    existing_task_data = _load_existing_task_data_for_modify(
-                        xml_file_path
-                    )
-                    return render_template(
-                        "modify_windows_task.html",
-                        server_name=server_name,
-                        task_name=task_name,
-                        **existing_task_data,
-                        app_name=app_name,
-                    )
-                trigger_data["start"] = start_datetime
-                if trigger_type == "Daily":
-                    interval_str = request.form.get(f"interval_{trigger_num}")
-                    if (
-                        not interval_str
-                        or not interval_str.isdigit()
-                        or int(interval_str) < 1
-                    ):
-                        flash(
-                            f"Invalid daily interval for trigger {trigger_num}.",
-                            "error",
-                        )
-                        existing_task_data = _load_existing_task_data_for_modify(
-                            xml_file_path
-                        )
-                        return render_template(
-                            "modify_windows_task.html",
-                            server_name=server_name,
-                            task_name=task_name,
-                            **existing_task_data,
-                            app_name=app_name,
-                        )
-                    trigger_data["interval"] = int(interval_str)
-                elif trigger_type == "Weekly":
-                    interval_str = request.form.get(f"interval_{trigger_num}")
-                    days_of_week_str = request.form.get(
-                        f"days_of_week_{trigger_num}", ""
-                    )
-                    if (
-                        not interval_str
-                        or not interval_str.isdigit()
-                        or int(interval_str) < 1
-                    ):
-                        flash(
-                            f"Invalid weekly interval for trigger {trigger_num}.",
-                            "error",
-                        )
-                        existing_task_data = _load_existing_task_data_for_modify(
-                            xml_file_path
-                        )
-                        return render_template(
-                            "modify_windows_task.html",
-                            server_name=server_name,
-                            task_name=task_name,
-                            **existing_task_data,
-                            app_name=app_name,
-                        )
-                    trigger_data["interval"] = int(interval_str)
-                    trigger_data["days"] = [
-                        day.strip()
-                        for day in days_of_week_str.split(",")
-                        if day.strip()
-                    ]
-                    if not trigger_data["days"]:
-                        flash(
-                            f"At least one day must be selected for weekly trigger {trigger_num}.",
-                            "error",
-                        )
-                        existing_task_data = _load_existing_task_data_for_modify(
-                            xml_file_path
-                        )
-                        return render_template(
-                            "modify_windows_task.html",
-                            server_name=server_name,
-                            task_name=task_name,
-                            **existing_task_data,
-                            app_name=app_name,
-                        )
-                elif trigger_type == "Monthly":
-                    days_of_month_str = request.form.get(
-                        f"days_of_month_{trigger_num}", ""
-                    )
-                    months_str = request.form.get(f"months_{trigger_num}", "")
-                    trigger_data["days"] = [
-                        int(day.strip())
-                        for day in days_of_month_str.split(",")
-                        if day.strip().isdigit()
-                    ]
-                    trigger_data["months"] = [
-                        month.strip()
-                        for month in months_str.split(",")
-                        if month.strip()
-                    ]
-                triggers.append(trigger_data)
-                trigger_num += 1
-
-            if not triggers:
-                flash("At least one trigger must be defined for the task.", "error")
-                logger.warning(
-                    f"No triggers were defined during modification of task '{task_name}'."
-                )
-                existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
-                return render_template(
-                    "modify_windows_task.html",
-                    server_name=server_name,
-                    task_name=task_name,
-                    **existing_task_data,
-                    app_name=app_name,
-                )
-
-            logger.debug(f"Parsed triggers for task modification: {triggers}")
-
-            # --- Call handler to modify the task ---
-            # This handler needs to potentially delete the old task and create the new one
-            logger.info(
-                f"Calling modify_windows_task_handler for old task '{task_name}', new task '{new_task_name}'..."
+        if not task_file_path:
+            logger.error(
+                f"API Get Details: Configuration file path not found for task '{task_name}'."
             )
-            result = handlers.modify_windows_task_handler(
-                old_task_name=task_name,  # Pass the original task name
-                server_name=server_name,
-                command=command,
-                command_args=command_args,
-                new_task_name=new_task_name,  # Pass the potentially new task name
-                config_dir=config_dir,
-                triggers=triggers,
-                base_dir=base_dir,  # Pass base_dir if needed
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"Configuration file for task '{task_name}' not found.",
+                    }
+                ),
+                404,
             )
-            logger.debug(f"Modify task handler result: {result}")
+    except Exception as e:
+        logger.exception(
+            f"Error finding task file path for '{task_name}' during get details API call: {e}"
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Error finding task configuration path."}
+            ),
+            500,
+        )
 
-            # Handle handler response
-            if result["status"] == "success":
-                success_msg = f"Windows task '{task_name}' modified successfully! (New name may be '{new_task_name}')"
-                flash(success_msg, "success")
-                logger.info(success_msg)
-                # Redirect to the task list page on success
-                return redirect(
-                    url_for(
-                        "schedule_tasks_routes.schedule_tasks_windows_route",
-                        server_name=server_name,
-                    )
-                )
-            else:
-                error_msg = f"Error modifying Windows task '{task_name}': {result.get('message', 'Unknown handler error')}"
-                flash(error_msg, "error")
-                logger.error(error_msg)
-                # Re-load existing data (or maybe use submitted data?) and re-render form
-                existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
-                return render_template(
-                    "modify_windows_task.html",
-                    server_name=server_name,
-                    task_name=task_name,
-                    **existing_task_data,
-                    app_name=app_name,
-                )
+    # --- Call the ENHANCED details handler ---
+    logger.debug(
+        f"Calling handler 'get_windows_task_details_handler' for task '{task_name}' (path: {task_file_path})..."
+    )
+    try:
+        # This handler now returns more details including base_command and structured triggers
+        result = handlers.get_windows_task_details_handler(task_file_path)
+    except Exception as handler_ex:
+        logger.exception(
+            f"Unexpected error calling get_windows_task_details_handler for path '{task_file_path}': {handler_ex}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Unexpected error retrieving task details from handler.",
+                }
+            ),
+            500,
+        )
 
-        except Exception as e:
-            # Catch unexpected errors during form processing
-            error_msg = f"An unexpected error occurred while processing the task modification form: {e}"
-            flash(error_msg, "error")
-            logger.exception(error_msg)  # Log full traceback
-            existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
-            return render_template(
-                "modify_windows_task.html",
-                server_name=server_name,
-                task_name=task_name,
-                **existing_task_data,
-                app_name=app_name,
-            )
-
-    # Handle GET request (display the modification form)
+    # --- Process handler result ---
+    if result and result.get("status") == "success":
+        logger.debug(
+            f"Successfully retrieved details for task '{task_name}' via API handler."
+        )
+        task_details = result.get("task_details", {})  # Get the nested details dict
+        # Ensure the status is included in the final response for consistency
+        response_data = {
+            "status": "success",
+            **task_details,
+        }  # Unpack details (base_command, triggers, etc.)
+        return jsonify(response_data), 200  # OK
     else:
-        logger.debug(
-            f"GET request received for modifying task '{task_name}'. Loading existing data..."
+        logger.error(
+            f"API Get Windows Task Details failed for '{task_name}'. Handler message: {result.get('message')}"
         )
-        # Load existing task data from XML to pre-populate the form
-        existing_task_data = _load_existing_task_data_for_modify(xml_file_path)
+        status_code = 404 if "not found" in result.get("message", "").lower() else 500
+        if not isinstance(result, dict):
+            result = {
+                "status": "error",
+                "message": "Handler returned unexpected result.",
+            }
+        elif "status" not in result:
+            result["status"] = "error"
+        return jsonify(result), status_code
 
-        # Check if loading failed
-        if "error" in existing_task_data:
-            error_msg = f"Error loading data for task '{task_name}': {existing_task_data['error']}"
-            logger.error(error_msg)
-            flash(error_msg, "error")
-            # Redirect back to the task list if data cannot be loaded
-            return redirect(
-                url_for(
-                    "schedule_tasks_routes.schedule_tasks_windows_route",
-                    server_name=server_name,
-                )
+
+# --- API Route: Modify Windows Task ---
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/tasks/modify/<path:task_name>", methods=["PUT"]
+)
+@login_required
+def modify_windows_task_api(server_name, task_name):
+    """
+    API endpoint to modify an existing Windows scheduled task.
+    Receives the complete desired state (command, triggers) in the JSON payload.
+    """
+    logger.info(
+        f"API PUT request received for /api/server/{server_name}/tasks/modify/{task_name}"
+    )
+    base_dir = get_base_dir()
+    config_dir = settings._config_dir
+
+    # Ensure Windows OS
+    if platform.system() != "Windows":
+        logger.error(
+            f"Modify Windows task API called from non-Windows OS for task '{task_name}'."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Task scheduling only available on Windows.",
+                }
+            ),
+            403,
+        )
+
+    # Get JSON data from request body
+    data = request.get_json()
+    if not data:
+        logger.warning(f"API Modify Windows Task request: Missing JSON body.")
+        return (
+            jsonify({"status": "error", "message": "Missing JSON request body."}),
+            400,
+        )
+
+    logger.debug(f"Received JSON data for modify task '{task_name}': {data}")
+
+    # --- Extract desired state from JSON ---
+    command = data.get("command")  # The new desired command (e.g., "start-server")
+    triggers = data.get("triggers")  # The new desired list of triggers
+
+    # --- Basic Validation ---
+    valid_commands = [  # Keep this list updated
+        "update-server",
+        "backup-all",
+        "start-server",
+        "stop-server",
+        "restart-server",
+        "scan-players",
+    ]
+    if not task_name:
+        logger.error(
+            f"API Modify Windows Task request: Missing original task name in URL."
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "Original task name is required in URL."}
+            ),
+            400,
+        )
+    if not command or command not in valid_commands:
+        logger.warning(
+            f"API Modify Windows Task: Invalid or missing command '{command}' in JSON payload."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Invalid or missing command specified in request body.",
+                }
+            ),
+            400,
+        )
+    if not triggers or not isinstance(triggers, list) or len(triggers) == 0:
+        logger.warning(
+            f"API Modify Windows Task: Missing, empty, or invalid triggers data in JSON payload."
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "At least one trigger definition is required in request body.",
+                }
+            ),
+            400,
+        )
+    # TODO: Deeper validation of trigger structure/values
+
+    # --- Determine command args for the NEW command ---
+    command_args = f"--server {server_name}"
+    if command == "scan-players":
+        command_args = ""
+    command = data.get("base_command")
+    logger.debug(
+        f"API Modify Windows Task: Using command='{command}', args='{command_args}' for new/updated task."
+    )
+
+    # --- Generate the New Task Name (based on the *submitted* command) ---
+    # This allows changing the command to also change the task name, as before
+    new_task_name_base = command
+    timestamp = get_timestamp()
+    new_task_name = f"bedrock_{server_name}_{new_task_name_base}_{timestamp}"
+    logger.debug(
+        f"API Modify Windows Task: OldName='{task_name}', Generated NewName='{new_task_name}'"
+    )
+
+    # --- Call the modify handler ---
+    # Pass the OLD name, the NEW desired state (command, args, triggers), and the NEW name
+    logger.info(
+        f"Calling modify_windows_task_handler for old task '{task_name}', new task '{new_task_name}' via API..."
+    )
+    try:
+        result = handlers.modify_windows_task_handler(
+            old_task_name=task_name,  # Original task name from URL
+            server_name=server_name,  # Server context
+            command=command,  # NEW desired command from JSON
+            command_args="",  # Args corresponding to NEW command
+            new_task_name=new_task_name,  # Generated new task name
+            config_dir=config_dir,
+            triggers=triggers,  # NEW trigger definitions from JSON
+            base_dir=base_dir,
+        )
+        logger.debug(f"Modify task handler result: {result}")
+
+    except InvalidInputError as e:
+        logger.warning(
+            f"Invalid input during task modification handler for '{task_name}': {e}"
+        )
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error during modify_windows_task_handler call for '{task_name}': {e}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "An unexpected error occurred while modifying the task.",
+                }
+            ),
+            500,
+        )
+
+    # --- Return JSON Response based on handler result ---
+    if result and result.get("status") == "success":
+        status_code = 200  # OK
+        logger.info(
+            f"Windows task '{task_name}' modified successfully via API. New task name is '{new_task_name}'."
+        )
+        if "message" not in result:
+            result["message"] = (
+                f"Task '{task_name}' updated successfully as '{new_task_name}'."
             )
-
-        # Render the modification form, passing existing data
-        logger.debug(
-            f"Rendering modify_windows_task.html form with data: {existing_task_data}"
+        result["new_task_name"] = new_task_name  # Include new name in response
+        return jsonify(result), status_code
+    else:
+        status_code = 500  # Default Internal Server Error
+        logger.error(
+            f"API Modify Windows Task failed for '{task_name}'. Handler message: {result.get('message', 'Unknown handler error')}"
         )
-        return render_template(
-            "modify_windows_task.html",
-            server_name=server_name,
-            task_name=task_name,  # Pass original task name
-            **existing_task_data,  # Unpack loaded data (command, triggers, etc.)
-            app_name=app_name,
-        )
+        if not isinstance(result, dict):
+            result = {"status": "error", "message": "Handler failed unexpectedly."}
+        elif "status" not in result:
+            result["status"] = "error"
+        return jsonify(result), status_code
 
 
 # --- Route: Delete Windows Task ---
-@schedule_tasks_bp.route("/server/<server_name>/tasks/delete", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/tasks/delete/<path:task_name>", methods=["DELETE"]
+)
 @login_required
-def delete_windows_task_route(server_name):
-    """Handles the POST request to delete an existing Windows scheduled task."""
-    # This uses POST from a form, not a DELETE API endpoint currently
+def delete_windows_task_api(server_name, task_name):
+    """API endpoint to delete an existing Windows scheduled task."""
     logger.info(
-        f"Route '/server/{server_name}/tasks/delete' accessed (POST) - Deleting Windows task."
+        f"API DELETE request received for /api/server/{server_name}/tasks/delete/{task_name}"
     )
-    base_dir = get_base_dir()  # Needed? Not directly used here.
-    config_dir = settings.CONFIG_DIR
-    logger.debug(f"Config directory: {config_dir}")
+    config_dir = settings._config_dir
 
     # Ensure Windows OS
     if platform.system() != "Windows":
-        flash("Windows Task Scheduling is only available on Windows.", "error")
         logger.error(
-            f"Attempted to access delete Windows task action for '{server_name}' from non-Windows OS."
+            f"Delete Windows task API called from non-Windows OS for task '{task_name}'."
         )
-        return redirect(url_for("main_routes.index"))
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Task scheduling only available on Windows.",
+                }
+            ),
+            403,
+        )  # Forbidden
 
-    # Get task name and potentially its config file path from the form
-    task_name = request.form.get("task_name")
-    task_file_path = request.form.get(
-        "task_file_path"
-    )  # Path to the XML file in config dir
-    logger.debug(
-        f"Received form data - task_name: '{task_name}', task_file_path: '{task_file_path}'"
-    )
-
-    # Validate required parameters
-    if not task_name or not task_file_path:
-        flash("Invalid task deletion request: Missing task name or file path.", "error")
-        logger.warning(
-            f"Invalid task deletion request for '{server_name}': Missing task name or file path."
-        )
-        # Redirect back to task list or index
-        return redirect(
-            url_for(
-                "schedule_tasks_routes.schedule_tasks_windows_route",
-                server_name=server_name,
-            )
-        )
+    if not task_name:
+        logger.warning(f"API Delete Windows Task request: Missing task name.")
+        return jsonify({"status": "error", "message": "Task name is required."}), 400
 
     logger.info(
-        f"Attempting to delete Windows task '{task_name}' for server '{server_name}'..."
+        f"Attempting to delete Windows task '{task_name}' via API for server '{server_name}'..."
     )
-    # Call the handler to delete the task from Task Scheduler and remove the XML file
+
+    # --- Find the task file path ---
+    task_file_path = None
+    # Use the api to find the path
+    get_names_result = handlers.get_server_task_names_handler(server_name, config_dir)
+    if get_names_result["status"] == "success":
+        task_names_with_paths = get_names_result["task_names"]
+
+    for name, path in task_names_with_paths:
+        # Task names from XML might have leading '\', match carefully
+        normalized_name = name.lstrip("\\")
+        if normalized_name == task_name:
+            task_file_path = path
+            logger.debug(f"Found config file path for '{task_name}': {task_file_path}")
+            break
+    if not task_file_path:
+        logger.warning(
+            f"Could not find configuration file path for task '{task_name}'. Task might only exist in scheduler, not config. Proceeding with scheduler delete only."
+        )
+        # If deleting the XML is critical, return error here:
+        # return jsonify({"status": "error", "message": f"Configuration file for task '{task_name}' not found."}), 404
+
+    # --- End Find Path ---
+
+    # Call the handler
     logger.debug("Calling delete_windows_task_handler...")
+    logger.info(task_file_path)
     result = handlers.delete_windows_task_handler(
-        task_name, task_file_path, base_dir=None
-    )  # base_dir might not be needed? check handler
+        task_name, task_file_path
+    )  # Pass name and potentially None path
     logger.debug(f"Delete task handler result: {result}")
 
-    # Flash message based on handler result
     if result["status"] == "error":
-        error_msg = f"Error deleting Windows task '{task_name}': {result.get('message', 'Unknown handler error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-    else:
-        success_msg = f"Windows task '{task_name}' deleted successfully for server '{server_name}'!"
-        flash(success_msg, "success")
-        logger.info(success_msg)
-
-    # Redirect back to the list of tasks for that server
-    logger.debug(f"Redirecting back to Windows task list for '{server_name}'.")
-    return redirect(
-        url_for(
-            "schedule_tasks_routes.schedule_tasks_windows_route",
-            server_name=server_name,
+        status_code = 500
+        logger.error(
+            f"API Delete Windows Task failed for '{task_name}': {result.get('message', 'Unknown handler error')}"
         )
-    )
+        return jsonify(result), status_code
+    else:
+        logger.info(f"Windows task '{task_name}' deleted successfully via API.")
+        if "message" not in result:
+            result["message"] = f"Task '{task_name}' deleted successfully."
+        return jsonify(result), 200  # OK

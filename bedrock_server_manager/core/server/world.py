@@ -3,7 +3,7 @@ import os
 import shutil
 import zipfile
 import logging
-from bedrock_server_manager.core.error import (
+from bedrock_server_manager.error import (
     MissingArgumentError,
     DownloadExtractError,
     FileOperationError,

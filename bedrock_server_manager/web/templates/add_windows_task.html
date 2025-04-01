@@ -3,6 +3,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ app_name }} - Add Windows Task</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
@@ -112,6 +114,7 @@
         <section class="add-task-section">
             <!--  action will be set by JavaScript based on whether it's an add or modify operation -->
             <form id= "task-form" action= "{{ url_for('schedule_tasks_routes.add_windows_task_route', server_name=server_name) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="command" class="form-label">Command:</label>
                     <select id="command" name="command" class="form-input">

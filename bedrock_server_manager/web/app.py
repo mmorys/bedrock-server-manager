@@ -6,11 +6,14 @@ import secrets
 from waitress import serve
 from os.path import basename
 from flask import Flask, session
+from flask_wtf.csrf import CSRFProtect
 from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes.main_routes import main_bp
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
 from bedrock_server_manager.web.routes.action_routes import action_bp
-from bedrock_server_manager.web.routes.install_config_routes import install_config_bp
+from bedrock_server_manager.web.routes.server_install_config_routes import (
+    server_install_config_bp,
+)
 from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.auth_routes import auth_bp
@@ -50,21 +53,27 @@ def create_app():
             f"Using randomly generated SECRET_KEY. "
             f"Set {secret_key_env} environment variable for persistent sessions across restarts."
         )
+        # --- Ensure SECRET_KEY is always set before initializing CSRF ---
+        if not app.config["SECRET_KEY"]:
+            logger.error("SECRET_KEY is not set. Web server cannot be enabled.")
+            raise RuntimeError("SECRET_KEY must be set for CSRF protection")
     logger.debug("SECRET_KEY set")
 
+    csrf = CSRFProtect(app)
+    logger.debug("Initialized Flask-WTF CSRF Protection")
+
     # --- Load Authentication Credentials ---
-    username_env = f"{env_name}_WEB_USERNAME"
-    password_env = f"{env_name}_WEB_PASSWORD"
-    token_env = f"{env_name}_WEB_TOKEN"
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
+    token_env = f"{env_name}_TOKEN"
     app.config[username_env] = os.environ.get(username_env)
     app.config[password_env] = os.environ.get(password_env)
     app.config[token_env] = os.environ.get(token_env)
     if not app.config[token_env]:
         logger.warning(
-            "API environment variable token_env is not set. API access will be disabled."
+            f"API environment variable {token_env} is not set. API access will be disabled."
         )
     else:
-        # Avoid logging the token itself!
         logger.debug("API token loaded from environment variable.")
 
     # --- Log a warning if credentials are not set ---
@@ -72,11 +81,6 @@ def create_app():
         logger.warning(
             f"Authentication environment variables ({username_env}, {password_env}) are not set."
         )
-        logger.warning(
-            f"Using default admin:admin (username:password). Consider changing these immediately."
-        )
-        app.config[username_env] = "admin"
-        app.config[password_env] = "admin"
     else:
         logger.info("Web authentication credentials loaded from environment variables.")
 
@@ -84,7 +88,7 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(schedule_tasks_bp)
     app.register_blueprint(action_bp)
-    app.register_blueprint(install_config_bp)
+    app.register_blueprint(server_install_config_bp)
     app.register_blueprint(backup_restore_bp)
     app.register_blueprint(content_bp)
     app.register_blueprint(auth_bp)
@@ -111,15 +115,15 @@ def run_web_server(host=None, debug=False):
     """
     app = create_app()
 
-    # --- Check credentials before starting server (optional but recommended) ---
-    username_env = f"{env_name}_WEB_USERNAME"
-    password_env = f"{env_name}_WEB_PASSWORD"
+    # --- Check credentials before starting server ---
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
     if not app.config.get(username_env) or not app.config.get(password_env):
         logger.error(
             f"Cannot start web server: {username_env} or {password_env} environment variables are not set."
         )
-        # You might want to exit here instead of just logging
-        # return
+
+        return
 
     port = settings.get(f"{env_name}_PORT")
     logger.info(f"Starting web server. Debug mode: {debug}, Port: {port}")
