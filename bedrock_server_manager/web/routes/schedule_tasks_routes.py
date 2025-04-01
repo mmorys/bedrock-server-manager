@@ -3,6 +3,7 @@ import os
 import platform
 import logging
 from bedrock_server_manager import handlers
+from bedrock_server_manager.error import InvalidInputError
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.utils.general import get_timestamp
