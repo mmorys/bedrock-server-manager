@@ -47,7 +47,7 @@ pip install bedrock-server-manager
 
 ### Setup The Configuration:
 
-bedrock-server-manager will use the enviroment variable `BEDROCK_SERVER_MANAGER_DATA_DIR` for setting the default config/data location, if this variable does not exist it will default to `$HOME/bedrock-server-manager`
+bedrock-server-manager will use the Environment Variable `BEDROCK_SERVER_MANAGER_DATA_DIR` for setting the default config/data location, if this variable does not exist it will default to `$HOME/bedrock-server-manager`
 
 Follow your platforms documentation for setting Enviroment Variables
 
