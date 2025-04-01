@@ -90,7 +90,6 @@ def install_server_api_route():
     server_name = server_name.strip()  # Use trimmed name
 
     # --- Server Name Format Validation ---
-    # Call specific format validation handler
     logger.debug(f"Calling validate_server_name_format_handler for '{server_name}'...")
     validation_result = handlers.validate_server_name_format_handler(server_name)
     if validation_result["status"] == "error":
