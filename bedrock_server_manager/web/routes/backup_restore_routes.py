@@ -4,7 +4,11 @@ import logging
 from bedrock_server_manager.api import backup_restore
 from bedrock_server_manager.config.settings import app_name
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from flask import (
     Blueprint,
     render_template,
@@ -50,7 +54,8 @@ def backup_config_select_route(server_name):
 
 # --- API Route: Backup Action ---
 @backup_restore_bp.route("/api/server/<server_name>/backup/action", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def backup_action_route(server_name):
     """API endpoint to trigger a server backup (world, config file, or all)."""
     logger.info(
@@ -193,7 +198,8 @@ def restore_menu_route(server_name):
 
 # --- API Route: Restore Action ---
 @backup_restore_bp.route("/api/server/<server_name>/restore/action", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def restore_action_route(server_name):
     """API endpoint to trigger a server restoration from a specific backup file."""
     logger.info(
@@ -266,13 +272,10 @@ def restore_action_route(server_name):
         )
         result = backup_restore.restore_world(server_name, backup_file, base_dir)
     elif restore_type == "config":
-        # Note: Restoring a specific config file might require more complex logic
-        # if the backup contains multiple files. Assuming the handler manages this.
         logger.debug(
             f"Calling restore_config_file_handler for '{server_name}', file: '{backup_file}'..."
         )
         result = backup_restore.restore_config_file(server_name, backup_file, base_dir)
-    # No else needed due to prior validation
 
     logger.debug(
         f"Restore handler response for '{server_name}' (type: {restore_type}, file: {backup_file}): {result}"
@@ -350,7 +353,7 @@ def restore_select_backup_route(server_name):
     logger.debug(
         f"Calling list_backups_handler for '{server_name}', type: '{restore_type}'..."
     )
-    list_response = backup_restore.list_backups_files(
+    list_response = backup_restore.list_backup_files(
         server_name, restore_type, base_dir
     )
     logger.debug(f"List backups handler response: {list_response}")
@@ -385,7 +388,8 @@ def restore_select_backup_route(server_name):
 
 # --- API Route: Restore All ---
 @backup_restore_bp.route("/api/server/<server_name>/restore/all", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def restore_all_api_route(server_name):
     """API endpoint to trigger restoring all files (world and configs) from the latest backups."""
     logger.info(

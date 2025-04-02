@@ -9,7 +9,12 @@ from bedrock_server_manager import handlers
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.core.server import server as server_base
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
+
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -32,7 +37,8 @@ def install_server_route():
 
 # --- API Route: Install Server ---
 @server_install_config_bp.route("/api/server/install", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def install_server_api_route():
     """API endpoint to handle the server installation process."""
     logger.info("API POST request received to install a new server.")
@@ -269,7 +275,8 @@ def configure_properties_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/properties", methods=["POST"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def configure_properties_api_route(server_name):
     """API endpoint to validate and update server.properties."""
     logger.info(
@@ -478,7 +485,8 @@ def configure_allowlist_route(server_name):
 
 # --- API Route: Save Allowlist (used during initial setup or full replacement) ---
 @server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def save_allowlist_api_route(server_name):
     """API endpoint to SAVE/REPLACE the server allowlist (typically used during initial setup)."""
     # This differs from the ADD route; it replaces the list.
@@ -613,7 +621,8 @@ def save_allowlist_api_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/allowlist/add", methods=["POST"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def add_allowlist_players_api_route(server_name):
     """API endpoint to ADD players to the server allowlist."""
     logger.info(
@@ -758,7 +767,8 @@ def add_allowlist_players_api_route(server_name):
 
 # --- API Route: Get Allowlist ---
 @server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["GET"])
-@login_required
+@csrf.exempt
+@auth_required
 def get_allowlist_api_route(server_name):
     """API endpoint to retrieve the current server allowlist."""
     logger.info(f"API GET request received for allowlist for server: '{server_name}'.")
@@ -906,7 +916,8 @@ def configure_permissions_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/permissions", methods=["PUT"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def configure_permissions_api_route(server_name):
     """API endpoint to update player permissions using PUT (replaces permissions for submitted players)."""
     # PUT is appropriate here as the frontend sends the complete desired state for players it knows about.
@@ -1170,7 +1181,8 @@ def configure_service_route(server_name):
 
 # --- API Route: Configure Service ---
 @server_install_config_bp.route("/api/server/<server_name>/service", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def configure_service_api_route(server_name):
     """API endpoint to configure OS-specific service settings."""
     logger.info(

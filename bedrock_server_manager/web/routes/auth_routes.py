@@ -4,7 +4,10 @@ import functools
 import logging
 import secrets
 from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect
+from flask_jwt_extended import JWTManager
 from werkzeug.security import check_password_hash
+from flask_jwt_extended import create_access_token
 from wtforms.validators import DataRequired, Length
 from wtforms import StringField, PasswordField, SubmitField
 from bedrock_server_manager.config.settings import env_name, app_name
@@ -25,137 +28,70 @@ logger = logging.getLogger("bedrock_server_manager")
 
 auth_bp = Blueprint("auth", __name__)
 
+csrf = CSRFProtect()
+jwt = JWTManager()
+
 
 class LoginForm(FlaskForm):
     """Login form using Flask-WTF."""
+
     username = StringField(
-        'Username',
+        "Username",
         validators=[
             DataRequired(message="Username is required."),
-            Length(min=1, max=80) # Example validator
-        ]
+            Length(min=1, max=80),
+        ],
     )
     password = PasswordField(
-        'Password',
-        validators=[
-            DataRequired(message="Password is required.")
-        ]
+        "Password", validators=[DataRequired(message="Password is required.")]
     )
-    submit = SubmitField('Login')
+    submit = SubmitField("Login")
 
 
 # --- Helper Function / Decorator for Route Protection ---
 def login_required(view):
     """
-    Decorator that checks for a valid session or API token.
-    Redirects browser users to login if not authenticated.
-    Returns 401 JSON error for API requests if not authenticated.
+    Decorator that checks for a valid WEB SESSION.
+    Redirects browser users to login if not authenticated via session.
+    Returns 401 for non-browser requests trying to access session-protected routes.
+    *** THIS DECORATOR DOES NOT VALIDATE JWT TOKENS ***
     """
 
     @functools.wraps(view)
     def wrapped_view(**kwargs):
-        # 1. Check for active web session
+        # 1. Check for active web session ONLY
         if "logged_in" in session:
-            logger.debug(
-                f"Login required check passed via session for user '{session.get('username', 'unknown')}' for path '{request.path}'"
-            )
+            # logger.debug(f"Session check passed for user '{session.get('username', 'unknown')}' for path '{request.path}'")
             return view(**kwargs)  # User is logged in via browser session
 
-        # 2. Check for API Token Authentication
-        expected_token = current_app.config.get(f"{env_name}_TOKEN")
-        auth_header = request.headers.get("Authorization")
-
-        if expected_token:
-            logger.debug(
-                f"API token is configured. Checking header for path '{request.path}'"
-            )
-            if auth_header:
-                logger.debug(f"Authorization header found for path '{request.path}'")
-                parts = auth_header.split()
-                # Check if header is in "Bearer <token>" format
-                if len(parts) == 2 and parts[0].lower() == "bearer":
-                    provided_token = parts[1]
-                    # Securely compare the provided token with the expected one
-                    if secrets.compare_digest(provided_token, expected_token):
-                        # --- API User Authenticated ---
-                        logger.info(
-                            f"Login required check passed via API token from {request.remote_addr} for path '{request.path}'"
-                        )
-                        return view(**kwargs)  # Token is valid
-                    else:
-                        # Provided token is incorrect
-                        logger.warning(
-                            f"Invalid API token received from {request.remote_addr} for path '{request.path}'"
-                        )
-                        return (
-                            jsonify(
-                                error="Unauthorized",
-                                message="Invalid API token provided.",
-                            ),
-                            401,
-                        )
-                else:
-                    # Authorization header format is incorrect
-                    logger.warning(
-                        f"Invalid Authorization header format from {request.remote_addr} for path '{request.path}'"
-                    )
-                    return (
-                        jsonify(
-                            error="Unauthorized",
-                            message="Invalid Authorization header format. Use 'Bearer <token>'.",
-                        ),
-                        401,
-                    )
-            else:
-                logger.debug(
-                    f"No Authorization header found for API check on path '{request.path}'"
-                )
-        else:
-            logger.debug(f"{env_name}_TOKEN is not configured. Skipping token check.")
-
-        # 3. If neither session nor valid token found:
-        # Differentiate between browser and API request failure
+        # Session not found, determine response type
         best = request.accept_mimetypes.best_match(["application/json", "text/html"])
         is_browser_like = (
             best == "text/html"
             and request.accept_mimetypes[best]
             > request.accept_mimetypes["application/json"]
         )
-        logger.debug(
-            f"Authentication failed for path '{request.path}'. Browser-like client: {is_browser_like}"
-        )
+        # logger.debug(f"Session authentication failed for path '{request.path}'. Browser-like client: {is_browser_like}")
 
         if is_browser_like:
             # It's likely a browser, redirect to login page
             logger.warning(
-                f"Unauthenticated browser access to {request.path} from {request.remote_addr}. Redirecting to login."
+                f"Unauthenticated browser access to session-protected route {request.path} from {request.remote_addr}. Redirecting to login."
             )
             flash("Please log in to access this page.", "warning")
             return redirect(url_for("auth.login", next=request.url))
         else:
-            # It's likely an API client (or doesn't prefer HTML), return 401 JSON
-            if not expected_token:
-                logger.error(
-                    f"API access attempted to {request.path} from {request.remote_addr} but {env_name}_TOKEN is not configured."
-                )
-                return (
-                    jsonify(
-                        error="Unauthorized",
-                        message="API access is not configured on the server.",
-                    ),
-                    401,
-                )
-            else:
-                logger.warning(
-                    f"Unauthenticated API access to {request.path} from {request.remote_addr}. Responding with 401."
-                )
-                return (
-                    jsonify(
-                        error="Unauthorized",
-                        message="Authentication required. Provide session cookie or Bearer token.",
-                    ),
-                    401,
-                )
+            # It's likely an API client hitting a BROWSER route, return 401
+            logger.warning(
+                f"Unauthenticated API/non-browser access to session-protected route {request.path} from {request.remote_addr}. Responding with 401."
+            )
+            return (
+                jsonify(
+                    error="Unauthorized",
+                    message="Authentication required. This endpoint requires a valid web session.",
+                ),
+                401,
+            )
 
     return wrapped_view
 
@@ -174,7 +110,7 @@ def login():
     # --- Use form.validate_on_submit() ---
     if form.validate_on_submit():
         # --- Form submitted and validated ---
-        username_attempt = form.username.data # Access data via form object
+        username_attempt = form.username.data  # Access data via form object
         password_attempt = form.password.data
         logger.info(
             f"Login attempt (validated) for username: '{username_attempt}' from {request.remote_addr}"
@@ -189,7 +125,9 @@ def login():
         # --- VALIDATION (Server-side config check) ---
         if not expected_username or not stored_password_hash:
             # Log error as before
-            logger.error(f"{expected_username_env} or {stored_password_hash_env} not set correctly!")
+            logger.error(
+                f"{expected_username_env} or {stored_password_hash_env} not set correctly!"
+            )
             # Flash message is good, but form validation might already show required field errors
             flash("Application authentication is not configured correctly.", "danger")
             # Render the template again, passing the form to show errors
@@ -206,7 +144,7 @@ def login():
                 f"User '{username_attempt}' logged in successfully from {request.remote_addr}."
             )
             flash("You were successfully logged in!", "success")
-            next_url = request.args.get("next") or url_for('main_routes.index')
+            next_url = request.args.get("next") or url_for("main_routes.index")
             logger.debug(f"Redirecting logged in user to: {next_url}")
             return redirect(next_url)
         else:
@@ -220,9 +158,70 @@ def login():
 
     # --- GET request OR POST request with validation errors ---
     # Pass the form object to the template context
-    logger.debug(f"Rendering login page for GET request or failed validation from {request.remote_addr}")
+    logger.debug(
+        f"Rendering login page for GET request or failed validation from {request.remote_addr}"
+    )
     # Any validation errors from a failed POST will be in 'form.errors'
     return render_template("login.html", app_name=app_name, form=form)
+
+
+@auth_bp.route("/api/login", methods=["POST"])
+@csrf.exempt
+def api_login():
+    """API endpoint to authenticate and receive a JWT access token."""
+    logger.debug(f"Received request for /api/login from {request.remote_addr}")
+
+    # Expect credentials in JSON body
+    if not request.is_json:
+        logger.warning("API login attempt failed: Request missing JSON body.")
+        return jsonify({"msg": "Missing JSON in request"}), 400
+
+    username_attempt = request.json.get("username", None)
+    password_attempt = request.json.get("password", None)
+
+    if not username_attempt or not password_attempt:
+        logger.warning(
+            f"API login attempt failed: Missing username or password in JSON body."
+        )
+        return jsonify({"msg": "Missing username or password parameter"}), 400
+
+    logger.info(
+        f"API login attempt for username: '{username_attempt}' from {request.remote_addr}"
+    )
+
+    # Get configured credentials from app config (same as web login)
+    expected_username_env = f"{env_name}_USERNAME"
+    stored_password_hash_env = f"{env_name}_PASSWORD"
+    expected_username = current_app.config.get(expected_username_env)
+    stored_password_hash = current_app.config.get(stored_password_hash_env)
+
+    # --- Validate Server Config (same check as web login) ---
+    if not expected_username or not stored_password_hash:
+        logger.error(
+            f"API login failed: {expected_username_env} or {stored_password_hash_env} not set correctly!"
+        )
+        # Avoid overly specific errors to client
+        return jsonify({"msg": "Server authentication configuration error."}), 500
+
+    # --- Check Credentials using Hashing (same check as web login) ---
+    if username_attempt == expected_username and check_password_hash(
+        stored_password_hash, password_attempt
+    ):
+        # --- Credentials are valid: Generate the JWT ---
+        # The 'identity' is stored in the token. It can be the username, user ID, etc.
+        # It must be JSON serializable. Username is fine here.
+        access_token = create_access_token(identity=username_attempt)
+        logger.info(
+            f"JWT created successfully for API user '{username_attempt}' from {request.remote_addr}"
+        )
+        # Return the token to the client
+        return jsonify(access_token=access_token), 200  # OK status
+    else:
+        # --- Invalid Credentials ---
+        logger.warning(
+            f"Invalid API login attempt for username: '{username_attempt}' from {request.remote_addr}."
+        )
+        return jsonify({"msg": "Bad username or password"}), 401  # Unauthorized status
 
 
 # --- Logout Route ---

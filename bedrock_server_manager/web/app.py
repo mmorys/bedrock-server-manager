@@ -16,7 +16,7 @@ from bedrock_server_manager.web.routes.server_install_config_routes import (
 )
 from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
-from bedrock_server_manager.web.routes.auth_routes import auth_bp
+from bedrock_server_manager.web.routes.auth_routes import auth_bp, csrf, jwt
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -59,22 +59,46 @@ def create_app():
             raise RuntimeError("SECRET_KEY must be set for CSRF protection")
     logger.debug("SECRET_KEY set")
 
-    csrf = CSRFProtect(app)
+    csrf.init_app(app)
+    csrf.exempt(action_bp)
     logger.debug("Initialized Flask-WTF CSRF Protection")
+
+    jwt_secret_key_env = f"{env_name}_TOKEN"
+    jwt_secret_key_value = os.environ.get(jwt_secret_key_env)
+
+    if not jwt_secret_key_value:
+        # --- SECURITY WARNING ---
+        app.config["JWT_SECRET_KEY"] = secrets.token_urlsafe(
+            32
+        )  # Generate a strong, URL-safe key
+        logger.critical(
+            f"!!! SECURITY WARNING !!! Using randomly generated JWT_SECRET_KEY. "
+            f"This is NOT suitable for production. Existing JWTs will be invalid after restart. "
+            f"Set the {jwt_secret_key_env} environment variable with a persistent, strong secret key!"
+        )
+        # --- END WARNING ---
+    else:
+        app.config["JWT_SECRET_KEY"] = jwt_secret_key_value
+        logger.info(
+            f"Loaded JWT_SECRET_KEY from environment variable {jwt_secret_key_env}"
+        )
+
+    if not app.config.get("JWT_SECRET_KEY"):
+        # This should ideally not happen with the logic above, but double-check
+        logger.error(
+            "FATAL: JWT_SECRET_KEY is not configured. JWT functionality will fail."
+        )
+        raise RuntimeError("JWT_SECRET_KEY must be set")
+    logger.debug("JWT_SECRET_KEY set")
+
+    jwt.init_app(app)
+    logger.debug("Initialized Flask-JWT-Extended")
 
     # --- Load Authentication Credentials ---
     username_env = f"{env_name}_USERNAME"
     password_env = f"{env_name}_PASSWORD"
-    token_env = f"{env_name}_TOKEN"
     app.config[username_env] = os.environ.get(username_env)
     app.config[password_env] = os.environ.get(password_env)
-    app.config[token_env] = os.environ.get(token_env)
-    if not app.config[token_env]:
-        logger.warning(
-            f"API environment variable {token_env} is not set. API access will be disabled."
-        )
-    else:
-        logger.debug("API token loaded from environment variable.")
 
     # --- Log a warning if credentials are not set ---
     if not app.config[username_env] or not app.config[password_env]:

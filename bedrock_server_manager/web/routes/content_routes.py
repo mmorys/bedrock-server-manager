@@ -5,7 +5,11 @@ import logging
 from bedrock_server_manager import handlers
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings, app_name
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -54,7 +58,8 @@ def install_world_route(server_name):
 
 # --- API Route: Install World ---
 @content_bp.route("/api/server/<server_name>/world/install", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def install_world_api_route(server_name):
     """API endpoint to install a selected world from an .mcworld file."""
     logger.info(
@@ -191,7 +196,8 @@ def install_addon_route(server_name):
 
 # --- API Route: Install Addon ---
 @content_bp.route("/api/server/<server_name>/addon/install", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def install_addon_api_route(server_name):
     """API endpoint to install a selected addon (.mcaddon, .mcpack)."""
     logger.info(

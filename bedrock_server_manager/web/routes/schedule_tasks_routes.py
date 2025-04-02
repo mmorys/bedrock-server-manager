@@ -8,7 +8,11 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.utils.general import get_timestamp
 from bedrock_server_manager.config.settings import EXPATH, app_name
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
 from flask import (
     Blueprint,
     render_template,
@@ -83,7 +87,8 @@ def schedule_tasks_route(server_name):
 
 # --- API Route: Add Cron Job ---
 @schedule_tasks_bp.route("/api/server/<server_name>/schedule/add", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def add_cron_job_route(server_name):
     """API endpoint to add a new cron job."""
     logger.info(
@@ -159,7 +164,8 @@ def add_cron_job_route(server_name):
 
 # --- API Route: Modify Cron Job ---
 @schedule_tasks_bp.route("/api/server/<server_name>/schedule/modify", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def modify_cron_job_route(server_name):
     """API endpoint to modify an existing cron job."""
     logger.info(
@@ -267,7 +273,8 @@ def modify_cron_job_route(server_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/schedule/delete", methods=["DELETE"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def delete_cron_job_route(server_name):
     """API endpoint to delete a specific cron job."""
     logger.info(
@@ -412,7 +419,8 @@ def schedule_tasks_windows_route(server_name):
 
 # --- API Route: Add Windows Task ---
 @schedule_tasks_bp.route("/api/server/<server_name>/tasks/add", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def add_windows_task_api(server_name):
     """API endpoint to add a new Windows scheduled task."""
     logger.info(f"API POST request received for /api/server/{server_name}/tasks/add")
@@ -587,7 +595,7 @@ def add_windows_task_api(server_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/details/<path:task_name>", methods=["GET"]
 )
-@login_required
+@auth_required
 def get_windows_task_details_api(server_name, task_name):
     """API endpoint to get details for a specific Windows scheduled task by parsing its XML config."""
     logger.info(
@@ -703,7 +711,8 @@ def get_windows_task_details_api(server_name, task_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/modify/<path:task_name>", methods=["PUT"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def modify_windows_task_api(server_name, task_name):
     """
     API endpoint to modify an existing Windows scheduled task.
@@ -875,7 +884,8 @@ def modify_windows_task_api(server_name, task_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/delete/<path:task_name>", methods=["DELETE"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def delete_windows_task_api(server_name, task_name):
     """API endpoint to delete an existing Windows scheduled task."""
     logger.info(
