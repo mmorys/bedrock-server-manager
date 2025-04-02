@@ -190,9 +190,10 @@ def is_server_running(server_name, base_dir):
             # Construct the expected full path to the target executable
             target_exe_path = os.path.join(base_dir, server_name, "bedrock_server.exe")
 
-
             normalized_target_exe = os.path.normcase(os.path.abspath(target_exe_path))
-            logger.debug(f"Looking for server {server_name} with normalized executable path: {normalized_target_exe}")
+            logger.debug(
+                f"Looking for server {server_name} with normalized executable path: {normalized_target_exe}"
+            )
 
             found_matching_process = False
             # Add 'exe' to the attributes we fetch
@@ -205,7 +206,9 @@ def is_server_running(server_name, base_dir):
                         # Check if executable path is available and not empty
                         if proc_exe:
                             # Normalize the process's executable path for comparison
-                            normalized_proc_exe = os.path.normcase(os.path.abspath(proc_exe))
+                            normalized_proc_exe = os.path.normcase(
+                                os.path.abspath(proc_exe)
+                            )
 
                             # --- Crucial Change: Compare normalized executable paths ---
                             if normalized_proc_exe == normalized_target_exe:
@@ -213,26 +216,27 @@ def is_server_running(server_name, base_dir):
                                     f"Server {server_name} running: True (Windows - process {proc.pid} found with matching executable path: {normalized_proc_exe})"
                                 )
                                 found_matching_process = True
-                                break # Found the specific server, no need to check further
+                                break  # Found the specific server, no need to check further
 
                 except (
                     psutil.NoSuchProcess,
-                    psutil.AccessDenied, # Might occur when trying to access proc_info['exe']
+                    psutil.AccessDenied,  # Might occur when trying to access proc_info['exe']
                     psutil.ZombieProcess,
                 ):
                     # Process might have terminated, access denied, or is a zombie
                     # Ignore and continue checking other processes
                     pass
                 except Exception as proc_err:
-                     # Log error accessing specific process info but continue iterating
-                     logger.warning(f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}")
-
+                    # Log error accessing specific process info but continue iterating
+                    logger.warning(
+                        f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}"
+                    )
 
             if found_matching_process:
                 return True
             else:
                 logger.debug(
-                   f"Server {server_name} running: False (Windows - no bedrock_server.exe process found with executable path exactly matching {normalized_target_exe})"
+                    f"Server {server_name} running: False (Windows - no bedrock_server.exe process found with executable path exactly matching {normalized_target_exe})"
                 )
                 return False
 
@@ -372,52 +376,72 @@ def _get_bedrock_process_info(server_name, base_dir):
             raise ResourceMonitorError(f"Error during monitoring: {e}") from e
 
     elif platform.system() == "Windows":
-        # Find the Bedrock server process
         bedrock_pid = None
         try:
-            for proc in psutil.process_iter(["pid", "name", "cwd"]):
+
+            target_exe_path = os.path.join(base_dir, server_name, "bedrock_server.exe")
+            normalized_target_exe = os.path.normcase(os.path.abspath(target_exe_path))
+            logger.debug(
+                f"Looking for server process for {server_name} with exe path: {normalized_target_exe}"
+            )
+
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
                 try:
-                    if (
-                        proc.info["name"] == "bedrock_server.exe"
-                        and proc.info["cwd"]
-                        and os.path.join(base_dir, server_name).lower()
-                        == proc.info["cwd"].lower()
-                    ):
-                        bedrock_pid = proc.info["pid"]
-                        break  # Exit loop once found
+                    proc_info = proc.info
+                    # Check name first
+                    if proc_info["name"] == "bedrock_server.exe":
+                        proc_exe = proc_info.get("exe")
+                        if proc_exe:
+                            normalized_proc_exe = os.path.normcase(
+                                os.path.abspath(proc_exe)
+                            )
+
+                            if normalized_proc_exe == normalized_target_exe:
+                                bedrock_pid = proc_info["pid"]
+                                logger.debug(
+                                    f"Found matching process for {server_name}: PID {bedrock_pid}"
+                                )
+                                break  # Exit loop once found
                 except (
                     psutil.NoSuchProcess,
                     psutil.AccessDenied,
                     psutil.ZombieProcess,
                 ):
-                    pass
-            if not bedrock_pid:
-                logger.warning(
-                    f"No running Bedrock server process found for {server_name}."
-                )
-                return None
+                    pass  # Ignore processes that ended or we can't access
+                except Exception as proc_err:
+                    logger.warning(
+                        f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}"
+                    )
 
-            # Get process details
+            if not bedrock_pid:
+                # Log updated to reflect the check performed
+                logger.warning(
+                    f"No running Bedrock server process found for {server_name} with exe path {normalized_target_exe}."
+                )
+                return None  # Or return an empty dict, depending on desired behaviour
+
+            # Get process details (this part remains largely the same)
             try:
                 bedrock_process = psutil.Process(bedrock_pid)
-                with (
-                    bedrock_process.oneshot()
-                ):  # Improves performance for multiple reads.
+                with bedrock_process.oneshot():  # Improves performance
                     # CPU Usage
                     cpu_percent = (
                         bedrock_process.cpu_percent(interval=1.0) / psutil.cpu_count()
                     )
 
-                    # Memory Usage
-                    memory_mb = bedrock_process.memory_info().rss / (
+                    # Memory Usage (RSS is usually appropriate)
+                    memory_info = bedrock_process.memory_info()
+                    memory_mb = memory_info.rss / (
                         1024 * 1024
-                    )  # Convert to MB
+                    )  # Resident Set Size in MB
 
                     # Uptime
-                    uptime_seconds = time.time() - bedrock_process.create_time()
+                    create_time = bedrock_process.create_time()
+                    uptime_seconds = time.time() - create_time
                     uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
                     logger.debug(
-                        f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
+                        f"Process info for {server_name}: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
                     )
                     return {
                         "pid": bedrock_pid,
@@ -427,11 +451,24 @@ def _get_bedrock_process_info(server_name, base_dir):
                     }
 
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                logger.warning(f"Process {bedrock_pid} not found or access denied.")
+                # Process might have terminated between finding PID and getting details
+                logger.warning(
+                    f"Process {bedrock_pid} for {server_name} disappeared or access denied before getting details."
+                )
+                return None  # Or empty dict
+            except Exception as detail_err:
+                logger.error(
+                    f"Error getting details for process {bedrock_pid} ({server_name}): {detail_err}"
+                )
                 return None
+
         except Exception as e:
-            logger.error(f"Error during monitoring: {e}")
-            raise ResourceMonitorError(f"Error during monitoring: {e}") from e
+            # General error during process iteration or setup
+            logger.error(f"Error during monitoring setup for {server_name}: {e}")
+            # Raising prevents silent failure if the monitoring loop itself errors out
+            raise ResourceMonitorError(
+                f"Error during monitoring setup for {server_name}: {e}"
+            ) from e
     else:
         logger.error("Unsupported OS for monitoring")
         return None
