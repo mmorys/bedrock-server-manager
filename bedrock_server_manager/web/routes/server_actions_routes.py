@@ -23,11 +23,11 @@ from bedrock_server_manager.api import (
 logger = logging.getLogger("bedrock_server_manager")
 
 # Create Blueprint for server action API routes
-action_bp = Blueprint("action_routes", __name__)
+server_actions_bp = Blueprint("action_routes", __name__)
 
 
 # --- API Route: Start Server ---
-@action_bp.route("/api/server/<server_name>/start", methods=["POST"])
+@server_actions_bp.route("/api/server/<server_name>/start", methods=["POST"])
 @csrf.exempt
 @auth_required
 def start_server_route(server_name):
@@ -69,7 +69,7 @@ def start_server_route(server_name):
 
 
 # --- API Route: Stop Server ---
-@action_bp.route("/api/server/<server_name>/stop", methods=["POST"])
+@server_actions_bp.route("/api/server/<server_name>/stop", methods=["POST"])
 @csrf.exempt
 @auth_required
 def stop_server_route(server_name):
@@ -106,7 +106,7 @@ def stop_server_route(server_name):
 
 
 # --- API Route: Restart Server ---
-@action_bp.route("/api/server/<server_name>/restart", methods=["POST"])
+@server_actions_bp.route("/api/server/<server_name>/restart", methods=["POST"])
 @csrf.exempt
 @auth_required
 def restart_server_route(server_name):
@@ -145,7 +145,7 @@ def restart_server_route(server_name):
 
 
 # --- API Route: Send Command ---
-@action_bp.route("/api/server/<server_name>/send", methods=["POST"])
+@server_actions_bp.route("/api/server/<server_name>/send_command", methods=["POST"])
 @csrf.exempt
 @auth_required
 def send_command_route(server_name):
@@ -225,7 +225,7 @@ def send_command_route(server_name):
 
 
 # --- API Route: Update Server ---
-@action_bp.route("/api/server/<server_name>/update", methods=["POST"])
+@server_actions_bp.route("/api/server/<server_name>/update", methods=["POST"])
 @csrf.exempt
 @auth_required
 def update_server_route(server_name):
@@ -264,7 +264,7 @@ def update_server_route(server_name):
 
 
 # --- API Route: Delete Server ---
-@action_bp.route("/api/server/<server_name>/delete", methods=["DELETE"])
+@server_actions_bp.route("/api/server/<server_name>/delete", methods=["DELETE"])
 @csrf.exempt
 @auth_required
 def delete_server_route(server_name):
@@ -302,7 +302,7 @@ def delete_server_route(server_name):
 
 
 # --- API Route: Server Status ---
-@action_bp.route("/api/server/<server_name>/status")
+@server_actions_bp.route("/api/server/<server_name>/status")
 @csrf.exempt
 @auth_required
 def server_status_api(server_name):

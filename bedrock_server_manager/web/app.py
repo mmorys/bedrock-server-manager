@@ -2,6 +2,7 @@
 import os
 import logging
 import ipaddress
+import datetime
 import secrets
 from waitress import serve
 from os.path import basename
@@ -10,7 +11,7 @@ from flask_wtf.csrf import CSRFProtect
 from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes.main_routes import main_bp
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
-from bedrock_server_manager.web.routes.action_routes import action_bp
+from bedrock_server_manager.web.routes.server_actions_routes import server_actions_bp
 from bedrock_server_manager.web.routes.server_install_config_routes import (
     server_install_config_bp,
 )
@@ -60,7 +61,7 @@ def create_app():
     logger.debug("SECRET_KEY set")
 
     csrf.init_app(app)
-    csrf.exempt(action_bp)
+    csrf.exempt(server_actions_bp)
     logger.debug("Initialized Flask-WTF CSRF Protection")
 
     jwt_secret_key_env = f"{env_name}_TOKEN"
@@ -91,6 +92,8 @@ def create_app():
         raise RuntimeError("JWT_SECRET_KEY must be set")
     logger.debug("JWT_SECRET_KEY set")
 
+    app.config["API_ONLY_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(hours=12)
+
     jwt.init_app(app)
     logger.debug("Initialized Flask-JWT-Extended")
 
@@ -111,7 +114,7 @@ def create_app():
     # --- Register Blueprints ---
     app.register_blueprint(main_bp)
     app.register_blueprint(schedule_tasks_bp)
-    app.register_blueprint(action_bp)
+    app.register_blueprint(server_actions_bp)
     app.register_blueprint(server_install_config_bp)
     app.register_blueprint(backup_restore_bp)
     app.register_blueprint(content_bp)
