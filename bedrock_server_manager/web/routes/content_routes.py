@@ -2,7 +2,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 import os
 import logging
-from bedrock_server_manager import handlers
+from bedrock_server_manager.api import world
+from bedrock_server_manager.api import addon
+from bedrock_server_manager.api import utils
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
@@ -32,9 +34,7 @@ def install_world_route(server_name):
 
     # List available .mcworld files using the handler
     logger.debug("Calling list_content_files_handler for .mcworld files...")
-    result = handlers.list_content_files_handler(
-        content_dir, ["mcworld"]
-    )  # Specify extension
+    result = utils.list_content_files(content_dir, ["mcworld"])  # Specify extension
     logger.debug(f"List content files handler result: {result}")
 
     world_files = []  # Default empty list
@@ -119,7 +119,7 @@ def install_world_api_route(server_name):
     logger.debug(
         f"Calling extract_world_handler for '{server_name}', file: '{selected_file}'..."
     )
-    result = handlers.extract_world_handler(server_name, selected_file, base_dir)
+    result = world.import_world(server_name, selected_file, base_dir)
     logger.debug(f"Extract world handler response: {result}")
 
     # Determine status code
@@ -172,7 +172,7 @@ def install_addon_route(server_name):
     logger.debug(
         f"Calling list_content_files_handler for extensions: {allowed_extensions}..."
     )
-    result = handlers.list_content_files_handler(content_dir, allowed_extensions)
+    result = utils.list_content_files(content_dir, allowed_extensions)
     logger.debug(f"List content files handler result: {result}")
 
     addon_files = []  # Default empty list
@@ -255,7 +255,7 @@ def install_addon_api_route(server_name):
     logger.debug(
         f"Calling install_addon_handler for '{server_name}', file: '{selected_file}'..."
     )
-    result = handlers.install_addon_handler(server_name, selected_file, base_dir)
+    result = addon.import_addon(server_name, selected_file, base_dir)
     logger.debug(f"Install addon handler response: {result}")
 
     # Determine status code
