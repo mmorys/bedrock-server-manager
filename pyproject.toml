@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.1.0b7"
+version = "3.1.0b8"
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
@@ -26,6 +26,7 @@ dependencies = [
     'pywin32; sys_platform == "win32"',
     "flask",
     "flask-wtf",
+    "flask-jwt-extended",
     "waitress"
 ]
 
