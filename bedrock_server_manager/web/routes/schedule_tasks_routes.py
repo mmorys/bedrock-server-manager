@@ -2,13 +2,17 @@
 import os
 import platform
 import logging
-from bedrock_server_manager import handlers
+from bedrock_server_manager.api import task_scheduler
 from bedrock_server_manager.error import InvalidInputError
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.utils.general import get_timestamp
 from bedrock_server_manager.config.settings import EXPATH, app_name
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
 from flask import (
     Blueprint,
     render_template,
@@ -43,10 +47,10 @@ def schedule_tasks_route(server_name):
         )
         # Optionally redirect: return redirect(url_for('main_routes.index'))
 
-    # Get current cron jobs related to this server using the handler
-    logger.debug(f"Calling get_server_cron_jobs_handler for '{server_name}'...")
-    cron_jobs_response = handlers.get_server_cron_jobs_handler(server_name)
-    logger.debug(f"Get cron jobs handler response: {cron_jobs_response}")
+    # Get current cron jobs related to this server using the api
+    logger.debug(f"Calling get_server_cron_jobs for '{server_name}'...")
+    cron_jobs_response = task_scheduler.get_server_cron_jobs(server_name)
+    logger.debug(f"Get cron jobs api response: {cron_jobs_response}")
 
     table_data = []  # Default empty list for template
     if cron_jobs_response["status"] == "error":
@@ -56,10 +60,10 @@ def schedule_tasks_route(server_name):
     else:
         cron_jobs = cron_jobs_response.get("cron_jobs", [])  # List of raw cron strings
         logger.debug(f"Found {len(cron_jobs)} raw cron job lines for '{server_name}'.")
-        # Get formatted table data using the formatting handler
-        logger.debug(f"Calling get_cron_jobs_table_handler...")
-        table_response = handlers.get_cron_jobs_table_handler(cron_jobs)
-        logger.debug(f"Format cron jobs handler response: {table_response}")
+        # Get formatted table data using the formatting api
+        logger.debug(f"Calling get_cron_jobs_table...")
+        table_response = task_scheduler.get_cron_jobs_table(cron_jobs)
+        logger.debug(f"Format cron jobs api response: {table_response}")
         if table_response["status"] == "error":
             error_msg = f"Error formatting cron jobs table for '{server_name}': {table_response.get('message', 'Unknown error')}"
             flash(error_msg, "error")
@@ -83,7 +87,8 @@ def schedule_tasks_route(server_name):
 
 # --- API Route: Add Cron Job ---
 @schedule_tasks_bp.route("/api/server/<server_name>/schedule/add", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def add_cron_job_route(server_name):
     """API endpoint to add a new cron job."""
     logger.info(
@@ -123,11 +128,11 @@ def add_cron_job_route(server_name):
 
     cron_string = cron_string.strip()  # Use trimmed string
 
-    logger.info(f"Attempting to add cron job via handler: '{cron_string}'")
-    # Call the handler to add the job
-    logger.debug("Calling add_cron_job_handler...")
-    add_response = handlers.add_cron_job_handler(cron_string)
-    logger.debug(f"Add cron job handler response: {add_response}")
+    logger.info(f"Attempting to add cron job via api: '{cron_string}'")
+    # Call the api to add the job
+    logger.debug("Calling add_cron_job...")
+    add_response = task_scheduler.add_cron_job(cron_string)
+    logger.debug(f"Add cron job api response: {add_response}")
 
     # Determine status code
     status_code = (
@@ -142,7 +147,7 @@ def add_cron_job_route(server_name):
         error_message = (
             add_response.get("message", "Unknown error adding cron job")
             if add_response
-            else "Add cron handler failed unexpectedly"
+            else "Add cron api failed unexpectedly"
         )
         logger.error(f"API Add Cron Job failed: {error_message}")
         if not add_response:
@@ -159,7 +164,8 @@ def add_cron_job_route(server_name):
 
 # --- API Route: Modify Cron Job ---
 @schedule_tasks_bp.route("/api/server/<server_name>/schedule/modify", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def modify_cron_job_route(server_name):
     """API endpoint to modify an existing cron job."""
     logger.info(
@@ -226,12 +232,12 @@ def modify_cron_job_route(server_name):
     new_cron_string = new_cron_string.strip()
 
     logger.info(
-        f"Attempting to modify cron job via handler. From: '{old_cron_string}' To: '{new_cron_string}'"
+        f"Attempting to modify cron job via api. From: '{old_cron_string}' To: '{new_cron_string}'"
     )
-    # Call the handler to modify the job
-    logger.debug("Calling modify_cron_job_handler...")
-    modify_response = handlers.modify_cron_job_handler(old_cron_string, new_cron_string)
-    logger.debug(f"Modify cron job handler response: {modify_response}")
+    # Call the api to modify the job
+    logger.debug("Calling modify_cron_job...")
+    modify_response = task_scheduler.modify_cron_job(old_cron_string, new_cron_string)
+    logger.debug(f"Modify cron job api response: {modify_response}")
 
     # Determine status code
     status_code = (
@@ -248,7 +254,7 @@ def modify_cron_job_route(server_name):
         error_message = (
             modify_response.get("message", "Unknown error modifying cron job")
             if modify_response
-            else "Modify cron handler failed unexpectedly"
+            else "Modify cron api failed unexpectedly"
         )
         logger.error(f"API Modify Cron Job failed: {error_message}")
         if not modify_response:
@@ -267,7 +273,8 @@ def modify_cron_job_route(server_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/schedule/delete", methods=["DELETE"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def delete_cron_job_route(server_name):
     """API endpoint to delete a specific cron job."""
     logger.info(
@@ -305,11 +312,11 @@ def delete_cron_job_route(server_name):
 
     cron_string = cron_string.strip()
 
-    logger.info(f"Attempting to delete cron job via handler: '{cron_string}'")
-    # Call the handler to delete the job
-    logger.debug("Calling delete_cron_job_handler...")
-    delete_response = handlers.delete_cron_job_handler(cron_string)
-    logger.debug(f"Delete cron job handler response: {delete_response}")
+    logger.info(f"Attempting to delete cron job via api: '{cron_string}'")
+    # Call the api to delete the job
+    logger.debug("Calling delete_cron_job...")
+    delete_response = task_scheduler.delete_cron_job(cron_string)
+    logger.debug(f"Delete cron job api response: {delete_response}")
 
     # Determine status code
     status_code = (
@@ -324,7 +331,7 @@ def delete_cron_job_route(server_name):
         error_message = (
             delete_response.get("message", "Unknown error deleting cron job")
             if delete_response
-            else "Delete cron handler failed unexpectedly"
+            else "Delete cron api failed unexpectedly"
         )
         logger.error(f"API Delete Cron Job failed: {error_message}")
         if not delete_response:
@@ -360,11 +367,9 @@ def schedule_tasks_windows_route(server_name):
         return redirect(url_for("main_routes.index"))  # Redirect away if not Windows
 
     # Get task names associated with this server from the config directory
-    logger.debug(f"Calling get_server_task_names_handler for '{server_name}'...")
-    task_names_response = handlers.get_server_task_names_handler(
-        server_name, config_dir
-    )
-    logger.debug(f"Get task names handler response: {task_names_response}")
+    logger.debug(f"Calling get_server_task_names for '{server_name}'...")
+    task_names_response = task_scheduler.get_server_task_names(server_name, config_dir)
+    logger.debug(f"Get task names api response: {task_names_response}")
 
     tasks = []  # Default empty list for template
     if task_names_response["status"] == "error":
@@ -372,19 +377,17 @@ def schedule_tasks_windows_route(server_name):
         flash(error_msg, "error")
         logger.error(error_msg)
     else:
-        # Extract just the names from the handler response (which might include paths)
+        # Extract just the names from the api response (which might include paths)
         task_names = [task[0] for task in task_names_response.get("task_names", [])]
         logger.debug(
             f"Found {len(task_names)} task names associated with '{server_name}': {task_names}"
         )
 
         if task_names:
-            # Get detailed information for these tasks using the handler
-            logger.debug(
-                f"Calling get_windows_task_info_handler for tasks: {task_names}..."
-            )
-            task_info_response = handlers.get_windows_task_info_handler(task_names)
-            logger.debug(f"Get task info handler response: {task_info_response}")
+            # Get detailed information for these tasks using the api
+            logger.debug(f"Calling get_windows_task_info for tasks: {task_names}...")
+            task_info_response = task_scheduler.get_windows_task_info(task_names)
+            logger.debug(f"Get task info api response: {task_info_response}")
 
             if task_info_response["status"] == "error":
                 error_msg = f"Error retrieving task details for '{server_name}': {task_info_response.get('message', 'Unknown error')}"
@@ -412,7 +415,8 @@ def schedule_tasks_windows_route(server_name):
 
 # --- API Route: Add Windows Task ---
 @schedule_tasks_bp.route("/api/server/<server_name>/tasks/add", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def add_windows_task_api(server_name):
     """API endpoint to add a new Windows scheduled task."""
     logger.info(f"API POST request received for /api/server/{server_name}/tasks/add")
@@ -526,12 +530,10 @@ def add_windows_task_api(server_name):
         f"API Add Windows Task: Determined args='{command_args}', task_name='{task_name}'"
     )
 
-    # --- Call handler to create the task ---
-    logger.info(
-        f"Calling create_windows_task_handler for task '{task_name}' via API..."
-    )
+    # --- Call api to create the task ---
+    logger.info(f"Calling create_windows_task for task '{task_name}' via API...")
     try:
-        result = handlers.create_windows_task_handler(
+        result = task_scheduler.create_windows_task(
             server_name=server_name,
             command=command,  # Base command name
             command_args=command_args,  # Generated arguments
@@ -540,14 +542,14 @@ def add_windows_task_api(server_name):
             triggers=triggers,  # Pass the list of trigger dicts directly
             base_dir=base_dir,
         )
-        logger.debug(f"Create task handler result: {result}")
+        logger.debug(f"Create task api result: {result}")
 
-    except InvalidInputError as e:  # Catch specific validation errors from handler/core
+    except InvalidInputError as e:  # Catch specific validation errors from api/core
         logger.warning(f"Invalid input during task creation for '{task_name}': {e}")
         return jsonify({"status": "error", "message": str(e)}), 400
-    except Exception as e:  # Catch unexpected errors during handler execution
+    except Exception as e:  # Catch unexpected errors during api execution
         logger.exception(
-            f"Unexpected error during create_windows_task_handler call for '{task_name}': {e}"
+            f"Unexpected error during create_windows_task call for '{task_name}': {e}"
         )
         return (
             jsonify(
@@ -559,25 +561,25 @@ def add_windows_task_api(server_name):
             500,
         )
 
-    # --- Return JSON Response based on handler result ---
+    # --- Return JSON Response based on api result ---
     if result and result.get("status") == "success":
         status_code = 201  # HTTP 201 Created is appropriate for successful creation
         logger.info(f"Windows task '{task_name}' added successfully via API.")
         if (
             "message" not in result
-        ):  # Add a default success message if handler doesn't provide one
+        ):  # Add a default success message if api doesn't provide one
             result["message"] = f"Task '{task_name}' created successfully."
         # Optionally include the created task name or details in the response body
         result["created_task_name"] = task_name
         return jsonify(result), status_code
     else:
-        status_code = 500  # Default Internal Server Error for handler failure
+        status_code = 500  # Default Internal Server Error for api failure
         logger.error(
-            f"API Add Windows Task failed for '{task_name}': {result.get('message', 'Unknown handler error')}"
+            f"API Add Windows Task failed for '{task_name}': {result.get('message', 'Unknown api error')}"
         )
-        # Ensure result is a dict even if handler failed unexpectedly
+        # Ensure result is a dict even if api failed unexpectedly
         if not isinstance(result, dict):
-            result = {"status": "error", "message": "Handler failed unexpectedly."}
+            result = {"status": "error", "message": "api failed unexpectedly."}
         elif "status" not in result:
             result["status"] = "error"
         return jsonify(result), status_code
@@ -587,7 +589,7 @@ def add_windows_task_api(server_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/details/<path:task_name>", methods=["GET"]
 )
-@login_required
+@auth_required
 def get_windows_task_details_api(server_name, task_name):
     """API endpoint to get details for a specific Windows scheduled task by parsing its XML config."""
     logger.info(
@@ -614,12 +616,10 @@ def get_windows_task_details_api(server_name, task_name):
         logger.warning(f"API Get Windows Task Details request: Missing task name.")
         return jsonify({"status": "error", "message": "Task name is required."}), 400
 
-    # --- Find the task file path using the HANDLER ---
+    # --- Find the task file path using the api ---
     task_file_path = None
     try:
-        task_list_result = handlers.get_server_task_names_handler(
-            server_name, config_dir
-        )
+        task_list_result = task_scheduler.get_server_task_names(server_name, config_dir)
         if task_list_result and task_list_result.get("status") == "success":
             task_names_with_paths = task_list_result.get("task_names", [])
             for name, path in task_names_with_paths:
@@ -651,31 +651,31 @@ def get_windows_task_details_api(server_name, task_name):
             500,
         )
 
-    # --- Call the ENHANCED details handler ---
+    # --- Call the ENHANCED details api ---
     logger.debug(
-        f"Calling handler 'get_windows_task_details_handler' for task '{task_name}' (path: {task_file_path})..."
+        f"Calling api 'get_windows_task_details' for task '{task_name}' (path: {task_file_path})..."
     )
     try:
-        # This handler now returns more details including base_command and structured triggers
-        result = handlers.get_windows_task_details_handler(task_file_path)
-    except Exception as handler_ex:
+        # This api now returns more details including base_command and structured triggers
+        result = task_scheduler.get_windows_task_details(task_file_path)
+    except Exception as api_ex:
         logger.exception(
-            f"Unexpected error calling get_windows_task_details_handler for path '{task_file_path}': {handler_ex}"
+            f"Unexpected error calling get_windows_task_details for path '{task_file_path}': {api_ex}"
         )
         return (
             jsonify(
                 {
                     "status": "error",
-                    "message": "Unexpected error retrieving task details from handler.",
+                    "message": "Unexpected error retrieving task details from api.",
                 }
             ),
             500,
         )
 
-    # --- Process handler result ---
+    # --- Process api result ---
     if result and result.get("status") == "success":
         logger.debug(
-            f"Successfully retrieved details for task '{task_name}' via API handler."
+            f"Successfully retrieved details for task '{task_name}' via API api."
         )
         task_details = result.get("task_details", {})  # Get the nested details dict
         # Ensure the status is included in the final response for consistency
@@ -686,13 +686,13 @@ def get_windows_task_details_api(server_name, task_name):
         return jsonify(response_data), 200  # OK
     else:
         logger.error(
-            f"API Get Windows Task Details failed for '{task_name}'. Handler message: {result.get('message')}"
+            f"API Get Windows Task Details failed for '{task_name}'. api message: {result.get('message')}"
         )
         status_code = 404 if "not found" in result.get("message", "").lower() else 500
         if not isinstance(result, dict):
             result = {
                 "status": "error",
-                "message": "Handler returned unexpected result.",
+                "message": "api returned unexpected result.",
             }
         elif "status" not in result:
             result["status"] = "error"
@@ -703,7 +703,8 @@ def get_windows_task_details_api(server_name, task_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/modify/<path:task_name>", methods=["PUT"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def modify_windows_task_api(server_name, task_name):
     """
     API endpoint to modify an existing Windows scheduled task.
@@ -810,13 +811,13 @@ def modify_windows_task_api(server_name, task_name):
         f"API Modify Windows Task: OldName='{task_name}', Generated NewName='{new_task_name}'"
     )
 
-    # --- Call the modify handler ---
+    # --- Call the modify api ---
     # Pass the OLD name, the NEW desired state (command, args, triggers), and the NEW name
     logger.info(
-        f"Calling modify_windows_task_handler for old task '{task_name}', new task '{new_task_name}' via API..."
+        f"Calling modify_windows_task for old task '{task_name}', new task '{new_task_name}' via API..."
     )
     try:
-        result = handlers.modify_windows_task_handler(
+        result = task_scheduler.modify_windows_task(
             old_task_name=task_name,  # Original task name from URL
             server_name=server_name,  # Server context
             command=command,  # NEW desired command from JSON
@@ -826,16 +827,16 @@ def modify_windows_task_api(server_name, task_name):
             triggers=triggers,  # NEW trigger definitions from JSON
             base_dir=base_dir,
         )
-        logger.debug(f"Modify task handler result: {result}")
+        logger.debug(f"Modify task api result: {result}")
 
     except InvalidInputError as e:
         logger.warning(
-            f"Invalid input during task modification handler for '{task_name}': {e}"
+            f"Invalid input during task modification api for '{task_name}': {e}"
         )
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         logger.exception(
-            f"Unexpected error during modify_windows_task_handler call for '{task_name}': {e}"
+            f"Unexpected error during modify_windows_task call for '{task_name}': {e}"
         )
         return (
             jsonify(
@@ -847,7 +848,7 @@ def modify_windows_task_api(server_name, task_name):
             500,
         )
 
-    # --- Return JSON Response based on handler result ---
+    # --- Return JSON Response based on api result ---
     if result and result.get("status") == "success":
         status_code = 200  # OK
         logger.info(
@@ -862,10 +863,10 @@ def modify_windows_task_api(server_name, task_name):
     else:
         status_code = 500  # Default Internal Server Error
         logger.error(
-            f"API Modify Windows Task failed for '{task_name}'. Handler message: {result.get('message', 'Unknown handler error')}"
+            f"API Modify Windows Task failed for '{task_name}'. api message: {result.get('message', 'Unknown api error')}"
         )
         if not isinstance(result, dict):
-            result = {"status": "error", "message": "Handler failed unexpectedly."}
+            result = {"status": "error", "message": "api failed unexpectedly."}
         elif "status" not in result:
             result["status"] = "error"
         return jsonify(result), status_code
@@ -875,7 +876,8 @@ def modify_windows_task_api(server_name, task_name):
 @schedule_tasks_bp.route(
     "/api/server/<server_name>/tasks/delete/<path:task_name>", methods=["DELETE"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def delete_windows_task_api(server_name, task_name):
     """API endpoint to delete an existing Windows scheduled task."""
     logger.info(
@@ -909,7 +911,7 @@ def delete_windows_task_api(server_name, task_name):
     # --- Find the task file path ---
     task_file_path = None
     # Use the api to find the path
-    get_names_result = handlers.get_server_task_names_handler(server_name, config_dir)
+    get_names_result = task_scheduler.get_server_task_names(server_name, config_dir)
     if get_names_result["status"] == "success":
         task_names_with_paths = get_names_result["task_names"]
 
@@ -929,18 +931,18 @@ def delete_windows_task_api(server_name, task_name):
 
     # --- End Find Path ---
 
-    # Call the handler
-    logger.debug("Calling delete_windows_task_handler...")
+    # Call the api
+    logger.debug("Calling delete_windows_task...")
     logger.info(task_file_path)
-    result = handlers.delete_windows_task_handler(
+    result = task_scheduler.delete_windows_task(
         task_name, task_file_path
     )  # Pass name and potentially None path
-    logger.debug(f"Delete task handler result: {result}")
+    logger.debug(f"Delete task api result: {result}")
 
     if result["status"] == "error":
         status_code = 500
         logger.error(
-            f"API Delete Windows Task failed for '{task_name}': {result.get('message', 'Unknown handler error')}"
+            f"API Delete Windows Task failed for '{task_name}': {result.get('message', 'Unknown api error')}"
         )
         return jsonify(result), status_code
     else:

@@ -5,11 +5,20 @@ import re
 import platform
 import logging
 import json
-from bedrock_server_manager import handlers
+from bedrock_server_manager.api import server
+from bedrock_server_manager.api import server_install_config
+from bedrock_server_manager.api import player
+from bedrock_server_manager.api import system
+from bedrock_server_manager.api import utils
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings, app_name
 from bedrock_server_manager.core.server import server as server_base
-from bedrock_server_manager.web.routes.auth_routes import login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
+
 
 # Initialize logger for this module
 logger = logging.getLogger("bedrock_server_manager")
@@ -32,7 +41,8 @@ def install_server_route():
 
 # --- API Route: Install Server ---
 @server_install_config_bp.route("/api/server/install", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def install_server_api_route():
     """API endpoint to handle the server installation process."""
     logger.info("API POST request received to install a new server.")
@@ -90,8 +100,8 @@ def install_server_api_route():
     server_name = server_name.strip()  # Use trimmed name
 
     # --- Server Name Format Validation ---
-    logger.debug(f"Calling validate_server_name_format_handler for '{server_name}'...")
-    validation_result = handlers.validate_server_name_format_handler(server_name)
+    logger.debug(f"Calling validate_server_name_format for '{server_name}'...")
+    validation_result = utils.validate_server_name_format(server_name)
     if validation_result["status"] == "error":
         error_msg = f"Server name validation failed: {validation_result.get('message', 'Invalid format')}"
         logger.warning(f"API Install Server: {error_msg}")
@@ -136,11 +146,9 @@ def install_server_api_route():
         # If overwrite is requested (and server exists), delete existing data first
         if server_exists and overwrite:
             logger.info(
-                f"Overwrite confirmed for '{server_name}'. Calling delete_server_data_handler..."
+                f"Overwrite confirmed for '{server_name}'. Calling delete_server_data..."
             )
-            delete_result = handlers.delete_server_data_handler(
-                server_name, base_dir, config_dir
-            )
+            delete_result = server.delete_server_data(server_name, base_dir, config_dir)
             logger.debug(f"Delete handler result for '{server_name}': {delete_result}")
             # If deletion fails, report the error immediately
             if delete_result["status"] == "error":
@@ -151,9 +159,9 @@ def install_server_api_route():
 
         # Perform the actual installation (for new server or after successful delete)
         logger.info(
-            f"Calling install_new_server_handler for '{server_name}' (Version: {server_version})..."
+            f"Calling install_new_server for '{server_name}' (Version: {server_version})..."
         )
-        install_result = handlers.install_new_server_handler(
+        install_result = server_install_config.install_new_server(
             server_name, server_version, base_dir, config_dir
         )
         logger.debug(f"Install handler result for '{server_name}': {install_result}")
@@ -236,8 +244,10 @@ def configure_properties_route(server_name):
     )
 
     # Read current properties using the handler
-    logger.debug(f"Calling read_server_properties_handler for '{server_name}'...")
-    properties_response = handlers.read_server_properties_handler(server_name, base_dir)
+    logger.debug(f"Calling read_server_properties for '{server_name}'...")
+    properties_response = server_install_config.read_server_properties(
+        server_name, base_dir
+    )
 
     # Handle errors from the properties reading handler
     if properties_response["status"] == "error":
@@ -269,14 +279,14 @@ def configure_properties_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/properties", methods=["POST"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def configure_properties_api_route(server_name):
     """API endpoint to validate and update server.properties."""
     logger.info(
         f"API POST request received to configure properties for server: '{server_name}'."
     )
     base_dir = get_base_dir()
-    # Note: config_dir isn't directly used here but might be needed if handlers change
     config_dir = settings.get("CONFIG_DIR")
     logger.debug(f"Base directory: {base_dir}, Config directory: {config_dir}")
 
@@ -347,7 +357,9 @@ def configure_properties_api_route(server_name):
 
         # --- Call Validation Handler ---
         logger.debug(f"Validating property: {key}='{value_str}'...")
-        validation_response = handlers.validate_property_value_handler(key, value_str)
+        validation_response = server_install_config.validate_server_property_value(
+            key, value_str
+        )
         if validation_response["status"] == "error":
             error_msg = validation_response.get("message", f"Invalid value for {key}")
             logger.warning(f"API Validation error for {key}='{value_str}': {error_msg}")
@@ -394,10 +406,10 @@ def configure_properties_api_route(server_name):
 
     # Call the handler to write the validated properties to the file
     logger.info(
-        f"Calling modify_server_properties_handler for '{server_name}' with validated properties..."
+        f"Calling modify_server_properties for '{server_name}' with validated properties..."
     )
     logger.debug(f"Properties to update: {properties_to_update}")
-    modify_response = handlers.modify_server_properties_handler(
+    modify_response = server_install_config.modify_server_properties(
         server_name, properties_to_update, base_dir
     )
     logger.debug(
@@ -445,11 +457,9 @@ def configure_allowlist_route(server_name):
     )
 
     # Call handler to get existing players from allowlist.json
-    logger.debug(
-        f"Calling configure_allowlist_handler (read mode) for '{server_name}'..."
-    )
+    logger.debug(f"Calling configure_allowlist (read mode) for '{server_name}'...")
     # Calling with new_players_data=None makes it read the existing list
-    result = handlers.configure_allowlist_handler(
+    result = server_install_config.configure_allowlist(
         server_name, base_dir, new_players_data=None
     )
 
@@ -478,7 +488,8 @@ def configure_allowlist_route(server_name):
 
 # --- API Route: Save Allowlist (used during initial setup or full replacement) ---
 @server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def save_allowlist_api_route(server_name):
     """API endpoint to SAVE/REPLACE the server allowlist (typically used during initial setup)."""
     # This differs from the ADD route; it replaces the list.
@@ -554,22 +565,22 @@ def save_allowlist_api_route(server_name):
     )
 
     # Format data for the handler (expects list of dicts)
-    new_players_data_for_handler = [
+    new_players_data_for = [
         {"name": name, "ignoresPlayerLimit": ignore_limit}
         for name in valid_player_names
     ]
     logger.debug(
-        f"Data formatted for configure_allowlist_handler (save mode): {new_players_data_for_handler}"
+        f"Data formatted for configure_allowlist (save mode): {new_players_data_for}"
     )
 
     # Call the handler to save/replace the players
     # The handler needs logic to differentiate between ADD and REPLACE. Assuming it handles this based on some implicit logic or if called differently.
-    # For clarity, let's assume the handler `configure_allowlist_handler` replaces the list when called via POST to `/api/server/<name>/allowlist`
+    # For clarity, let's assume the handler `configure_allowlist` replaces the list when called via POST to `/api/server/<name>/allowlist`
     # and adds when called via POST to `/api/server/<name>/allowlist/add`.
     # We might need a dedicated handler or a flag in the existing one.
-    # RETHINK: The original code only had one `configure_allowlist_handler`. Let's assume it *replaces* the list by default when `new_players_data` is provided.
-    result = handlers.configure_allowlist_handler(
-        server_name, base_dir, new_players_data=new_players_data_for_handler
+    # RETHINK: The original code only had one `configure_allowlist`. Let's assume it *replaces* the list by default when `new_players_data` is provided.
+    result = server_install_config.configure_allowlist(
+        server_name, base_dir, new_players_data=new_players_data_for
     )
     logger.debug(f"Save allowlist handler response for '{server_name}': {result}")
 
@@ -613,7 +624,8 @@ def save_allowlist_api_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/allowlist/add", methods=["POST"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def add_allowlist_players_api_route(server_name):
     """API endpoint to ADD players to the server allowlist."""
     logger.info(
@@ -698,22 +710,22 @@ def add_allowlist_players_api_route(server_name):
     )
 
     # Format data for the handler (expects list of dicts)
-    new_players_data_for_handler = [
+    new_players_data_for = [
         {"name": name, "ignoresPlayerLimit": ignore_limit}
         for name in valid_player_names
     ]
     logger.debug(
-        f"Data formatted for configure_allowlist_handler (add mode): {new_players_data_for_handler}"
+        f"Data formatted for configure_allowlist (add mode): {new_players_data_for}"
     )
 
     # Call the handler to add/update players
     # Assuming the handler merges the new players with existing ones when called via this '/add' route.
     # This might require modification of the handler or a new dedicated handler.
-    # For now, let's assume `configure_allowlist_handler` can handle merging based on some internal logic (e.g., reading first then writing combined list).
-    result = handlers.configure_allowlist_handler(
+    # For now, let's assume `configure_allowlist` can handle merging based on some internal logic (e.g., reading first then writing combined list).
+    result = server_install_config.configure_allowlist(
         server_name,
         base_dir,
-        new_players_data=new_players_data_for_handler,
+        new_players_data=new_players_data_for,
     )
     logger.debug(f"Add allowlist handler response for '{server_name}': {result}")
 
@@ -758,7 +770,8 @@ def add_allowlist_players_api_route(server_name):
 
 # --- API Route: Get Allowlist ---
 @server_install_config_bp.route("/api/server/<server_name>/allowlist", methods=["GET"])
-@login_required
+@csrf.exempt
+@auth_required
 def get_allowlist_api_route(server_name):
     """API endpoint to retrieve the current server allowlist."""
     logger.info(f"API GET request received for allowlist for server: '{server_name}'.")
@@ -766,10 +779,8 @@ def get_allowlist_api_route(server_name):
     logger.debug(f"Base directory: {base_dir}")
 
     # Call the handler in read mode (new_players_data=None)
-    logger.debug(
-        f"Calling configure_allowlist_handler (read mode) for '{server_name}'..."
-    )
-    result = handlers.configure_allowlist_handler(
+    logger.debug(f"Calling configure_allowlist (read mode) for '{server_name}'...")
+    result = server_install_config.configure_allowlist(
         server_name, base_dir, new_players_data=None
     )
     logger.debug(f"Get allowlist handler response for '{server_name}': {result}")
@@ -826,11 +837,9 @@ def configure_permissions_route(server_name):
     )
 
     # Get known players (e.g., from players.json or potentially allowlist.json for names)
-    # Using get_players_from_json_handler for consistency with previous logic
-    logger.debug(
-        "Calling get_players_from_json_handler to get known player names/xuids..."
-    )
-    players_response = handlers.get_players_from_json_handler()
+    # Using get_players_from_json for consistency with previous logic
+    logger.debug("Calling get_players_from_json to get known player names/xuids...")
+    players_response = player.get_players_from_json()
     players = []  # Default list of player dicts {'name': ..., 'xuid': ...}
     if players_response["status"] == "error":
         # Log warning but don't necessarily block page load, just show XUIDs
@@ -906,7 +915,8 @@ def configure_permissions_route(server_name):
 @server_install_config_bp.route(
     "/api/server/<server_name>/permissions", methods=["PUT"]
 )
-@login_required
+@csrf.exempt
+@auth_required
 def configure_permissions_api_route(server_name):
     """API endpoint to update player permissions using PUT (replaces permissions for submitted players)."""
     # PUT is appropriate here as the frontend sends the complete desired state for players it knows about.
@@ -1011,7 +1021,7 @@ def configure_permissions_api_route(server_name):
     # This might be slightly inefficient if the handler could work without names,
     # but adapting to the existing handler structure.
     logger.debug("Fetching player names map...")
-    players_response = handlers.get_players_from_json_handler()
+    players_response = player.get_players_from_json()
     player_name_map = {}  # Map xuid to name
     if players_response["status"] == "success":
         player_name_map = {
@@ -1041,12 +1051,12 @@ def configure_permissions_api_route(server_name):
         # Get name from map or use placeholder
         player_name = player_name_map.get(xuid, f"Unknown (XUID: {xuid})")
         logger.debug(
-            f"Calling configure_player_permission_handler for Player: '{player_name}' (XUID: {xuid}), Level: '{level}'..."
+            f"Calling configure_player_permission for Player: '{player_name}' (XUID: {xuid}), Level: '{level}'..."
         )
 
         # Call the handler that updates permissions.json for a single player
         # NOTE: Assumes this handler correctly reads, updates, and writes permissions.json
-        result = handlers.configure_player_permission_handler(
+        result = server_install_config.configure_player_permission(
             server_name=server_name,
             xuid=xuid,
             player_name=player_name,  # Pass name even if placeholder
@@ -1082,7 +1092,7 @@ def configure_permissions_api_route(server_name):
                 {
                     "status": "error",
                     "message": error_summary,
-                    "errors": handler_errors,  # Map of xuid: error message from handlers
+                    "errors": handler_errors,  # Map of xuid: error message from api
                 }
             ),
             500,  # Internal Server Error because one or more handler actions failed
@@ -1126,16 +1136,9 @@ def configure_service_route(server_name):
 
     # Load current settings based on OS
     if current_os == "Linux":
-        # For Linux, systemd service might not directly store these in simple config.
-        # The handler `create_systemd_service_handler` creates/updates the service file.
-        # We might need a way to *read* the current state if we want to pre-populate accurately,
-        # but for now, we'll just show the form elements with defaults.
-        # TODO: Implement a handler to read current systemd service settings if needed for accurate display.
         logger.debug(
             "Preparing to render configure_service.html for Linux (defaults will be shown in form)."
         )
-        # template_data['autoupdate'] = handlers.get_systemd_setting(server_name, 'autoupdate') # Hypothetical getter
-        # template_data['autostart'] = handlers.get_systemd_setting(server_name, 'autostart') # Hypothetical getter
 
     elif current_os == "Windows":
         # For Windows, read the 'autoupdate' setting from the server's config file
@@ -1170,7 +1173,8 @@ def configure_service_route(server_name):
 
 # --- API Route: Configure Service ---
 @server_install_config_bp.route("/api/server/<server_name>/service", methods=["POST"])
-@login_required
+@csrf.exempt
+@auth_required
 def configure_service_api_route(server_name):
     """API endpoint to configure OS-specific service settings."""
     logger.info(
@@ -1228,9 +1232,9 @@ def configure_service_api_route(server_name):
 
         # Call the systemd handler
         logger.info(
-            f"Calling create_systemd_service_handler for '{server_name}' (Update={autoupdate}, Start={autostart})..."
+            f"Calling create_systemd_service for '{server_name}' (Update={autoupdate}, Start={autostart})..."
         )
-        result = handlers.create_systemd_service_handler(
+        result = system.create_systemd_service(
             server_name, base_dir, autoupdate, autostart
         )
         logger.debug(f"Systemd handler result: {result}")
@@ -1259,11 +1263,9 @@ def configure_service_api_route(server_name):
         # Call the Windows autoupdate handler (expects "true" or "false" string)
         autoupdate_str = "true" if autoupdate else "false"
         logger.info(
-            f"Calling set_windows_autoupdate_handler for '{server_name}' (Update={autoupdate_str})..."
+            f"Calling set_windows_autoupdate for '{server_name}' (Update={autoupdate_str})..."
         )
-        result = handlers.set_windows_autoupdate_handler(
-            server_name, autoupdate_str, config_dir
-        )
+        result = system.set_windows_autoupdate(server_name, autoupdate_str, config_dir)
         logger.debug(f"Windows autoupdate handler result: {result}")
         status_code = 200 if result and result.get("status") == "success" else 500
 

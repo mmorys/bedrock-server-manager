@@ -119,7 +119,7 @@ function promptCommand(buttonElement) {
 
     // Call the generic action helper with the 'send' action and command in the body
     console.log(`Sending command "${trimmedCommand}" to server: ${serverName}`);
-    sendServerActionRequest(serverName, 'send', 'POST', { command: trimmedCommand }, buttonElement);
+    sendServerActionRequest(serverName, 'send_command', 'POST', { command: trimmedCommand }, buttonElement);
 }
 
 /**

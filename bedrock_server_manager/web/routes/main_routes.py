@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 import os
 import logging
-from bedrock_server_manager import handlers
+from bedrock_server_manager.api import utils
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import app_name, settings
 from bedrock_server_manager.web.routes.auth_routes import login_required
@@ -25,7 +25,7 @@ def index():
 
     # Get status for all servers using the handler
     logger.debug("Calling get_all_servers_status_handler...")
-    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    status_response = utils.get_all_servers_status(base_dir=base_dir)
 
     if status_response["status"] == "error":
         # Flash an error message if the handler failed
@@ -53,7 +53,7 @@ def manage_server_route():
 
     # Get status for all servers to list them
     logger.debug("Calling get_all_servers_status_handler...")
-    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    status_response = utils.get_all_servers_status(base_dir=base_dir)
 
     if status_response["status"] == "error":
         # Flash an error message if the handler failed
@@ -83,7 +83,7 @@ def advanced_menu_route():
 
     # Get status for all servers to populate the dropdown/list
     logger.debug("Calling get_all_servers_status_handler...")
-    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    status_response = utils.get_all_servers_status(base_dir=base_dir)
 
     if status_response["status"] == "error":
         # Flash an error message if the handler failed
@@ -115,7 +115,7 @@ def install_content_menu_route():
 
     # Get server list for the dropdown selector
     logger.debug("Calling get_all_servers_status_handler for server list...")
-    status_response = handlers.get_all_servers_status_handler(base_dir=base_dir)
+    status_response = utils.get_all_servers_status(base_dir=base_dir)
 
     if status_response["status"] == "error":
         error_msg = f"Error retrieving server list for content installation menu: {status_response.get('message', 'Unknown error')}"
