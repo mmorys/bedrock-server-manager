@@ -187,31 +187,59 @@ def is_server_running(server_name, base_dir):
 
     elif platform.system() == "Windows":
         try:
-            for proc in psutil.process_iter(["pid", "name", "cmdline", "cwd"]):
+            # Construct the expected full path to the target executable
+            target_exe_path = os.path.join(base_dir, server_name, "bedrock_server.exe")
+
+
+            normalized_target_exe = os.path.normcase(os.path.abspath(target_exe_path))
+            logger.debug(f"Looking for server {server_name} with normalized executable path: {normalized_target_exe}")
+
+            found_matching_process = False
+            # Add 'exe' to the attributes we fetch
+            for proc in psutil.process_iter(["pid", "name", "exe"]):
                 try:
-                    if (
-                        proc.info["name"] == "bedrock_server.exe"
-                        and proc.info["cwd"]
-                        and base_dir.lower() in proc.info["cwd"].lower()
-                    ):
-                        logger.debug(
-                            f"Server {server_name} running: True (Windows - process found)"
-                        )
-                        return True
+                    proc_info = proc.info
+                    # Check name first (quick filter)
+                    if proc_info["name"] == "bedrock_server.exe":
+                        proc_exe = proc_info["exe"]
+                        # Check if executable path is available and not empty
+                        if proc_exe:
+                            # Normalize the process's executable path for comparison
+                            normalized_proc_exe = os.path.normcase(os.path.abspath(proc_exe))
+
+                            # --- Crucial Change: Compare normalized executable paths ---
+                            if normalized_proc_exe == normalized_target_exe:
+                                logger.debug(
+                                    f"Server {server_name} running: True (Windows - process {proc.pid} found with matching executable path: {normalized_proc_exe})"
+                                )
+                                found_matching_process = True
+                                break # Found the specific server, no need to check further
+
                 except (
                     psutil.NoSuchProcess,
-                    psutil.AccessDenied,
+                    psutil.AccessDenied, # Might occur when trying to access proc_info['exe']
                     psutil.ZombieProcess,
                 ):
+                    # Process might have terminated, access denied, or is a zombie
+                    # Ignore and continue checking other processes
                     pass
-            logger.debug(
-                f"Server {server_name} running: False (Windows - process not found)"
-            )
-            return False
-        except Exception as e:
-            logger.error(f"Error checking process: {e}")
-            return False
+                except Exception as proc_err:
+                     # Log error accessing specific process info but continue iterating
+                     logger.warning(f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}")
 
+
+            if found_matching_process:
+                return True
+            else:
+                logger.debug(
+                   f"Server {server_name} running: False (Windows - no bedrock_server.exe process found with executable path exactly matching {normalized_target_exe})"
+                )
+                return False
+
+        except Exception as e:
+            # General error during process iteration
+            logger.error(f"Error checking processes on Windows: {e}")
+            return False
     else:
         logger.error("Unsupported operating system for running check.")
         return False
