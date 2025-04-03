@@ -1,5 +1,5 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/main_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
 import os
 import platform
 import logging
