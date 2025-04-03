@@ -1,43 +1,64 @@
-/* bedrock-server-manager/bedrock_server_manager/bedrock_server_manager/web/static/css/messages.css */
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/messages.css */
 
+/* Base Message Box Styling (Common Ore UI Styles) */
 .message-box {
-    background-color: #4CAF50;  /* Brighter, more saturated green - adjust as needed */
-    color: #fff;               /* White text for better contrast */
-    padding: 10px 15px;       /* Slightly adjusted padding */
-    margin-bottom: 20px;     /* Increased bottom margin for better spacing */
-    border-width: 2px;       /* 2px border */
+    color: #eee;               /* Default light text */
+    padding: 12px 18px;       /* Generous padding */
+    margin-bottom: 20px;
+    border-width: 1px;        /* Subtle, uniform border */
     border-style: solid;
-    border-top-color: #90EE90;    /* Light green top border for highlight */
-    border-left-color: #90EE90;   /* Light green left border for highlight */
-    border-bottom-color: #006400; /* Dark green bottom border for shadow */
-    border-right-color: #006400;  /* Dark green right border for shadow */
-    border-radius: 0;          /* Sharp corners */
-    text-shadow: 1px 1px 0 #224422; /* Subtle text shadow */
-    /* Optional: Add a box-shadow if you want more 3D effect */
-    box-shadow: 2px 2px 0 #336633;
-    font-weight: bold;
+    border-radius: 0;         /* Sharp corners */
+    font-weight: 600;         /* Slightly bold */
+    font-size: 0.95em;        /* Consistent font size */
+    line-height: 1.5;         /* Good line spacing */
+    box-sizing: border-box;
+    font-family: inherit;     /* Use body font */
+
+    /* --- REMOVE Old Styles --- */
+    text-shadow: none;
+    box-shadow: none;
+    /* Different border sides removed by setting a uniform border below */
 }
 
-/* Style for error messages */
+/* Default/Success Style (Green) */
+.message-box { /* Apply default green style to base .message-box */
+    background-color: #388E3C; /* Darker green background */
+    border-color: #4CAF50;     /* Medium green border */
+    color: #E0F2E9;            /* Off-white/greenish text */
+}
+
+/* Style for Error Messages (Red) */
 .message-error {
-    background-color: #f44336; /* Red background for errors */
-    border-top-color: #ff9898;      /* Light red highlight - Top */
-    border-left-color: #ff9898;     /* Light red highlight - Left */
-    border-bottom-color: #800000;   /* dark red shadow - Bottom */
-    border-right-color: #800000;    /* dark red shadow - Right */
+    background-color: #b72b27; /* Darker red background */
+    border-color: #d9534f;     /* Medium red border */
+    color: #FFEBEE;            /* Off-white/reddish text */
 }
 
-.message-box {
-     padding: 8px;
-     font-size: .9em;
-}
-
+/* Style for Warning Messages (Orange) */
 .message-warning {
-    background-color: #ff9800; /* Orange background for warnings */
-    border-top-color: #ffe0b2;    /* Light orange highlight */
-    border-left-color: #ffe0b2;   /* Light orange highlight */
-    border-bottom-color: #e65100;  /* Dark orange shadow */
-    border-right-color: #e65100;   /* Dark orange shadow */
-    color: #000;                 /* Black text for better contrast */
-    text-shadow: 1px 1px 0 #cc7a00; /* Darker orange text shadow */
+    background-color: #FFA000; /* Darker orange background */
+    border-color: #FFB74D;     /* Medium orange border */
+    color: #212121;            /* Dark text for contrast */
+}
+
+
+/* --- Mobile Adjustments (Simplified) --- */
+@media (max-width: 768px) {
+    .message-box,
+    .message-error,
+    .message-warning {
+        padding: 10px 15px;     /* Slightly reduce padding */
+        margin-bottom: 15px;
+    }
+}
+
+
+@media (max-width: 480px) {
+    .message-box,
+    .message-error,
+    .message-warning {
+        padding: 8px 12px;      /* Further reduce padding */
+        margin-bottom: 12px;
+        font-size: 0.9em;       /* Slightly smaller font */
+    }
 }

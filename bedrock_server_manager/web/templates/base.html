@@ -1,0 +1,78 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}{{ app_name | default('Bedrock Server Manager') }}{% endblock %}</title>
+
+    {# Favicons / Icons #}
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
+    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
+
+    {# Core CSS #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tabs.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+
+    {# Page-specific CSS Block #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
+
+    {# Global JS (if any) #}
+    {# <script src="{{ url_for('static', filename='js/global.js') }}" defer></script> #}
+
+    {# Page-specific JS Block (use defer for performance) #}
+    {% block head_scripts %}{% endblock %}
+
+</head>
+<body>
+    <div class="container"> {# Main site container from base.css #}
+        <header class="header">
+            <a href="{{ url_for('main_routes.index') }}" class="header-link">
+                <img src="{{ url_for('static', filename='image/icon/favicon.svg') }}" alt="{{ app_name | default('Bedrock Server Manager') }} Logo" class="header-logo">
+                 {# Use Jinja variable passed from Flask/Django or hardcode #}
+                <h1>{{ app_name | default('Bedrock Server Manager') }}</h1>
+                 {# Optional: Add navigation links here if needed #}
+            </a>
+        </header>
+
+        <main>
+            {# Flash Messages Area - Position where you want messages displayed #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        {# Map categories (e.g., 'success', 'error') to CSS classes #}
+                        {% set css_class = 'message-box' %}
+                        {% if category == 'error' %}
+                            {% set css_class = 'message-box message-error' %}
+                        {% elif category == 'warning' %}
+                            {% set css_class = 'message-box message-warning' %}
+                        {% endif %}
+                        <div class="{{ css_class }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {# Main content block for specific pages #}
+            {% block content %}{% endblock %}
+        </main>
+
+        {# Optional Footer #}
+        {# <footer class="footer">
+            <p>© {{ current_year }} Your Name/Company</p>
+        </footer> #}
+
+    </div> {# End of .container #}
+
+    {# Page-specific JS at end of body (optional) #}
+    {% block body_scripts %}{% endblock %}
+</body>
+</html>

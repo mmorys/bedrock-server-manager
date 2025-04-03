@@ -1,0 +1,157 @@
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/controls.css */
+
+/* --- Segmented Controls --- */
+.segmented-control {
+    display: inline-flex; /* Use flex to connect buttons */
+    border: 1px solid #555;
+    border-radius: 0;
+    overflow: hidden; /* Clip corners if any (should be none) */
+}
+
+.segmented-control .segment {
+    /* Reset button defaults */
+    appearance: none;
+    border: none;
+    border-right: 1px solid #555; /* Separator between segments */
+    margin: 0;
+    padding: 7px 14px; /* Adjust padding as needed */
+    background-color: #505050; /* Inactive background */
+    color: #ccc; /* Inactive text */
+    font-family: inherit;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    line-height: 1.4;
+}
+
+.segmented-control .segment:last-child {
+    border-right: none; /* No border on the last button */
+}
+
+.segmented-control .segment:hover {
+    background-color: #606060;
+    color: #eee;
+}
+
+.segmented-control .segment.active {
+    background-color: #4CAF50; /* Active green background */
+    color: #fff; /* Active text */
+    cursor: default; /* Indicate it's selected */
+}
+.segmented-control .segment.active:hover {
+     background-color: #4CAF50; /* Keep active color on hover */
+}
+
+
+/* --- Toggle Switches --- */
+
+/* Container for label/description + toggle */
+.form-group-toggle-container {
+    display: flex;
+    align-items: center; /* Vertically align label group and toggle */
+    justify-content: space-between; /* Push toggle to the right */
+    padding: 8px 0; /* Add some padding */
+    /* Optional: Add subtle border bottom if needed */
+    /* border-bottom: 1px solid #484848; */
+}
+/* Handle validation error positioning */
+.form-group-toggle-container + .validation-error {
+     margin-top: -5px; /* Adjust spacing below toggle */
+}
+
+
+.form-label-group {
+    padding-right: 15px; /* Space between text and toggle */
+}
+.form-label-group .form-label {
+    margin-bottom: 2px; /* Reduce space between label and help text */
+    font-weight: 600; /* Ensure consistent weight */
+}
+.form-label-group .form-help-text {
+    margin-top: 0;
+    font-size: 0.9em; /* Make help text slightly smaller */
+    color: #bbb;
+}
+
+/* Hide the actual checkbox */
+.toggle-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* The visual switch label */
+.toggle-switch-container {
+    flex-shrink: 0; /* Prevent toggle from shrinking */
+}
+
+.toggle-switch {
+    display: inline-block;
+    position: relative;
+    width: 50px; /* Width of the switch track */
+    height: 26px; /* Height of the switch track */
+    background-color: #555; /* Track color when OFF */
+    border: 1px solid #777;
+    border-radius: 0px; /* Ore UI uses sharp corners */
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+/* The sliding handle */
+.toggle-switch::before {
+    content: "";
+    position: absolute;
+    left: 2px; /* Padding from left edge */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px; /* Width of the handle */
+    height: 20px; /* Height of the handle */
+    background-color: #bbb; /* Handle color when OFF */
+    border: 1px solid #999;
+    border-radius: 0px; /* Sharp corners */
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+/* Styles when the checkbox is CHECKED */
+.toggle-input:checked + .toggle-switch {
+    background-color: #4CAF50; /* Track color when ON (Green) */
+    border-color: #66BB6A;
+}
+
+.toggle-input:checked + .toggle-switch::before {
+    transform: translate(24px, -50%); /* Move handle to the right */
+    /* Calculation: track width - handle width - 2 * left padding */
+    /* 50px - 20px - 2*2px = 26px, slightly less looks better -> 24px */
+    background-color: #fff; /* Handle color when ON */
+    border-color: #eee;
+}
+
+/* Optional Focus style */
+.toggle-input:focus + .toggle-switch {
+    box-shadow: 0 0 0 2px rgba(102, 187, 106, 0.4); /* Subtle green glow */
+}
+
+/* --- Step Indicator --- */
+.step-indicator {
+    font-size: 0.9em;
+    color: #bbb;
+    font-style: italic;
+    margin-top: 3px;
+}
+
+/* --- Adjust form grid for toggles --- */
+/* Ensure toggle containers align well in the grid */
+.form-grid .form-group-toggle-container {
+     grid-column: 1 / -1; /* Make toggle groups span full width */
+     /* Or adjust grid template if needed */
+}
+/* If NOT spanning full width, align items */
+/*
+.form-grid > .form-group-toggle-container {
+     display: flex;
+     align-items: center;
+}
+*/

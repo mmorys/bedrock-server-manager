@@ -1,78 +1,127 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_allowlist.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Configure Allowlist</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/install_config.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/allowlist.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>Configure Allowlist: {{ server_name }}</h1>
-             {% if new_install %}
-                <p class="step-indicator">Step 2 of 4 (New Installation)</p>
-             {% endif %}
-        </header>
+{% extends "base.html" %}
 
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Set the page title #}
+{% block title %}{{ super() }} - Configure Allowlist: {{ server_name }}{% endblock %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="message-box message-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# Ensure install_config.js (or wherever the toggle JS lives) is included if not already global #}
+    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/allowlist.js') }}" defer></script>
+{% endblock %}
 
-        <section class="allowlist-form-section">
-            <div class="form-group">
-                <label for="player-names-add" class="form-label">Players to Add (one per line):</label>
-                <textarea id="player-names-add" name="player_names_add" class="form-input" rows="5" placeholder="Enter player names to add..."></textarea>
-            </div>
 
-            <div class="form-group">
-                 <label for="ignore-limit-add" class="form-label">
-                     <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add" class="form-checkbox">
-                     Ignore Player Limit for players being added
-                 </label>
-            </div>
+{# Main content for this page #}
+{% block content %}
+    {# Page Heading #}
+    <h2>Configure Allowlist</h2>
 
-            <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name }}')" class="main-button">Add Players</button>
+    {# Context / Step Indicator #}
+    <p style="margin-bottom: 15px;">
+        Server: <strong>{{ server_name }}</strong>
+        {% if new_install %}
+             <br><span class="step-indicator">(Step 2 of 4 for New Installation)</span>
+        {% endif %}
+    </p>
 
-             {% if new_install %}
-                <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link" style="margin-left: 15px;">Skip/Next Step →</a>
-            {% else %}
-                 <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Return</a>
-            {% endif %}
-
-        </section>
-
-        <section class="current-allowlist-section" style="margin-top: 20px;">
-            <h2>Current Allowlist</h2>
-            <!-- Added ID to the list for easier JS targeting -->
-            <ul id="current-allowlist-display">
-                {% for player in existing_players %}
-                <li>{{ player.name }} (Ignores Limit: {{ player.ignoresPlayerLimit }})</li>
-                {% else %}
-                <li id="no-players-message">No players currently in allowlist.</li>
-                {% endfor %}
-            </ul>
-        </section>
-
+    {# Area for JavaScript-driven status messages #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+        <!-- Status messages from allowlist actions will appear here -->
     </div>
-</body>
-</html>
+
+    {# Server-side flash messages are handled by base.html #}
+
+    {# Form Section #}
+    <section class="allowlist-form-section">
+
+        <div class="form-group">
+            <label for="player-names-add" class="form-label">Players to Add (one per line):</label>
+            <textarea id="player-names-add" name="player_names_add" class="form-input" rows="5" placeholder="Enter player names to add..."></textarea>
+             {# Add validation placeholder if needed #}
+             {# <div class="validation-error" data-field="player_names_add"></div> #}
+        </div>
+
+        {# --- Ignore Player Limit as Toggle Switch --- #}
+        <div class="form-group form-group-toggle-container">
+            <div class="form-label-group">
+                {# Use a standard label, not linked directly to hidden checkbox if label is just text #}
+                <span class="form-label">Ignore Player Limit:</span>
+                <small class="form-help-text">Allow these players to join even if the server is full.</small>
+            </div>
+            <div class="toggle-switch-container">
+                 <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add-cb" class="toggle-input" value="true"> {# Default unchecked #}
+                 <label for="ignore-limit-add" class="toggle-switch"></label> {# Visual switch linked to checkbox #}
+            </div>
+             {# Hidden input submits "false" when checkbox is unchecked #}
+             <input type="hidden" name="ignore_limit_add" class="toggle-hidden-false" value="false">
+             {# Add validation placeholder if needed #}
+             {# <div class="validation-error" data-field="ignore_limit_add" style="grid-column: 1 / -1;"></div> #}
+        </div>
+        {# --- End Toggle Switch --- #}
+
+
+        {# Actions for this form section #}
+        <div class="form-actions">
+            {# Make "Add Players" primary action green #}
+            <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name }}')" class="action-button start-button">Add Players</button>
+
+            {# Conditional navigation/skip link #}
+            {% if new_install %}
+                <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">Skip / Next Step →</a>
+            {% else %}
+                 <a href="{{ url_for('main_routes.index') }}" class="main-button">Return</a>
+            {% endif %}
+        </div>
+
+    </section> {# End of allowlist-form-section #}
+
+
+    {# Current Allowlist Display Section #}
+    <section class="current-allowlist-section list-section">
+        <h2>Current Allowlist</h2>
+        {# Consider styling this list as cards instead of simple list items? Optional #}
+        <ul id="current-allowlist-display" class="item-list">
+            {% for player in existing_players %}
+            <li>
+                {# TODO: Add remove button and JS #}
+                <span class="player-name">{{ player.name }}</span>
+                <span class="player-meta">(Ignores Limit: {{ player.ignoresPlayerLimit }})</span>
+                 <button type="button" onclick="removeAllowlistPlayer(this, '{{ server_name }}', '{{ player.name }}')" class="action-button remove-button" title="Remove {{ player.name }} from allowlist">Remove</button> {# Example remove button #}
+            </li>
+            {% else %}
+            <li id="no-players-message">No players currently in allowlist.</li>
+            {% endfor %}
+        </ul>
+    </section> {# End of current-allowlist-section #}
+
+{% endblock %}
+
+{# Include JS for removeAllowlistPlayer if added #}
+{% block body_scripts %}
+{# Add JS if removeAllowlistPlayer is defined elsewhere or add it here #}
+{# Example:
+<script>
+function removeAllowlistPlayer(buttonElement, serverName, playerName) {
+    if (confirm(`Are you sure you want to remove '${playerName}' from the allowlist for server '${serverName}'?`)) {
+        const requestBody = { players: [playerName] }; // Assuming API expects list
+        // Assuming remove action is DELETE /api/server/<serverName>/allowlist
+        sendServerActionRequest(null, `/api/server/${serverName}/allowlist`, 'DELETE', requestBody, buttonElement)
+            .then(data => {
+                if (data && data.status === 'success') {
+                    // Remove the list item from the display
+                    buttonElement.closest('li').remove();
+                     // Check if list is now empty
+                    const list = document.getElementById('current-allowlist-display');
+                    if (list && list.children.length === 0) {
+                         list.innerHTML = '<li id="no-players-message">No players currently in allowlist.</li>';
+                    }
+                }
+                // Status message shown by sendServerActionRequest
+            });
+    }
+}
+</script>
+#}
+{% endblock %}

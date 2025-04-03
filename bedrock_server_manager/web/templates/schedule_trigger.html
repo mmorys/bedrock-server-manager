@@ -1,29 +1,41 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_trigger.html -->
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-</head>
-{% macro render_trigger_fields(trigger_num) %}
-<div class="trigger-group" id="trigger-group-{{ trigger_num }}">
-    <h3>Trigger {{ trigger_num }}</h3>
-    <div class="form-group">
-        <label for="trigger_type_{{ trigger_num }}" class = "form-label">Trigger Type:</label>
-        <select id="trigger_type_{{ trigger_num }}" name="trigger_type_{{ trigger_num }}" class = "form-input" onchange="showTriggerFields({{ trigger_num }})">
-            <option value="">-- Select Trigger Type --</option>
-            <option value="TimeTrigger">One Time</option>
-            <option value="Daily">Daily</option>
-            <option value="Weekly">Weekly</option>
-            <option value="Monthly">Monthly</option>
-        </select>
-    </div>
+{# Macro to render the fields for a single task trigger #}
+{% macro render_trigger_fields(trigger_num, existing_trigger_data=None) %}
+    {# --- Trigger Group Start --- #}
+    {# Add data attribute for easier JS targeting/removal #}
+    <div class="trigger-group" id="trigger-group-{{ trigger_num }}" data-trigger-num="{{ trigger_num }}">
 
-    <div id="trigger_fields_{{ trigger_num }}">
-    </div>
-</div>
+        {# Heading for the trigger, includes a remove button #}
+        <div class="trigger-header">
+            <h3>Trigger {{ trigger_num }}</h3>
+            {# Add a button to remove this specific trigger group #}
+            {# The onclick should call a JS function, passing the trigger_num #}
+            <button type="button" class="action-link remove-trigger-button" onclick="removeTrigger({{ trigger_num }})" title="Remove Trigger {{ trigger_num }}">×</button> {# Simple 'x' button #}
+        </div>
+
+        {# Trigger Type Selection #}
+        <div class="form-group">
+            <label for="trigger_type_{{ trigger_num }}" class="form-label">Trigger Type:</label>
+            {# The JS needs to handle selecting the correct option if existing_trigger_data is passed #}
+            <select id="trigger_type_{{ trigger_num }}" name="trigger_type_{{ trigger_num }}" class="form-input trigger-type-select" onchange="showTriggerFields({{ trigger_num }})">
+                <option value="">-- Select Trigger Type --</option>
+                <option value="TimeTrigger">One Time</option>
+                <option value="Daily">Daily</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+                {# Add other trigger types if applicable #}
+            </select>
+             {# Placeholder for validation errors for the type selection itself #}
+            <div class="validation-error" data-field="trigger_type_{{ trigger_num }}"></div>
+        </div>
+
+        {# Placeholder Div for Dynamic Trigger Fields #}
+        {# JavaScript (showTriggerFields function) MUST populate this div #}
+        {# with correctly labelled form elements (.form-label, .form-input) #}
+        <div class="trigger-fields-container" id="trigger_fields_{{ trigger_num }}">
+             {# Content loaded by JS based on selected trigger type #}
+             {# JS should also populate fields if existing_trigger_data is provided #}
+        </div>
+
+    </div> {# --- End Trigger Group --- #}
 {% endmacro %}

@@ -2,44 +2,145 @@
 
 /* Basic Reset and Font */
 body {
-    font-family: monospace, sans-serif; /* Fallback to sans-serif if monospace not pixelated enough */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
     margin: 0;
     padding: 0;
-    background-color: #222; /* Dark background from design */
-    color: #eee; /* Light text color */
-    font-size: 16px; /* Adjust as needed for pixel font size */
+    background-color: #222; /* Dark background - good */
+    color: #eee; /* Light text color - good */
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5; /* Add a default line-height for better readability */
 }
 
 .container {
-    width: 90%; /* Keep width */
+    width: 90%;
     max-width: 1200px;
     margin: 20px auto;
-    padding: 20px;
-    background-color: #333; /* Keep background color */
-    border-width: 4px; /* Increased border width for chunkier look */
-    border-style: solid;
-    border-top-color: #777;    /* Lighter gray for top border */
-    border-left-color: #777;   /* Lighter gray for left border */
-    border-bottom-color: #222; /* Darker gray for bottom border */
-    border-right-color: #222;  /* Darker gray for right border */
-    border-radius: 0px;      /* Sharp corners - remove rounded corners */
-    /* Optional: Add a subtle shadow to the container itself if you want */
-    /* box-shadow: 3px 3px 0 #111; */ 
+    padding: 25px; /* Slightly increase padding for more breathing room */
+    background-color: #333; /* Slightly darker inner background - good */
+    /* --- CHANGE: Simplify the border --- */
+     border: 1px solid #444;
+    /* border: none; */ /* Alternative: Remove border entirely, rely on background contrast */
+    border-radius: 0px; /* Keep sharp corners */
+    box-sizing: border-box;
 }
 
 /* Header Styling */
+/* Header Styling */
 .header {
     text-align: center;
-    margin-bottom: 25px; /* Increased bottom margin for more spacing */
-    padding-bottom: 15px; /* Increased padding below header */
-    border-bottom: 2px solid #666; /* Slightly thicker and darker border */
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #555;
+    /* Remove text-align if using flexbox below */
+    /* text-align: center; */
+    display: flex; /* Use flexbox for alignment */
+    justify-content: center; /* Center the link block */
+    align-items: center; /* Vertically align items in the link */
 }
 
+/* Style the link containing logo and h1 */
+.header-link {
+    display: inline-flex; /* Use flex for inline alignment of logo and h1 */
+    align-items: center; /* Vertically align logo and h1 */
+    text-decoration: none; /* Remove underline from link */
+    color: inherit; /* Inherit text color (usually #eee) */
+    gap: 15px; /* Space between logo and h1 */
+}
+
+/* Style the logo image */
+.header-logo {
+    height: 70px; /* Adjust height as needed */
+    width: auto; /* Maintain aspect ratio */
+    /* Optional: Add vertical-align if not using flex on parent */
+    /* vertical-align: middle; */
+    /* Optional: Add margin if needed */
+    /* margin-right: 15px; */
+}
+
+/* Adjust H1 styling */
 .header h1 {
-    font-size: 2.5em; /* Increased font size - more prominent header */
-    letter-spacing: 2px; /* Increased letter spacing - more pixelated spacing */
-    text-shadow: 2px 2px 0 #222, /* Main shadow - darker and more offset */
-                 3px 3px 0 #222; /* Added a second shadow layer for thicker effect */
-    font-weight: bold; /* Ensure font-weight: bold */
-    color: #eee;       /* Keep light text color */
+    font-size: 2.2em;
+    letter-spacing: 1px;
+    font-weight: 600;
+    color: #eee;
+    word-wrap: break-word;
+    /* Remove margins if flexbox handles spacing */
+    margin: 0;
+    /* Text shadow was already removed */
+}
+
+
+/* --- Mobile Adjustments for Header --- */
+@media (max-width: 768px) {
+    .header {
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        gap: 10px; /* Reduce gap */
+    }
+
+    .header-logo {
+        height: 35px; /* Slightly smaller logo */
+    }
+
+    .header h1 {
+        font-size: 2em;
+        letter-spacing: 0.5px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        gap: 8px; /* Further reduce gap */
+    }
+    .header-logo {
+        height: 50px; /* Smaller logo */
+    }
+    .header h1 {
+        font-size: 1.6em; /* Adjusted size */
+    }
+}
+
+/* --- Monitor Output Styles --- */
+/* Keep these largely as-is for now, they serve a specific function */
+/* Maybe just tweak border/shadow slightly for consistency */
+pre.monitor-output {
+    background-color: #111;
+    color: #00ff00;
+    /* --- CHANGE: Make border consistent with container --- */
+    border: 1px solid #444; /* Slightly darker than container border */
+    padding: 15px;
+    /* --- Keep monospace specifically for this element --- */
+    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre;
+    min-height: 200px;
+    max-height: 500px;
+    overflow-y: auto;
+    /* --- CHANGE: Simplify shadow --- */
+    /* box-shadow: 2px 2px 0 #000 inset; */ /* Removing inset shadow for now */
+    border-radius: 0px; /* Ensure no radius */
+}
+
+/* Actions specific to the monitor page */
+.monitor-actions {
+     border-top: none;
+     margin-top: 15px;
+     text-align: center;
+}
+.monitor-actions .main-button {
+    margin-left: 0;
+}
+
+/* --- Mobile Adjustments for Monitor --- */
+@media (max-width: 768px) {
+    pre.monitor-output {
+        padding: 10px;
+        font-size: 0.85em;
+        min-height: 150px;
+        max-height: 400px;
+    }
 }

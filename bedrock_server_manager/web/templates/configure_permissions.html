@@ -1,91 +1,94 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_permissions.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name}} - Configure Permissions</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/install_config.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>Configure Permissions for {{ server_name }}</h1>
-             {% if new_install %}
-                <p class="step-indicator">Step 3 of 4 (New Installation)</p>
-             {% endif %}
-        </header>
+{% extends "base.html" %}
 
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Set the page title #}
+{% block title %}{{ super() }} - Configure Permissions: {{ server_name }}{% endblock %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="message-box message-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <div id="validation-error-area" style="color: #721c24; margin-bottom: 15px;"></div>
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script> {# Keep if savePermissions is in here #}
+{% endblock %}
 
 
-        <section class="permissions-config-section">
-            <p>Set the permission level for each known player.</p>
+{# Main content for this page #}
+{% block content %}
+    {# Page Heading #}
+    <h2>Configure Player Permissions</h2>
+
+    {# Context / Step Indicator #}
+    <p style="margin-bottom: 15px;">
+        Server: <strong>{{ server_name }}</strong>
+        {% if new_install %}
+             <br><span class="step-indicator">(Step 3 of 4 for New Installation)</span>
+        {% endif %}
+    </p>
+
+    {# Area for JavaScript-driven status messages #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+        <!-- Status messages from save actions will appear here -->
+    </div>
+
+    {# Area for JavaScript-driven validation errors - style like message-error? #}
+    <div id="validation-error-area" class="message-box message-error" style="margin-bottom: 15px; display: none;">
+        <!-- Overall validation errors will appear here -->
+    </div>
+
+    {# Server-side flash messages handled by base.html #}
+
+    <section class="permissions-config-section">
+        <p>Set the permission level for each known player.</p>
+
+        {# **Crucial wrapper for table responsiveness** #}
+        <div class="table-responsive-wrapper">
             <table class="server-table">
                 <thead>
                     <tr>
-                        <th>Player Name</th>
-                        <th>XUID</th>
-                        <th>Permission Level</th>
+                        {# Added scope for accessibility #}
+                        <th scope="col">Player Name</th>
+                        <th scope="col">XUID</th>
+                        <th scope="col">Permission Level</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if players %}
                         {% for player in players %}
                         <tr>
-                            <td>{{ player.name }}</td>
-                            <td>{{ player.xuid }}</td>
-                            <td>
-                                <!-- Added data-xuid attribute, kept name for potential selection ease -->
+                            {# Added data-label for potential stacking view #}
+                            <td data-label="Player Name">{{ player.name }}</td>
+                            <td data-label="XUID">{{ player.xuid }}</td>
+                            <td data-label="Permission Level">
                                 <select name="{{ player.xuid }}" data-xuid="{{ player.xuid }}" class="form-input permission-select">
-                                    {# Default to member if not found in permissions map #}
                                     <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
+                                    {# Default to member if not found #}
                                     <option value="member" {% if permissions.get(player.xuid, 'member') == 'member' %}selected{% endif %}>Member</option>
                                     <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
                                 </select>
-                                <div class="validation-error" data-field="{{ player.xuid }}"></div> <!-- Error placeholder per player -->
+                                {# Placeholder for JS-driven inline validation errors per row #}
+                                <div class="validation-error inline-error" data-field="{{ player.xuid }}"></div>
                             </td>
                         </tr>
                         {% endfor %}
                     {% else %}
-                        <tr>
-                            <td colspan="3">No players found or loaded. Cannot set permissions.</td>
+                        {# Use the .no-servers class styling for consistency #}
+                        <tr class="no-servers-row">
+                            <td colspan="3" class="no-servers">No players found or loaded. Cannot set permissions.</td>
                         </tr>
                     {% endif %}
                 </tbody>
             </table>
-            <div style="margin-top: 20px;">
-                 <!-- Changed button type and added onclick -->
-                <button type="button" onclick="savePermissions(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button" {% if not players %}disabled{% endif %}>Save Permissions</button>
-                 {% if new_install %}
-                    <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link" style="margin-left: 15px;">Skip/Next Step →</a>
-                {% else %}
-                     <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Return</a>
-                {% endif %}
-            </div>
-        </section>
-    </div>
-</body>
-</html>
+        </div> {# End of .table-responsive-wrapper #}
+
+        {# Form Actions / Navigation #}
+        <div class="form-actions">
+             <button type="button" onclick="savePermissions(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button start-button" {% if not players %}disabled{% endif %}>Save Permissions</button> {# Changed class #}
+
+            {% if new_install %}
+                <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">Skip / Next Step →</a>
+            {% else %}
+                 <a href="{{ url_for('main_routes.index') }}" class="main-button">Return</a>
+            {% endif %}
+        </div>
+    </section> {# End of .permissions-config-section #}
+
+{% endblock %}

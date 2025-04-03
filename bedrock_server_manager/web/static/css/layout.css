@@ -1,0 +1,319 @@
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/layout.css */
+
+/* --- Page Layout (Sidebar + Main Content) --- */
+.page-layout {
+    display: flex;
+    gap: 20px; /* Space between sidebar and main content */
+    margin-top: 20px; /* Space below the header/server select */
+}
+
+/* --- Sidebar Navigation --- */
+.sidebar-nav {
+    flex: 0 0 220px; /* Do not grow, do not shrink, fixed width */
+    background-color: #3a3a3a; /* Slightly different bg for separation */
+    border: 1px solid #555;
+    padding: 15px 0; /* Vertical padding, no horizontal */
+    border-radius: 0;
+    height: fit-content; /* Adjust height to content, or set fixed height/overflow */
+    box-sizing: border-box; /* Include padding/border */
+}
+
+.nav-link {
+    display: flex; /* Use flex for alignment (useful for icons later) */
+    align-items: center;
+    padding: 10px 20px; /* Padding inside links */
+    color: #ccc; /* Default text color */
+    text-decoration: none;
+    font-weight: 600;
+    border-left: 3px solid transparent; /* Space for active indicator */
+    transition: background-color 0.15s ease, border-left-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap; /* Prevent wrapping */
+    font-size: 0.95em;
+    box-sizing: border-box; /* Include padding/border */
+}
+
+/* Adjust icon spacing */
+.nav-link i { /* Target potential future icons */
+    margin-right: 10px;
+    width: 1.2em; /* Ensure fixed width for alignment */
+    text-align: center;
+}
+
+.nav-link:hover {
+    background-color: #444;
+    color: #fff;
+}
+
+.nav-link.active {
+    background-color: #484848; /* Active background */
+    color: #fff;              /* Active text */
+    border-left-color: #4CAF50; /* Green indicator for active link */
+}
+
+/* Optional Separator */
+.nav-separator {
+    border: none;
+    border-top: 1px solid #555;
+    margin: 15px 10px; /* Margin top/bottom, less horizontal */
+}
+
+/* Install Button style in Nav */
+.nav-action-button {
+    /* Inherits .nav-link styles, add button look */
+    margin: 15px 15px 5px 15px; /* Margin around button */
+    padding-top: 8px;
+    padding-bottom: 8px;
+    text-align: center;
+    background-color: #4CAF50; /* Green background */
+    border: 1px solid #66BB6A;
+    color: #fff;
+    border-left: 3px solid #4CAF50; /* Match active style */
+    font-weight: bold;
+    border-radius: 0; /* Ensure sharp corners */
+    box-sizing: border-box;
+}
+.nav-action-button i { /* Adjust icon margin if needed */
+    margin-right: 8px;
+}
+
+.nav-action-button:hover {
+    background-color: #6fcf97;
+    border-color: #81e0aa;
+    border-left-color: #6fcf97;
+    color: #fff;
+}
+
+/* --- Main Content Area --- */
+.main-content {
+    flex-grow: 1; /* Take remaining space */
+    min-width: 0; /* Allow content to shrink below its minimum intrinsic width */
+    box-sizing: border-box;
+}
+
+.content-section {
+    display: none; /* Hide sections by default */
+    background-color: #3a3a3a; /* Match sidebar for consistency */
+    border: 1px solid #555;
+    padding: 20px 25px;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+.content-section.active {
+    display: block; /* Show the active section */
+}
+
+.content-section h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #555;
+    font-size: 1.6em;
+    font-weight: 600;
+    color: #eee;
+}
+
+/* --- Server Card List --- */
+.server-card-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    box-sizing: border-box;
+}
+
+.server-card {
+    background-color: #444;
+    border: 1px solid #555;
+    padding: 10px; /* Reduced padding for mobile */
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Reduced gap */
+    transition: background-color 0.15s ease;
+    overflow: hidden; /* Prevent content breaking out */
+    box-sizing: border-box;
+}
+/* Remove hover on touch devices? Optional */
+/* @media (hover: none) {
+    .server-card:hover { background-color: #444; }
+} */
+
+
+.server-card-thumbnail {
+    flex-shrink: 0;
+    width: 50px; /* Smaller thumbnail */
+    height: 50px;
+    background-color: #333;
+    border: 1px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 0;
+}
+
+.world-icon-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Good for world icons */
+}
+
+.world-icon-img.default {
+    object-fit: contain; /* Scale down default icon */
+    width: auto;
+    height: auto;
+    max-width: 80%; /* Prevent touching edges */
+    max-height: 80%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.server-card-info {
+    flex-grow: 1;
+    line-height: 1.4; /* Adjust line height */
+    min-width: 0; /* Important for flex shrinking */
+}
+
+.server-card-info h3 {
+    margin: 0 0 3px 0;
+    font-size: 1.05em; /* Adjust size */
+    color: #eee;
+    white-space: nowrap; /* Prevent wrapping */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add '...' for overflow */
+}
+
+.server-card-info p {
+    margin: 0;
+    font-size: 0.85em; /* Adjust size */
+    color: #ccc;
+    /* Allow wrapping for status/version if needed */
+}
+
+.server-card-info .info-label {
+    font-weight: 600;
+    color: #ddd;
+}
+/* Status-specific coloring */
+.server-card-info .status-running,
+.server-card-info .status-text.status-running { color: #81C784; /* Light Green */ }
+.server-card-info .status-stopped,
+.server-card-info .status-text.status-stopped { color: #e57373; /* Light Red */ }
+.server-card-info .status-updating,
+.server-card-info .status-text.status-updating { color: #FFB74D; /* Orange */ }
+.server-card-info .status-installed,
+.server-card-info .status-text.status-installed { color: #90CAF9; /* Light Blue */} /* Example for INSTALLED */
+/* Add other statuses as needed */
+
+
+.server-card-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: row; /* Keep horizontal on mobile */
+    gap: 5px;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping */
+    justify-content: flex-end; /* Align right */
+}
+.server-card-actions .action-link,
+.server-card-actions .action-button {
+    margin: 1px; /* Minimal margin */
+    padding: 3px 6px; /* Smaller padding */
+    font-size: 0.8em; /* Smaller font */
+    white-space: nowrap; /* Prevent button text wrapping */
+}
+/* Ensure icons align well if added later */
+.server-card-actions .action-link i,
+.server-card-actions .action-button i {
+    margin-right: 5px;
+}
+
+/* --- No Servers Message --- */
+.no-servers-message { /* Style for the div when list is empty */
+    padding: 20px;
+    text-align: center;
+    font-style: italic;
+    color: #aaa;
+    background-color: #404040;
+    border: 1px solid #555;
+    border-radius: 0;
+    grid-column: 1 / -1; /* Make it span all grid columns if inside .server-card-list */
+}
+
+
+/* --- Mobile Adjustments for Layout --- */
+@media (max-width: 900px) { /* Adjust breakpoint as needed */
+    .page-layout {
+        flex-direction: column; /* Stack sidebar above content */
+        gap: 15px;
+        margin-top: 15px; /* Reduce top margin */
+    }
+
+    .sidebar-nav {
+        flex-basis: auto; /* Allow sidebar to take natural height */
+        width: 100%;      /* Full width when stacked */
+        display: flex;    /* Arrange links horizontally */
+        overflow-x: auto; /* Allow horizontal scrolling for links */
+        padding: 5px;     /* Adjust padding */
+        border-left: none;
+        border-right: none;
+        border-top: 1px solid #555; /* Add top border */
+        height: auto; /* Reset height */
+        /*order: 1; /* Place sidebar below main content header visually if desired */
+    }
+
+    .nav-link {
+        flex-shrink: 0; /* Prevent links from shrinking */
+        border-left: none; /* Remove left border indicator */
+        border-bottom: 3px solid transparent; /* Use bottom border indicator */
+        padding: 8px 15px;
+    }
+    .nav-link.active {
+        border-left-color: transparent; /* Remove left border */
+        border-bottom-color: #4CAF50; /* Use bottom border */
+        background-color: #404040; /* Adjust active background */
+    }
+
+    .nav-separator { display: none; } /* Hide separator */
+
+    .nav-action-button {
+        margin: 0 5px; /* Adjust margin */
+        border-left: none;
+        border-bottom: 3px solid #4CAF50; /* Match active style */
+        flex-shrink: 0;
+        padding-top: 6px; /* Adjust padding */
+        padding-bottom: 6px;
+    }
+
+    .main-content {
+       order: 0; /* Place main content above sidebar visually if desired */
+    }
+
+    .content-section {
+        padding: 15px; /* Reduce padding */
+    }
+
+     .server-card-list {
+         grid-template-columns: 1fr; /* Force single column */
+         gap: 10px; /* Reduce gap */
+     }
+}
+
+@media (max-width: 480px) {
+    .content-section {
+         padding: 12px;
+     }
+      .content-section h2 {
+         font-size: 1.4em;
+     }
+     .server-card-info h3 {
+         font-size: 1em; /* Adjust font size */
+     }
+      .server-card-info p {
+         font-size: 0.8em; /* Adjust font size */
+     }
+}

@@ -1,95 +1,272 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }}</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/server_actions.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>{{ app_name }}</h1>
-        </header>
+{% extends "base.html" %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="message-box message-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+{# Set the page title #}
+{% block title %}{{ super() }} - Dashboard{% endblock %}
 
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <!-- Link to an icon library (e.g., Font Awesome - MAKE SURE TO GET A VALID KIT CODE OR DOWNLOAD) -->
+    <!-- Replace with your actual kit code or local path -->
+    <!-- <script src="https://kit.fontawesome.com/YOUR_KIT_CODE.js" crossorigin="anonymous"></script> -->
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}"> -->
 
-        <section class="server-selection-section">
-            <label for="server-select" class="select-label">Select Server:</label>
-            <select id="server-select" name="server" class="server-dropdown">
-                <option value="" disabled selected>-- Select a Server --</option>
-                {% for server in servers %}
-                    <option value="{{ server.name }}">{{ server.name }}</option>
-                {% endfor %}
-            </select>
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/server_actions.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/sidebar_nav.js') }}" defer></script>
+{% endblock %}
 
-            <div class="action-buttons-group">
-                <button type="button" class="action-button start-button" onclick="startServer(this)">Start</button>
-                <button type="button" class="action-button stop-button" onclick="stopServer(this)">Stop</button>
-                <button type="button" class="action-button restart-button" onclick="restartServer(this)">Restart</button>
-                <button type="button" class="action-button command-button" onclick="promptCommand(this)">Send Command</button>
-            </div>
-        </section>
 
-        <section class="server-list-section">
-            <table class="server-table">
-                <thead>
-                    <tr>
-                        <th>Server Name</th>
-                        <th>Status</th>
-                        <th>Version</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if servers %}
+{% block content %}
+
+    {# Area for JavaScript-driven status messages #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;"></div>
+
+    {# --- New Page Layout --- #}
+    <div class="page-layout">
+
+        {# --- Sidebar Navigation --- #}
+        <aside class="sidebar-nav">
+            <a href="#overview-section" class="nav-link active" data-target="overview-section">Overview</a>
+            <a href="#manage-section" class="nav-link" data-target="manage-section">Manage Servers</a>
+            <a href="#configure-section" class="nav-link" data-target="configure-section">Configure</a>
+            <a href="#content-section" class="nav-link" data-target="content-section">Content</a>
+            <a href="#backup-restore-section" class="nav-link" data-target="backup-restore-section">Backup/Restore</a>
+            <a href="#tasks-section" class="nav-link" data-target="tasks-section">Scheduled Tasks</a>
+            <hr class="nav-separator">
+            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="nav-link nav-action-button">Install New Server</a>
+        </aside>
+
+        {# --- Main Content Area --- #}
+        <main class="main-content">
+
+            {# --- Server Selection and Global Actions --- #}
+            <section class="server-selection-section">
+                <div class="select-server-group">
+                    <label for="server-select" class="select-label">Select Server:</label>
+                    <select id="server-select" name="server" class="server-dropdown">
+                        <option value="" disabled selected>-- Select a Server --</option>
                         {% for server in servers %}
-                        <tr>
-                            <td>{{ server.name }}</td>
-                            <td>{{ server.status }}</td>
-                            <td>{{ server.version }}</td>
-                            <!--<td>
-                              <a href="{{ url_for('main_routes.install_content_menu_route', server_name=server.name) }}" class="action-link">Install Content</a>
-                            </td> -->
-                        </tr>
+                            <option value="{{ server.name }}">{{ server.name }}</option>
                         {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="4" class="no-servers">{{ servers[0].status if servers else 'No servers found.' }}</td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </section>
+                        {% if not servers %}
+                         <option value="" disabled>No servers available</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="action-buttons-group">
+                    {# These buttons need JS to get the selected server from #server-select #}
+                    <button type="button" class="action-button start-button" onclick="startServer(this)" title="Start selected server" {% if not servers %}disabled{% endif %}>Start</button>
+                    <button type="button" class="action-button stop-button" onclick="stopServer(this)" title="Stop selected server" {% if not servers %}disabled{% endif %}>Stop</button>
+                    <button type="button" class="action-button restart-button" onclick="restartServer(this)" title="Restart selected server" {% if not servers %}disabled{% endif %}>Restart</button>
+                    <button type="button" class="action-button command-button" onclick="promptCommand(this)" title="Send command to selected server" {% if not servers %}disabled{% endif %}>Send Command</button>
+                </div>
+            </section>
 
-        <section class="main-menu-buttons">
-            <a href="{{ url_for('install_config_routes.install_server_route') }}" class="main-button install-button">Install New Server</a>
-            <a href="{{ url_for('main_routes.manage_server_route') }}" class="main-button install-button">Manage Server</a>
-            <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="main-button install-button">Install Content</a>
-            <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="main-button install-button">Advanced Menu</a>
-            <!-- <button class="main-button advanced-button" disabled>Advanced Options</button>
-            <button class="main-button exit-button" disabled>Exit</button> -->
-        </section>
+            {# --- Content Sections (Populated) --- #}
+
+            {# Overview Section - Server Cards #}
+            <section id="overview-section" class="content-section active">
+                <h2>Overview</h2>
+                <div class="server-card-list">
+                    {% for server in servers %}
+                    <div class="server-card">
+                        <div class="server-card-thumbnail">
+                            {% if server.icon_url %}
+                                {# Display the actual world icon #}
+                                <img src="{{ server.icon_url }}" alt="{{ server.name }} World Icon" class="world-icon-img">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='image/icon/favicon.ico') }}" alt="Default Server Icon" class="world-icon-img default">
+                            {% endif %}
+                            {# --- END UPDATED --- #}
+                        </div>
+                        <div class="server-card-info">
+                            <h3>{{ server.name }}</h3>
+                            <p>
+                                <span class="info-label">Status:</span> <span class="status-{{ server.status | lower }}">{{ server.status }}</span> |
+                                <span class="info-label">Version:</span> {{ server.version }}
+                            </p>
+                        </div>
+                        <div class="server-card-actions">
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="no-servers-message">
+                        No servers found. Use 'Install New Server' in the navigation.
+                    </div>
+                    {% endfor %}
+                </div> {# End Server Card List #}
+            </section>
+
+            {# Manage Section - Server Actions #}
+            <section id="manage-section" class="content-section">
+                <h2>Manage Servers</h2>
+                <p>Select a server from the dropdown above to manage.</p>
+                 <div class="section-actions server-dependent-actions">
+                    <h4>Actions for <span id="selected-server-manage" style="font-style: italic;">(No server selected)</span></h4>
+                    <div class="button-group">
+                        <button type="button"
+                                onclick="triggerServerUpdate(this, document.getElementById('server-select').value)"
+                                class="action-button update-button"
+                                title="Check for updates for the selected server" disabled>Update Server</button>
+                        <button type="button"
+                                onclick="deleteServer(this, document.getElementById('server-select').value)"
+                                class="action-button delete-button"
+                                title="Delete the selected server" disabled>Delete Server</button>
+                        {# Backup/Restore buttons if here #}
+                    </div>
+                    <p style="font-size: 0.9em; color: #ccc;">Note: These actions apply to the server chosen in the "Select Server" dropdown at the top.</p>
+                 </div>
+            </section>
+
+            {# Configure Section - Config Links #}
+            <section id="configure-section" class="content-section">
+                <h2>Configure Server</h2>
+                <p>Select a server from the dropdown above, then choose a configuration area:</p>
+                {# Links for the *selected* server. JS needs to update the hrefs or they need generating server-side #}
+                {# Assuming server-side generation for now based on original code structure #}
+                <div class="section-actions server-dependent-actions">
+                     <h4>Configuration Areas for <span id="selected-server-config" style="font-style: italic;">(No server selected)</span></h4>
+                     <div class="button-group">
+                        {# Generate links assuming a server might be selected, disable if not #}
+                        {% if servers %}
+                            <a href="#" id="config-link-properties" class="action-link config-nav-link" disabled>Properties</a>
+                            <a href="#" id="config-link-allowlist" class="action-link config-nav-link" disabled>Allowlist</a>
+                            <a href="#" id="config-link-permissions" class="action-link config-nav-link" disabled>Permissions</a>
+                            <a href="#" id="config-link-monitor" class="action-link config-nav-link" disabled>Monitor Usage</a>
+                            <a href="#" id="config-link-service" class="action-link config-nav-link" disabled>Service/Auto-Update</a>
+                        {% else %}
+                            <p>No servers available to configure.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+
+            {# Content Section - Import Links #}
+            <section id="content-section" class="content-section">
+                <h2>Content Management</h2>
+                <p>Select a server from the dropdown above to import content:</p>
+                 <div class="section-actions server-dependent-actions">
+                     <h4>Import Options for <span id="selected-server-content" style="font-style: italic;">(No server selected)</span></h4>
+                    <div class="button-group">
+                        {% if servers %}
+                            <a href="#" id="content-link-world" class="action-link content-nav-link" disabled>Import World</a>
+                            <a href="#" id="content-link-addon" class="action-link content-nav-link" disabled>Import Addon</a>
+                        {% else %}
+                             <p>No servers available to import content to.</p>
+                        {% endif %}
+                    </div>
+                 </div>
+            </section>
+
+            {# Backup/Restore Section #}
+            <section id="backup-restore-section" class="content-section">
+                <h2>Backup & Restore</h2>
+                <p>Select a server from the dropdown above to manage backups:</p>
+                 <div class="section-actions server-dependent-actions">
+                    <h4>Backup/Restore for <span id="selected-server-backup" style="font-style: italic;">(No server selected)</span></h4>
+                    <div class="button-group">
+                        {% if servers %}
+                            <a href="#" id="backup-link-menu" class="action-link backup-nav-link" disabled>Backup Menu</a>
+                            <a href="#" id="restore-link-menu" class="action-link restore-nav-link" disabled>Restore Menu</a>
+                        {% else %}
+                            <p>No servers available for backup/restore.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+
+            {# Scheduled Tasks #}
+            <section id="tasks-section" class="content-section">
+                <h2>Scheduled Task</h2>
+                <p>Configure automated tasks like backups, restarts, or commands</p>
+                 <div class="section-actions server-dependent-actions">
+                    <h4>Schedule task for <span id="selected-server-task" style="font-style: italic;">(No server selected)</span></h4>
+                    <div class="button-group">
+                        {% if servers %}
+                            <a href="#" id="task-scheduler-menu" class="action-link task-nav-link" disabled>Go to Task Scheduler</a>
+                        {% else %}
+                            <p>No servers available for task.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
     </div>
-</body>
-</html>
+
+{% endblock %}
+
+{% block body_scripts %}
+{# Add JS specifically for handling the server dropdown affecting section content #}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const serverSelect = document.getElementById('server-select');
+    const globalActionButtons = document.querySelectorAll('.server-selection-section .action-buttons-group button');
+
+    // Get all elements that depend on server selection
+    const serverDependentSections = document.querySelectorAll('.server-dependent-actions');
+
+    function updateActionStates(selectedServerName) {
+        const hasSelection = selectedServerName && selectedServerName !== "";
+
+        // Enable/Disable global action buttons
+        globalActionButtons.forEach(button => button.disabled = !hasSelection);
+
+        // Update spans and enable/disable section-specific actions/links
+        serverDependentSections.forEach(section => {
+            const span = section.querySelector('span[id^="selected-server-"]');
+            const actions = section.querySelectorAll('.action-button, .action-link');
+
+            if (span) {
+                span.textContent = hasSelection ? selectedServerName : "(No server selected)";
+                span.style.fontStyle = hasSelection ? 'normal' : 'italic';
+            }
+
+            actions.forEach(action => {
+                action.disabled = !hasSelection;
+
+                // Update href for links based on selection (if applicable)
+                if (hasSelection && action.tagName === 'A' && action.id) {
+                    let baseUrl = '#'; // Default/placeholder
+                    const serverNameEncoded = encodeURIComponent(selectedServerName);
+
+                    // Construct base URLs - replace with your actual Flask url_for logic if possible server-side,
+                    // otherwise use string templates. This JS approach is less ideal than server-side rendering
+                    // but necessary if the links MUST update dynamically on the client.
+                    if (action.id === 'config-link-properties') baseUrl = `/server/${serverNameEncoded}/configure_properties`; // Example URL structure
+                    if (action.id === 'config-link-allowlist') baseUrl = `/server/${serverNameEncoded}/configure_allowlist`;
+                    if (action.id === 'config-link-permissions') baseUrl = `/server/${serverNameEncoded}/configure_permissions`;
+                    if (action.id === 'config-link-monitor') baseUrl = `/server/${serverNameEncoded}/monitor`;
+                    if (action.id === 'config-link-service') baseUrl = `/server/${serverNameEncoded}/configure_service`;
+                    if (action.id === 'content-link-world') baseUrl = `/server/${serverNameEncoded}/install_world`;
+                    if (action.id === 'content-link-addon') baseUrl = `/server/${serverNameEncoded}/install_addon`;
+                    if (action.id === 'backup-link-menu') baseUrl = `/server/${serverNameEncoded}/backup`;
+                    if (action.id === 'restore-link-menu') baseUrl = `/server/${serverNameEncoded}/restore`;
+                    if (action.id === 'task-scheduler-menu') baseUrl = `/server/${serverNameEncoded}/task_scheduler`;
+                    // Add more mappings as needed
+
+                    action.href = baseUrl;
+                } else if (action.tagName === 'A') {
+                     action.href = '#'; // Reset href if no selection
+                }
+            });
+        });
+    }
+
+    // Add event listener to the dropdown
+    if (serverSelect) {
+        serverSelect.addEventListener('change', (event) => {
+            updateActionStates(event.target.value);
+        });
+
+        // Initial state check on page load
+        updateActionStates(serverSelect.value);
+    } else {
+        // Handle case where there's no dropdown (e.g., no servers)
+         updateActionStates("");
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,172 @@
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/tabs.css */
+
+/* --- Tab Navigation Container --- */
+.tab-navigation {
+    /* Keep horizontal scrolling for smaller screens */
+    overflow-x: auto;
+    white-space: nowrap;
+    /* Optional: Hide scrollbar visually */
+    /* -ms-overflow-style: none; */
+    /* scrollbar-width: none; */
+    /* &::-webkit-scrollbar { display: none; } */
+
+    border-bottom: 1px solid #555; /* Simple, single border */
+    margin-bottom: 0;
+    padding: 0 5px; /* Add slight horizontal padding for spacing */
+    display: flex; /* Keep flex */
+    gap: 4px;      /* Space between tabs */
+    box-sizing: border-box;
+}
+
+/* --- Individual Tab Link Styling (Ore UI) --- */
+.tab-link {
+    flex-shrink: 0;
+    background-color: #444;   /* Slightly darker inactive tab */
+    border: 1px solid #555;   /* Uniform border */
+    border-bottom: none;      /* No bottom border initially */
+    border-radius: 0;         /* Sharp corners */
+    padding: 8px 16px;      /* Consistent padding */
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    font-size: 1em;
+    color: #ccc;              /* Lighter text for inactive */
+    font-weight: 600;         /* Consistent weight */
+    font-family: inherit;     /* Use body font */
+    position: relative;
+    z-index: 0;
+    box-sizing: border-box;
+    line-height: 1.5;         /* Consistent line height */
+
+    /* --- REMOVE Old Styles --- */
+    text-shadow: none;
+    /* Complex borders removed */
+    /* Margin-bottom overlap not needed with border-bottom: none */
+    margin-bottom: 0;
+}
+
+.tab-link:hover {
+    background-color: #505050; /* Slightly lighter hover */
+    color: #eee;
+    border-color: #666;     /* Slightly lighter border */
+    border-bottom: none;    /* Keep no bottom border */
+}
+
+/* --- Active Tab Styling (Ore UI) --- */
+.tab-link.active {
+    background-color: #3a3a3a; /* Match tab content background */
+    color: #fff;              /* Bright text for active */
+    border-color: #555;     /* Match tab content border color */
+    /* Overlap logic: Make the active tab's border extend down to cover the nav border */
+    /* We achieve this by simply letting it NOT have a bottom border, */
+    /* while the content pane has no top border. */
+    border-bottom-color: transparent; /* Make sure bottom is visually gone */
+    z-index: 1;               /* Ensure active tab is 'above' */
+}
+
+/* --- Tab Content Styling (Ore UI) --- */
+.tab-content {
+    display: none;
+    padding: 20px;           /* More padding */
+    border: 1px solid #555;  /* Match active tab border */
+    border-top: none;         /* Remove top border to connect with active tab */
+    background-color: #3a3a3a; /* Match active tab background */
+    border-radius: 0;
+    color: #eee;
+    font-family: inherit;    /* Use body font */
+    box-sizing: border-box;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* --- Styling for Headers within Tab Content (Ore UI) --- */
+.tab-content h2 {
+    margin-top: 0;
+    margin-bottom: 20px;   /* More space below header */
+    border-bottom: 1px solid #555; /* Consistent border */
+    padding-bottom: 15px;   /* More padding below header */
+    color: #eee;
+    font-size: 1.6em;      /* Adjust size as needed */
+    font-weight: 600;
+    font-family: inherit; /* Use body font */
+
+    /* --- REMOVE Old Styles --- */
+    text-shadow: none;
+}
+
+/* --- Remove Specific Font/Input Styling within Tabs --- */
+/* Let elements inherit from base.css and forms.css */
+.tab-content p,
+.tab-content label,
+.tab-content ul,
+.tab-content ol,
+.tab-content li {
+    font-family: inherit; /* Ensure they use body font */
+    color: inherit;     /* Inherit text color */
+    line-height: 1.6;   /* Slightly increased line-height */
+}
+
+/* Remove specific input styles - rely on forms.css */
+/*
+.tab-content input[type="text"],
+.tab-content input[type="password"],
+.tab-content input[type="number"],
+.tab-content input[type="email"],
+.tab-content select,
+.tab-content textarea {
+    // Styles removed - use global form styles
+}
+.tab-content input:focus,
+.tab-content select:focus,
+.tab-content textarea:focus {
+   // Styles removed - use global form styles
+}
+.tab-content label {
+   // Styles removed - use global form styles
+}
+*/
+
+
+/* --- Mobile Adjustments (Simplified) --- */
+@media (max-width: 768px) {
+    .tab-navigation {
+         padding: 0 2px; /* Reduce padding slightly */
+         gap: 3px;      /* Reduce gap */
+     }
+
+    .tab-link {
+        padding: 6px 12px; /* Reduce padding */
+        font-size: 0.95em; /* Adjust font size */
+    }
+
+    .tab-content {
+        padding: 15px; /* Reduce padding */
+    }
+
+    .tab-content h2 {
+        font-size: 1.4em; /* Reduce heading size */
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+    }
+}
+
+
+@media (max-width: 480px) {
+     .tab-navigation {
+         gap: 2px; /* Further reduce gap */
+     }
+
+    .tab-link {
+        padding: 5px 10px; /* Further reduce padding */
+        font-size: 0.9em; /* Further reduce font size */
+    }
+
+    .tab-content {
+        padding: 12px; /* Further reduce padding */
+    }
+
+    .tab-content h2 {
+        font-size: 1.3em; /* Further reduce heading size */
+    }
+}

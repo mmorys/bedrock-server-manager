@@ -1,97 +1,514 @@
 /* bedrock-server-manager/bedrock_server_manager/web/static/css/forms.css */
 
-/* Server Selection Form and Dropdown Styles */
-.server-selection-section {
-    margin-bottom: 20px;
-    text-align: center; /* Center the form elements */
-}
-
-.select-server-group {
-    display: inline-block; /* Keep label and dropdown in line */
-    margin-right: 15px; /* Spacing between dropdown and buttons */
-    vertical-align: middle; /* Align label and dropdown vertically */
-}
-
-.select-label {
-    margin-right: 5px; /* Spacing between label and dropdown */
-    font-weight: bold;
-    color: #ddd; /* Light gray label text */
-    vertical-align: middle; /* Align label with dropdown */
-}
-
+/* --- Base Ore UI Form Input Style --- */
+.form-input,
+input[type="text"].form-input,
+input[type="email"].form-input,
+input[type="password"].form-input,
+input[type="number"].form-input,
+input[type="date"].form-input,
+input[type="time"].form-input,
+textarea.form-input,
+select.form-input,
 .server-dropdown {
-    padding: 8px;
-    border: 2px solid #777;
-    border-radius: 0; /* Sharp corners for dropdown */
-    background-color: #555;
+    display: inline-block;
+    width: auto;
+    padding: 8px 12px;
+    margin: 0;
+    border: 1px solid #555;
+    border-radius: 0;
+    background-color: #444;
     color: #eee;
-    font-family: monospace, sans-serif; /* Match body font */
+    font-family: inherit;
     font-size: 1em;
+    vertical-align: middle;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: none;
+}
+
+/* Default block behavior for most inputs */
+input[type="text"].form-input,
+input[type="email"].form-input,
+input[type="password"].form-input,
+input[type="number"].form-input,
+input[type="date"].form-input,
+input[type="time"].form-input,
+textarea.form-input {
+    display: block;
+    width: 100%; /* Make full width by default */
+    /* max-width: 450px; */ /* Remove default max-width, let container control it */
+    cursor: text;
+}
+
+/* Select-specific styles */
+select.form-input,
+.server-dropdown {
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23CCCCCC%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px 10px;
+    padding-right: 30px;
 }
 
-.action-buttons-group {
-    display: inline-block; /* Keep buttons in line with dropdown */
-    vertical-align: middle; /* Align buttons with dropdown */
+/* Focus State */
+.form-input:focus,
+input[type="text"].form-input:focus, /* ... other inputs ... */
+select.form-input:focus,
+textarea.form-input:focus,
+.server-dropdown:focus {
+    outline: none;
+    border-color: #888;
+    /* box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.3); */ /* Optional glow */
 }
 
-/* Server Selection Form and Dropdown Styling - Refined Pixel Art */
+/* --- Form Labels --- */
+.form-label,
+.select-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #ddd;
+    font-family: inherit;
+    font-size: 1em;
+    text-shadow: none;
+}
 
+.select-label {
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.form-label-inline {
+    display: inline-block; /* Keep inline for checkboxes/radios */
+    font-weight: normal;
+    color: #ddd;
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 5px;
+    vertical-align: middle;
+    margin-right: 8px; /* Space after */
+}
+
+/* --- Server Selection Section --- */
 .server-selection-section {
-    margin-bottom: 25px;
-    text-align: left; /* Keep text-align: left for label and dropdown alignment */
-    padding: 15px;     /* Add padding around the whole section */
-    background-color: #3a3a3a; /* Dark gray section background - same as table body */
-    border: 2px solid #555;     /* Add a border to the section - same as table border */
-    border-radius: 5px;         /* Optional: Add slight rounded corners to the section */
+    margin-bottom: 20px; /* Adjusted spacing */
+    padding: 15px 20px; /* Adjusted padding */
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 0;
+    box-sizing: border-box;
+    text-align: left;
 }
 
 .select-server-group {
     display: inline-block;
-    margin-right: 20px; /* Slightly increased right margin */
+    margin-right: 20px; /* Increased spacing */
     vertical-align: middle;
-}
-
-.select-label {
-    margin-right: 8px;
-    font-weight: bold;
-    color: #ddd;
-    text-shadow: 1px 1px 0 #222;
-    vertical-align: middle;
-    display: inline-block; /* Make label inline-block */
-    width: 120px;         /* Fixed width for label - adjust as needed */
-    text-align: right;    /* Align label text to the right */
-}
-
-.server-dropdown {
-    padding: 7px 10px; /* Adjusted padding for dropdown */
-    border-width: 2px;
-    border-style: solid;
-    border-top-color: #bbb;      /* Light gray highlight - Top */
-    border-left-color: #bbb;     /* Light gray highlight - Left */
-    border-bottom-color: #666;   /* Medium gray shadow - Bottom */
-    border-right-color: #666;    /* Medium gray shadow - Right */
-    border-radius: 0; /* Keep sharp corners */
-    background-color: #888;      /* Medium gray background for dropdown */
-    color: #eee;               /* Light text color for dropdown */
-    font-family: monospace, sans-serif;
-    font-size: 1em;
-    cursor: pointer;
-    /* Pixelated shadow for dropdown */
-    box-shadow: 2px 2px 0 #777;
-}
-
-.server-dropdown:focus, .server-dropdown:hover {
-    outline: none; /* Remove default focus outline */
-    background-color: #999;      /* Slightly lighter gray on focus/hover */
-    border-top-color: #ccc;      /* Lighter highlight on focus/hover */
-    border-left-color: #ccc;     /* Lighter highlight on focus/hover */
-    border-bottom-color: #777;   /* Slightly lighter shadow on focus/hover */
-    border-right-color: #777;    /* Slightly lighter shadow on focus/hover */
-    box-shadow: 2px 2px 0 #888;  /* Adjusted hover/focus shadow - Lighter */
+    margin-bottom: 5px; /* Add margin for mobile wrap */
 }
 
 .action-buttons-group {
     display: inline-block;
     vertical-align: middle;
+    margin-bottom: 5px; /* Add margin for mobile wrap */
+}
+
+
+/* --- Checkboxes and Radio Buttons (Base - Hidden) --- */
+.form-input[type="checkbox"],
+.form-input[type="radio"] {
+    /* Styles for base checkbox hidden by toggle switch */
+     /* display: inline-block; */
+     /* width: auto; */
+     /* margin-right: 5px; */
+     /* vertical-align: middle; */
+     /* cursor: pointer; */
+    /* Basic styling - real pixel styling is complex */
+    /* appearance: none; */
+    /* -webkit-appearance: none; */
+    /* border: 1px solid #bbb; */
+    /* background-color: #777; */
+    /* width: 16px; */
+    /* height: 16px; */
+    /* box-shadow: 1px 1px 0 #555 inset; */
+}
+/* Hide if not part of a toggle */
+/* label > .form-input[type="checkbox"]:not(.toggle-input) { display: none; } */
+
+
+/* --- Form Structure & Layout --- */
+.form-group {
+    margin-bottom: 18px;
+    padding: 0;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Adjusted min */
+    gap: 20px 25px;
+    margin-bottom: 25px;
+}
+
+.form-actions {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #555;
+    text-align: right;
+}
+.form-actions .main-button,
+.form-actions .action-button,
+.form-actions .action-link {
+    margin-left: 10px;
+}
+.form-actions > *:first-child { /* Remove margin from first button/link */
+    margin-left: 0;
+}
+
+
+/* --- Help Text and Validation --- */
+.form-help-text {
+    display: block;
+    font-size: 0.9em;
+    color: #bbb;
+    margin-top: 5px;
+    line-height: 1.4;
+}
+.form-label-inline + .form-help-text {
+    /* Don't indent if label is truly inline */
+    /* margin-left: 26px; */
+}
+
+.validation-error,
+.form-error {
+    color: #ef9a9a;
+    font-size: 0.9em;
+    padding-top: 4px;
+    display: block;
+    min-height: 1.2em;
+    font-weight: normal;
+    line-height: 1.4;
+}
+.form-error {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+.form-error li {
+    margin-bottom: 2px;
+}
+/* Validation error specific to inline errors */
+.validation-error.inline-error {
+     /* Style as needed for table display */
+}
+
+
+/* Invalid Input Field */
+.form-input.is-invalid {
+    border-color: #d9534f;
+    background-color: #503a3a;
+}
+.form-input.is-invalid:focus {
+    border-color: #e57373;
+    box-shadow: none;
+}
+
+
+/* --- Item List (e.g., Allowlist) --- */
+.list-section {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #555;
+}
+.list-section h2 {
+    margin-top: 0; /* Ensure H2 is styled consistently */
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #555;
+    font-size: 1.4em; /* Match other sub-headings */
+    font-weight: 600;
+    color: #eee;
+    text-shadow: none;
+}
+
+.item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.item-list li {
+    background-color: #444;
+    padding: 10px 15px;
+    margin-bottom: 6px;
+    border: 1px solid #555;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0;
+    flex-wrap: wrap; /* Allow wrap on mobile */
+    gap: 5px 10px; /* Row and column gap */
+}
+.item-list li:nth-child(even) {
+    background-color: #4a4a4a; /* Subtle striping */
+}
+.item-list .player-name {
+    font-weight: 600;
+    flex-grow: 1; /* Allow name to take space */
+    margin-right: 10px; /* Space before meta/button */
+}
+.item-list .player-meta {
+    font-size: 0.9em;
+    color: #bbb;
+    margin-right: 10px; /* Space before button */
+    flex-shrink: 0;
+}
+#no-players-message {
+    font-style: italic;
+    color: #aaa;
+    background-color: transparent !important; /* Override striping */
+    border: none;
+    padding: 10px 15px;
+    justify-content: center; /* Center text */
+}
+
+/* Style remove button */
+.item-list .remove-button {
+    /* Inherit from base button style, then override */
+    padding: 3px 8px;
+    margin: 0; /* Reset margin */
+    border-width: 1px;
+    font-size: 0.85em;
+    font-weight: 600;
+    line-height: 1.2;
+    background-color: #d9534f;
+    border-color: #e57373;
+    color: #fff;
+    text-shadow: none;
+    box-shadow: none;
+    flex-shrink: 0; /* Prevent shrinking */
+}
+.item-list .remove-button:hover {
+    background-color: #c9302c;
+    border-color: #ef9a9a;
+}
+.item-list .remove-button:active {
+     background-color: #b72b27;
+     border-color: #d9534f;
+}
+
+/* --- Login Form Specific --- */
+.login-wrapper {
+    max-width: 450px;
+    margin: 40px auto;
+    padding: 25px 30px;
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 0;
+}
+
+.login-actions {
+    text-align: center;
+    border-top: none;
+    padding-top: 10px;
+    margin-top: 15px;
+}
+.login-actions .main-button {
+    margin-left: 0;
+    width: 100%;
+    padding: 10px 15px;
+}
+
+/* --- Task Trigger Styling --- */
+.trigger-group {
+    border: 1px solid #555;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    background-color: #404040;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+.trigger-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #555;
+    padding-bottom: 12px;
+}
+.trigger-header h3 {
+    margin: 0;
+    font-size: 1.25em;
+    font-weight: 600;
+    color: #eee;
+    font-family: inherit;
+}
+.remove-trigger-button { /* Small danger button */
+    display: inline-block; padding: 3px 8px; margin: 0; border-width: 1px; border-style: solid; border-radius: 0; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; vertical-align: middle; box-sizing: border-box; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; text-shadow: none; box-shadow: none; font-size: 1em; line-height: 1.2; background-color: #d9534f; border-color: #e57373; color: #fff;
+}
+.remove-trigger-button:hover { background-color: #c9302c; border-color: #ef9a9a; color: #fff; }
+.remove-trigger-button:active { background-color: #b72b27; border-color: #d9534f; }
+.trigger-fields-container { padding-left: 0; margin-top: 15px; }
+/* Add button style */
+.add-trigger-button { /* Green button */
+    display: inline-block; padding: 8px 16px; margin: 10px 0 20px 0; border-width: 1px; border-style: solid; border-radius: 0; cursor: pointer; font-size: 1em; font-weight: 600; text-align: center; text-decoration: none; vertical-align: middle; box-sizing: border-box; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.1s ease; text-shadow: none; box-shadow: none; background-color: #4CAF50; border-color: #66BB6A; color: #fff;
+}
+.add-trigger-button:hover { background-color: #6fcf97; border-color: #81e0aa; color: #fff; }
+.add-trigger-button:active { background-color: #388E3C; border-color: #4CAF50; }
+
+
+/* --- Segmented Controls --- */
+.segmented-control {
+    display: inline-flex;
+    border: 1px solid #555;
+    border-radius: 0;
+    overflow: hidden;
+    flex-wrap: wrap; /* Allow wrapping */
+}
+.segmented-control .segment {
+    appearance: none; border: none; margin: 0; padding: 7px 10px; background-color: #505050; color: #ccc; font-family: inherit; font-size: 0.9em; font-weight: 600; cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease; line-height: 1.4; text-align: center; flex-grow: 1; flex-basis: auto; border-right: 1px solid #555; /* Separator */
+}
+.segmented-control .segment:last-child { border-right: none; }
+.segmented-control .segment:hover { background-color: #606060; color: #eee; }
+.segmented-control .segment.active { background-color: #4CAF50; color: #fff; cursor: default; }
+.segmented-control .segment.active:hover { background-color: #4CAF50; }
+
+
+/* --- Toggle Switches --- */
+.form-group-toggle-container {
+    display: flex; align-items: center; justify-content: space-between; padding: 8px 0;
+    /* Span full grid width by default */
+     grid-column: 1 / -1;
+}
+.form-group-toggle-container + .validation-error { margin-top: -5px; }
+.form-label-group { padding-right: 15px; }
+.form-label-group .form-label { margin-bottom: 2px; font-weight: 600; }
+.form-label-group .form-help-text { margin-top: 0; font-size: 0.9em; color: #bbb; }
+.toggle-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.toggle-switch-container { flex-shrink: 0; }
+.toggle-switch { display: inline-block; position: relative; width: 50px; height: 26px; background-color: #555; border: 1px solid #777; border-radius: 0px; cursor: pointer; transition: background-color 0.2s ease; }
+.toggle-switch::before { content: ""; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; background-color: #bbb; border: 1px solid #999; border-radius: 0px; transition: transform 0.2s ease, background-color 0.2s ease; }
+.toggle-input:checked + .toggle-switch { background-color: #4CAF50; border-color: #66BB6A; }
+.toggle-input:checked + .toggle-switch::before { transform: translate(24px, -50%); background-color: #fff; border-color: #eee; }
+.toggle-input:focus + .toggle-switch { box-shadow: 0 0 0 2px rgba(102, 187, 106, 0.4); }
+
+/* --- Step Indicator --- */
+.step-indicator { font-size: 0.9em; color: #bbb; font-style: italic; margin-top: 3px; }
+
+
+/* --- Mobile Adjustments for Forms --- */
+@media (max-width: 768px) {
+    .form-input, /* Ensure full width on mobile */
+    input[type="text"].form-input, input[type="email"].form-input, input[type="password"].form-input, input[type="number"].form-input, input[type="date"].form-input, input[type="time"].form-input, textarea.form-input, select.form-input, .server-dropdown {
+        width: 100%;
+        max-width: 100%;
+        padding: 10px 12px; /* Increase padding for touch */
+    }
+
+    .form-grid {
+        /* Adjust columns for tablets if needed, or let it wrap */
+        /* grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); */
+    }
+
+    .form-actions {
+        text-align: center; /* Center buttons */
+    }
+    .form-actions .main-button,
+    .form-actions .action-button,
+    .form-actions .action-link {
+        margin: 5px; /* Adjust margin for centered */
+        display: inline-block;
+    }
+
+    /* Adjust server selection layout */
+     .server-selection-section {
+        text-align: center; /* Center content */
+    }
+     .select-server-group, .action-buttons-group {
+         display: block; /* Stack dropdown and buttons */
+         margin-right: 0;
+         margin-bottom: 10px;
+         width: 100%; /* Take full width */
+     }
+     .select-label {
+         display: block; /* Stack label */
+         text-align: center;
+         margin-bottom: 5px;
+     }
+     .server-dropdown {
+         display: inline-block; /* Keep dropdown inline-block */
+         width: auto; /* Allow natural width */
+         max-width: 80%; /* Prevent excessive width */
+     }
+
+    /* Adjust item list for mobile */
+    .item-list li {
+        /* flex-wrap: wrap; */ /* Already added */
+        padding: 8px 12px;
+    }
+     .item-list .player-name { flex-basis: 100%; margin-right: 0; margin-bottom: 3px; } /* Stack name */
+     .item-list .player-meta { flex-basis: 50%; margin-right: 5px; text-align: left;} /* Meta left */
+     .item-list .remove-button { flex-basis: auto; margin-left: auto; } /* Button right */
+
+
+     /* Adjust login wrapper */
+     .login-wrapper { margin: 20px 10px; padding: 20px; }
+}
+
+@media (max-width: 600px) {
+    .form-grid {
+        grid-template-columns: 1fr; /* Force single column */
+        gap: 15px 0;
+    }
+    .form-group { width: 100%; }
+    .segmented-control { display: flex; flex-wrap: wrap;} /* Ensure wrapping works */
+
+     /* Make toggle group layout cleaner in single column */
+     .form-group-toggle-container {
+         /* Keep flex, maybe adjust padding */
+          padding: 5px 0;
+     }
+     .form-label-group {
+         padding-right: 10px; /* Reduce space */
+         margin-bottom: 5px; /* Add space below text */
+         /* flex-basis: 100%; */ /* Optional: Stack label above toggle */
+     }
+      /* .toggle-switch-container { margin-left: auto; } */ /* Align right if label stacks */
+}
+
+@media (max-width: 480px) {
+    /* Further reduce font sizes / padding if needed */
+     .form-input, input[type=text].form-input, etc. { font-size: 0.95em; padding: 8px 10px; }
+     .segmented-control .segment { font-size: 0.9em; padding: 6px 8px; }
+     .form-actions .main-button, .form-actions .action-button, .form-actions .action-link { font-size: 0.9em; padding: 6px 10px; }
+     .item-list li { padding: 6px 10px; }
+}
+
+/* Table input styling (ensure consistent sizing) */
+.server-table td .form-input {
+    width: auto;
+    min-width: 100px; /* Adjust min width */
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0;
+    padding: 5px 8px; /* Adjust padding */
+    font-size: 0.9em; /* Match table font size */
+}
+/* Stacked table adjustments */
+.server-table td[data-label] .form-input {
+    width: auto; /* Allow natural width in stacked view */
+    float: right; /* Example alignment */
+    /* Adjust width/float/display as needed */
+}
+.server-table td[data-label] .validation-error,
+.server-table td[data-label] .form-error {
+    clear: both;
+    padding-top: 5px;
+    float: none; /* Ensure errors clear float */
+    text-align: right; /* Match value alignment */
 }

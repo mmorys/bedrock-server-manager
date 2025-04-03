@@ -1,101 +1,88 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_service.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Configure Service</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/server_actions.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/install_config.js') }}"></script>
-    <style>
-        .validation-error { /* ... */ }
-    </style>
+{% extends "base.html" %}
 
-<div class="container" data-os="{{ os }}" data-server-name="{{ server_name }}">
-    <header class="header">
-        <h1>Configure Service: {{ server_name }}</h1>
-         {% if new_install %}
-            <p class="step-indicator">Step 4 of 4 (New Installation)</p>
-         {% endif %}
-    </header>
+{# Set the page title #}
+{% block title %}{{ super() }} - Configure Service: {{ server_name }}{% endblock %}
 
-    <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# server_actions.js might be needed if saveServiceSettings interacts with it #}
+    <script src="{{ url_for('static', filename='js/server_actions.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script> {# Keep if saveServiceSettings is here #}
+{% endblock %}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-         {% if messages %}
-             {% for category, message in messages %}
-                 <div class="message-box message-{{ category }}">{{ message }}</div>
-             {% endfor %}
-         {% endif %}
-     {% endwith %}
+
+{# Main content for this page - add data attributes here if JS needs them at this level #}
+{% block content %}
+<div data-os="{{ os }}" data-server-name="{{ server_name }}">
+    <h2>Configure Service Options</h2>
+    <p style="margin-bottom: 15px;">Server: <strong>{{ server_name }}</strong>...</p>
+    {# ... status/validation divs ... #}
 
     <section class="service-config-section">
-        {% if os == 'Linux' %}
-        <div class="form-group">
-            <label for="service-autoupdate" class="form-label">
-                <input type="checkbox" id="service-autoupdate" name="autoupdate" class="form-checkbox" {% if autoupdate %}checked{% endif %}>
-                Enable Auto-Update on Start
-            </label>
-            <small>Runs update check when service starts.</small>
-        </div>
 
-        <div class="form-group">
-            <label for="service-autostart" class="form-label">
-                <input type="checkbox" id="service-autostart" name="autostart" class="form-checkbox" {% if autostart %}checked{% endif %}>
-                Enable Autostart on Boot (Enable Service)
-            </label>
-             <small>Starts the server automatically when the system boots.</small>
-        </div>
+        {% if os == 'Linux' or os == 'Windows' %} {# Combine Linux/Windows toggles #}
 
-        {% elif os == 'Windows' %}
-        <div class="form-group">
-             <label for="service-autoupdate" class="form-label">
-                <input type="checkbox" id="service-autoupdate" name="autoupdate" class="form-checkbox" {% if autoupdate %}checked{% endif %}>
-                 Enable Auto-Update on Start
-             </label>
-              <small>Checks for updates on server start.</small>
-        </div>
-        {% else %}
-        <p>Service configuration is not applicable or supported on this operating system ({{ os }}).</p>
-        {% endif %}
-        {% if os == 'Linux' or os == 'Windows' %}
-             {% if new_install %}
-            <div class="form-group">
-                <label for="service-start-server" class="form-label">
-                    <input type="checkbox" id="service-start-server" name="start_server" class="form-checkbox">
-                    Start Server
-                </label>
-            </div>
-             {% endif %}
-
-            <div style="margin-top: 20px;">
-                <button type="button" onclick="saveServiceSettings(this, '{{ server_name }}', '{{ os }}', {{ new_install | tojson }})" class="action-button">Save Service Settings</button>
-
-                 {% if new_install %}
-                    <a href="{{ url_for('main_routes.index') }}" class="action-link" style="margin-left: 15px;">Finish / To Main Menu</a>
-                {% else %}
-                     <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link" style="margin-left: 15px;">Return</a>
-                {% endif %}
-            </div>
-
-        {% else %}
-             <div style="margin-top: 20px;">
-                 <a href="{{ url_for('main_routes.advanced_menu_route') }}" class="action-link">Back</a>
+        {# --- Auto-Update Toggle --- #}
+        <div class="form-group form-group-toggle-container">
+             <div class="form-label-group">
+                 <label for="service-autoupdate" class="form-label">Enable Auto-Update on Start:</label>
+                 <small class="form-help-text">Checks for updates when the service starts.</small>
              </div>
+             <div class="toggle-switch-container">
+                <input type="checkbox" id="service-autoupdate" name="autoupdate-cb" class="toggle-input" value="true" {% if autoupdate %}checked{% endif %}>
+                <label for="service-autoupdate" class="toggle-switch"></label>
+             </div>
+              <input type="hidden" name="autoupdate" class="toggle-hidden-false" value="false">
+              {# Add validation placeholder if needed #}
+              {# <div class="validation-error" data-field="autoupdate" style="grid-column: 1 / -1;"></div> #}
+        </div>
+
+        {# --- Auto-Start Toggle --- #}
+        {% if os == 'Linux' %} {# Only show Autostart for Linux? Adjust if needed #}
+         <div class="form-group form-group-toggle-container">
+             <div class="form-label-group">
+                 <label for="service-autostart" class="form-label">Enable Autostart on Boot:</label>
+                 <small class="form-help-text">Starts the server automatically when the system boots.</small>
+             </div>
+              <div class="toggle-switch-container">
+                <input type="checkbox" id="service-autostart" name="autostart-cb" class="toggle-input" value="true" {% if autostart %}checked{% endif %}>
+                <label for="service-autostart" class="toggle-switch"></label>
+              </div>
+               <input type="hidden" name="autostart" class="toggle-hidden-false" value="false">
+         </div>
+         {% endif %}
+
+
+         {# --- Start Server after Save Toggle (New Install Only) --- #}
+         {% if new_install %}
+         <div class="form-group form-group-toggle-container">
+              <div class="form-label-group">
+                 <label for="service-start-server" class="form-label">Start Server After Saving?</label>
+              </div>
+              <div class="toggle-switch-container">
+                <input type="checkbox" id="service-start-server" name="start_server" class="toggle-input" value="true"> {# Default off #}
+                <label for="service-start-server" class="toggle-switch"></label>
+              </div>
+               {# No hidden false needed if value="true" is only sent when checked #}
+         </div>
+         {% endif %}
+
+
+        <div class="form-actions">
+             {# Make Save primary #}
+            <button type="button" onclick="saveServiceSettings(this, '{{ server_name }}', '{{ os }}', {{ new_install | tojson }})" class="action-button start-button">Save Service Settings</button> {# Changed class #}
+             {# ... rest of actions ... #}
+        </div>
+
+        {% else %} {# Unsupported OS #}
+        <p>Service configuration is not applicable or supported on this operating system ({{ os }}).</p>
+         <div class="form-actions">
+             <a href="{{ url_for('main_routes.index') }}" class="main-button">Back</a>
+         </div>
         {% endif %}
 
     </section>
 </div>
-</body>
-</html>
+{% endblock %}

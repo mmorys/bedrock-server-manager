@@ -117,7 +117,7 @@ def restart_server_route(server_name):
 
     # Call the restart server handler
     logger.debug(f"Calling restart_server_handler for server '{server_name}'...")
-    response = server.restart_server_handler(server_name, base_dir)
+    response = server.restart_server(server_name, base_dir)
     logger.debug(f"Handler response for restart server '{server_name}': {response}")
 
     # Determine HTTP status code

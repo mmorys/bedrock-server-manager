@@ -1,60 +1,36 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/login.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Login</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <style>
-        .login-container {
-            max-width: 450px;
-            margin-top: 80px;
-        }
-        .form-error { /* Style for WTForms errors */
-            color: red;
-            font-size: 0.9em;
-            list-style: none;
-            padding-left: 0;
-        }
-        .form-group input.is-invalid { /* Style for invalid fields */
-             border-color: red;
-        }
-    </style>
-</head>
-<body>
-    <div class="container login-container">
-        <header class="header">
-            <h1>{{ app_name }}</h1>
-        </header>
+{% extends "base.html" %}
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="message-box message-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+{# Set the page title #}
+{% block title %}{{ super() }} - Login{% endblock %}
 
-        <form method="POST" action="{{ url_for('auth.login') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{# Add page-specific CSS/JS if needed - likely none needed here #}
+{#
+{% block head_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login_specific.css') }}">
+{% endblock %}
+#}
+
+{# Main content for this page #}
+{% block content %}
+    {# Added a specific wrapper for login content styling #}
+    <div class="login-wrapper">
+        {# Optional: Re-add app name heading if needed separate from main header #}
+        {# <h2>Login</h2> #}
+
+        {# Server-side flash messages handled by base.html #}
+
+        {# The form itself #}
+        <form method="POST" action="{{ url_for('auth.login') }}" class="login-form">
+            {# Use WTForms CSRF rendering if available, otherwise keep hidden input #}
+            {{ form.csrf_token }} {# Assuming WTForms provides this #}
+            {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
 
             <div class="form-group">
                 {{ form.username.label(class="form-label") }}
-
-                <!-- Render the field using the form object -->
+                {# Render the field, add is-invalid class if errors exist #}
                 {{ form.username(class="form-input" + (" is-invalid" if form.username.errors else "")) }}
-
-                <!-- Display validation errors for this field -->
+                {# Display validation errors #}
                 {% if form.username.errors %}
                     <ul class="form-error">
                         {% for error in form.username.errors %}
@@ -76,9 +52,10 @@
                 {% endif %}
             </div>
 
-            <!-- Render the submit button -->
-            {{ form.submit(class="main-button") }}
+            {# Render the submit button - wrap in form-actions for consistency? #}
+            <div class="form-actions login-actions"> {# Added login-actions for specific styling #}
+                 {{ form.submit(class="main-button") }}
+            </div>
         </form>
-    </div>
-</body>
-</html>
+    </div> {# End .login-wrapper #}
+{% endblock %}

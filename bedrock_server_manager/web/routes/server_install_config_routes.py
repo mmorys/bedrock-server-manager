@@ -232,9 +232,7 @@ def configure_properties_route(server_name):
         flash(error_msg, "error")
         logger.error(error_msg)
         # Redirect to a more general page if properties file is missing
-        return redirect(
-            url_for("main_routes.advanced_menu_route")
-        )  # Use main blueprint name
+        return redirect(url_for("main_routes.index"))  # Use main blueprint name
 
     # Check if this is part of a new installation sequence
     new_install_str = request.args.get("new_install", "False")
@@ -255,9 +253,7 @@ def configure_properties_route(server_name):
         flash(error_msg, "error")
         logger.error(error_msg)
         # Redirect if properties cannot be loaded
-        return redirect(
-            url_for("main_routes.advanced_menu_route")
-        )  # Use main blueprint name
+        return redirect(url_for("main_routes.index"))  # Use main blueprint name
 
     properties_data = properties_response.get("properties", {})
     logger.debug(

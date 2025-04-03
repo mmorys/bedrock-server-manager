@@ -1,8 +1,9 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/main_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
 import os
+import platform
 import logging
-from bedrock_server_manager.api import utils
+from bedrock_server_manager.api import utils, world
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import app_name, settings
 from bedrock_server_manager.web.routes.auth_routes import login_required
@@ -15,120 +16,139 @@ main_bp = Blueprint("main_routes", __name__)
 
 
 # --- Route: Main Dashboard ---
+@main_bp.route("/server_icon/<path:server_name>/world_icon.jpeg")
+@login_required
+def serve_world_icon(server_name):
+    """Serves the world_icon.jpeg for a given server."""
+    try:
+        base_dir = utils.get_base_dir()  # Get configured base dir
+        if not base_dir:
+            logger.error("SERVERS_BASE_PATH configuration is missing.")
+            return "Server configuration error", 500
+
+        # Get the world name (level-name) for this server
+        world_name_response = world.get_world_name(server_name, base_dir=base_dir)
+        if world_name_response["status"] != "success":
+            logger.warning(
+                f"Could not get world name for {server_name} to serve icon: {world_name_response.get('message')}"
+            )
+            # Optionally return default icon here instead of 404 later
+            # return send_from_directory(os.path.join(current_app.static_folder, 'image', 'icon'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+            raise FileNotFoundError("World name not found")  # Treat as not found
+
+        world_name = world_name_response["world_name"]
+
+        # Construct the absolute directory path CONTAINING the world folder
+        server_directory = os.path.join(base_dir, server_name, "worlds", world_name)
+        # Construct the filename path RELATIVE to the server_directory
+        filename_relative = os.path.join("world_icon.jpeg")
+
+        logger.debug(
+            f"Attempting to serve icon for {server_name}: Directory='{server_directory}', Relative Filename='{filename_relative}'"
+        )
+
+        # Use send_from_directory for security. It prevents path traversal.
+        # It expects the directory path and the filename path relative to that directory.
+        return send_from_directory(
+            server_directory,
+            filename_relative,
+            mimetype="image/jpeg",
+            as_attachment=False,  # Serve inline, not as download
+        )
+
+    except FileNotFoundError:
+        logger.warning(f"world_icon.jpeg not found for server {server_name}.")
+        # Return default icon instead of 404
+        try:
+            logger.debug("Serving default favicon.ico as world icon.")
+            # Serve favicon.ico from static/image/icon/
+            return send_from_directory(
+                os.path.join(current_app.static_folder, "image", "icon"),
+                "favicon.ico",
+                mimetype="image/vnd.microsoft.icon",
+            )
+        except Exception as default_e:
+            logger.error(f"Error serving default icon: {default_e}")
+            return "Default icon not found", 404
+
+    except Exception as e:
+        logger.exception(f"Error serving world icon for {server_name}: {e}")
+        # You could try serving the default icon here too on any error
+        return "Error serving icon", 500
+
+
 @main_bp.route("/")
 @login_required
 def index():
     """Renders the main dashboard page displaying the status of all servers."""
     logger.info("Route '/' accessed - Rendering main dashboard.")
-    base_dir = get_base_dir()
+    base_dir = utils.get_base_dir()
     logger.debug(f"Base directory: {base_dir}")
 
-    # Get status for all servers using the handler
-    logger.debug("Calling get_all_servers_status_handler...")
+    logger.debug("Calling get_all_servers_status...")
     status_response = utils.get_all_servers_status(base_dir=base_dir)
 
+    processed_servers = []  # List to hold final server data with icon URL
+
     if status_response["status"] == "error":
-        # Flash an error message if the handler failed
         error_msg = f"Error retrieving server statuses: {status_response.get('message', 'Unknown error')}"
         flash(error_msg, "error")
         logger.error(error_msg)
-        servers = []  # Provide an empty list to prevent template errors
+        # servers = [] # Keep this empty if needed downstream
     else:
-        servers = status_response.get("servers", [])
-        logger.debug(f"Successfully retrieved status for {len(servers)} servers.")
-
-    # Render the main index template
-    logger.debug(f"Rendering index.html with {len(servers)} servers.")
-    return render_template("index.html", servers=servers, app_name=app_name)
-
-
-# --- Route: Manage Servers Page ---
-@main_bp.route("/manage_servers")
-@login_required
-def manage_server_route():
-    """Renders the page for managing existing servers (e.g., delete)."""
-    logger.info("Route '/manage_servers' accessed - Rendering server management page.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
-
-    # Get status for all servers to list them
-    logger.debug("Calling get_all_servers_status_handler...")
-    status_response = utils.get_all_servers_status(base_dir=base_dir)
-
-    if status_response["status"] == "error":
-        # Flash an error message if the handler failed
-        error_msg = f"Error retrieving server statuses for management page: {status_response.get('message', 'Unknown error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-        servers = []  # Provide an empty list
-    else:
-        servers = status_response.get("servers", [])
+        original_servers = status_response.get("servers", [])
         logger.debug(
-            f"Successfully retrieved status for {len(servers)} servers for management page."
+            f"Successfully retrieved status for {len(original_servers)} servers. Processing for icons..."
         )
 
-    # Render the manage servers template
-    logger.debug(f"Rendering manage_servers.html with {len(servers)} servers.")
-    return render_template("manage_servers.html", servers=servers, app_name=app_name)
+        # --- Loop to add icon URL ---
+        for server_info in original_servers:
+            server_name = server_info.get("name")
+            icon_url = None  # Default to no specific icon
 
+            if server_name and base_dir:  # Need base_dir to check path
+                try:
+                    # Get world name for this server
+                    world_name_response = world.get_world_name(
+                        server_name, base_dir=base_dir
+                    )
 
-# --- Route: Advanced Menu Page ---
-@main_bp.route("/advanced_menu")
-@login_required
-def advanced_menu_route():
-    """Renders the advanced menu page listing servers for configuration."""
-    logger.info("Route '/advanced_menu' accessed - Rendering advanced menu page.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+                    if world_name_response["status"] == "success":
+                        world_name = world_name_response["world_name"]
+                        # Construct the FULL Filesystem path to check existence
+                        icon_fs_path = os.path.join(
+                            base_dir, server_name, "worlds", world_name, "world_icon.jpeg"
+                        )
 
-    # Get status for all servers to populate the dropdown/list
-    logger.debug("Calling get_all_servers_status_handler...")
-    status_response = utils.get_all_servers_status(base_dir=base_dir)
+                        if os.path.exists(icon_fs_path):
+                            # If it exists, generate the URL using our new serving route
+                            icon_url = url_for(
+                                "main_routes.serve_world_icon", server_name=server_name
+                            )
+                            logger.debug(
+                                f"Icon found for {server_name}. URL: {icon_url}"
+                            )
+                        else:
+                            logger.debug(f"Icon file not found at path: {icon_fs_path}")
+                    else:
+                        logger.warning(
+                            f"Could not get world name for {server_name} to check icon: {world_name_response.get('message')}"
+                        )
 
-    if status_response["status"] == "error":
-        # Flash an error message if the handler failed
-        error_msg = f"Error retrieving server statuses for advanced menu: {status_response.get('message', 'Unknown error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-        servers = []  # Provide an empty list
-    else:
-        servers = status_response.get("servers", [])
-        logger.debug(
-            f"Successfully retrieved status for {len(servers)} servers for advanced menu."
-        )
+                except Exception as e:
+                    logger.exception(
+                        f"Error processing icon for server {server_name}: {e}"
+                    )
 
-    # Render the advanced menu template
-    logger.debug(f"Rendering advanced_menu.html with {len(servers)} servers.")
-    return render_template("advanced_menu.html", servers=servers, app_name=app_name)
+            server_info["icon_url"] = icon_url  # Add the URL (or None) to the dict
+            processed_servers.append(server_info)  # Add modified dict to new list
+        # --- End Loop ---
 
-
-# --- Route: Install Content Menu Page ---
-@main_bp.route("/install_content")
-@login_required
-def install_content_menu_route():
-    """Renders the menu page for installing content (worlds, addons)."""
-    logger.info(
-        "Route '/install_content' accessed - Rendering content installation menu."
+    # Render the template using the processed list
+    logger.debug(
+        f"Rendering index.html with {len(processed_servers)} processed servers."
     )
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
-
-    # Get server list for the dropdown selector
-    logger.debug("Calling get_all_servers_status_handler for server list...")
-    status_response = utils.get_all_servers_status(base_dir=base_dir)
-
-    if status_response["status"] == "error":
-        error_msg = f"Error retrieving server list for content installation menu: {status_response.get('message', 'Unknown error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-        servers = []  # Provide empty list
-    else:
-        servers = status_response.get("servers", [])
-        logger.debug(f"Successfully retrieved {len(servers)} servers for content menu.")
-
-    # Render the content installation menu template
-    logger.debug(f"Rendering install_content.html with {len(servers)} servers.")
-    return render_template("install_content.html", servers=servers, app_name=app_name)
+    return render_template("index.html", servers=processed_servers, app_name=app_name)
 
 
 # --- Route: Server Monitor Page ---
@@ -142,3 +162,31 @@ def monitor_server_route(server_name):
     # The monitor page likely uses JavaScript to poll the status API,
     # so this route just needs to render the template.
     return render_template("monitor.html", server_name=server_name, app_name=app_name)
+
+
+# --- API Route: Configure Service ---
+@main_bp.route("/server/<server_name>/task_scheduler")
+@login_required
+def task_scheduler_route(server_name):
+    # Determine OS and process accordingly
+    current_os = platform.system()
+
+    if current_os == "Linux":
+        return redirect(
+            url_for(
+                "task_scheduler_routes.schedule_tasks_route", server_name=server_name
+            )
+        )
+    elif current_os == "Windows":
+        return redirect(
+            url_for(
+                "schedule_tasks_routes.schedule_tasks_windows_route", server_name=server_name
+            )
+        )
+    else:
+        return redirect(
+            url_for(
+                "main_routes.index", server_name=server_name
+            )  # Use new blueprint name
+        )
+    

@@ -1,50 +1,238 @@
-/* bedrock-server-manager/bedrock_server_manager/bedrock_server_manager/web/static/css/tables.css */
+/* bedrock-server-manager/bedrock_server_manager/web/static/css/tables.css */
 
-/* Server List Section and Table */
+/* --- Server List Section & Responsive Wrapper --- */
 .server-list-section {
-    margin-bottom: 20px;
+    margin-bottom: 25px; /* Increase spacing */
+    box-sizing: border-box;
 }
 
+.table-responsive-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    border: 1px solid #484848;
+    border-radius: 0;       /* Ensure sharp corners */
+    background-color: #3a3a3a; /* Background for the wrapper */
+}
+
+/* --- Base Ore UI Table Styles --- */
 .server-table {
     width: 100%;
-    border-collapse: collapse; /* Keep border-collapse: collapse; */
-    background-color: #3a3a3a; /* Dark gray table body background - slightly lighter than header */
-    border: 2px solid #555;     /* Keep table border */
+    min-width: 600px; /* Keep a min-width for horizontal scroll */
+    border-collapse: collapse; /* Essential for clean borders */
+    background-color: transparent; /* Let wrapper handle background */
+    border: none;              /* Remove table's own border */
+    table-layout: auto;
+    box-sizing: border-box;
 }
 
-.server-table td {
-    border-width: 2px; /* Thicker cell borders to match design */
-    border-style: solid;
-    border-top-color: transparent;    /* No top border for cells */
-    border-left-color: transparent;   /* No left border for cells */
-    border-bottom-color: #555;      /* Dark gray bottom border for cell separation */
-    border-right-color: #555;       /* Dark gray right border for cell separation */
-    padding: 6px 8px;             /* Adjusted cell padding - slightly reduced vertical */
-    text-align: left;
-    font-size: 1em;               /* Keep font-size: 0.9em or adjust to 1em if pixel font looks good */
-    color: #eee;                  /* Light text color in cells */
-}
-
+/* --- Table Headers (th) --- */
 .server-table th {
-    background-color: #404040; /* Darker gray header background - slightly darker than table body */
-    color: #ddd;              /* Light gray text color - adjusted for better contrast */
-    font-weight: bold;        /* Keep font-weight: bold */
-    text-align: left;         /* Keep text-align: left */
-    padding: 10px 8px;        /* Slightly increased padding for header */
-    border-bottom: 2px solid #555; /* Add a more pronounced bottom border */
-    border-top: none;         /* Remove top border (if any was set before) */
-    border-left: none;        /* Remove left border (let table border handle it) */
-    border-right: none;       /* Remove right border (let table border handle it) */
-    text-shadow: 1px 1px 0 #222; /* Subtle text shadow for header text */
+    background-color: #444; /* Slightly darker header background */
+    color: #eee;            /* Light header text */
+    font-weight: 600;      /* Slightly bold */
+    text-align: left;
+    padding: 12px 15px;    /* Generous padding */
+    border-bottom: 2px solid #555; /* Thicker bottom border for header separation */
+    border-right: 1px solid #555; /* Thin vertical separator */
+    vertical-align: middle; /* Align middle */
+    white-space: nowrap;
+    box-sizing: border-box;
+
+    /* --- REMOVE Old Styles --- */
+    text-shadow: none;
+    /* Complex borders removed */
+}
+.server-table th:last-child {
+    border-right: none; /* No border on the far right */
 }
 
+/* --- Table Cells (td) --- */
+.server-table td {
+    border-bottom: 1px solid #555; /* Horizontal separator */
+    border-right: 1px solid #555;  /* Vertical separator */
+    padding: 10px 15px;         /* Consistent padding with headers */
+    text-align: left;
+    font-size: 1em;
+    color: #eee;
+    vertical-align: middle;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-sizing: border-box;
+
+    /* --- REMOVE Old Styles --- */
+    /* Complex borders removed */
+}
+.server-table td:last-child {
+    border-right: none; /* No border on the far right */
+}
+
+/* --- Row Styling --- */
+/* Remove default striping for a cleaner Ore UI look */
 .server-table tbody tr:nth-child(even) {
-    background-color: #444; /* Slightly darker for even rows - subtle striping */
+    background-color: transparent; /* No striping */
+}
+/* Optional: Subtle hover */
+.server-table tbody tr:hover {
+    background-color: #404040; /* Slightly different background on hover */
 }
 
-.no-servers {
-    padding: 10px;
+/* --- 'No Servers' Message Styling --- */
+/* Option 1: Style as a row within the table */
+.server-table tr.no-servers-row td.no-servers {
     text-align: center;
     font-style: italic;
     color: #aaa;
+    background-color: transparent !important; /* Ensure no hover/striping */
+    border: none; /* Remove cell borders */
+    padding: 20px; /* More padding */
+    /* Ensure it spans all columns (requires colspan="X" in HTML) */
 }
+/* Option 2: Style as a separate element (if outside the table) */
+.no-servers-message { /* Use a different class if outside <table> */
+    padding: 15px;
+    text-align: center;
+    font-style: italic;
+    color: #aaa;
+    background-color: #3a3a3a;
+    border: 1px solid #555;
+    border-radius: 0;
+    margin-top: 10px;
+}
+
+
+/* --- Mobile Adjustments (Mainly Padding/Font) --- */
+@media (max-width: 768px) {
+    .server-table {
+        min-width: 500px; /* Adjust as needed */
+    }
+
+    .server-table th {
+        padding: 10px 12px; /* Reduce padding */
+        font-size: 0.95em;
+    }
+
+    .server-table td {
+        padding: 8px 12px; /* Reduce padding */
+        font-size: 0.95em;
+    }
+
+     .no-servers-message, /* If using option 2 */
+     .server-table tr.no-servers-row td.no-servers { /* If using option 1 */
+         padding: 15px;
+         font-size: 0.95em;
+     }
+}
+
+
+@media (max-width: 480px) {
+     .server-table {
+        min-width: 400px; /* Further adjust */
+     }
+
+     .server-table th {
+        padding: 8px 10px;
+        font-size: 0.9em;
+     }
+     .server-table td {
+        padding: 6px 10px;
+        font-size: 0.9em;
+     }
+      .no-servers-message, /* If using option 2 */
+      .server-table tr.no-servers-row td.no-servers { /* If using option 1 */
+         padding: 12px;
+         font-size: 0.9em;
+     }
+}
+
+/* --- Alternative: Stacking Table Pattern (Ore UI Style) --- */
+/* Uncomment and adjust if using data-labels in HTML */
+/*
+@media (max-width: 768px) { // Or your preferred stacking breakpoint
+
+    .table-responsive-wrapper {
+        overflow-x: visible; // Disable horizontal scroll
+        border: none;        // Remove wrapper border
+        background-color: transparent; // Remove wrapper background
+    }
+
+    .server-table {
+        border: none;
+        min-width: initial;
+        width: 100%; // Ensure full width
+    }
+
+    .server-table thead {
+        display: none;
+    }
+
+    .server-table tr {
+        display: block;
+        margin-bottom: 15px;
+        border: 1px solid #555;     // Border around each "card"
+        background-color: #404040; // Background for each "card"
+        border-radius: 0;           // Sharp corners
+    }
+    .server-table tbody tr:hover {
+        background-color: #484848; // Slightly lighter hover for cards
+    }
+     // Remove even striping for cards
+    .server-table tbody tr:nth-child(even) {
+         background-color: #404040;
+     }
+
+    .server-table td {
+        display: block;
+        text-align: right;
+        padding-left: 45%; // Adjust space for label
+        position: relative;
+        border: none; // Remove default cell borders
+        border-bottom: 1px solid #555; // Separator between cells
+        padding-top: 10px;    // Padding within cell
+        padding-bottom: 10px;
+        padding-right: 15px;  // Padding within cell
+        font-size: 1em;       // Reset font size for stacked view
+        color: #eee;          // Ensure text color
+    }
+    .server-table tr td:last-child {
+        border-bottom: none; // No border on the last cell of a card
+    }
+
+    .server-table td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 15px; // Label position
+        top: 10px;  // Align with top padding
+        width: 40%; // Adjust label width
+        padding-right: 10px;
+        white-space: nowrap;
+        text-align: left;
+        font-weight: 600;   // Bold label
+        color: #ccc;        // Label color
+    }
+
+    // Actions column styling
+    .server-table td[data-label="Actions"] {
+        text-align: left;
+        padding-left: 15px; // Use standard padding
+        padding-top: 8px;   // Adjust padding for buttons
+        padding-bottom: 8px;
+    }
+    .server-table td[data-label="Actions"]::before {
+         display: none; // Hide "Actions:" label
+     }
+     .server-table td[data-label="Actions"] button, // Use button classes
+     .server-table td[data-label="Actions"] a {
+         margin: 2px 4px 2px 0; // Space out buttons
+         // Buttons should inherit Ore UI style from buttons.css
+     }
+
+     // Hide 'no servers' row in stacking view if using Option 1
+     .server-table tr.no-servers-row {
+         display: none;
+     }
+     // Show separate message element in stacking view if using Option 2
+     .no-servers-message {
+          display: block; // Ensure it's shown
+     }
+}
+*/

@@ -1,40 +1,44 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/backup_menu.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Backup Menu</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/backup_restore.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>Backup Server: {{ server_name }}</h1>
-        </header>
+{% extends "base.html" %}
 
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Set the page title - Include server name #}
+{% block title %}{{ super() }} - Backup Menu: {{ server_name }}{% endblock %}
 
-        <section class="backup-menu-section">
-            <p>What do you want to backup?</p>
-            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-link">Backup World Now</button>
-            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-link">Backup All Now</button>
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}" defer></script>
+{% endblock %}
 
-            <a href="{{ url_for('backup_restore_routes.backup_config_select_route', server_name=server_name) }}" class="action-link">Backup Specific Config File...</a>
 
-            <a href="{{ url_for('main_routes.index') }}" class="action-link">Back to Main Menu</a>
-        </section>
+{# Main content for this page #}
+{% block content %}
+    {# Page Heading #}
+    <h2>Backup Options</h2>
+    {# Context #}
+    <p>Server: <strong>{{ server_name }}</strong></p>
+
+    {# Area for JavaScript-driven status messages #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+        <!-- Backup status messages will appear here -->
     </div>
-</body>
-</html>
+
+    <section class="backup-menu-section">
+        {# Prompt text #}
+        <p>Choose a backup action:</p>
+
+        {# Group for immediate backup actions #}
+        <div class="button-group action-buttons-group" style="margin-bottom: 20px;">
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-button">Backup World Now</button>
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-button start-button">Backup All Now</button> {# Using action-button style #}
+        </div>
+
+        {# Group for links to other backup options/navigation #}
+        {# Using main-button style for navigation options within the menu #}
+        <div class="button-group navigation-group">
+            <a href="{{ url_for('backup_restore_routes.backup_config_select_route', server_name=server_name) }}" class="main-button">Backup Specific Config File...</a>
+            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Main Menu</a>
+        </div>
+
+    </section>
+{% endblock %}

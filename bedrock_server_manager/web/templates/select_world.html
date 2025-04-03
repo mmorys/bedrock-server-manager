@@ -1,62 +1,75 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/select_world.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Select World</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/content_management.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>Select World to Import for {{ server_name }}</h1>
-        </header>
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{% extends "base.html" %}
 
-        <section class="select-world-section">
-            {% if world_files %}
-                <p>Click "Import" next to the world file you want to install:</p>
-                <table class="server-table">
-                  <thead>
-                    <tr>
-                      <th>World Name</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                <tbody>
-                {% for world_file in world_files %}
-                    <tr>
-                        <td>{{ world_file|basename }}</td>
-                        <td>
-                            <button type="button"
-                                    class="action-button import-button"
-                                    onclick="triggerWorldInstall(this, '{{ server_name }}', '{{ world_file | replace('\\', '\\\\') }}')">
-                                Import
-                            </button>
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-                </table>
-                <br>
-                <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
-            {% else %}
-                <p>No world files (.mcworld) found in the content/worlds directory.</p>
-                <a href="{{ url_for('main_routes.install_content_menu_route') }}" class="action-link">Back to Content Menu</a>
-            {% endif %}
-        </section>
+{# Set the page title #}
+{% block title %}{{ super() }} - Select World: {{ server_name }}{% endblock %}
+
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/content_management.js') }}" defer></script> {# Keep if triggerWorldInstall is here #}
+{% endblock %}
+
+
+{# Main content for this page #}
+{% block content %}
+    {# Page Heading #}
+    <h2>Select World to Import</h2>
+    <p style="margin-bottom: 15px;">Server: <strong>{{ server_name }}</strong></p>
+
+    {# Area for JavaScript-driven status messages #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+        <!-- Status messages from import actions will appear here -->
     </div>
-</body>
-</html>
+
+    {# Server-side flash messages handled by base.html #}
+
+    <section class="select-world-section list-section"> {# Added list-section class #}
+        {% if world_files %}
+            <p>Click "Import" next to the world file (.mcworld) you want to install:</p>
+
+            <div class="table-responsive-wrapper"> {# Add Wrapper #}
+                <table class="server-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Available World File</th> {# Clarified header #}
+                            <th scope="col">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for world_file in world_files %}
+                        <tr>
+                            {# Use basename filter if available #}
+                            <td data-label="World File">{{ world_file|basename }}</td>
+                            <td data-label="Action">
+                                <button type="button"
+                                        class="action-button import-button" {# Keep specific class #}
+                                        {# Escape path properly for JS string #}
+                                        onclick="triggerWorldInstall(this, '{{ server_name | e }}', '{{ world_file | e | replace('\\', '\\\\') }}')">
+                                    Import
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div> {# End Wrapper #}
+
+            {# Navigation Link #}
+            <div class="form-actions navigation-link"> {# Consistent wrapper #}
+                 {# Use main-button for primary navigation back #}
+                <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Content Menu</a>
+            </div>
+
+        {% else %}
+             {# Use consistent message styling #}
+             <p class="no-servers">No world files (.mcworld) found in the content/worlds directory.</p>
+
+              {# Navigation Link (also needed if no worlds found) #}
+             <div class="form-actions navigation-link"> {# Consistent wrapper #}
+                <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Content Menu</a>
+            </div>
+        {% endif %}
+    </section> {# End .select-world-section #}
+
+{% endblock %}

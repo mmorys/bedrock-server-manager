@@ -1,39 +1,42 @@
 <!-- bedrock-server-manager/bedrock_server_manager/web/templates/backup_config_options.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ app_name }} - Select Config File</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image/icon/favicon-96x96.png') }}" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='image/icon/favicon.svg') }}" />
-    <link rel="shortcut icon" href="{{ url_for('static', filename='image/icon/favicon.ico') }}" />
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='image/icon/apple-touch-icon.png') }}" />
-    <link rel="manifest" href="{{ url_for('static', filename='site.webmanifest') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/backup_restore.js') }}"></script>
-</head>
-<body>
-    <div class="container">
-        <header class="header">
-            <h1>Select Configuration File to Backup: {{ server_name }}</h1>
-        </header>
+{% extends "base.html" %}
 
-        <div id="status-message-area" class="message-box" style="min-height: 1.5em; margin-top: 10px;"></div>
+{# Set the page title - Include server name for context #}
+{% block title %}{{ super() }} - Backup Config: {{ server_name }}{% endblock %}
 
-        <section class="backup-config-section">
+{# Add page-specific JS to the head #}
+{% block head_scripts %}
+    {# Include utils first if backup_restore depends on it #}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}" defer></script>
+{% endblock %}
+
+
+{# Main content for this page #}
+{% block content %}
+    {# Page Heading within the main content area #}
+    <h2>Select Configuration File to Backup</h2>
+    {# Sub-heading or paragraph for context #}
+    <p>Server: <strong>{{ server_name }}</strong></p>
+
+    {# Area for JavaScript-driven status messages #}
+    {# Note: JS should ideally add/remove message classes (e.g., message-box, message-error) as needed #}
+    <div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+        <!-- Status messages from backup actions will appear here -->
+    </div>
+
+    <section class="backup-config-section">
+        {# Group the backup action buttons #}
+        <div class="button-group action-buttons-group"> {# Reusing action-buttons-group or define a new simple one #}
             <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'allowlist.json')" class="action-link">Backup allowlist.json</button>
             <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'permissions.json')" class="action-link">Backup permissions.json</button>
             <button type="button" onclick="triggerSpecificConfigBackup(this, '{{ server_name }}', 'server.properties')" class="action-link">Backup server.properties</button>
+            {# Add more config buttons here if needed #}
+        </div>
 
-            <br><br>
-            <a href="{{ url_for('main_routes.index') }}" class="action-link">Back to Main Menu</a>
-        </section>
-    </div>
-</body>
-</html>
+        {# Navigation link - separated from actions #}
+        <div class="navigation-link" style="margin-top: 25px;"> {# Add spacing using CSS margin #}
+            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Main Menu</a> {# Use main-button style for primary nav? Or keep action-link? Changed to main-button #}
+        </div>
+    </section>
+{% endblock %}
