@@ -1,5 +1,15 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/main_routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, current_app
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    jsonify,
+    send_from_directory,
+    current_app,
+)
 import os
 import platform
 import logging
@@ -77,6 +87,39 @@ def serve_world_icon(server_name):
         return "Error serving icon", 500
 
 
+@main_bp.route("/background/custom_panorama.jpg")
+def serve_custom_panorama():
+    try:
+        config_dir = settings._config_dir
+        if not config_dir:
+            logger.error("CONFIG_DIR setting is not defined.")
+            raise FileNotFoundError("Config dir not set")
+
+        config_dir_abs = os.path.abspath(config_dir)
+
+        filename = "panorama.jpeg"
+
+        logger.debug(
+            f"Attempting to serve custom panorama: Directory='{config_dir_abs}', Filename='{filename}'"
+        )
+
+        if not os.path.isdir(config_dir_abs):
+            logger.error(f"Custom panorama directory does not exist: {config_dir_abs}")
+            raise FileNotFoundError("Panorama directory not found")
+
+        return send_from_directory(
+            config_dir_abs, filename, mimetype="image/jpeg", as_attachment=False
+        )
+    except (FileNotFoundError, werkzeug.exceptions.NotFound) as e:
+        logger.warning(
+            f"Custom panorama.jpg not found or error during lookup. Error: {e}"
+        )
+        return send_from_directory(os.path.join(current_app.static_folder, 'image'), 'panorama.jpeg', mimetype='image/jpeg')
+    except Exception as e:
+        logger.exception(f"Error serving custom panorama: {e}")
+        return "Error serving panorama", 500
+
+
 @main_bp.route("/")
 @login_required
 def index():
@@ -117,7 +160,11 @@ def index():
                         world_name = world_name_response["world_name"]
                         # Construct the FULL Filesystem path to check existence
                         icon_fs_path = os.path.join(
-                            base_dir, server_name, "worlds", world_name, "world_icon.jpeg"
+                            base_dir,
+                            server_name,
+                            "worlds",
+                            world_name,
+                            "world_icon.jpeg",
                         )
 
                         if os.path.exists(icon_fs_path):
@@ -144,11 +191,30 @@ def index():
             processed_servers.append(server_info)  # Add modified dict to new list
         # --- End Loop ---
 
-    # Render the template using the processed list
-    logger.debug(
-        f"Rendering index.html with {len(processed_servers)} processed servers."
+    panorama_url = None
+    try:
+        config_dir = settings._config_dir
+        if config_dir:
+            config_dir_abs = os.path.abspath(config_dir)
+            panorama_fs_path = os.path.join(config_dir_abs, "panorama.jpeg")
+            if os.path.exists(panorama_fs_path):
+                panorama_url = url_for(
+                    "main_routes.serve_custom_panorama"
+                )  # Use the new route
+                logger.debug(f"Custom panorama found. URL: {panorama_url}")
+            else:
+                logger.debug(f"Custom panorama file not found at: {panorama_fs_path}")
+        else:
+            logger.debug("CONFIG_DIR not set, skipping custom panorama check.")
+    except Exception as e:
+        logger.exception(f"Error checking for custom panorama: {e}")
+
+    return render_template(
+        "index.html",
+        servers=processed_servers,
+        app_name=app_name,
+        panorama_url=panorama_url,
     )
-    return render_template("index.html", servers=processed_servers, app_name=app_name)
 
 
 # --- Route: Server Monitor Page ---
@@ -180,7 +246,8 @@ def task_scheduler_route(server_name):
     elif current_os == "Windows":
         return redirect(
             url_for(
-                "schedule_tasks_routes.schedule_tasks_windows_route", server_name=server_name
+                "schedule_tasks_routes.schedule_tasks_windows_route",
+                server_name=server_name,
             )
         )
     else:
@@ -189,4 +256,3 @@ def task_scheduler_route(server_name):
                 "main_routes.index", server_name=server_name
             )  # Use new blueprint name
         )
-    

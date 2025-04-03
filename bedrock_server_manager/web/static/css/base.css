@@ -1,29 +1,68 @@
 /* bedrock-server-manager/bedrock_server_manager/web/static/css/base.css */
 
+@keyframes panoramaScroll {
+    0% {
+        background-position: 100% 50%; /* Start at the left */
+    }
+    100% {
+        background-position: 0% 50%; /* Scroll one full image width */
+        /* Adjust percentage or use pixel value based on image width if repeat-x isn't perfect */
+        /* e.g., background-position: -4096px 50%; if image is 4096px wide */
+    }
+}
+
 /* Basic Reset and Font */
 body {
+    /* Keep font, margin, padding, text color, font-smoothing */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
     margin: 0;
     padding: 0;
-    background-color: #222; /* Dark background - good */
-    color: #eee; /* Light text color - good */
+    color: #eee;
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    line-height: 1.5; /* Add a default line-height for better readability */
+    line-height: 1.5;
+
+    /* --- ADD Panorama Background --- */
+    background-image: url('../image/panorama.jpeg'); /* FILENAME */
+    background-size: auto 100vh; /* Height fills viewport, width auto - adjust as needed */
+    /* Other options: 'cover', 'contain', fixed size like '4096px auto' */
+    background-repeat: repeat-x; /* Repeat horizontally */
+    background-attachment: fixed; /* Fixed background */
+
+    /* Apply the animation */
+    animation-name: panoramaScroll;
+    animation-duration: 120s; /* <<<=== Adjust duration for speed (e.g., 60s, 90s, 180s) */
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-play-state: running;
+}
+
+/* --- ADD Overlay --- */
+body::before {
+    content: "";
+    position: fixed; /* Cover viewport */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(34, 34, 34, 0.30); /* Dark overlay (#222 at 80% opacity) - Adjust opacity */
+    z-index: -1; /* Behind content, above background-image */
 }
 
 .container {
     width: 90%;
     max-width: 1200px;
     margin: 20px auto;
-    padding: 25px; /* Slightly increase padding for more breathing room */
-    background-color: #333; /* Slightly darker inner background - good */
-    /* --- CHANGE: Simplify the border --- */
-     border: 1px solid #444;
-    /* border: none; */ /* Alternative: Remove border entirely, rely on background contrast */
-    border-radius: 0px; /* Keep sharp corners */
+    padding: 25px;
+    /* Make container background semi-transparent */
+    background-color: rgba(51, 51, 51, 0.92); /* #333 at 92% opacity - adjust as needed */
+    /* Or keep solid: background-color: #333; */
+    border: 1px solid #555;
+    border-radius: 0px;
     box-sizing: border-box;
+    position: relative; /* Needed to ensure it's above the body::before overlay */
+    z-index: 1;
 }
 
 /* Header Styling */

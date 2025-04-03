@@ -22,6 +22,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tabs.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    {% if panorama_url %}
+    <style>
+        body {
+            /* Override the background-image from base.css */
+            background-image: url('{{ panorama_url | safe }}');
+        }
+    </style>
+    {% endif %}
 
     {# Page-specific CSS Block #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
