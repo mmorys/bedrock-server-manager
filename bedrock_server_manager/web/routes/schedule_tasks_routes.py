@@ -31,7 +31,7 @@ schedule_tasks_bp = Blueprint("schedule_tasks_routes", __name__)
 
 
 # --- Route: Schedule Tasks Page (Linux/Cron) ---
-@schedule_tasks_bp.route("/server/<server_name>/schedule", methods=["GET"])
+@schedule_tasks_bp.route("/server/<server_name>/cron_scheduler", methods=["GET"])
 @login_required
 def schedule_tasks_route(server_name):
     """Displays the Linux cron job scheduling page for a server."""
@@ -86,7 +86,9 @@ def schedule_tasks_route(server_name):
 
 
 # --- API Route: Add Cron Job ---
-@schedule_tasks_bp.route("/api/server/<server_name>/schedule/add", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/cron_scheduler/add", methods=["POST"]
+)
 @csrf.exempt
 @auth_required
 def add_cron_job_route(server_name):
@@ -163,7 +165,9 @@ def add_cron_job_route(server_name):
 
 
 # --- API Route: Modify Cron Job ---
-@schedule_tasks_bp.route("/api/server/<server_name>/schedule/modify", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/cron_scheduler/modify", methods=["POST"]
+)
 @csrf.exempt
 @auth_required
 def modify_cron_job_route(server_name):
@@ -271,7 +275,7 @@ def modify_cron_job_route(server_name):
 
 # --- API Route: Delete Cron Job ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/schedule/delete", methods=["DELETE"]
+    "/api/server/<server_name>/cron_scheduler/delete", methods=["DELETE"]
 )
 @csrf.exempt
 @auth_required
@@ -347,7 +351,7 @@ def delete_cron_job_route(server_name):
 
 
 # --- Route: Schedule Tasks Page (Windows) ---
-@schedule_tasks_bp.route("/server/<server_name>/tasks", methods=["GET"])
+@schedule_tasks_bp.route("/server/<server_name>/task_scheduler", methods=["GET"])
 @login_required
 def schedule_tasks_windows_route(server_name):
     """Displays the Windows Task Scheduler management page for a server."""
@@ -414,7 +418,9 @@ def schedule_tasks_windows_route(server_name):
 
 
 # --- API Route: Add Windows Task ---
-@schedule_tasks_bp.route("/api/server/<server_name>/tasks/add", methods=["POST"])
+@schedule_tasks_bp.route(
+    "/api/server/<server_name>/task_scheduler/add", methods=["POST"]
+)
 @csrf.exempt
 @auth_required
 def add_windows_task_api(server_name):
@@ -587,7 +593,7 @@ def add_windows_task_api(server_name):
 
 # --- API Route: Get Windows Task Details ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/tasks/details/<path:task_name>", methods=["GET"]
+    "/api/server/<server_name>/task_scheduler/details/<path:task_name>", methods=["GET"]
 )
 @auth_required
 def get_windows_task_details_api(server_name, task_name):
@@ -701,7 +707,7 @@ def get_windows_task_details_api(server_name, task_name):
 
 # --- API Route: Modify Windows Task ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/tasks/modify/<path:task_name>", methods=["PUT"]
+    "/api/server/<server_name>/task_scheduler/modify/<path:task_name>", methods=["PUT"]
 )
 @csrf.exempt
 @auth_required
@@ -874,7 +880,8 @@ def modify_windows_task_api(server_name, task_name):
 
 # --- Route: Delete Windows Task ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/tasks/delete/<path:task_name>", methods=["DELETE"]
+    "/api/server/<server_name>/task_scheduler/delete/<path:task_name>",
+    methods=["DELETE"],
 )
 @csrf.exempt
 @auth_required

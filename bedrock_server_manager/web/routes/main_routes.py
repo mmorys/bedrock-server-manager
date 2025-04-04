@@ -26,104 +26,6 @@ main_bp = Blueprint("main_routes", __name__)
 
 
 # --- Route: Main Dashboard ---
-@main_bp.route("/server_icon/<path:server_name>/world_icon.jpeg")
-@login_required
-def serve_world_icon(server_name):
-    """Serves the world_icon.jpeg for a given server."""
-    try:
-        base_dir = utils.get_base_dir()  # Get configured base dir
-        if not base_dir:
-            logger.error("SERVERS_BASE_PATH configuration is missing.")
-            return "Server configuration error", 500
-
-        # Get the world name (level-name) for this server
-        world_name_response = world.get_world_name(server_name, base_dir=base_dir)
-        if world_name_response["status"] != "success":
-            logger.warning(
-                f"Could not get world name for {server_name} to serve icon: {world_name_response.get('message')}"
-            )
-            # Optionally return default icon here instead of 404 later
-            # return send_from_directory(os.path.join(current_app.static_folder, 'image', 'icon'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
-            raise FileNotFoundError("World name not found")  # Treat as not found
-
-        world_name = world_name_response["world_name"]
-
-        # Construct the absolute directory path CONTAINING the world folder
-        server_directory = os.path.join(base_dir, server_name, "worlds", world_name)
-        # Construct the filename path RELATIVE to the server_directory
-        filename_relative = os.path.join("world_icon.jpeg")
-
-        logger.debug(
-            f"Attempting to serve icon for {server_name}: Directory='{server_directory}', Relative Filename='{filename_relative}'"
-        )
-
-        # Use send_from_directory for security. It prevents path traversal.
-        # It expects the directory path and the filename path relative to that directory.
-        return send_from_directory(
-            server_directory,
-            filename_relative,
-            mimetype="image/jpeg",
-            as_attachment=False,  # Serve inline, not as download
-        )
-
-    except FileNotFoundError:
-        logger.warning(f"world_icon.jpeg not found for server {server_name}.")
-        # Return default icon instead of 404
-        try:
-            logger.debug("Serving default favicon.ico as world icon.")
-            # Serve favicon.ico from static/image/icon/
-            return send_from_directory(
-                os.path.join(current_app.static_folder, "image", "icon"),
-                "favicon.ico",
-                mimetype="image/vnd.microsoft.icon",
-            )
-        except Exception as default_e:
-            logger.error(f"Error serving default icon: {default_e}")
-            return "Default icon not found", 404
-
-    except Exception as e:
-        logger.exception(f"Error serving world icon for {server_name}: {e}")
-        # You could try serving the default icon here too on any error
-        return "Error serving icon", 500
-
-
-@main_bp.route("/background/custom_panorama.jpeg")
-def serve_custom_panorama():
-    try:
-        config_dir = settings._config_dir
-        if not config_dir:
-            logger.error("CONFIG_DIR setting is not defined.")
-            raise FileNotFoundError("Config dir not set")
-
-        config_dir_abs = os.path.abspath(config_dir)
-
-        filename = "panorama.jpeg"
-
-        logger.debug(
-            f"Attempting to serve custom panorama: Directory='{config_dir_abs}', Filename='{filename}'"
-        )
-
-        if not os.path.isdir(config_dir_abs):
-            logger.error(f"Custom panorama directory does not exist: {config_dir_abs}")
-            raise FileNotFoundError("Panorama directory not found")
-
-        return send_from_directory(
-            config_dir_abs, filename, mimetype="image/jpeg", as_attachment=False
-        )
-    except (FileNotFoundError, werkzeug.exceptions.NotFound) as e:
-        logger.warning(
-            f"Custom panorama.jpeg not found or error during lookup. Error: {e}"
-        )
-        return send_from_directory(
-            os.path.join(current_app.static_folder, "image"),
-            "panorama.jpeg",
-            mimetype="image/jpeg",
-        )
-    except Exception as e:
-        logger.exception(f"Error serving custom panorama: {e}")
-        return "Error serving panorama", 500
-
-
 @main_bp.route("/")
 @login_required
 def index():
@@ -167,7 +69,7 @@ def index():
                         )
                         if os.path.exists(icon_fs_path):
                             icon_url = url_for(
-                                "main_routes.serve_world_icon", server_name=server_name
+                                "util_routes.serve_world_icon", server_name=server_name
                             )
                             logger.debug(
                                 f"Icon found for {server_name}. URL: {icon_url}"
@@ -191,27 +93,8 @@ def index():
     return render_template("index.html", servers=processed_servers)
 
 
-@main_bp.route("/<path:unused_path>")
-def catch_all(unused_path):
-    """Redirects any non-existent route to the index page."""
-    return redirect(url_for("main_routes.index"))
-
-
-# --- Route: Server Monitor Page ---
-@main_bp.route("/server/<server_name>/monitor")
-@login_required
-def monitor_server_route(server_name):
-    """Displays the server monitoring page (e.g., for console output, status)."""
-    logger.info(
-        f"Route '/server/{server_name}/monitor' accessed - Rendering monitoring page."
-    )
-    # The monitor page likely uses JavaScript to poll the status API,
-    # so this route just needs to render the template.
-    return render_template("monitor.html", server_name=server_name, app_name=app_name)
-
-
-# --- API Route: Configure Service ---
-@main_bp.route("/server/<server_name>/task_scheduler")
+# --- Schedule Task ---
+@main_bp.route("/server/<server_name>/scheduler")
 @login_required
 def task_scheduler_route(server_name):
     # Determine OS and process accordingly
@@ -231,8 +114,4 @@ def task_scheduler_route(server_name):
             )
         )
     else:
-        return redirect(
-            url_for(
-                "main_routes.index", server_name=server_name
-            )  # Use new blueprint name
-        )
+        return redirect(url_for("main_routes.index", server_name=server_name))

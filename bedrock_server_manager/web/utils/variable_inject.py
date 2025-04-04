@@ -28,7 +28,7 @@ def inject_global_variables():
             panorama_fs_path = os.path.join(config_dir_abs, "panorama.jpeg")
             if os.path.exists(panorama_fs_path):
                 # Ensure the endpoint name is correct (matches the route definition)
-                panorama_url = url_for("main_routes.serve_custom_panorama")
+                panorama_url = url_for("util_routes.serve_custom_panorama")
                 logger.debug(
                     f"Context Processor: Custom panorama found. URL: {panorama_url}"
                 )
