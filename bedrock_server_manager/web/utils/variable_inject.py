@@ -49,14 +49,18 @@ def inject_global_variables():
     try:
         if isinstance(SPLASH_TEXTS, dict) and SPLASH_TEXTS:
             # If it's a dictionary, flatten all its list values into one list
-            all_texts = [text for category_list in SPLASH_TEXTS.values() for text in category_list]
+            all_texts = [
+                text
+                for category_list in SPLASH_TEXTS.values()
+                for text in category_list
+            ]
             if all_texts:
                 chosen_splash = random.choice(all_texts)
             else:
-                 chosen_splash = "Looking Good!" # No texts found in dict values
+                chosen_splash = "Looking Good!"  # No texts found in dict values
         elif isinstance(SPLASH_TEXTS, (list, tuple)) and SPLASH_TEXTS:
-             # If it's already a list or tuple (original format), use it directly
-             chosen_splash = random.choice(SPLASH_TEXTS)
+            # If it's already a list or tuple (original format), use it directly
+            chosen_splash = random.choice(SPLASH_TEXTS)
         else:
             # Fallback if SPLASH_TEXTS is empty or None or unexpected type
             chosen_splash = "Looking Good!"
