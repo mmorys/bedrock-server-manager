@@ -29,15 +29,15 @@
 
         {# Group for immediate backup actions #}
         <div class="button-group action-buttons-group" style="margin-bottom: 20px;">
-            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-button">Backup World Now</button>
-            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-button start-button">Backup All Now</button> {# Using action-button style #}
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'world')" class="action-button">Backup World</button>
+            <a href="{{ url_for('backup_restore_routes.backup_config_select_route', server_name=server_name) }}" class="action-button">Backup Config File</a>
+            <button type="button" onclick="triggerBackup(this, '{{ server_name }}', 'all')" class="action-button">Backup All</button>
         </div>
 
         {# Group for links to other backup options/navigation #}
         {# Using main-button style for navigation options within the menu #}
         <div class="button-group navigation-group">
-            <a href="{{ url_for('backup_restore_routes.backup_config_select_route', server_name=server_name) }}" class="main-button">Backup Specific Config File...</a>
-            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Main Menu</a>
+            <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
         </div>
 
     </section>

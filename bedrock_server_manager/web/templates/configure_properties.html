@@ -215,9 +215,9 @@
             <button type="button" onclick="saveProperties(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button start-button">Save Properties</button>
 
             {% if new_install %}
-                <a href="{{ url_for('install_config_routes.configure_allowlist_route', server_name=server_name, new_install='True') }}" class="action-link">Skip / Next Step →</a>
+                <a href="{{ url_for('install_config_routes.configure_allowlist_route', server_name=server_name, new_install='True') }}" class="action-link">Next →</a>
             {% else %}
-                 <a href="{{ url_for('main_routes.index') }}" class="main-button">Return</a>
+                 <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
             {% endif %}
         </div>
 

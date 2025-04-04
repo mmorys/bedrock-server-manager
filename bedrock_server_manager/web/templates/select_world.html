@@ -58,7 +58,7 @@
             {# Navigation Link #}
             <div class="form-actions navigation-link"> {# Consistent wrapper #}
                  {# Use main-button for primary navigation back #}
-                <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Content Menu</a>
+                <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
             </div>
 
         {% else %}
@@ -67,7 +67,7 @@
 
               {# Navigation Link (also needed if no worlds found) #}
              <div class="form-actions navigation-link"> {# Consistent wrapper #}
-                <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Content Menu</a>
+                <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
             </div>
         {% endif %}
     </section> {# End .select-world-section #}

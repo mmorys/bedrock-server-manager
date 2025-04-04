@@ -50,6 +50,60 @@ body::before {
     z-index: -1; /* Behind content, above background-image */
 }
 
+
+/* --- Splash Text Styling --- */
+.splash-text {
+    position: absolute; /* Position relative to the header */
+    /* Adjust top/right based on title size */
+    top: 70px;
+    /* Use right or left - positioning relative to the centered header link is tricky */
+    /* Let's try positioning relative to the overall header width */
+    right: 20%; /* Adjust percentage or use pixels */
+    /* Or try left: 55%; */
+
+    transform: rotate(-15deg); /* Rotation */
+    transform-origin: center center; /* Rotate around center */
+
+    font-family: "Arial Black", Gadget, sans-serif; /* Chunky font */
+    font-weight: bold;
+    font-size: 0.5em; /* Adjust size */
+    color: #FFFF00; /* Yellow */
+    text-shadow: 2px 2px 0px #404040; /* Dark grey shadow - adjust color/offset */
+
+    padding: 2px 5px;
+    white-space: nowrap; /* Prevent wrapping */
+    z-index: 5; /* Ensure it's above header elements if needed */
+    pointer-events: none; /* Prevent it interfering with clicks */
+}
+
+
+/* --- Mobile Adjustments --- */
+
+/* Existing header/logo/h1 mobile adjustments ... */
+@media (max-width: 768px) {
+    /* ... */
+    .splash-text {
+        font-size: 0.4em; /* Smaller font */
+        top: 58px; /* Adjust position */
+        right: 10%; /* Adjust position */
+        /* Or hide it completely if it gets in the way */
+        /* display: none; */
+        text-shadow: 1px 1px 0px #404040; /* Smaller shadow */
+    }
+}
+
+@media (max-width: 480px) {
+    /* ... */
+    .splash-text {
+        font-size: 0.3em; /* Even smaller font */
+        top: 90px; /* Adjust position */
+        right: 20%; /* Adjust position */
+        transform: rotate(-12deg); /* Less rotation maybe */
+         /* Definitely consider hiding if too cluttered */
+         /* display: none; */
+    }
+}
+
 .container {
     width: 90%;
     max-width: 1200px;

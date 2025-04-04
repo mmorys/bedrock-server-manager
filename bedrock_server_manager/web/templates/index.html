@@ -35,6 +35,7 @@
             <a href="#tasks-section" class="nav-link" data-target="tasks-section">Scheduled Tasks</a>
             <hr class="nav-separator">
             <a href="{{ url_for('install_config_routes.install_server_route') }}" class="nav-link nav-action-button">Install New Server</a>
+            <a href="{{ url_for('auth.logout') }}" class="nav-link nav-action-button danger-button">Logout</a>
         </aside>
 
         {# --- Main Content Area --- #}
@@ -56,7 +57,7 @@
                 </div>
                 <div class="action-buttons-group">
                     {# These buttons need JS to get the selected server from #server-select #}
-                    <button type="button" class="action-button start-button" onclick="startServer(this)" title="Start selected server" {% if not servers %}disabled{% endif %}>Start</button>
+                    <button type="button" class="action-button command-button" onclick="startServer(this)" title="Start selected server" {% if not servers %}disabled{% endif %}>Start</button>
                     <button type="button" class="action-button stop-button" onclick="stopServer(this)" title="Stop selected server" {% if not servers %}disabled{% endif %}>Stop</button>
                     <button type="button" class="action-button restart-button" onclick="restartServer(this)" title="Restart selected server" {% if not servers %}disabled{% endif %}>Restart</button>
                     <button type="button" class="action-button command-button" onclick="promptCommand(this)" title="Send command to selected server" {% if not servers %}disabled{% endif %}>Send Command</button>
@@ -78,12 +79,13 @@
                             {% else %}
                                 <img src="{{ url_for('static', filename='image/icon/favicon.ico') }}" alt="Default Server Icon" class="world-icon-img default">
                             {% endif %}
-                            {# --- END UPDATED --- #}
                         </div>
                         <div class="server-card-info">
                             <h3>{{ server.name }}</h3>
                             <p>
-                                <span class="info-label">Status:</span> <span class="status-{{ server.status | lower }}">{{ server.status }}</span> |
+                                <span class="info-label">Status:</span> <span class="status-{{ server.status | lower }}">{{ server.status }}</span>
+                            </p>
+                            <p>
                                 <span class="info-label">Version:</span> {{ server.version }}
                             </p>
                         </div>
@@ -107,15 +109,15 @@
                     <div class="button-group">
                         <button type="button"
                                 onclick="triggerServerUpdate(this, document.getElementById('server-select').value)"
-                                class="action-button update-button"
+                                class="action-button"
                                 title="Check for updates for the selected server" disabled>Update Server</button>
+                        <a href="#" id="config-link-monitor" class="action-button config-nav-link" disabled>Monitor Usage</a>
                         <button type="button"
                                 onclick="deleteServer(this, document.getElementById('server-select').value)"
-                                class="action-button delete-button"
+                                class="action-button delete-button danger-button"
                                 title="Delete the selected server" disabled>Delete Server</button>
-                        {# Backup/Restore buttons if here #}
+            
                     </div>
-                    <p style="font-size: 0.9em; color: #ccc;">Note: These actions apply to the server chosen in the "Select Server" dropdown at the top.</p>
                  </div>
             </section>
 
@@ -133,8 +135,7 @@
                             <a href="#" id="config-link-properties" class="action-link config-nav-link" disabled>Properties</a>
                             <a href="#" id="config-link-allowlist" class="action-link config-nav-link" disabled>Allowlist</a>
                             <a href="#" id="config-link-permissions" class="action-link config-nav-link" disabled>Permissions</a>
-                            <a href="#" id="config-link-monitor" class="action-link config-nav-link" disabled>Monitor Usage</a>
-                            <a href="#" id="config-link-service" class="action-link config-nav-link" disabled>Service/Auto-Update</a>
+                            <a href="#" id="config-link-service" class="action-link config-nav-link" disabled>Auto-Update</a>
                         {% else %}
                             <p>No servers available to configure.</p>
                         {% endif %}

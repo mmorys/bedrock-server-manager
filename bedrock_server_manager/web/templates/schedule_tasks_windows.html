@@ -57,8 +57,8 @@
                                 <td data-label="Schedule">{{ task.schedule }}</td>
                                 <td data-label="Actions">
                                     {# Use links styled like buttons for consistency? Or keep action-link? #}
-                                    <a href="#" onclick="event.preventDefault(); fillModifyFormWindows('{{ task.task_name | e }}')" class="action-link modify-link">Modify</a>
-                                    <a href="#" onclick="event.preventDefault(); confirmDeleteWindows('{{ task.task_name | e }}')" class="action-link delete-link">Delete</a>
+                                    <a href="#" onclick="event.preventDefault(); fillModifyFormWindows('{{ task.task_name | e }}')" class="action-button modify-link">Modify</a>
+                                    <a href="#" onclick="event.preventDefault(); confirmDeleteWindows('{{ task.task_name | e }}')" class="action-button danger-button">Delete</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -72,8 +72,8 @@
 
         {# Actions related to the list view #}
         <div class="list-actions form-actions"> {# Consistent actions wrapper #}
-            <button type="button" onclick="prepareNewTaskForm()" class="main-button">Add New Task</button>
-            <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Dashboard</a>
+            <button type="button" onclick="prepareNewTaskForm()" class="action-button">Add New Task</button>
+            <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
         </div>
     </section>
 
@@ -105,16 +105,14 @@
             <h3>Triggers</h3>
             {# Container where JS/macro adds trigger groups #}
             <div id="triggers-container">
-                {# Example: Render first trigger using macro initially? #}
-                {# {{ render_trigger_fields(1) }} #}
-                {# OR let JS add the first one via prepareNewTaskForm #}
+
             </div>
-            <button type="button" onclick="addTrigger()" class="secondary-button">Add Another Trigger</button>
+            <button type="button" onclick="addTrigger()" class="action-button secondary-button">Add Another Trigger</button>
             <hr>
 
             {# Form submission buttons #}
              <div class="form-actions">
-                <button type="submit" class="main-button" id="submit-task-btn">Save Task</button>
+                <button type="submit" class="action-button" id="submit-task-btn">Save Task</button>
                 <button type="button" onclick="cancelTaskForm()" class="action-link cancel-button">Cancel</button> {# Style Cancel as link? #}
             </div>
         </form>

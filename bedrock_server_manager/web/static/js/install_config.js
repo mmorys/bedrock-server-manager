@@ -452,19 +452,18 @@ function saveServiceSettings(buttonElement, serverName, currentOs, isNewInstall)
     }
 
     // --- Gather Common Settings (Handles toggles correctly) ---
-    const autoupdateCheckbox = section.querySelector('#service-autoupdate'); // This is the .toggle-input
     // Value will be 'true' or 'false' string based on checkbox state + hidden input logic
+    // Gather auto-update setting as a Boolean
+    const autoupdateCheckbox = section.querySelector('#service-autoupdate');
     if (autoupdateCheckbox) {
-         const autoupdateHidden = section.querySelector('input[name="autoupdate"].toggle-hidden-false');
-         requestBody.autoupdate = autoupdateCheckbox.checked ? 'true' : (autoupdateHidden ? 'false' : 'true'); // Default to true if hidden missing? Or error?
+        requestBody.autoupdate = autoupdateCheckbox.checked;
     }
 
     // --- Gather OS-Specific Settings ---
     if (currentOs === 'Linux') {
-        const autostartCheckbox = section.querySelector('#service-autostart'); // The .toggle-input
+        const autostartCheckbox = section.querySelector('#service-autostart');
         if (autostartCheckbox) {
-             const autostartHidden = section.querySelector('input[name="autostart"].toggle-hidden-false');
-            requestBody.autostart = autostartCheckbox.checked ? 'true' : (autostartHidden ? 'false' : 'true');
+            requestBody.autostart = autostartCheckbox.checked;
         }
         console.log(`Linux settings gathered: autoupdate=${requestBody.autoupdate}, autostart=${requestBody.autostart}`);
     } else if (currentOs === 'Windows') {

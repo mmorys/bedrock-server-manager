@@ -84,9 +84,9 @@
              <button type="button" onclick="savePermissions(this, '{{ server_name }}', {{ new_install | tojson }})" class="action-button start-button" {% if not players %}disabled{% endif %}>Save Permissions</button> {# Changed class #}
 
             {% if new_install %}
-                <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">Skip / Next Step →</a>
+                <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">Next →</a>
             {% else %}
-                 <a href="{{ url_for('main_routes.index') }}" class="main-button">Return</a>
+                 <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
             {% endif %}
         </div>
     </section> {# End of .permissions-config-section #}

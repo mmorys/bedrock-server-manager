@@ -10,6 +10,7 @@ from flask import Flask, session
 from flask_wtf.csrf import CSRFProtect
 from bedrock_server_manager.config.settings import settings, env_name
 from bedrock_server_manager.web.routes.main_routes import main_bp
+from bedrock_server_manager.web.utils.variable_inject import inject_global_variables
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
 from bedrock_server_manager.web.routes.server_actions_routes import server_actions_bp
 from bedrock_server_manager.web.routes.server_install_config_routes import (
@@ -32,6 +33,9 @@ def create_app():
         static_url_path="/static",
     )
     logger.debug("Creating Flask app")
+
+    app.context_processor(inject_global_variables)
+    logger.debug("Registered context processor: inject_global_variables")
 
     APP_ROOT = os.path.dirname(os.path.abspath(__file__))
     template_folder = os.path.join(APP_ROOT, "templates")

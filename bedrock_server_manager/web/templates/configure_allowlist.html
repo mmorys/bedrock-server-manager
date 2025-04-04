@@ -69,9 +69,9 @@
 
             {# Conditional navigation/skip link #}
             {% if new_install %}
-                <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">Skip / Next Step →</a>
+                <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">Next →</a>
             {% else %}
-                 <a href="{{ url_for('main_routes.index') }}" class="main-button">Return</a>
+                 <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
             {% endif %}
         </div>
 

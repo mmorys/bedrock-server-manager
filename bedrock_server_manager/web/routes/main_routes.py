@@ -87,7 +87,7 @@ def serve_world_icon(server_name):
         return "Error serving icon", 500
 
 
-@main_bp.route("/background/custom_panorama.jpg")
+@main_bp.route("/background/custom_panorama.jpeg")
 def serve_custom_panorama():
     try:
         config_dir = settings._config_dir
@@ -112,9 +112,13 @@ def serve_custom_panorama():
         )
     except (FileNotFoundError, werkzeug.exceptions.NotFound) as e:
         logger.warning(
-            f"Custom panorama.jpg not found or error during lookup. Error: {e}"
+            f"Custom panorama.jpeg not found or error during lookup. Error: {e}"
         )
-        return send_from_directory(os.path.join(current_app.static_folder, 'image'), 'panorama.jpeg', mimetype='image/jpeg')
+        return send_from_directory(
+            os.path.join(current_app.static_folder, "image"),
+            "panorama.jpeg",
+            mimetype="image/jpeg",
+        )
     except Exception as e:
         logger.exception(f"Error serving custom panorama: {e}")
         return "Error serving panorama", 500
@@ -131,34 +135,29 @@ def index():
     logger.debug("Calling get_all_servers_status...")
     status_response = utils.get_all_servers_status(base_dir=base_dir)
 
-    processed_servers = []  # List to hold final server data with icon URL
+    processed_servers = []
 
     if status_response["status"] == "error":
         error_msg = f"Error retrieving server statuses: {status_response.get('message', 'Unknown error')}"
         flash(error_msg, "error")
         logger.error(error_msg)
-        # servers = [] # Keep this empty if needed downstream
     else:
         original_servers = status_response.get("servers", [])
         logger.debug(
             f"Successfully retrieved status for {len(original_servers)} servers. Processing for icons..."
         )
 
-        # --- Loop to add icon URL ---
         for server_info in original_servers:
             server_name = server_info.get("name")
-            icon_url = None  # Default to no specific icon
+            icon_url = None
 
-            if server_name and base_dir:  # Need base_dir to check path
+            if server_name and base_dir:
                 try:
-                    # Get world name for this server
                     world_name_response = world.get_world_name(
                         server_name, base_dir=base_dir
                     )
-
                     if world_name_response["status"] == "success":
                         world_name = world_name_response["world_name"]
-                        # Construct the FULL Filesystem path to check existence
                         icon_fs_path = os.path.join(
                             base_dir,
                             server_name,
@@ -166,9 +165,7 @@ def index():
                             world_name,
                             "world_icon.jpeg",
                         )
-
                         if os.path.exists(icon_fs_path):
-                            # If it exists, generate the URL using our new serving route
                             icon_url = url_for(
                                 "main_routes.serve_world_icon", server_name=server_name
                             )
@@ -181,40 +178,17 @@ def index():
                         logger.warning(
                             f"Could not get world name for {server_name} to check icon: {world_name_response.get('message')}"
                         )
-
                 except Exception as e:
                     logger.exception(
                         f"Error processing icon for server {server_name}: {e}"
                     )
 
-            server_info["icon_url"] = icon_url  # Add the URL (or None) to the dict
-            processed_servers.append(server_info)  # Add modified dict to new list
-        # --- End Loop ---
+            server_info["icon_url"] = icon_url
+            processed_servers.append(server_info)
 
-    panorama_url = None
-    try:
-        config_dir = settings._config_dir
-        if config_dir:
-            config_dir_abs = os.path.abspath(config_dir)
-            panorama_fs_path = os.path.join(config_dir_abs, "panorama.jpeg")
-            if os.path.exists(panorama_fs_path):
-                panorama_url = url_for(
-                    "main_routes.serve_custom_panorama"
-                )  # Use the new route
-                logger.debug(f"Custom panorama found. URL: {panorama_url}")
-            else:
-                logger.debug(f"Custom panorama file not found at: {panorama_fs_path}")
-        else:
-            logger.debug("CONFIG_DIR not set, skipping custom panorama check.")
-    except Exception as e:
-        logger.exception(f"Error checking for custom panorama: {e}")
-
-    return render_template(
-        "index.html",
-        servers=processed_servers,
-        app_name=app_name,
-        panorama_url=panorama_url,
-    )
+    logger.debug(f"Rendering index.html with {len(processed_servers)} servers.")
+    # --- No need to pass panorama_url or splash_text here anymore ---
+    return render_template("index.html", servers=processed_servers)
 
 
 # --- Route: Server Monitor Page ---

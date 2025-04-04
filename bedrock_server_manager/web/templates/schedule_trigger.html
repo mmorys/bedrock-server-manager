@@ -10,7 +10,7 @@
             <h3>Trigger {{ trigger_num }}</h3>
             {# Add a button to remove this specific trigger group #}
             {# The onclick should call a JS function, passing the trigger_num #}
-            <button type="button" class="action-link remove-trigger-button" onclick="removeTrigger({{ trigger_num }})" title="Remove Trigger {{ trigger_num }}">×</button> {# Simple 'x' button #}
+            <button type="button" class="action-button danger-button" onclick="removeTrigger({{ trigger_num }})" title="Remove Trigger {{ trigger_num }}">×</button> {# Simple 'x' button #}
         </div>
 
         {# Trigger Type Selection #}

@@ -9,12 +9,15 @@
     <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
     {# server_actions.js might be needed if saveServiceSettings interacts with it #}
     <script src="{{ url_for('static', filename='js/server_actions.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script> {# Keep if saveServiceSettings is here #}
+    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script>
 {% endblock %}
 
 
 {# Main content for this page - add data attributes here if JS needs them at this level #}
 {% block content %}
+<div id="status-message-area" style="min-height: 1.5em; margin-bottom: 15px;">
+    <!-- Status messages from save actions will appear here -->
+</div>
 <div data-os="{{ os }}" data-server-name="{{ server_name }}">
     <h2>Configure Service Options</h2>
     <p style="margin-bottom: 15px;">Server: <strong>{{ server_name }}</strong>...</p>

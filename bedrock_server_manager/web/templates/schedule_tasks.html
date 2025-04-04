@@ -64,7 +64,7 @@
                                     {# Pass escaped arguments to JS functions #}
                                     <a href="#" onclick="event.preventDefault(); fillModifyForm('{{ job.minute | e }}', '{{ job.hour | e }}', '{{ job.day_of_month | e }}', '{{ job.month | e }}', '{{ job.day_of_week | e }}', '{{ job.command | e }}')" class="action-link modify-link">Modify</a>
                                     {# Construct original string for delete #}
-                                    <a href="#" onclick="event.preventDefault(); confirmDelete('{{ job.minute | e }} {{ job.hour | e }} {{ job.day_of_month | e }} {{ job.month | e }} {{ job.day_of_week | e }} {{ job.command | e }}')" class="action-link delete-link">Delete</a>
+                                    <a href="#" onclick="event.preventDefault(); confirmDelete('{{ job.minute | e }} {{ job.hour | e }} {{ job.day_of_month | e }} {{ job.month | e }} {{ job.day_of_week | e }} {{ job.command | e }}')" class="action-button danger-button">Delete</a>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -78,8 +78,8 @@
         {# Actions related to the list view #}
         <div class="list-actions form-actions"> {# Consistent actions wrapper #}
              {# Maybe a button to scroll down/show the Add form instead of always visible? #}
-             {# <button type="button" onclick="showAddForm()" class="main-button">Add New Job</button> #}
-             <a href="{{ url_for('main_routes.index') }}" class="main-button">Back to Dashboard</a>
+             {# <button type="button" onclick="showAddForm()" class="action-button">Add New Job</button> #}
+             <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
         </div>
     </section>
 
@@ -147,7 +147,7 @@
             {# Form submission buttons #}
             <div class="form-actions">
                  {# JS should change text to 'Modify Job' when needed #}
-                <button type="submit" class="main-button" id="cron-submit-btn">Add Job</button>
+                <button type="submit" class="action-button" id="cron-submit-btn">Add Job</button>
                  {# Optional: Button to clear/reset form #}
                  {# <button type="button" onclick="resetCronForm()" class="action-link">Clear Form</button> #}
             </div>
