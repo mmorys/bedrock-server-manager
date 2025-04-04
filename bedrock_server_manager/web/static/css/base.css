@@ -95,9 +95,9 @@ body::before {
 @media (max-width: 480px) {
     /* ... */
     .splash-text {
-        font-size: 0.3em; /* Even smaller font */
-        top: 90px; /* Adjust position */
-        right: 20%; /* Adjust position */
+        font-size: 0.4em; /* Even smaller font */
+        top: 92px; /* Adjust position */
+        right: 19%; /* Adjust position */
         transform: rotate(-12deg); /* Less rotation maybe */
          /* Definitely consider hiding if too cluttered */
          /* display: none; */

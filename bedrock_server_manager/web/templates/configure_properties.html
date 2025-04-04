@@ -66,7 +66,6 @@
                     <button type="button" data-value="survival" class="segment {% if properties.get('gamemode', 'survival') == 'survival' %}active{% endif %}">Survival</button>
                     <button type="button" data-value="creative" class="segment {% if properties.get('gamemode') == 'creative' %}active{% endif %}">Creative</button>
                     <button type="button" data-value="adventure" class="segment {% if properties.get('gamemode') == 'adventure' %}active{% endif %}">Adventure</button>
-                    <button type="button" data-value="spectator" class="segment {% if properties.get('gamemode') == 'spectator' %}active{% endif %}">Spectator</button>
                 </div>
                 <input type="hidden" id="gamemode-hidden" name="gamemode" value="{{ properties.get('gamemode', 'survival') }}">
                 <div class="validation-error" data-field="gamemode"></div>

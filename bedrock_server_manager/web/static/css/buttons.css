@@ -1,151 +1,99 @@
 /* bedrock-server-manager/bedrock_server_manager/web/static/css/buttons.css */
 
-/* --- Base Ore UI Button Style --- */
-/* Apply this base look to all button types */
-.actions button.action-button,
-.actions button.start-button,
-.actions button.stop-button,
-.actions button.restart-button,
-.actions button.update-button,
-.actions button.delete-button,
-.action-button, /* General action button */
-.start-button,  /* General primary button */
-.danger-button, /* General danger button */
-.action-link, /* Style links like buttons */
+/* --- Base Ore UI Button/Link Style --- */
+/* Apply this base look to all relevant classes */
+.action-button,
+.start-button,
+.danger-button,
+.action-link,
 .main-menu-buttons button.main-button,
 .main-menu-buttons a.main-button,
-.item-list .remove-button { /* Include remove button from lists */
-    /* Core Styling */
-    display: inline-block; /* Consistent block model */
-    padding: 8px 16px;   /* Generous padding */
-    margin: 4px;         /* Consistent margin */
-    border-width: 1px;   /* Subtle, uniform border */
+.item-list .remove-button,
+.nav-action-button { 
+    /* Core Display & Box Model */
+    display: inline-block;
+    margin: 4px;
+    border-width: 1px;
     border-style: solid;
-    border-radius: 0;    /* Sharp corners */
-    cursor: pointer;
-    font-size: 1em;      /* Inherits from body */
-    font-weight: 600;    /* Slightly bold, but not overly so */
-    text-align: center;
-    text-decoration: none; /* Remove underline from links */
-    vertical-align: middle;
+    border-radius: 0;
     box-sizing: border-box;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.1s ease; /* Added box-shadow transition for active state */
 
-    /* --- REMOVE Old Styles --- */
+    /* Core Appearance & Text */
+    padding: 8px 16px;  
+    cursor: pointer;
+    font-size: 1em;     
+    font-weight: 600;
+    line-height: 1.4; 
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    white-space: nowrap; /* Prevent wrapping by default */
+
+    /* Transitions */
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.1s ease;
+
+    /* Remove browser defaults / old styles */
     text-shadow: none;
     box-shadow: none;
+    appearance: none; /* For button tag */
 
-    /* --- Default Ore UI Theme (Dark Button) --- */
+    /* --- Default Theme (Dark Button) --- */
     /* Applied unless overridden by specific color class */
-    background-color: #555; /* Default button background */
-    border-color: #777;     /* Slightly lighter border */
-    color: #eee;            /* Light text */
+    background-color: #555;
+    border-color: #777;
+    color: #eee;
 }
 
-/* --- Hover State (Enhanced) --- */
-/* Default Hover */
-.actions button.action-button:hover,
-.action-button:hover, /* General action button */
+
+/* --- Hover & Active States --- */
+
+/* Default Hover (Grey) */
+.action-button:hover,
 .action-link:hover {
     background-color: #777;
     border-color: #999;
     color: #fff;
 }
-/* Define default active state separately */
-.actions button.action-button:active,
-.action-button:active, /* General action button */
+/* Default Active (Grey) */
+.action-button:active,
 .action-link:active {
     background-color: #4a4a4a;
     border-color: #666;
-    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); */ /* Optional */
+    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); */
 }
 
-
-/* --- Button Color Variations (Resting states + Adjusted Hover/Active) --- */
-
-/* Primary / Start Button (Green) */
-.actions button.start-button,
-.start-button { /* General primary button */
-    background-color: #4CAF50;
-    border-color: #66BB6A;
-    color: #fff;
-}
-.actions button.start-button:hover,
-.start-button:hover { /* Brighter hover */
+/* Primary Hover/Active (Green) */
+.start-button:hover,
+.nav-action-button:hover:not(.danger-button) { /* Exclude danger variant */
     background-color: #6fcf97;
     border-color: #81e0aa;
     color: #fff;
 }
-.actions button.start-button:active,
-.start-button:active { /* Darker active */
+.start-button:active,
+.nav-action-button:active:not(.danger-button) {
     background-color: #388E3C;
     border-color: #4CAF50;
-    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); */ /* Optional */
+    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.2); */
 }
 
-/* Danger / Stop / Delete Button (Red) */
-.actions button.stop-button,
-.actions button.delete-button,
-.danger-button, /* General danger button */
-.item-list .remove-button { /* Include remove button */
-    background-color: #D32F2F; /* Strong red */
-    border-color: #E57373;     /* Lighter red border */
-    color: #fff;
-}
-.actions button.stop-button:hover,
-.actions button.delete-button:hover,
+/* Danger Hover/Active (Red) */
 .danger-button:hover,
-.item-list .remove-button:hover {
-    background-color: #E53935; /* Brighter/intense red hover */
+.item-list .remove-button:hover,
+.nav-action-button.danger-button:hover {
+    background-color: #E53935;
     border-color: #EF9A9A;
     color: #fff;
 }
-.actions button.stop-button:active,
-.actions button.delete-button:active,
 .danger-button:active,
-.item-list .remove-button:active {
-    background-color: #B71C1C; /* Darker red active */
+.item-list .remove-button:active,
+.nav-action-button.danger-button:active {
+    background-color: #B71C1C;
     border-color: #D32F2F;
     color: #fff;
-    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); */ /* Optional */
+    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); */
 }
 
-/* --- Specific styles for smaller buttons like item-list remove --- */
-.item-list .remove-button {
-    padding: 3px 8px;
-    margin: 0 0 0 5px; /* Adjust margin */
-    font-size: 0.85em;
-    line-height: 1.2;
-}
-
-/* This ensures red overrides the green from .nav-action-button */
-.nav-action-button.danger-button {
-    background-color: #D32F2F;
-    border-color: #E57373; /* Adjusted border to match base danger */
-    border-left-color: #D32F2F; /* Keep left border consistent with danger bg */
-    color: #fff;
-}
-.nav-action-button.danger-button:hover {
-    background-color: #E53935;
-    border-color: #EF9A9A; /* Adjusted border to match danger hover */
-    border-left-color: #E53935; /* Keep left border consistent with danger hover bg */
-    color: #fff;
-}
- .nav-action-button.danger-button:active {
-    background-color: #B71C1C;
-    border-color: #D32F2F; /* Adjusted border to match danger active */
-    border-left-color: #B71C1C; /* Keep left border consistent with danger active bg */
-    color: #fff;
-}
-
-/* --- Main Menu Buttons (Lighter Style - Resting + Adjusted Hover/Active) --- */
-.main-menu-buttons button.main-button,
-.main-menu-buttons a.main-button {
-    background-color: #aaa;
-    border-color: #ccc;
-    color: #222;
-    font-weight: 600;
-}
+/* Main Menu Hover/Active (Light Grey) */
 .main-menu-buttons button.main-button:hover,
 .main-menu-buttons a.main-button:hover {
     background-color: #c0c0c0;
@@ -156,44 +104,108 @@
 .main-menu-buttons a.main-button:active {
     background-color: #909090;
     border-color: #a8a8a8;
-    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); */ /* Optional */
+    /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); */
 }
 
-/* Specific Overrides (e.g., Install button could be primary green) */
-.main-menu-buttons a.install-button {
-    /* Inherit main-button style OR make it green */
-    /* To make it green: */
-    /* background-color: #4CAF50; border-color: #66BB6A; color: #fff; */
+
+/* --- Specific Button Color Styles (Resting State) --- */
+
+/* Primary / Start Button (Green) */
+.start-button {
+    background-color: #4CAF50;
+    border-color: #66BB6A;
+    color: #fff;
 }
-.main-menu-buttons a.install-button:hover {
-    /* Inherits hover OR adjust if making it green */
-     /* background-color: #6fcf97; border-color: #81e0aa; */
+
+/* Danger / Stop / Delete Button (Red) */
+.danger-button,
+.item-list .remove-button { /* Apply to remove button */
+    background-color: #D32F2F;
+    border-color: #E57373;
+    color: #fff;
 }
-.main-menu-buttons a.install-button:active {
-    /* Inherits active OR adjust if making it green */
-    /* background-color: #388E3C; border-color: #4CAF50; */
+
+/* Main Menu Buttons (Lighter Style) */
+.main-menu-buttons button.main-button,
+.main-menu-buttons a.main-button {
+    background-color: #aaa;
+    border-color: #ccc;
+    color: #222;
+    font-weight: 600;
+}
+
+/* Navigation Action Button Base (Green) */
+.nav-action-button {
+    margin: 15px 15px 5px 15px; /* Specific margin for nav */
+    padding-top: 8px; /* Specific padding for nav */
+    padding-bottom: 8px;
+    text-align: center;
+    font-weight: bold;
+    /* Green colors by default */
+    background-color: #4CAF50;
+    border: 1px solid #66BB6A;
+    border-left: 3px solid #4CAF50; /* Left indicator */
+    color: #fff;
+}
+/* Override nav action button for danger variant */
+.nav-action-button.danger-button {
+    background-color: #D32F2F;
+    border-color: #E57373;
+    border-left-color: #D32F2F; /* Match background */
+    color: #fff;
+}
+
+
+/* --- Contextual / Size Overrides --- */
+
+/* Specific styles for smaller buttons like item-list remove */
+.item-list .remove-button {
+    padding: 3px 8px;
+    margin: 0 0 0 5px; /* Reset margin */
+    font-size: 0.85em;
+    line-height: 1.2;
+}
+
+/* Adjustments for buttons/links inside server cards */
+.server-card-actions .action-link,
+.server-card-actions .action-button,
+.server-card-actions .start-button, /* Ensure all variants get sized */
+.server-card-actions .danger-button {
+    margin: 1px;
+    padding: 3px 6px; /* Smaller padding in cards */
+    font-size: 0.8em; /* Smaller font in cards */
+    line-height: 1.2;
+}
+
+/* Styles for buttons/links inside .section-actions (like in Manage tab) */
+.section-actions .action-link,
+.section-actions .action-button,
+.section-actions .start-button,
+.section-actions .danger-button {
+     /* Keep default padding/size unless needing override */
+     margin: 4px; /* Default margin */
 }
 
 
 /* --- Layout Helpers --- */
-.actions {
-    /* Container for action buttons in tables etc. */
+.actions { /* Container for action buttons in tables etc. */
      margin: -2px; /* Counteract button margins for tighter fit */
+     display: inline-block; /* Ensure it doesn't take full width */
+     line-height: 1; /* Prevent excessive height */
 }
 .actions > * { /* Direct children */
     margin: 2px; /* Restore margin */
+    vertical-align: middle; /* Align buttons nicely */
 }
 
 .button-group {
     margin-bottom: 15px;
-    /* Optional: Add flex for better alignment */
-    /* display: flex; flex-wrap: wrap; gap: 5px; */
+    /* display: flex; flex-wrap: wrap; gap: 5px; */ /* Optional flex layout */
 }
 .button-group .action-link,
 .button-group .action-button,
 .button-group .main-button {
-     /* Base margin likely okay, or adjust if using flex gap */
-     margin: 4px;
+     margin: 4px; /* Default spacing */
 }
 
 .navigation-link {
@@ -205,43 +217,55 @@
     padding: 10px 0;
 }
 
-/* --- Mobile Adjustments (Simplified) --- */
+
+/* --- Mobile Adjustments --- */
 @media (max-width: 768px) {
-    /* Reduce padding slightly on smaller screens */
-    .actions button.action-button,
-    .actions button.start-button, /* etc... */
+    /* Reduce padding/size slightly on smaller screens */
     .action-button, .start-button, .danger-button, .action-link,
     .main-menu-buttons button.main-button,
-    .main-menu-buttons a.main-button {
+    .main-menu-buttons a.main-button,
+    .nav-action-button { /* Include nav action button */
         padding: 6px 12px;
         margin: 3px;
         font-size: 0.95em;
     }
-     /* Adjust smaller remove button padding */
+    /* Adjust overrides for specific contexts */
     .item-list .remove-button {
         padding: 2px 6px;
         font-size: 0.8em;
     }
+    .server-card-actions .action-link,
+    .server-card-actions .action-button,
+    .server-card-actions .start-button,
+    .server-card-actions .danger-button {
+        padding: 2px 6px;
+        font-size: 0.75em;
+    }
 
-
-     .button-group {
-         text-align: center; /* Center buttons in groups */
-     }
+     .button-group { text-align: center; } /* Center buttons */
+     .actions { display: block; text-align: center; } /* Center table actions */
 }
 
 @media (max-width: 480px) {
-    /* Further reduce padding */
-    .actions button.action-button, /* etc... */
-    .action-button, .start-button, .danger-button, .action-link,
+    /* Further reduce padding/size */
+     .action-button, .start-button, .danger-button, .action-link,
     .main-menu-buttons button.main-button,
-    .main-menu-buttons a.main-button {
+    .main-menu-buttons a.main-button,
+    .nav-action-button {
         padding: 5px 10px;
         font-size: 0.9em;
     }
-    /* Adjust smaller remove button padding */
-    .item-list .remove-button {
+    /* Adjust overrides */
+     .item-list .remove-button {
         padding: 2px 5px;
         font-size: 0.75em;
+    }
+    .server-card-actions .action-link,
+    .server-card-actions .action-button,
+    .server-card-actions .start-button,
+    .server-card-actions .danger-button {
+        padding: 2px 5px;
+        font-size: 0.7em;
     }
 
     /* Stack main buttons */
@@ -249,6 +273,9 @@
     .main-menu-buttons a.main-button {
          display: block;
          width: 85%;
-         margin: 8px auto;
+         margin-left: auto;
+         margin-right: auto;
+         margin-top: 8px;
+         margin-bottom: 8px;
     }
 }
