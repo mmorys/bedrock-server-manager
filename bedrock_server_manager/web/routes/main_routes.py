@@ -191,6 +191,12 @@ def index():
     return render_template("index.html", servers=processed_servers)
 
 
+@main_bp.route("/<path:unused_path>")
+def catch_all(unused_path):
+    """Redirects any non-existent route to the index page."""
+    return redirect(url_for("main_routes.index"))
+
+
 # --- Route: Server Monitor Page ---
 @main_bp.route("/server/<server_name>/monitor")
 @login_required

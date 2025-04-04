@@ -19,6 +19,7 @@ from bedrock_server_manager.web.routes.server_install_config_routes import (
 from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.auth_routes import auth_bp, csrf, jwt
+from bedrock_server_manager.web.utils.validators import register_server_validation
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -131,6 +132,10 @@ def create_app():
         return dict(is_logged_in=session.get("logged_in", False))
 
     logger.debug("Registered context processor: inject_user")
+
+    # Register the global server validation
+    register_server_validation(app)
+    logger.debug("Registered global server validation.")
 
     return app
 
