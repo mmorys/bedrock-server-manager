@@ -55,10 +55,10 @@ body::before {
 .splash-text {
     position: absolute; /* Position relative to the header */
     /* Adjust top/right based on title size */
-    top: 70px;
+    top: 74px;
     /* Use right or left - positioning relative to the centered header link is tricky */
     /* Let's try positioning relative to the overall header width */
-    right: 20%; /* Adjust percentage or use pixels */
+    right: 24%; /* Adjust percentage or use pixels */
     /* Or try left: 55%; */
 
     transform: rotate(-15deg); /* Rotation */
