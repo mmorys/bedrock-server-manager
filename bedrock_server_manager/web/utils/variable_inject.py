@@ -12,6 +12,7 @@ from flask import (
 
 logger = logging.getLogger("bedrock_server_manager")
 
+
 def inject_global_variables():
     """
     Injects globally needed variables into all template contexts
@@ -22,5 +23,7 @@ def inject_global_variables():
         "splash_text": get_utils._get_splash_text(),
         "app_name": get_utils._get_app_name(),
     }
-    logger.debug(f"Context Processor: Injecting global variables: {list(global_vars.keys())}")
+    logger.debug(
+        f"Context Processor: Injecting global variables: {list(global_vars.keys())}"
+    )
     return global_vars

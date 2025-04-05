@@ -9,6 +9,8 @@ from flask import (
     render_template,
     send_from_directory,
     current_app,
+    url_for,
+    redirect,
 )
 
 # Initialize logger for this module
@@ -16,6 +18,12 @@ logger = logging.getLogger("bedrock_server_manager")
 
 # Create Blueprint for main UI routes
 util_bp = Blueprint("util_routes", __name__)
+
+
+@util_bp.route("/<path:unused_path>")
+def catch_all(unused_path):
+    """Redirects any non-existent route to the index page."""
+    return redirect(url_for("main_routes.index"))
 
 
 # --- Route: Main Dashboard ---
