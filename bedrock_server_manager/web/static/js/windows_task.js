@@ -17,7 +17,7 @@ async function confirmDeleteWindows(taskName) {
     if (confirm(`Are you sure you want to delete the task '${taskName}'? This action cannot be undone.`)) {
         console.log(`Attempting to delete task: ${taskName}`);
         // Construct the relative API path, encoding the task name for URL safety
-        const actionPath = `tasks/delete/${encodeURIComponent(taskName)}`;
+        const actionPath = `task_scheduler/delete/${encodeURIComponent(taskName)}`;
         const method = 'DELETE'; // Use DELETE HTTP method
 
         // Call the utility function to send the request
@@ -72,7 +72,7 @@ async function fillModifyFormWindows(taskName) {
     commandSelect.disabled = true; // Disable command select while loading
 
     // --- Fetch existing task details using the API ---
-    const actionPath = `tasks/details/${encodeURIComponent(taskName)}`; // Encode name for URL safety
+    const actionPath = `task_scheduler/details/${encodeURIComponent(taskName)}`; // Encode name for URL safety
     const method = 'GET';
 
     // Call utility function to make the API request
@@ -459,12 +459,12 @@ taskForm.addEventListener('submit', async function(event) {
     if (originalTaskName) {
         // This is a MODIFY operation
         method = 'PUT'; // Use PUT for update/replace
-        actionPath = `tasks/modify/${encodeURIComponent(originalTaskName)}`; // Include original name in path
+        actionPath = `task_scheduler/modify/${encodeURIComponent(originalTaskName)}`; // Include original name in path
         console.log(`Preparing MODIFY request to: ${actionPath} with body:`, requestBody);
     } else {
         // This is an ADD operation
         method = 'POST'; // Use POST for create
-        actionPath = 'tasks/add';
+        actionPath = 'task_scheduler/add';
          console.log(`Preparing ADD request to: ${actionPath} with body:`, requestBody);
     }
 

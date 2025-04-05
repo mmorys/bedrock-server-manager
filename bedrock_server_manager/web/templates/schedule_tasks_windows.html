@@ -14,12 +14,11 @@
         };
     </script>
     <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
-    {# fillModifyFormWindows, confirmDeleteWindows, prepareNewTaskForm, addTrigger, cancelTaskForm #}
+    {# Includes functions: fillModifyFormWindows, confirmDeleteWindows, prepareNewTaskForm, addTrigger, cancelTaskForm, removeTrigger, showTriggerFields, and the form submit listener #}
     <script src="{{ url_for('static', filename='js/windows_task.js') }}" defer></script>
 {% endblock %}
 
-{# Import the trigger macro if JS doesn't handle HTML generation #}
-{% from 'schedule_trigger.html' import render_trigger_fields with context %}
+{# Removed trigger macro import as JS now handles HTML generation #}
 
 {# Main content for this page #}
 {% block content %}
@@ -56,7 +55,7 @@
                                 <td data-label="Command">{{ task.command }}</td>
                                 <td data-label="Schedule">{{ task.schedule }}</td>
                                 <td data-label="Actions">
-                                    {# Use links styled like buttons for consistency? Or keep action-link? #}
+                                    {# These onclick handlers call functions defined in windows_task.js #}
                                     <a href="#" onclick="event.preventDefault(); fillModifyFormWindows('{{ task.task_name | e }}')" class="action-button modify-link">Modify</a>
                                     <a href="#" onclick="event.preventDefault(); confirmDeleteWindows('{{ task.task_name | e }}')" class="action-button danger-button">Delete</a>
                                 </td>
@@ -72,6 +71,7 @@
 
         {# Actions related to the list view #}
         <div class="list-actions form-actions"> {# Consistent actions wrapper #}
+            {# This onclick handler calls a function defined in windows_task.js #}
             <button type="button" onclick="prepareNewTaskForm()" class="action-button">Add New Task</button>
             <a href="{{ url_for('main_routes.index') }}" class="action-button">Return</a>
         </div>
@@ -80,9 +80,9 @@
     {# Section for Add/Modify Form (Initially hidden) #}
     <section class="add-modify-task-section" id="add-modify-task-section" style="display: none;"> {# Keep hidden #}
         <h2 id="form-title">Add New Task</h2> {# JS will change this to "Modify Task" #}
-        {# Use POST if submitting normally, not needed if all via JS fetch #}
-        <form id="task-form" onsubmit="event.preventDefault(); handleTaskFormSubmit(this);">
-             {# Add CSRF token if JS submit needs it #}
+        {# Removed onsubmit attribute; submission is handled by the event listener in windows_task.js #}
+        <form id="task-form">
+             {# CSRF token - Assumed to be handled by sendServerActionRequest or backend session #}
              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
              {# Hidden input to store the original task name when modifying #}
              <input type="hidden" id="original_task_name" name="original_task_name" value="">
@@ -103,17 +103,19 @@
 
             <hr>
             <h3>Triggers</h3>
-            {# Container where JS/macro adds trigger groups #}
+            {# Container where JS adds trigger groups dynamically. Keep empty in the template. #}
             <div id="triggers-container">
 
             </div>
+             {# This onclick handler calls a function defined in windows_task.js #}
             <button type="button" onclick="addTrigger()" class="action-button secondary-button">Add Another Trigger</button>
             <hr>
 
             {# Form submission buttons #}
              <div class="form-actions">
                 <button type="submit" class="action-button" id="submit-task-btn">Save Task</button>
-                <button type="button" onclick="cancelTaskForm()" class="action-link cancel-button">Cancel</button> {# Style Cancel as link? #}
+                {# This onclick handler calls a function defined in windows_task.js #}
+                <button type="button" onclick="cancelTaskForm()" class="action-link cancel-button">Cancel</button>
             </div>
         </form>
     </section>

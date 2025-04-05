@@ -48,7 +48,7 @@ async function confirmDelete(cronString) {
     if (confirm(`Are you sure you want to delete the cron job:\n${cronString}?`)) {
         const serverName = "{{ server_name }}"; // Get server name from Jinja2 context
         // Define the path for the delete API endpoint
-        const actionPath = 'schedule/delete'; // Will be combined with serverName by utils.js
+        const actionPath = 'cron_scheduler/delete'; // Will be combined with serverName by utils.js
         const method = 'DELETE';
         // The backend delete route expects the cron string in a 'cron_string' field
         const body = { cron_string: cronString };
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (originalCronString) {
             // --- This is a MODIFY operation ---
-            actionPath = 'schedule/modify';
+            actionPath = 'cron_scheduler/modify';
             // The modify API endpoint expects 'old_cron_job' and 'new_cron_job'
             requestBody = {
                 old_cron_job: originalCronString,
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log(`Preparing MODIFY request: Server=${serverName}, Path=${actionPath}, From='${originalCronString}', To='${newCronString}'`);
         } else {
             // --- This is an ADD operation ---
-            actionPath = 'schedule/add';
+            actionPath = 'cron_scheduler/add';
             // The add API endpoint expects 'new_cron_job'
             requestBody = {
                 new_cron_job: newCronString
