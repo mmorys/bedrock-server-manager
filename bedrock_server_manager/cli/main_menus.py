@@ -4,6 +4,7 @@ import sys
 import logging
 import platform
 from colorama import Fore, Style
+from bedrock_server_manager.utils.get_utils import _get_splash_text
 from bedrock_server_manager.config.settings import app_name
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.cli import utils as cli_utils
@@ -23,6 +24,7 @@ def main_menu(base_dir, config_dir):
     os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print(f"\n{Fore.MAGENTA}{app_name}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
         cli_utils.list_servers_status(base_dir, config_dir)
 
         print("1) Install New Server")
