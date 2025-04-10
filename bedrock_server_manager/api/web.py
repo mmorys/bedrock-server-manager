@@ -315,11 +315,11 @@ def stop_web_server() -> Dict[str, str]:
             logger.info(f"{function_name}: Process {pid} terminated gracefully.")
         except psutil.TimeoutExpired:
             logger.warning(
-                f"{functionName}: Process {pid} did not terminate gracefully. Attempting kill (SIGKILL)..."
+                f"Process {pid} did not terminate gracefully. Attempting kill (SIGKILL)..."
             )
             process.kill()
             process.wait(timeout=2)
-            logger.info(f"{functionName}: Process {pid} forcefully killed.")
+            logger.info(f"Process {pid} forcefully killed.")
 
         # Clean up PID file on successful termination (graceful or kill)
         try:
@@ -338,7 +338,7 @@ def stop_web_server() -> Dict[str, str]:
 
     except psutil.NoSuchProcess:
         logger.warning(
-            f"{functionName}: Process with PID {pid} disappeared during stop attempt. Assuming stopped."
+            f"Process with PID {pid} disappeared during stop attempt. Assuming stopped."
         )
         try:
             if os.path.exists(pid_file_path):
@@ -351,11 +351,11 @@ def stop_web_server() -> Dict[str, str]:
         }
     except psutil.AccessDenied:
         error_msg = f"Permission denied trying to terminate process with PID {pid}."
-        logger.error(f"{functionName}: {error_msg}")
+        logger.error(f"{error_msg}")
         return {"status": "error", "message": error_msg}
     except Exception as e:
         logger.error(
-            f"{functionName}: Unexpected error stopping process PID {pid}: {e}",
+            f"Unexpected error stopping process PID {pid}: {e}",
             exc_info=True,
         )
         return {
