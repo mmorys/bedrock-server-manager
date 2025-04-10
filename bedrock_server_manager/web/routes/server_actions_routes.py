@@ -1,323 +1,629 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/action_routes.py
+"""
+Flask Blueprint defining API endpoints for controlling Bedrock server instances.
+
+Provides routes for actions like starting, stopping, restarting, sending commands,
+updating, and deleting servers. These routes typically interact with the corresponding
+functions in the `bedrock_server_manager.api` layer.
+"""
+
 import logging
-from flask_jwt_extended import jwt_required
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.web.routes.auth_routes import csrf
+from typing import Tuple, Dict, Any
+
+# Third-party imports
+from flask import Blueprint, request, jsonify, Response
+
+# Local imports
+from bedrock_server_manager.web.routes.auth_routes import (
+    csrf,
+)
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
-from flask import (
-    Blueprint,
-    request,
-    jsonify,
-)
-from bedrock_server_manager.api import (
-    server,
-    server_install_config,
-    system,
+from bedrock_server_manager.api import server as server_api
+from bedrock_server_manager.api import server_install_config
+from bedrock_server_manager.api import system as system_api
+from bedrock_server_manager.error import (
+    InvalidServerNameError,
+    FileOperationError,
+    MissingArgumentError,
+    ServerNotFoundError,
+    DirectoryError,
 )
 
-# Initialize logger for this module
+# Initialize logger
 logger = logging.getLogger("bedrock_server_manager")
 
-# Create Blueprint for server action API routes
+# Create Blueprint
 server_actions_bp = Blueprint("action_routes", __name__)
 
 
 # --- API Route: Start Server ---
-@server_actions_bp.route("/api/server/<server_name>/start", methods=["POST"])
-@csrf.exempt
-@auth_required
-def start_server_route(server_name):
-    """API endpoint to start a specific server."""
-    logger.info(f"API POST request received to start server: '{server_name}'.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+@server_actions_bp.route("/api/server/<string:server_name>/start", methods=["POST"])
+@csrf.exempt  # API endpoint, exempt from CSRF
+@auth_required  # Requires session OR JWT authentication
+def start_server_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to start a specific Bedrock server instance.
 
-    # Call the start server handler
-    logger.debug(f"Calling start_server_handler for server '{server_name}'...")
-    response = server.start_server(server_name, base_dir)
-    logger.debug(f"Handler response for start server '{server_name}': {response}")
+    Args:
+        server_name: The name of the server passed in the URL.
 
-    # Determine HTTP status code based on handler response
-    status_code = 200 if response.get("status") == "success" else 500
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK: {"status": "success", "message": "..."}
+        - 400 Bad Request: If server name is invalid (caught from API).
+        - 404 Not Found: If server executable is missing (caught from API).
+        - 500 Internal Server Error: If server fails to start or other errors occur.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(f"API: Start server request for '{server_name}' by user '{identity}'.")
 
-    if status_code == 200:
-        logger.info(f"Server '{server_name}' start initiated successfully via API.")
-        # Ensure a success message exists
-        if "message" not in response:
-            response["message"] = (
-                f"Server '{server_name}' start initiated successfully."
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal error
+
+    try:
+        # Call the start server API function
+        # base_dir resolution handled within the api function
+        result = server_api.start_server(server_name)  # Returns dict
+        logger.debug(f"API Start Server '{server_name}': Handler response: {result}")
+
+        # Determine HTTP status based on the handler's response
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message", f"Server '{server_name}' start initiated successfully."
             )
-    else:
-        logger.error(
-            f"API Error starting server '{server_name}': {response.get('message', 'Unknown error')}"
-        )
-        # Ensure an error message exists
-        if "message" not in response:
-            response["message"] = f"Error starting server '{server_name}'."
-        # Ensure status is 'error'
-        response["status"] = "error"
+            logger.info(f"API Start Server '{server_name}': {success_msg}")
+            result["message"] = success_msg
+        else:
+            # Handler indicated failure or returned unexpected format
+            status_code = 500  # Treat handler errors as internal server errors
+            error_msg = (
+                result.get("message", "Unknown error starting server.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Start Server '{server_name}': Failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}  # Ensure error structure
 
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for start server '{server_name}' with status code {status_code}."
-    )
-    return jsonify(response), status_code
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        # Catch input validation errors raised directly by API function
+        logger.warning(
+            f"API Start Server '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except ServerNotFoundError as e:
+        logger.error(
+            f"API Start Server '{server_name}': Server not found error: {e}",
+            exc_info=True,
+        )
+        status_code = 404  # Not Found for missing server executable
+        result = {"status": "error", "message": f"Server not found: {e}"}
+    except FileOperationError as e:  # Catch base_dir config errors
+        logger.error(
+            f"API Start Server '{server_name}': Configuration error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Server configuration error: {e}"}
+    except Exception as e:
+        # Catch unexpected errors during API orchestration
+        logger.error(
+            f"API Start Server '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
 # --- API Route: Stop Server ---
-@server_actions_bp.route("/api/server/<server_name>/stop", methods=["POST"])
+@server_actions_bp.route("/api/server/<string:server_name>/stop", methods=["POST"])
 @csrf.exempt
 @auth_required
-def stop_server_route(server_name):
-    """API endpoint to stop a specific server."""
-    logger.info(f"API POST request received to stop server: '{server_name}'.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+def stop_server_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to stop a specific running Bedrock server instance.
 
-    # Call the stop server handler
-    logger.debug(f"Calling stop_server_handler for server '{server_name}'...")
-    response = server.stop_server(server_name, base_dir)
-    logger.debug(f"Handler response for stop server '{server_name}': {response}")
+    Args:
+        server_name: The name of the server passed in the URL.
 
-    # Determine HTTP status code
-    status_code = 200 if response.get("status") == "success" else 500
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK: {"status": "success", "message": "..."} (also if already stopped)
+        - 400 Bad Request: If server name is invalid.
+        - 500 Internal Server Error: If server fails to stop or other errors occur.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(f"API: Stop server request for '{server_name}' by user '{identity}'.")
 
-    if status_code == 200:
-        logger.info(f"Server '{server_name}' stop initiated successfully via API.")
-        if "message" not in response:
-            response["message"] = f"Server '{server_name}' stop initiated successfully."
-    else:
-        logger.error(
-            f"API Error stopping server '{server_name}': {response.get('message', 'Unknown error')}"
+    result: Dict[str, Any] = {}
+    status_code = 500
+
+    try:
+        # Call the stop server API function
+        result = server_api.stop_server(server_name)  # Returns dict
+        logger.debug(f"API Stop Server '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message",
+                f"Server '{server_name}' stopped successfully or was already stopped.",
+            )
+            logger.info(f"API Stop Server '{server_name}': {success_msg}")
+            result["message"] = success_msg
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error stopping server.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Stop Server '{server_name}': Failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Stop Server '{server_name}': Input error: {e}", exc_info=True
         )
-        if "message" not in response:
-            response["message"] = f"Error stopping server '{server_name}'."
-        response["status"] = "error"
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except FileOperationError as e:  # Catch base_dir config errors
+        logger.error(
+            f"API Stop Server '{server_name}': Configuration error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Server configuration error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Stop Server '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for stop server '{server_name}' with status code {status_code}."
-    )
-    return jsonify(response), status_code
+    return jsonify(result), status_code
 
 
 # --- API Route: Restart Server ---
-@server_actions_bp.route("/api/server/<server_name>/restart", methods=["POST"])
+@server_actions_bp.route("/api/server/<string:server_name>/restart", methods=["POST"])
 @csrf.exempt
 @auth_required
-def restart_server_route(server_name):
-    """API endpoint to restart a specific server."""
-    logger.info(f"API POST request received to restart server: '{server_name}'.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+def restart_server_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to restart a specific Bedrock server instance.
 
-    # Call the restart server handler
-    logger.debug(f"Calling restart_server_handler for server '{server_name}'...")
-    response = server.restart_server(server_name, base_dir)
-    logger.debug(f"Handler response for restart server '{server_name}': {response}")
+    If the server is running, it attempts to stop it gracefully (with warning)
+    and then start it again. If stopped, it simply starts it.
 
-    # Determine HTTP status code
-    status_code = 200 if response.get("status") == "success" else 500
+    Args:
+        server_name: The name of the server passed in the URL.
 
-    if status_code == 200:
-        logger.info(f"Server '{server_name}' restart initiated successfully via API.")
-        if "message" not in response:
-            response["message"] = (
-                f"Server '{server_name}' restart initiated successfully."
-            )
-    else:
-        logger.error(
-            f"API Error restarting server '{server_name}': {response.get('message', 'Unknown error')}"
-        )
-        if "message" not in response:
-            response["message"] = f"Error restarting server '{server_name}'."
-        response["status"] = "error"
-
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for restart server '{server_name}' with status code {status_code}."
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK: {"status": "success", "message": "..."}
+        - 400 Bad Request: If server name is invalid.
+        - 500 Internal Server Error: If restart phases (stop/start) fail.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Restart server request for '{server_name}' by user '{identity}'."
     )
-    return jsonify(response), status_code
+
+    result: Dict[str, Any] = {}
+    status_code = 500
+
+    try:
+        # Call the restart server API function (takes care of stop/start logic)
+        result = server_api.restart_server(server_name)  # Default send_message=True
+        logger.debug(f"API Restart Server '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message", f"Server '{server_name}' restart completed successfully."
+            )
+            logger.info(f"API Restart Server '{server_name}': {success_msg}")
+            result["message"] = success_msg
+        else:
+            # Restart involves multiple steps, failure could be stop or start
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error during restart.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Restart Server '{server_name}': Failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Restart Server '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except FileOperationError as e:  # Catch base_dir config errors
+        logger.error(
+            f"API Restart Server '{server_name}': Configuration error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Server configuration error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Restart Server '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
 # --- API Route: Send Command ---
-@server_actions_bp.route("/api/server/<server_name>/send_command", methods=["POST"])
+@server_actions_bp.route(
+    "/api/server/<string:server_name>/send_command", methods=["POST"]
+)
 @csrf.exempt
 @auth_required
-def send_command_route(server_name):
-    """API endpoint to send a command to a running server."""
+def send_command_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to send a command to a running Bedrock server instance.
+
+    Expects JSON body with 'command' key.
+
+    Args:
+        server_name: The name of the server passed in the URL.
+
+    JSON Request Body Example:
+        {"command": "say Hello World!"}
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK: {"status": "success", "message": "..."}
+        - 400 Bad Request: Invalid JSON or missing/empty command.
+        - 404 Not Found: Server executable missing.
+        - 500 Internal Server Error: Server not running or command sending failed.
+        - 501 Not Implemented: If OS is unsupported for sending commands.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"API POST request received to send command to server: '{server_name}'."
+        f"API: Send command request for server '{server_name}' by user '{identity}'."
     )
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
 
-    # Get JSON data from request
-    data = request.get_json()
-    logger.debug(f"Received JSON data for send command: {data}")
-
-    # Validate JSON body presence
+    # --- Input Validation ---
+    data = request.get_json(silent=True)
     if not data or not isinstance(data, dict):
         logger.warning(
-            f"API send_command for '{server_name}': Invalid or empty JSON body received."
+            f"API Send Command '{server_name}': Invalid/missing JSON request body."
         )
         return (
-            jsonify(
-                {"status": "error", "message": "Invalid or missing JSON request body."}
-            ),
+            jsonify(status="error", message="Invalid or missing JSON request body."),
             400,
         )
 
-    # Extract command from JSON data
     command = data.get("command")
+    logger.debug(f"API Send Command '{server_name}': Received command='{command}'")
 
-    # Validate command presence and type
     if not command or not isinstance(command, str) or not command.strip():
-        logger.warning(
-            f"API send_command for '{server_name}': Received empty or invalid 'command' field."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Request body must contain a non-empty string 'command' field.",
-                }
-            ),
-            400,  # Bad Request
-        )
+        msg = "Request body must contain a non-empty string 'command' field."
+        logger.warning(f"API Send Command '{server_name}': {msg}")
+        return jsonify(status="error", message=msg), 400
 
     trimmed_command = command.strip()
-    logger.info(
-        f"API attempting to send command to '{server_name}': '{trimmed_command}'"
-    )
 
-    # Call the send command handler
-    logger.debug(f"Calling send_command_handler for server '{server_name}'...")
-    result = server.send_command(server_name, trimmed_command, base_dir)
-    logger.debug(f"Handler response for send command '{server_name}': {result}")
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500
+    try:
+        result = server_api.send_command(
+            server_name, trimmed_command
+        )  # API func handles base_dir
+        logger.debug(f"API Send Command '{server_name}': Handler response: {result}")
 
-    # Determine HTTP status code
-    status_code = 200 if result.get("status") == "success" else 500
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message", f"Command '{trimmed_command}' sent successfully."
+            )
+            logger.info(f"API Send Command successful for server '{server_name}'.")
+            result["message"] = success_msg
+        else:
+            # Check for specific failure reasons based on error message from API handler
+            error_msg = (
+                result.get("message", "Unknown error sending command.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            if "not running" in error_msg.lower():
+                status_code = (
+                    500  # Or maybe 409 Conflict? 500 seems okay for server state issue.
+                )
+                logger.warning(
+                    f"API Send Command failed: Server '{server_name}' is not running."
+                )
+            elif "unsupported operating system" in error_msg.lower():
+                status_code = 501  # Not Implemented
+                logger.error(f"API Send Command failed: {error_msg}")
+            else:
+                status_code = 500
+                logger.error(
+                    f"API Send Command failed for server '{server_name}': {error_msg}"
+                )
+            result = {"status": "error", "message": error_msg}
 
-    if status_code == 200:
-        logger.info(
-            f"Command '{trimmed_command}' sent successfully to '{server_name}' via API."
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Send Command '{server_name}': Input error: {e}", exc_info=True
         )
-        if "message" not in result:
-            result["message"] = f"Command sent successfully to server '{server_name}'."
-    else:
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except ServerNotFoundError as e:
         logger.error(
-            f"API Error sending command to '{server_name}': {result.get('message', 'Unknown error')}"
+            f"API Send Command '{server_name}': Server executable not found: {e}",
+            exc_info=True,
         )
-        if "message" not in result:
-            result["message"] = f"Error sending command to server '{server_name}'."
-        result["status"] = "error"
+        status_code = 404
+        result = {"status": "error", "message": f"Server not found: {e}"}
+    except FileOperationError as e:  # Catch base_dir config errors
+        logger.error(
+            f"API Send Command '{server_name}': Configuration error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Server configuration error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Send Command '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for send command '{server_name}' with status code {status_code}."
-    )
     return jsonify(result), status_code
 
 
 # --- API Route: Update Server ---
-@server_actions_bp.route("/api/server/<server_name>/update", methods=["POST"])
+@server_actions_bp.route("/api/server/<string:server_name>/update", methods=["POST"])
 @csrf.exempt
 @auth_required
-def update_server_route(server_name):
-    """API endpoint to update a specific server's Bedrock software."""
-    logger.info(f"API POST request received to update server: '{server_name}'.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+def update_server_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to trigger an update for a specific Bedrock server instance.
 
-    # Call the update server handler
-    logger.debug(f"Calling update_server_handler for server '{server_name}'...")
-    response = server_install_config.update_server(server_name, base_dir=base_dir)
-    logger.debug(f"Handler response for update server '{server_name}': {response}")
+    Checks for the latest version based on the server's configured target
+    (LATEST or PREVIEW) and performs the update if needed.
 
-    # Determine HTTP status code
-    status_code = 200 if response.get("status") == "success" else 500
+    Args:
+        server_name: The name of the server passed in the URL.
 
-    if status_code == 200:
-        logger.info(f"Server '{server_name}' update initiated successfully via API.")
-        if "message" not in response:
-            response["message"] = (
-                f"Server '{server_name}' update initiated successfully."
+    Returns:
+        JSON response indicating success or failure, potentially including update status.
+        - 200 OK: {"status": "success", "updated": bool, "new_version": Optional[str], "message": "..."}
+        - 400 Bad Request: If server name is invalid.
+        - 500 Internal Server Error: If update process fails or other errors occur.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(f"API: Update server request for '{server_name}' by user '{identity}'.")
+
+    result: Dict[str, Any] = {}
+    status_code = 500
+
+    try:
+        # Call the update server API function
+        result = server_install_config.update_server(
+            server_name
+        )  # API func handles base_dir
+        logger.debug(f"API Update Server '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message", f"Server '{server_name}' update check/process completed."
             )
-    else:
-        logger.error(
-            f"API Error updating server '{server_name}': {response.get('message', 'Unknown error')}"
-        )
-        if "message" not in response:
-            response["message"] = f"Error updating server '{server_name}'."
-        response["status"] = "error"
+            logger.info(f"API Update Server '{server_name}': {success_msg}")
+            result["message"] = success_msg
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error during update.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Update Server '{server_name}': Failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
 
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for update server '{server_name}' with status code {status_code}."
-    )
-    return jsonify(response), status_code
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Update Server '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except FileOperationError as e:  # Catch base_dir/config errors
+        logger.error(
+            f"API Update Server '{server_name}': Configuration/File error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Configuration or File error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Update Server '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
 # --- API Route: Delete Server ---
-@server_actions_bp.route("/api/server/<server_name>/delete", methods=["DELETE"])
+@server_actions_bp.route("/api/server/<string:server_name>/delete", methods=["DELETE"])
 @csrf.exempt
 @auth_required
-def delete_server_route(server_name):
-    """API endpoint to delete a specific server's data."""
-    logger.info(f"API DELETE request received to delete server: '{server_name}'.")
-    base_dir = get_base_dir()
-    config_dir = settings.get("CONFIG_DIR")
-    logger.debug(f"Base directory: {base_dir}, Config directory: {config_dir}")
+def delete_server_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to delete a specific server's data (installation, config, backups).
 
-    # Call the handler to delete the server data
-    logger.debug(f"Calling delete_server_data_handler for '{server_name}'...")
-    result = server.delete_server_data(server_name, base_dir, config_dir)
-    logger.debug(f"Delete handler result for '{server_name}': {result}")
+    Args:
+        server_name: The name of the server passed in the URL.
 
-    # Determine appropriate HTTP status code
-    status_code = 200 if result.get("status") == "success" else 500
-
-    if status_code == 200:
-        logger.info(f"Server '{server_name}' deleted successfully via API.")
-        if "message" not in result:
-            result["message"] = f"Server '{server_name}' deleted successfully."
-    else:
-        logger.error(
-            f"API Error deleting server '{server_name}': {result.get('message', 'Unknown error')}"
-        )
-        if "message" not in result:
-            result["message"] = f"Error deleting server '{server_name}'."
-        result["status"] = "error"
-
-    # Return JSON response
-    logger.debug(
-        f"Returning JSON response for delete server '{server_name}' with status code {status_code}."
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK: {"status": "success", "message": "..."}
+        - 400 Bad Request: If server name is invalid.
+        - 500 Internal Server Error: If deletion fails.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.warning(
+        f"API: DELETE server request for '{server_name}' by user '{identity}'. This is irreversible."
     )
+
+    result: Dict[str, Any] = {}
+    status_code = 500
+
+    try:
+        # Call the delete server API function
+        # API function handles base_dir and config_dir resolution
+        result = server_api.delete_server_data(
+            server_name
+        )  # stop_if_running defaults to True
+        logger.debug(f"API Delete Server '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = result.get(
+                "message", f"Server '{server_name}' deleted successfully."
+            )
+            logger.info(f"API Delete Server successful for '{server_name}'.")
+            result["message"] = success_msg
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error deleting server.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Delete Server failed for '{server_name}': {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Delete Server '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except DirectoryError as e:  # Catch core deletion error
+        logger.error(
+            f"API Delete Server '{server_name}': Directory deletion error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Error deleting server directories: {e}",
+        }
+    except FileOperationError as e:  # Catch config errors
+        logger.error(
+            f"API Delete Server '{server_name}': Configuration error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Configuration error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Delete Server '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
     return jsonify(result), status_code
 
 
 # --- API Route: Server Status ---
-@server_actions_bp.route("/api/server/<server_name>/status")
-@csrf.exempt
-@auth_required
-def server_status_api(server_name):
-    """API endpoint providing server status information (running state, resource usage) as JSON."""
-    logger.debug(f"API GET request for status of server: '{server_name}'.")
-    base_dir = get_base_dir()
-    logger.debug(f"Base directory: {base_dir}")
+# Changed route to avoid conflict if more specific status endpoints are added later
+@server_actions_bp.route(
+    "/api/server/<string:server_name>/status_info", methods=["GET"]
+)
+@csrf.exempt  # GET request, CSRF not typically needed, but auth is still required
+@auth_required  # Requires session OR JWT
+def server_status_api(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to retrieve status information for a specific server.
 
-    # Call the handler to get process information
-    logger.debug(f"Calling get_bedrock_process_info_handler for '{server_name}'...")
-    result = system.get_bedrock_process_info(server_name, base_dir)
-    logger.debug(f"Get process info handler result for '{server_name}': {result}")
+    Provides running state and basic resource usage (PID, CPU, Memory, Uptime) if running.
 
-    status_code = 200
+    Args:
+        server_name: The name of the server passed in the URL.
+
+    Returns:
+        JSON response containing server status details or an error message.
+        - 200 OK: {"status": "success", "process_info": Dict/None}
+        - 400 Bad Request: If server name is invalid.
+        - 500 Internal Server Error: If retrieving status fails.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.debug(
-        f"Returning JSON response for server status API '{server_name}' with status code {status_code}."
+        f"API: Status info request for server '{server_name}' by user '{identity}'."
     )
+
+    result: Dict[str, Any] = {}
+    status_code = 500
+
+    try:
+        # Call the system API function to get process info
+        result = system_api.get_bedrock_process_info(
+            server_name
+        )  # API func handles base_dir
+        logger.debug(f"API Status Info '{server_name}': Handler response: {result}")
+
+        # get_bedrock_process_info returns error dict if server not found/error occurs
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            logger.debug(
+                f"API Status Info: Successfully retrieved process info for '{server_name}'."
+            )
+        elif (
+            isinstance(result, dict)
+            and result.get("status") == "error"
+            and "not found" in result.get("message", "").lower()
+        ):
+            # If API explicitly says not found, return 200 but indicate not running
+            status_code = 200
+            logger.info(
+                f"API Status Info: Server process '{server_name}' not found (considered stopped)."
+            )
+            result = {
+                "status": "success",
+                "process_info": None,
+                "message": f"Server '{server_name}' is not running.",
+            }
+        else:
+            # Other errors from the API handler
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error getting process info.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Status Info '{server_name}': Failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (MissingArgumentError, InvalidServerNameError) as e:
+        logger.warning(
+            f"API Status Info '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except FileOperationError as e:  # Catch base_dir config errors
+        logger.error(
+            f"API Status Info '{server_name}': Configuration error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Server configuration error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API Status Info '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
     return jsonify(result), status_code

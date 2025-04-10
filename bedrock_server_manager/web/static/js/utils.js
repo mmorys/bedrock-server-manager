@@ -1,299 +1,302 @@
 // bedrock-server-manager/bedrock_server_manager/web/static/js/utils.js
+/**
+ * @fileoverview Utility functions for the Bedrock Server Manager web interface,
+ * including status message display and asynchronous API request handling.
+ */
 
 // --- Helper: Display Status Messages ---
 /**
- * Displays a status message in the dedicated area.
- * Clears the message automatically after a delay.
- * @param {string} message The message text.
- * @param {string} [type='info'] 'info', 'success', 'error', or 'warning'.
+ * Displays a status message dynamically in a designated area on the page.
+ * The message automatically fades out and clears after a set duration.
+ * Handles cases where the status area element might be missing.
+ *
+ * @param {string} message - The text content of the message to display.
+ * @param {string} [type='info'] - The type of message, influencing styling.
+ *                                 Expected values: 'info', 'success', 'warning', 'error'.
  */
 function showStatusMessage(message, type = 'info') {
-    // Log function entry and parameters
-    console.log(`showStatusMessage called with message: "${message}", type: ${type}`);
+    const functionName = 'showStatusMessage';
+    console.log(`${functionName}: Displaying message (Type: ${type}): "${message}"`);
 
     const area = document.getElementById('status-message-area');
     if (!area) {
-        // Log a warning if the dedicated area is not found and fall back to alert
-        console.warn("Element with ID 'status-message-area' not found. Falling back to alert.");
-        alert(`${type.toUpperCase()}: ${message}`);
+        console.warn(`${functionName}: Element '#status-message-area' not found. Falling back to standard alert.`);
+        alert(`${type.toUpperCase()}: ${message}`); // Fallback for critical messages if area missing
         return;
     }
 
-    // Log applying the message and styles
-    console.log("Applying message and styles to status area.");
-    area.className = `message-box message-${type}`; // Set classes for styling
-    area.textContent = message; // Set the message text
-    area.style.opacity = '1'; // Make it visible immediately
+    // Assign classes for styling and set text content
+    // Using template literal for cleaner class string construction
+    area.className = `message-box message-${type}`;
+    area.textContent = message;
+    area.style.transition = ''; // Clear previous transitions immediately
+    area.style.opacity = '1';   // Make visible instantly
 
-    // Log setting up the timeout for clearing the message
-    console.log("Setting timeout to clear status message in 5 seconds.");
-    // Set a timeout to start fading out the message
+    // Use a unique identifier for the timeout related to *this specific message*
+    // This helps prevent race conditions if messages are shown in quick succession.
+    const messageId = Date.now() + Math.random(); // Simple unique ID
+    area.dataset.currentMessageId = messageId; // Store ID on the element
+
+    console.debug(`${functionName}: Set message content and visibility for messageId ${messageId}.`);
+
+    // Set timeout to fade out and clear the message
     setTimeout(() => {
-        // Check if the message currently displayed is still the one we set
-        // This prevents clearing a newer message that might have appeared quickly
-        if (area.textContent === message) {
-            console.log(`Starting fade-out for message: "${message}"`);
-            area.style.transition = 'opacity 0.5s ease-out'; // Add fade-out transition
-            area.style.opacity = '0'; // Start fade-out
+        // Check if the message currently displayed *still* corresponds to this timeout call
+        if (area.dataset.currentMessageId === String(messageId)) {
+            console.debug(`${functionName}: Initiating fade-out for messageId ${messageId} ("${message}").`);
+            area.style.transition = 'opacity 0.5s ease-out';
+            area.style.opacity = '0';
 
-            // Set another timeout to clear the content after the fade-out completes
+            // Set another timeout to clear content *after* fade completes
             setTimeout(() => {
-                // Check again if the message is still the same and opacity is 0
-                if (area.textContent === message && area.style.opacity === '0') {
-                    console.log(`Clearing message content and resetting styles for: "${message}"`);
-                    area.textContent = ''; // Clear the text
-                    area.className = 'message-box'; // Reset classes to default
-                    area.style.transition = ''; // Reset transition property
+                // Final check: Only clear if it's still the same message and it faded out
+                if (area.dataset.currentMessageId === String(messageId) && area.style.opacity === '0') {
+                    console.debug(`${functionName}: Clearing content for messageId ${messageId} after fade.`);
+                    area.textContent = '';
+                    area.className = 'message-box'; // Reset styles
+                    area.style.transition = ''; // Remove transition property
+                    delete area.dataset.currentMessageId; // Clean up dataset attribute
                 } else {
-                    console.log(`Message content changed or opacity not 0 before final clear for: "${message}". Aborting clear.`);
+                    console.debug(`${functionName}: Aborting final clear for messageId ${messageId} - message changed or fade interrupted.`);
                 }
-            }, 500); // Wait for fade out duration (0.5s)
+            }, 500); // Match fade duration (500ms)
         } else {
-            console.log(`Message content changed before timeout expired for: "${message}". Aborting fade-out.`);
+             console.debug(`${functionName}: Aborting fade-out for messageId ${messageId} - a newer message was displayed.`);
         }
-    }, 5000); // Start fade out after 5 seconds (5000 milliseconds)
+    }, 5000); // Start fade-out after 5 seconds
 }
 
 
 // --- Helper: Send API Request ---
 /**
- * Sends an asynchronous request to a server action endpoint using Fetch API.
- * Includes CSRF token automatically via the X-CSRFToken header.
- * Displays status/error messages using showStatusMessage.
- * Handles JSON responses, including specific handling for validation errors (status 400 with data.errors).
- * Handles 204 No Content responses as success.
- * Disables/re-enables an optional button element during the request lifecycle.
+ * Sends an asynchronous request (using Fetch API) to a server API endpoint.
+ * Handles common tasks like setting headers (Accept, Content-Type, CSRF),
+ * managing JSON request/response bodies, displaying status messages,
+ * handling HTTP errors, parsing application-level success/error statuses,
+ * and optionally disabling/re-enabling a button element during the request.
  *
- * @param {string|null} serverName The name of the target server (can be null if actionPath starts with '/').
- * @param {string} actionPath The path relative to the server OR an absolute path for the action (starting with '/').
- * @param {string} [method='POST'] The HTTP method ('POST', 'DELETE', 'PUT', etc.).
- * @param {object|null} [body=null] Optional JavaScript object to be sent as JSON in the request body.
- * @param {HTMLElement|null} [buttonElement=null] Optional button element to disable during request.
- * @returns {Promise<object|false>} A promise that resolves to the parsed JSON data object if the HTTP request was successful (status 200-299), otherwise resolves to false.
+ * @async
+ * @param {string|null} serverName - The name of the target server. Use `null` or empty string
+ *                                   if `actionPath` is an absolute path (starts with '/').
+ * @param {string} actionPath - The API endpoint path. If it starts with '/', it's treated as
+ *                             absolute. Otherwise, it's appended to `/api/server/{serverName}/`.
+ * @param {string} [method='POST'] - The HTTP method (e.g., 'GET', 'POST', 'PUT', 'DELETE').
+ * @param {object|null} [body=null] - Optional JavaScript object to send as the JSON request body.
+ *                                    Ignored for methods like 'GET'.
+ * @param {HTMLElement|null} [buttonElement=null] - Optional button element to disable while the request is pending.
+ * @returns {Promise<object|false>} A promise that resolves with:
+ *                                  - The parsed JSON response data object if the HTTP request was successful (status 2xx)
+ *                                    and the response was valid JSON or 204 No Content. The caller *must* check the
+ *                                    `status` field within this object (`responseData.status === 'success'`) to confirm
+ *                                    the *application-level* success of the action.
+ *                                  - `false` if the fetch request itself failed (network error, CORS issue, DNS error),
+ *                                    if the CSRF token was missing, if URL construction failed, or if an HTTP error
+ *                                    status (non-2xx) was received.
+ * @throws {Error} Can throw errors if JSON parsing fails unexpectedly on a response claiming to be JSON,
+ *                 though attempts are made to handle this gracefully.
  */
 async function sendServerActionRequest(serverName, actionPath, method = 'POST', body = null, buttonElement = null) {
-    // Log function entry and parameters
-    console.log(`sendServerActionRequest initiated. Server: ${serverName || 'N/A'}, Path: ${actionPath}, Method: ${method}, Body:`, body, "Button:", buttonElement);
+    const functionName = 'sendServerActionRequest';
+    // Use console.debug for potentially verbose parameter logging
+    console.debug(`${functionName}: Initiating request - Server: '${serverName || 'N/A'}', Path: '${actionPath}', Method: ${method}`);
+    if (body) console.debug(`${functionName}: Request Body:`, body); // Log body only if present
+    if (buttonElement) console.debug(`${functionName}: Associated Button:`, buttonElement);
 
-    // --- Get CSRF Token ---
+    // --- 1. Get CSRF Token ---
     const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
     const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : null;
-
     if (!csrfToken) {
-        console.error("CSRF token meta tag not found!");
-        showStatusMessage("Error: CSRF protection token missing in page. Cannot send request.", "error");
-        if (buttonElement) buttonElement.disabled = false; // Re-enable button if applicable
-        return false; // Stop execution
+        const errorMsg = "CSRF protection token not found in page meta tags. Cannot proceed.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
+        if (buttonElement) buttonElement.disabled = false; // Ensure button re-enabled
+        return false; // Critical failure
     }
-    // Avoid logging the actual token for security
-    console.log("CSRF Token found:", csrfToken ? 'Yes (available)' : 'No');
+    // Avoid logging the token itself for security:
+    console.debug(`${functionName}: CSRF token obtained.`);
 
-    // --- Construct URL ---
-    let url;
+    // --- 2. Construct URL ---
+    let apiUrl;
     if (actionPath.startsWith('/')) {
-        // If actionPath starts with '/', use it as an absolute path
-        url = actionPath;
-        console.log(`Constructed absolute URL: ${url}`);
-    } else if (serverName) {
-        // If actionPath is relative and serverName is provided, construct the server-specific URL
-        url = `/api/server/${serverName}/${actionPath}`;
-        console.log(`Constructed relative URL: ${url}`);
+        apiUrl = actionPath; // Use as absolute path
+        console.debug(`${functionName}: Using absolute URL: ${apiUrl}`);
+    } else if (serverName && serverName.trim()) { // Check serverName is not empty/whitespace
+        apiUrl = `/api/server/${serverName}/${actionPath}`; // Construct relative path
+        console.debug(`${functionName}: Using relative URL for server '${serverName}': ${apiUrl}`);
     } else {
-        // Log an error and show status message if URL construction is invalid
-        console.error("sendServerActionRequest requires a serverName for relative paths, or an absolute actionPath starting with '/'");
-        showStatusMessage("Internal script error: Invalid request path configuration.", "error");
-        if (buttonElement) {
-            console.log("Re-enabling button due to invalid URL configuration.");
-            buttonElement.disabled = false;
-        }
-        return false; // Indicate failure immediately
+        const errorMsg = "Invalid arguments: 'serverName' is required for relative action paths.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
+        if (buttonElement) buttonElement.disabled = false;
+        return false; // Critical configuration failure
     }
 
-    // Log the request details before sending
-    console.log(`API Request Details -> Method: ${method}, URL: ${url}, Body:`, body);
-    showStatusMessage(`Sending ${method} request to ${url}...`, 'info'); // Inform user
+    // --- 3. Prepare Fetch Request ---
+    console.debug(`${functionName}: Preparing fetch request to ${apiUrl} (Method: ${method})`);
     if (buttonElement) {
-        console.log("Disabling button element during request.");
-        buttonElement.disabled = true; // Disable button if provided
+        console.debug(`${functionName}: Disabling button.`);
+        buttonElement.disabled = true;
+    }
+    // Show initial user feedback immediately
+    showStatusMessage(`Processing action at ${apiUrl}...`, 'info');
+
+    const fetchOptions = {
+        method: method.toUpperCase(), // Ensure method is uppercase
+        headers: {
+            'Accept': 'application/json', // We always want JSON back
+            'X-CSRFToken': csrfToken     // Add CSRF token header
+        }
+    };
+
+    // Add body and Content-Type header if applicable
+    const methodAllowsBody = ['POST', 'PUT', 'PATCH'].includes(fetchOptions.method);
+    if (body && methodAllowsBody) {
+        try {
+            fetchOptions.body = JSON.stringify(body);
+            fetchOptions.headers['Content-Type'] = 'application/json';
+            console.debug(`${functionName}: Added JSON body and Content-Type header.`);
+        } catch (stringifyError) {
+            const errorMsg = `Failed to stringify request body: ${stringifyError.message}`;
+            console.error(`${functionName}: ${errorMsg}`, body);
+            showStatusMessage(errorMsg, "error");
+            if (buttonElement) buttonElement.disabled = false;
+            return false; // Cannot proceed if body cannot be stringified
+        }
+    } else if (body && !methodAllowsBody) {
+         console.warn(`${functionName}: Body provided for HTTP method '${fetchOptions.method}' which typically does not support it. Body ignored.`);
+    } else {
+         console.debug(`${functionName}: No request body provided or method does not support it.`);
     }
 
-    let responseData = null; // Variable to store parsed response data
-    let httpSuccess = false; // Flag to track if HTTP status code indicates success (2xx)
+    // --- 4. Execute Fetch Request and Process Response ---
+    let responseData = null; // To store parsed JSON response
+    let httpSuccess = false; // Track if HTTP status code was 2xx
 
     try {
-        // --- Setup Fetch Options ---
-        const fetchOptions = {
-            method: method,
-            headers: {
-                'Accept': 'application/json', // Expect JSON response
-                // --- ADD CSRF TOKEN HEADER ---
-                'X-CSRFToken': csrfToken
-                // --- END CSRF TOKEN HEADER ---
-            }
-        };
-        // If a body is provided and method allows a body, stringify and set Content-Type
-        if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-             // Ensure Content-Type is set *only* if there's a body to send
-            fetchOptions.headers['Content-Type'] = 'application/json';
-            fetchOptions.body = JSON.stringify(body);
-            console.log("Added JSON body and Content-Type header.");
+        console.debug(`${functionName}: Executing fetch(${apiUrl}, ...)`);
+        const response = await fetch(apiUrl, fetchOptions);
+        console.log(`${functionName}: Response received - Status: ${response.status}, OK: ${response.ok}`);
+        httpSuccess = response.ok; // ok is true for statuses in the range 200-299
+
+        // --- Process Body based on Status and Content-Type ---
+        if (response.status === 204) { // Handle No Content explicitly
+            console.log(`${functionName}: Received 204 No Content. Treating as success.`);
+            responseData = { status: 'success', message: `Action at ${apiUrl} successful (No Content).` };
+            // httpSuccess is already true
         } else {
-             // Log if no body is being sent or method doesn't usually have one
-            console.log("No body provided or method doesn't typically use one (e.g., GET, DELETE without body).");
-        }
-
-        // --- Make Fetch Request ---
-        console.log(`Executing fetch request to ${url} with options:`, fetchOptions);
-        const response = await fetch(url, fetchOptions);
-        console.log(`Fetch response received: Status=${response.status}, OK=${response.ok}`, response);
-        httpSuccess = response.ok; // Store if status is in the range 200-299
-
-        // --- Process Response Body ---
-        const contentType = response.headers.get('content-type');
-        console.log(`Response content-type: ${contentType}`);
-
-        if (response.status === 204) {
-            // Handle HTTP 204 No Content as a success case
-             console.log("Received 204 No Content - treating as success. Creating default success response data.");
-             responseData = { status: 'success', message: `Action at ${url} successful (No Content).` };
-             // httpSuccess is already true here
-        } else if (contentType && contentType.includes('application/json')) {
-            // If content type indicates JSON, parse the body
-            console.log("Response is JSON, parsing body...");
-            responseData = await response.json();
-            console.log(`Parsed JSON response data:`, responseData);
-        } else {
-            // Handle non-JSON responses (e.g., HTML error pages, plain text)
-            const textResponse = await response.text();
-            console.warn(`Response from ${url} was not JSON or 204. Status: ${response.status}. Body Text (truncated):`, textResponse.substring(0, 200));
-            if (!httpSuccess) { // If status code indicates an HTTP error
-                // Create a generic error message using the text response
-                console.log("Creating generic error response data from non-JSON error response.");
-                responseData = { status: 'error', message: `Request failed (Status ${response.status}): ${textResponse.substring(0, 150)}...` };
-                // httpSuccess remains false
-            } else { // If status code is 2xx but content is not JSON/204 (unexpected)
-                 console.warn(`Received OK status (${response.status}) but unexpected non-JSON/204 response format from ${url}.`);
-                 showStatusMessage(`Received OK status (${response.status}) but unexpected response format from ${url}. Check console/server logs.`, 'warning');
-                 // Return false because we didn't get the expected JSON structure, even though HTTP status was ok.
-                 if (buttonElement) {
-                     console.log("Re-enabling button due to unexpected successful response format.");
-                     buttonElement.disabled = false; // Re-enable button
-                 }
-                 return false; // Indicate failure to meet expectations
-            }
-        }
-
-        // --- Handle HTTP Errors & Validation Errors (triggered if !httpSuccess) ---
-        if (!httpSuccess) {
-            // Determine the error message from the parsed data or construct one
-            const errorMessage = responseData?.message || `Request failed with status ${response.status}`;
-            console.error(`HTTP Error: Status ${response.status}. Message: ${errorMessage}`);
-
-             // Specific handling for 400 Bad Request potentially containing validation errors
-            if (response.status === 400 && responseData?.errors && typeof responseData.errors === 'object') {
-                console.warn("Validation errors received from server:", responseData.errors);
-                showStatusMessage(errorMessage || "Validation failed. See form errors or console.", "error"); // Show main error
-                 // Attempt to display field-specific errors on the page
-                 const generalErrorArea = document.getElementById('validation-error-area');
-                 let generalErrors = []; // Store errors that don't have a dedicated field element
-                 console.log("Attempting to display validation errors on form fields.");
-                 Object.entries(responseData.errors).forEach(([field, message]) => {
-                     const fieldErrorElement = document.querySelector(`.validation-error[data-field="${field}"]`);
-                     if (fieldErrorElement) {
-                         console.log(`Displaying error for field "${field}"`);
-                         fieldErrorElement.textContent = message;
-                     } else {
-                         console.log(`No specific display area found for field "${field}", adding to general errors.`);
-                         generalErrors.push(`${field}: ${message}`);
-                     }
-                 });
-                 // Display general errors if any exist and the area is present
-                 if (generalErrorArea && generalErrors.length > 0) {
-                     console.log("Displaying general validation errors.");
-                     generalErrorArea.innerHTML = '<strong>Field Errors:</strong><ul><li>' + generalErrors.join('</li><li>') + '</li></ul>';
-                 }
-            } else if (response.status === 400 && response.statusText === "CSRF token missing or invalid.") {
-                // --- Specific CSRF Error Handling ---
-                // Flask-WTF often returns 400 Bad Request with this specific status text
-                console.error("CSRF Token Error detected!");
-                showStatusMessage("Security token error. Please refresh the page and try again.", "error");
-                 // --- End Specific CSRF Error Handling ---
+            // Try to read body (JSON preferred, fallback to text)
+            const contentType = response.headers.get('content-type');
+            console.debug(`${functionName}: Response Content-Type: ${contentType}`);
+            if (contentType && contentType.includes('application/json')) {
+                console.debug(`${functionName}: Parsing JSON response body...`);
+                responseData = await response.json(); // Can throw error if invalid JSON
+                console.debug(`${functionName}: Parsed JSON response:`, responseData);
             } else {
-                 // For other non-2xx errors (or 400 without specific .errors structure), just show the main message
-                 console.log("Displaying general HTTP error message.");
-                  showStatusMessage(errorMessage, "error");
+                // Not JSON - read as text and handle based on HTTP status
+                console.debug(`${functionName}: Response not JSON. Reading as text...`);
+                const textResponse = await response.text();
+                logger.warn(`${functionName}: Received non-JSON response (Status: ${response.status}). Body (truncated): ${textResponse.substring(0, 500)}`);
+                if (!httpSuccess) { // If HTTP status indicated error (non-2xx)
+                    // Construct an error object from the text response
+                    responseData = {
+                        status: 'error',
+                        message: `Request failed (Status ${response.status}): ${textResponse.substring(0, 200)}${textResponse.length > 200 ? '...' : ''}`
+                    };
+                    console.debug(`${functionName}: Created error object from text response.`);
+                } else {
+                    // HTTP status was 2xx, but body wasn't JSON/204 - this is unexpected
+                    const warnMsg = `Request to ${apiUrl} succeeded (Status ${response.status}) but returned unexpected content type: ${contentType}. Check server logs.`;
+                    console.warn(`${functionName}: ${warnMsg}`);
+                    showStatusMessage(warnMsg, 'warning');
+                    // Return false to indicate API contract violation, even though HTTP was ok.
+                    // Button is re-enabled in finally block for this case.
+                    return false;
+                }
             }
-            // Return false because the HTTP request itself failed
-            if (buttonElement) {
-                console.log("Re-enabling button due to HTTP error.");
-                buttonElement.disabled = false; // Re-enable button on failure
-            }
-            return false; // Indicate failure
         }
 
-        // --- Handle Application-Level Status for SUCCESSFUL (2xx) HTTP responses ---
-        // At this point, httpSuccess is true. We check the 'status' field within the responseData JSON.
-        console.log("HTTP request successful (2xx). Processing application-level status in response data:", responseData?.status);
-        if (responseData && responseData.status === 'success') {
-            console.log("Application status is 'success'. Displaying success message:", responseData.message || `Action at ${url} successful.`);
-            showStatusMessage(responseData.message || `Action at ${url} successful.`, 'success');
-             // --- Specific UI Update for DELETE (Example) ---
-             if (method === 'DELETE' && url.includes('/delete')) {
-                 console.log("DELETE request successful, potentially removing UI element (logic currently commented out).");
-                 /* Example: Find row corresponding to serverName/item and remove it */
-                 // const row = document.getElementById(`server-row-${serverName}`); // Assuming rows have IDs like this
-                 // if (row) row.remove();
+        // --- 5. Handle Response Based on HTTP Status ---
+        if (!httpSuccess) {
+            // Process HTTP errors (4xx, 5xx)
+            const errorMessage = responseData?.message || `Request failed with status ${response.status}`;
+            console.error(`${functionName}: HTTP Error - Status: ${response.status}, Message: "${errorMessage}"`);
+
+            // Specific handling for validation errors (400 with 'errors' object)
+            if (response.status === 400 && responseData?.errors && typeof responseData.errors === 'object') {
+                showStatusMessage(errorMessage || "Validation failed. Please check fields.", "error");
+                // Display field-specific errors (assuming helper elements exist)
+                const errorArea = document.getElementById('validation-error-area');
+                let generalErrors = [];
+                Object.entries(responseData.errors).forEach(([field, msg]) => {
+                    const fieldErrorEl = document.querySelector(`.validation-error[data-field="${field}"]`);
+                    if (fieldErrorEl) { fieldErrorEl.textContent = msg; }
+                    else { generalErrors.push(`<strong>${field}:</strong> ${msg}`); }
+                });
+                if (errorArea && generalErrors.length > 0) { errorArea.innerHTML = generalErrors.join('<br>'); }
+            }
+            // Specific handling for CSRF error (often 400 with specific message from Flask-WTF)
+            else if (response.status === 400 && errorMessage.toLowerCase().includes("csrf token")) {
+                 const csrfErrorMsg = "Security token error. Please refresh the page and try again.";
+                 console.error(`${functionName}: CSRF Token Error detected.`);
+                 showStatusMessage(csrfErrorMsg, "error");
+            }
+            else {
+                // Show generic error message for other HTTP errors
+                showStatusMessage(errorMessage, "error");
+            }
+            // Return false as the HTTP request failed
+            return false;
+        } else {
+             // --- 6. Handle Application-Level Status in SUCCESSFUL (2xx) HTTP Responses ---
+             console.debug(`${functionName}: HTTP request successful (Status: ${response.status}). Checking application status in response...`);
+             // Check 'status' field within the JSON response data
+             if (responseData && responseData.status === 'success') {
+                 const successMsg = responseData.message || `Action at ${apiUrl} completed successfully.`;
+                 console.info(`${functionName}: Application success. Message: "${successMsg}"`);
+                 showStatusMessage(successMsg, 'success');
+                 // Optionally trigger UI updates based on success here if needed
+             } else if (responseData && responseData.status === 'confirm_needed') {
+                  // Special status - let the caller handle confirmation logic
+                  console.info(`${functionName}: Application status 'confirm_needed'. Returning data for confirmation handling.`);
+                  // Message usually shown by caller based on responseData.message
+                  // Button is handled in finally block (remains disabled)
+             } else {
+                  // HTTP success (2xx), but application status is 'error' or missing/unexpected
+                  const appStatus = responseData?.status || 'unknown';
+                  const appMessage = responseData?.message || `Action at ${apiUrl} reported status: ${appStatus}.`;
+                  console.warn(`${functionName}: HTTP success but application status is '${appStatus}'. Message: ${appMessage}`);
+                  showStatusMessage(appMessage, 'warning'); // Use warning or error depending on severity preference
              }
-             // TODO: Add other success-specific UI updates here if needed.
-        } else if (responseData && responseData.status === 'confirm_needed') {
-            // Special status indicating the caller needs to handle confirmation logic
-            console.log("Application status is 'confirm_needed'. Returning data for caller handling. Message:", responseData.message);
-            // Don't show a message here; the caller will use the response data to prompt the user.
-            // Button should remain disabled until confirmation is resolved by the caller.
-        } else { // Status is 2xx, but data.status is 'error', missing, or unexpected
-            const appStatus = responseData?.status || 'unknown';
-            const appMessage = responseData?.message || `Action failed at ${url}. Server reported status: ${appStatus}.`;
-            console.warn(`HTTP success (2xx), but application status is '${appStatus}'. Message: ${appMessage}`);
-            showStatusMessage(appMessage, 'error'); // Show error message from the application
-            // We still return the data object here as the HTTP request succeeded,
-            // but the caller should check the status within it to confirm the action's success.
-            // Re-enable button here as the operation did complete (albeit with an app-level failure).
-            if (buttonElement) {
-                console.log("Re-enabling button after HTTP success but application-level failure/unexpected status.");
-                buttonElement.disabled = false;
-            }
         }
 
-    } catch (error) { // Catch network errors, JSON parsing errors, etc.
-        console.error(`Error during ${method} request to ${url}:`, error);
-        showStatusMessage(`Network or processing error during action at ${url}: ${error.message}`, 'error');
-        if (buttonElement) {
-            console.log("Re-enabling button due to caught error.");
-            buttonElement.disabled = false; // Re-enable button on catch
-        }
+    } catch (error) { // Catch network errors, CORS, DNS, unexpected JSON parse errors
+        const errorMsg = `Network or processing error during action at ${apiUrl}: ${error.message}`;
+        console.error(`${functionName}: Fetch failed - ${errorMsg}`, error);
+        showStatusMessage(errorMsg, 'error');
+        // Ensure button is re-enabled if an error occurs before finally might run reliably
+        if (buttonElement) buttonElement.disabled = false;
         return false; // Indicate failure
     } finally {
-        // --- Button Re-enabling Logic ---
-        // The button should be re-enabled if the operation is definitively finished:
-        // 1. HTTP request failed (!httpSuccess)
-        // 2. HTTP request succeeded (httpSuccess) AND the application status is NOT 'confirm_needed'.
-        console.log(`Finally block check: httpSuccess=${httpSuccess}, responseData.status=${responseData?.status}`);
-        if (!httpSuccess || (httpSuccess && responseData && responseData.status !== 'confirm_needed')) {
-             if (buttonElement && buttonElement.disabled) {
-                 console.log("Re-enabling button in finally block.");
-                 buttonElement.disabled = false;
-             } else if (buttonElement && !buttonElement.disabled) {
-                  console.log("Button was already enabled in finally block (likely handled in error/success path).");
+        // --- 7. Final Button Re-enabling Logic ---
+        // Re-enable the button unless the operation requires confirmation ('confirm_needed')
+        console.debug(`${functionName}: Finally block executing. httpSuccess=${httpSuccess}, responseData.status=${responseData?.status}`);
+        if (buttonElement) { // Only if a button was provided
+             if (responseData?.status !== 'confirm_needed') {
+                 if (buttonElement.disabled) {
+                     console.debug(`${functionName}: Re-enabling button in finally block.`);
+                     buttonElement.disabled = false;
+                 } else {
+                      console.debug(`${functionName}: Button was already enabled in finally block.`);
+                 }
+             } else {
+                  console.debug(`${functionName}: Button remains disabled due to 'confirm_needed' status.`);
              }
-        } else {
-            // Button remains disabled if confirm_needed or was never disabled/already re-enabled
-            console.log("Button remains disabled (likely due to 'confirm_needed' status or prior re-enabling).");
         }
     }
 
-    // Log the data being returned (the parsed JSON object or false if errors occurred before this point)
-    console.log(`sendServerActionRequest for ${url} returning data object (or false if previously failed):`, responseData);
-    // Return the parsed data object if HTTP succeeded. If HTTP failed, `false` was returned earlier.
-    // Note: If HTTP succeeded but app status was 'error', we still return the data object here.
-    return httpSuccess ? responseData : false; // Ensure we return false if httpSuccess was false but wasn't caught earlier
+    // Log the final data object being returned to the caller
+    console.debug(`${functionName}: Returning response data object (or false if HTTP error occurred):`, responseData);
+    // Return the parsed data object if HTTP was successful (caller checks internal status),
+    // otherwise return false (already returned within error handling blocks).
+    return httpSuccess ? responseData : false;
 }

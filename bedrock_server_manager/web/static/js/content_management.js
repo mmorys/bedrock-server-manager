@@ -1,91 +1,120 @@
 // bedrock-server-manager/bedrock_server_manager/web/static/js/content_management.js
+/**
+ * @fileoverview Frontend JavaScript functions for triggering content installation
+ * (worlds and addons) via API calls based on user interaction.
+ * Depends on functions defined in utils.js (showStatusMessage, sendServerActionRequest).
+ */
 
-// Depends on: utils.js (showStatusMessage, sendServerActionRequest)
+// Ensure utils.js is loaded before this script
+if (typeof sendServerActionRequest === 'undefined' || typeof showStatusMessage === 'undefined') {
+    console.error("Error: Missing required functions from utils.js. Ensure utils.js is loaded first.");
+    // Optionally display an error to the user on the page itself
+}
 
 /**
- * Triggers the installation of a specific world file after confirmation.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
- * @param {string} worldFile The full path or identifier of the world file to install (from backend).
+ * Handles the user clicking an 'Install World' button.
+ * Prompts for confirmation (warning about overwrites) and then calls the API
+ * endpoint to install the specified world file.
+ *
+ * @param {HTMLButtonElement} buttonElement - The 'Install' button element that was clicked.
+ * @param {string} serverName - The name of the target server.
+ * @param {string} worldFilePath - The full path or unique identifier of the .mcworld file
+ *                                (as provided by the backend/template).
  */
-function triggerWorldInstall(buttonElement, serverName, worldFile) {
-    // Log function entry
-    console.log(`triggerWorldInstall called - Server: ${serverName}, File: ${worldFile}, Button:`, buttonElement);
+function triggerWorldInstall(buttonElement, serverName, worldFilePath) {
+    const functionName = 'triggerWorldInstall';
+    console.log(`${functionName}: Initiated. Server: '${serverName}', File: '${worldFilePath}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Validate presence of worldFile
-    if (!worldFile) {
-        console.error("triggerWorldInstall called without worldFile!");
-        showStatusMessage("Internal error: No world file specified for install.", "error");
+    // --- Input Validation ---
+    if (!worldFilePath || typeof worldFilePath !== 'string' || !worldFilePath.trim()) {
+        const errorMsg = "Internal error: World file path is missing or invalid.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
         return;
     }
+    const trimmedWorldFilePath = worldFilePath.trim();
 
-    // Extract filename for display messages (handle both / and \ separators)
-    const worldFilenameForDisplay = worldFile.includes('\\') ? worldFile.substring(worldFile.lastIndexOf('\\') + 1) :
-                                   worldFile.includes('/') ? worldFile.substring(worldFile.lastIndexOf('/') + 1) : worldFile;
-    console.log(`Extracted filename for display: ${worldFilenameForDisplay}`);
+    // Extract filename for user messages (handles / and \ separators)
+    const filenameForDisplay = trimmedWorldFilePath.split(/[\\/]/).pop() || trimmedWorldFilePath;
+    console.debug(`${functionName}: Extracted filename for display: '${filenameForDisplay}'`);
 
-    // Confirmation dialog with clear warning about overwriting
-    console.log("Prompting user for world install confirmation.");
-    if (!confirm(`Install world '${worldFilenameForDisplay}' for server '${serverName}'?\n\nWARNING: This will REPLACE the current world directory if one exists! Continue?`)) {
-        console.log("World install cancelled by user.");
+    // --- Confirmation ---
+    console.debug(`${functionName}: Prompting user for world install confirmation.`);
+    const confirmationMessage = `Install world '${filenameForDisplay}' for server '${serverName}'?\n\n` +
+                                `WARNING: This will permanently REPLACE the current world data for this server! Continue?`;
+    if (!confirm(confirmationMessage)) {
+        console.log(`${functionName}: World installation cancelled by user.`);
         showStatusMessage('World installation cancelled.', 'info');
         return; // Abort if user cancels
     }
-    console.log("World install confirmed by user.");
+    console.log(`${functionName}: User confirmed world installation.`);
 
-    // Construct the request body containing the world file identifier
+    // --- Prepare API Request ---
     const requestBody = {
-        filename: worldFile // Send the full path/identifier received from the backend/onclick
+        filename: trimmedWorldFilePath // Send the path/identifier provided by the backend
     };
-    console.log("Constructed request body for world install:", requestBody);
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
 
-    // Call the action helper, targeting the specific API endpoint (absolute path)
-    // Pass null for serverName because actionPath starts with /
-    console.log("Calling sendServerActionRequest for world install API...");
-    sendServerActionRequest(null, `/api/server/${serverName}/world/install`, 'POST', requestBody, buttonElement);
-    console.log("Returned from initiating sendServerActionRequest call for world install (async).");
+    // --- Call API Helper ---
+    const apiUrl = `/api/server/${serverName}/world/install`;
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl}...`);
+    // sendServerActionRequest handles button disabling, status messages, and response processing
+    sendServerActionRequest(null, apiUrl, 'POST', requestBody, buttonElement);
+
+    console.log(`${functionName}: World install request initiated (asynchronous).`);
 }
 
 
 /**
- * Triggers the installation of a specific addon file after confirmation.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
- * @param {string} addonFile The full path or identifier of the addon file to install (from backend).
+ * Handles the user clicking an 'Install Addon' button.
+ * Prompts for confirmation and then calls the API endpoint to install the
+ * specified addon file (.mcaddon or .mcpack).
+ *
+ * @param {HTMLButtonElement} buttonElement - The 'Install' button element that was clicked.
+ * @param {string} serverName - The name of the target server.
+ * @param {string} addonFilePath - The full path or unique identifier of the addon file
+ *                                (as provided by the backend/template).
  */
-function triggerAddonInstall(buttonElement, serverName, addonFile) {
-    // Log function entry
-    console.log(`triggerAddonInstall called - Server: ${serverName}, File: ${addonFile}, Button:`, buttonElement);
+function triggerAddonInstall(buttonElement, serverName, addonFilePath) {
+    const functionName = 'triggerAddonInstall';
+    console.log(`${functionName}: Initiated. Server: '${serverName}', File: '${addonFilePath}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Validate presence of addonFile
-    if (!addonFile) {
-        console.error("triggerAddonInstall called without addonFile!");
-        showStatusMessage("Internal error: No addon file specified for install.", "error");
+    // --- Input Validation ---
+    if (!addonFilePath || typeof addonFilePath !== 'string' || !addonFilePath.trim()) {
+        const errorMsg = "Internal error: Addon file path is missing or invalid.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
         return;
     }
+    const trimmedAddonFilePath = addonFilePath.trim();
 
-    // Extract filename for display messages
-    const addonFilenameForDisplay = addonFile.includes('\\') ? addonFile.substring(addonFile.lastIndexOf('\\') + 1) :
-                                  addonFile.includes('/') ? addonFile.substring(addonFile.lastIndexOf('/') + 1) : addonFile;
-    console.log(`Extracted filename for display: ${addonFilenameForDisplay}`);
+    // Extract filename for user messages
+    const filenameForDisplay = trimmedAddonFilePath.split(/[\\/]/).pop() || trimmedAddonFilePath;
+    console.debug(`${functionName}: Extracted filename for display: '${filenameForDisplay}'`);
 
-    // Confirmation dialog
-    console.log("Prompting user for addon install confirmation.");
-    if (!confirm(`Install addon '${addonFilenameForDisplay}' for server '${serverName}'?`)) {
-        console.log("Addon install cancelled by user.");
+    // --- Confirmation ---
+    console.debug(`${functionName}: Prompting user for addon install confirmation.`);
+    // Confirmation message is less severe than world install, but still good practice
+    const confirmationMessage = `Install addon '${filenameForDisplay}' for server '${serverName}'?`;
+    if (!confirm(confirmationMessage)) {
+        console.log(`${functionName}: Addon installation cancelled by user.`);
         showStatusMessage('Addon installation cancelled.', 'info');
         return; // Abort if user cancels
     }
-    console.log("Addon install confirmed by user.");
+    console.log(`${functionName}: User confirmed addon installation.`);
 
-    // Construct the request body containing the addon file identifier
+    // --- Prepare API Request ---
     const requestBody = {
-        filename: addonFile // Send the full path/identifier
+        filename: trimmedAddonFilePath // Send the path/identifier provided by the backend
     };
-    console.log("Constructed request body for addon install:", requestBody);
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
 
-    // Call the action helper, targeting the specific API endpoint (absolute path)
-    console.log("Calling sendServerActionRequest for addon install API...");
-    sendServerActionRequest(null, `/api/server/${serverName}/addon/install`, 'POST', requestBody, buttonElement);
-    console.log("Returned from initiating sendServerActionRequest call for addon install (async).");
+    // --- Call API Helper ---
+    const apiUrl = `/api/server/${serverName}/addon/install`;
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl}...`);
+    sendServerActionRequest(null, apiUrl, 'POST', requestBody, buttonElement);
+
+    console.log(`${functionName}: Addon install request initiated (asynchronous).`);
 }

@@ -1,18 +1,14 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/schedule_tasks_routes.py
-import os
+"""
+Flask Blueprint handling web routes and API endpoints for managing scheduled tasks
+(Linux cron jobs and Windows Task Scheduler tasks) related to server operations.
+"""
+
 import platform
 import logging
-from bedrock_server_manager.api import task_scheduler
-from bedrock_server_manager.error import InvalidInputError
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.utils.general import get_timestamp
-from bedrock_server_manager.config.settings import EXPATH, app_name
-from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
-from bedrock_server_manager.web.utils.auth_decorators import (
-    auth_required,
-    get_current_identity,
-)
+from typing import Dict, Any, Tuple
+
+# Third-party imports
 from flask import (
     Blueprint,
     render_template,
@@ -21,450 +17,619 @@ from flask import (
     url_for,
     flash,
     jsonify,
+    Response,
 )
 
-# Initialize logger for this module
+# Local imports
+from bedrock_server_manager.api import task_scheduler as api_task_scheduler
+from bedrock_server_manager.error import (
+    MissingArgumentError,
+    InvalidInputError,
+    TypeError,
+    FileOperationError,
+    CommandNotFoundError,
+    ScheduleError,
+    TaskError,
+)
+from bedrock_server_manager.config.settings import (
+    settings,
+)
+from bedrock_server_manager.config.settings import (
+    EXPATH,
+)
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
+
+# Initialize logger
 logger = logging.getLogger("bedrock_server_manager")
 
-# Create Blueprint for server-related routes
-schedule_tasks_bp = Blueprint("schedule_tasks_routes", __name__)
+# Create Blueprint
+schedule_tasks_bp = Blueprint(
+    "schedule_tasks_routes",
+    __name__,
+    template_folder="../templates",
+    static_folder="../static",
+)
 
 
 # --- Route: Schedule Tasks Page (Linux/Cron) ---
-@schedule_tasks_bp.route("/server/<server_name>/cron_scheduler", methods=["GET"])
-@login_required
-def schedule_tasks_route(server_name):
-    """Displays the Linux cron job scheduling page for a server."""
+@schedule_tasks_bp.route("/server/<string:server_name>/cron_scheduler", methods=["GET"])
+@login_required  # Requires web session
+def schedule_tasks_route(server_name: str) -> Response:
+    """
+    Displays the Linux cron job scheduling management page for a specific server.
+
+    Lists existing cron jobs associated with the server.
+
+    Args:
+        server_name: The name of the server passed in the URL.
+
+    Returns:
+        Rendered HTML page ('schedule_tasks.html') with cron job data, or redirects
+        with a flash message if not on Linux or if errors occur.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"Route '/server/{server_name}/schedule' accessed - Rendering Linux cron task schedule page."
+        f"User '{identity}' accessed Linux cron schedule page for server '{server_name}'."
     )
 
-    # Check OS - redirect if not Linux? Or just show an error? For now, assume access implies Linux.
     if platform.system() != "Linux":
-        flash("Cron job scheduling is only available on Linux.", "warning")
+        msg = "Cron job scheduling is only available on Linux systems."
+        flash(msg, "warning")
         logger.warning(
-            f"Attempted to access Linux cron schedule page for '{server_name}' on non-Linux OS."
+            f"Attempted access to Linux cron page for '{server_name}' on non-Linux OS ({platform.system()})."
         )
-        # Optionally redirect: return redirect(url_for('main_routes.index'))
+        # Redirect to main dashboard or server page? Let's use main for now.
+        return redirect(url_for("main_routes.index"))
 
-    # Get current cron jobs related to this server using the api
-    logger.debug(f"Calling get_server_cron_jobs for '{server_name}'...")
-    cron_jobs_response = task_scheduler.get_server_cron_jobs(server_name)
-    logger.debug(f"Get cron jobs api response: {cron_jobs_response}")
+    table_data = []  # Default empty list
+    try:
+        # API call to get raw cron job lines for this server
+        logger.debug(
+            f"Calling API: api_task_scheduler.get_server_cron_jobs for '{server_name}'"
+        )
+        cron_jobs_response = api_task_scheduler.get_server_cron_jobs(server_name)
+        logger.debug(f"Get cron jobs API response: {cron_jobs_response}")
 
-    table_data = []  # Default empty list for template
-    if cron_jobs_response["status"] == "error":
-        error_msg = f"Error retrieving cron jobs for '{server_name}': {cron_jobs_response.get('message', 'Unknown error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-    else:
-        cron_jobs = cron_jobs_response.get("cron_jobs", [])  # List of raw cron strings
-        logger.debug(f"Found {len(cron_jobs)} raw cron job lines for '{server_name}'.")
-        # Get formatted table data using the formatting api
-        logger.debug(f"Calling get_cron_jobs_table...")
-        table_response = task_scheduler.get_cron_jobs_table(cron_jobs)
-        logger.debug(f"Format cron jobs api response: {table_response}")
-        if table_response["status"] == "error":
-            error_msg = f"Error formatting cron jobs table for '{server_name}': {table_response.get('message', 'Unknown error')}"
+        if cron_jobs_response.get("status") == "error":
+            # Error retrieving jobs (e.g., crontab command failed)
+            error_msg = f"Error retrieving cron jobs: {cron_jobs_response.get('message', 'Unknown error')}"
             flash(error_msg, "error")
-            logger.error(error_msg)
+            logger.error(f"{error_msg} for server '{server_name}'")
+            # Render template but indicate error
         else:
-            table_data = table_response.get("table_data", [])
-            logger.debug(
-                f"Successfully formatted {len(table_data)} cron jobs for display."
-            )
+            cron_jobs_list = cron_jobs_response.get("cron_jobs", [])
+            if cron_jobs_list:
+                logger.debug(
+                    f"Found {len(cron_jobs_list)} raw cron lines for '{server_name}'. Formatting for table..."
+                )
+                # API call to format the raw lines into structured data for the table
+                table_response = api_task_scheduler.get_cron_jobs_table(cron_jobs_list)
+                logger.debug(f"Format cron jobs table API response: {table_response}")
 
-    # Render the Linux scheduling template
-    logger.debug(f"Rendering schedule_tasks.html for '{server_name}'.")
+                if table_response.get("status") == "error":
+                    error_msg = f"Error formatting cron jobs: {table_response.get('message', 'Unknown error')}"
+                    flash(error_msg, "error")
+                    logger.error(f"{error_msg} for server '{server_name}'")
+                else:
+                    table_data = table_response.get("table_data", [])
+                    logger.debug(
+                        f"Successfully formatted {len(table_data)} cron jobs for display."
+                    )
+            else:
+                logger.info(
+                    f"No existing cron jobs found specifically for server '{server_name}'."
+                )
+
+    except MissingArgumentError as e:  # Catch errors raised directly by API calls
+        flash(f"Error preparing scheduler page: {e}", "error")
+        logger.error(
+            f"Error preparing Linux scheduler page for '{server_name}': {e}",
+            exc_info=True,
+        )
+        # Redirect? Or render with error? Render for now.
+    except Exception as e:  # Catch unexpected errors
+        flash("An unexpected error occurred while loading scheduled tasks.", "error")
+        logger.error(
+            f"Unexpected error preparing Linux scheduler page for '{server_name}': {e}",
+            exc_info=True,
+        )
+
+    logger.debug(
+        f"Rendering 'schedule_tasks.html' for '{server_name}' with {len(table_data)} jobs."
+    )
+    # Pass EXPATH for constructing command examples in the template?
     return render_template(
         "schedule_tasks.html",
         server_name=server_name,
-        table_data=table_data,  # Pass formatted data for table display
-        EXPATH=EXPATH,  # Pass executable path if needed by template
-        app_name=app_name,
+        table_data=table_data,  # List of dicts for the table
+        EXPATH=EXPATH,
     )
 
 
 # --- API Route: Add Cron Job ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/cron_scheduler/add", methods=["POST"]
+    "/api/server/<string:server_name>/cron_scheduler/add", methods=["POST"]
 )
-@csrf.exempt
-@auth_required
-def add_cron_job_route(server_name):
-    """API endpoint to add a new cron job."""
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to add a new Linux cron job.
+
+    Expects JSON body with 'new_cron_job' key containing the full cron job line.
+
+    Args:
+        server_name: The server context (used for logging/auth, not directly in cron command).
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 201 Created on success: {"status": "success", "message": "..."}
+        - 400 Bad Request on invalid input.
+        - 403 Forbidden if not on Linux.
+        - 500 Internal Server Error on failure to add job.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"API POST request received to add cron job (context: server '{server_name}')."
+        f"API: Add cron job requested by user '{identity}' (context server: '{server_name}')."
     )
 
-    # Get JSON data
-    data = request.get_json()
-    logger.debug(f"Received JSON data for add cron job: {data}")
+    if platform.system() != "Linux":
+        msg = "Adding cron jobs is only supported on Linux."
+        logger.error(f"API Add Cron Job failed: {msg}")
+        return jsonify(status="error", message=msg), 403  # Forbidden
 
+    # --- Input Validation ---
+    data = request.get_json(silent=True)
     if not data or not isinstance(data, dict):
-        logger.warning(f"API Add Cron Job request: Empty or invalid JSON body.")
+        logger.warning("API Add Cron Job: Invalid/missing JSON request body.")
         return (
-            jsonify(
-                {"status": "error", "message": "Invalid or missing JSON request body."}
-            ),
+            jsonify(status="error", message="Invalid or missing JSON request body."),
             400,
         )
 
-    # Extract the full cron job string
     cron_string = data.get("new_cron_job")
-    logger.debug(f"Cron string received: '{cron_string}'")
+    logger.debug(f"API Add Cron Job: Received cron string: '{cron_string}'")
 
     if not cron_string or not isinstance(cron_string, str) or not cron_string.strip():
-        logger.warning(
-            f"API Add Cron Job request: Missing or empty 'new_cron_job' string."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Cron job string ('new_cron_job') is required.",
-                }
-            ),
-            400,
-        )
+        msg = "Cron job string ('new_cron_job') is required in request body."
+        logger.warning(f"API Add Cron Job: {msg}")
+        return jsonify(status="error", message=msg), 400
 
-    cron_string = cron_string.strip()  # Use trimmed string
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500
+    try:
+        result = api_task_scheduler.add_cron_job(
+            cron_string.strip()
+        )  # API func returns dict
+        logger.debug(f"API Add Cron Job: Handler response: {result}")
 
-    logger.info(f"Attempting to add cron job via api: '{cron_string}'")
-    # Call the api to add the job
-    logger.debug("Calling add_cron_job...")
-    add_response = task_scheduler.add_cron_job(cron_string)
-    logger.debug(f"Add cron job api response: {add_response}")
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 201  # Created
+            success_msg = result.get("message", "Cron job added successfully.")
+            logger.info(f"API Add Cron Job successful: '{cron_string.strip()}'")
+            result["message"] = success_msg
+        else:
+            status_code = 500  # Treat handler errors as internal error
+            error_msg = (
+                result.get("message", "Unknown error adding cron job.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Add Cron Job failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
 
-    # Determine status code
-    status_code = (
-        200 if add_response and add_response.get("status") == "success" else 500
-    )
+    except MissingArgumentError as e:  # Catch errors raised directly by API func
+        logger.warning(f"API Add Cron Job: Input error: {e}", exc_info=True)
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except Exception as e:  # Catch unexpected errors during API orchestration
+        logger.error(f"API Add Cron Job: Unexpected error: {e}", exc_info=True)
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
-    if status_code == 200:
-        logger.info(f"Cron job added successfully via API: '{cron_string}'")
-        if add_response and "message" not in add_response:
-            add_response["message"] = "Cron job added successfully."
-    else:
-        error_message = (
-            add_response.get("message", "Unknown error adding cron job")
-            if add_response
-            else "Add cron api failed unexpectedly"
-        )
-        logger.error(f"API Add Cron Job failed: {error_message}")
-        if not add_response:
-            add_response = {}
-        add_response["status"] = "error"
-        if "message" not in add_response:
-            add_response["message"] = "Failed to add cron job."
-
-    logger.debug(
-        f"Returning JSON response for add cron job API with status code {status_code}."
-    )
-    return jsonify(add_response), status_code
+    return jsonify(result), status_code
 
 
 # --- API Route: Modify Cron Job ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/cron_scheduler/modify", methods=["POST"]
+    "/api/server/<string:server_name>/cron_scheduler/modify", methods=["POST"]
 )
-@csrf.exempt
-@auth_required
-def modify_cron_job_route(server_name):
-    """API endpoint to modify an existing cron job."""
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to modify an existing Linux cron job.
+
+    Expects JSON body with 'old_cron_job' and 'new_cron_job' keys.
+
+    Args:
+        server_name: The server context (used for logging/auth).
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK on success: {"status": "success", "message": "..."}
+        - 400 Bad Request on invalid input.
+        - 403 Forbidden if not on Linux.
+        - 404 Not Found if the old cron job doesn't exist.
+        - 500 Internal Server Error on failure to modify job.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"API POST request received to modify cron job (context: server '{server_name}')."
+        f"API: Modify cron job requested by user '{identity}' (context server: '{server_name}')."
     )
 
-    # Get JSON data
-    data = request.get_json()
-    logger.debug(f"Received JSON data for modify cron job: {data}")
+    if platform.system() != "Linux":
+        msg = "Modifying cron jobs is only supported on Linux."
+        logger.error(f"API Modify Cron Job failed: {msg}")
+        return jsonify(status="error", message=msg), 403
 
+    # --- Input Validation ---
+    data = request.get_json(silent=True)
     if not data or not isinstance(data, dict):
-        logger.warning(f"API Modify Cron Job request: Empty or invalid JSON body.")
+        logger.warning("API Modify Cron Job: Invalid/missing JSON request body.")
         return (
-            jsonify(
-                {"status": "error", "message": "Invalid or missing JSON request body."}
-            ),
+            jsonify(status="error", message="Invalid or missing JSON request body."),
             400,
         )
 
-    # Extract old and new cron strings
     old_cron_string = data.get("old_cron_job")
     new_cron_string = data.get("new_cron_job")
     logger.debug(
-        f"Old cron string: '{old_cron_string}', New cron string: '{new_cron_string}'"
+        f"API Modify Cron Job: Old='{old_cron_string}', New='{new_cron_string}'"
     )
 
-    # Validate presence
     if (
         not old_cron_string
         or not isinstance(old_cron_string, str)
         or not old_cron_string.strip()
     ):
-        logger.warning(
-            f"API Modify Cron Job request: Missing or empty 'old_cron_job' string."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Original cron job string ('old_cron_job') is required.",
-                }
-            ),
-            400,
-        )
+        msg = "Original cron job string ('old_cron_job') is required."
+        logger.warning(f"API Modify Cron Job: {msg}")
+        return jsonify(status="error", message=msg), 400
     if (
         not new_cron_string
         or not isinstance(new_cron_string, str)
         or not new_cron_string.strip()
     ):
-        logger.warning(
-            f"API Modify Cron Job request: Missing or empty 'new_cron_job' string."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "New cron job string ('new_cron_job') is required.",
-                }
-            ),
-            400,
-        )
+        msg = "New cron job string ('new_cron_job') is required."
+        logger.warning(f"API Modify Cron Job: {msg}")
+        return jsonify(status="error", message=msg), 400
 
-    old_cron_string = old_cron_string.strip()
-    new_cron_string = new_cron_string.strip()
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500
+    try:
+        result = api_task_scheduler.modify_cron_job(
+            old_cron_string.strip(), new_cron_string.strip()
+        )  # API func returns dict
+        logger.debug(f"API Modify Cron Job: Handler response: {result}")
 
-    logger.info(
-        f"Attempting to modify cron job via api. From: '{old_cron_string}' To: '{new_cron_string}'"
-    )
-    # Call the api to modify the job
-    logger.debug("Calling modify_cron_job...")
-    modify_response = task_scheduler.modify_cron_job(old_cron_string, new_cron_string)
-    logger.debug(f"Modify cron job api response: {modify_response}")
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200  # OK
+            success_msg = result.get("message", "Cron job modified successfully.")
+            logger.info(
+                f"API Modify Cron Job successful: Replaced '{old_cron_string.strip()}' with '{new_cron_string.strip()}'"
+            )
+            result["message"] = success_msg
+        else:
+            # Check if error message indicates job not found
+            error_msg = (
+                result.get("message", "Unknown error modifying cron job.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            if "not found" in error_msg.lower():
+                status_code = 404  # Not Found
+                logger.warning(
+                    f"API Modify Cron Job: Old job not found: '{old_cron_string.strip()}'"
+                )
+            else:
+                status_code = 500
+                logger.error(f"API Modify Cron Job failed: {error_msg}")
+            result = {"status": "error", "message": error_msg}
 
-    # Determine status code
-    status_code = (
-        200 if modify_response and modify_response.get("status") == "success" else 500
-    )
+    except (
+        MissingArgumentError,
+        TypeError,
+    ) as e:  # Catch errors raised directly by API func
+        logger.warning(f"API Modify Cron Job: Input error: {e}", exc_info=True)
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except (
+        ScheduleError
+    ) as e:  # Catch specific ScheduleError (e.g., job not found raised from core)
+        logger.error(f"API Modify Cron Job: ScheduleError: {e}", exc_info=True)
+        if "not found" in str(e).lower():
+            status_code = 404
+            result = {"status": "error", "message": f"Could not modify: {e}"}
+        else:
+            status_code = 500
+            result = {"status": "error", "message": f"Error modifying cron job: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.error(f"API Modify Cron Job: Unexpected error: {e}", exc_info=True)
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
-    if status_code == 200:
-        logger.info(
-            f"Cron job modified successfully via API. Old: '{old_cron_string}', New: '{new_cron_string}'"
-        )
-        if modify_response and "message" not in modify_response:
-            modify_response["message"] = "Cron job modified successfully."
-    else:
-        error_message = (
-            modify_response.get("message", "Unknown error modifying cron job")
-            if modify_response
-            else "Modify cron api failed unexpectedly"
-        )
-        logger.error(f"API Modify Cron Job failed: {error_message}")
-        if not modify_response:
-            modify_response = {}
-        modify_response["status"] = "error"
-        if "message" not in modify_response:
-            modify_response["message"] = "Failed to modify cron job."
-
-    logger.debug(
-        f"Returning JSON response for modify cron job API with status code {status_code}."
-    )
-    return jsonify(modify_response), status_code
+    return jsonify(result), status_code
 
 
 # --- API Route: Delete Cron Job ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/cron_scheduler/delete", methods=["DELETE"]
+    "/api/server/<string:server_name>/cron_scheduler/delete", methods=["DELETE"]
 )
-@csrf.exempt
-@auth_required
-def delete_cron_job_route(server_name):
-    """API endpoint to delete a specific cron job."""
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to delete a specific Linux cron job.
+
+    Expects the cron job string to delete as a URL query parameter named 'cron_string'.
+
+    Args:
+        server_name: The server context (used for logging/auth).
+
+    Query Parameters:
+        cron_string (str): The exact cron job line string to be deleted (URL encoded).
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK on success: {"status": "success", "message": "..."} (even if job didn't exist)
+        - 400 Bad Request on invalid/missing query parameter.
+        - 403 Forbidden if not on Linux.
+        - 500 Internal Server Error on failure to delete job.
+    """
+    identity = get_current_identity() or "Unknown"
+    # Include task to delete in initial log if possible
+    cron_string_from_query = request.args.get("cron_string", "(Not Provided)")
     logger.info(
-        f"API DELETE request received to delete cron job (context: server '{server_name}')."
+        f"API: Delete cron job requested by user '{identity}' (context server: '{server_name}', job: '{cron_string_from_query}')."
     )
 
-    # Get JSON data
-    data = request.get_json()
-    logger.debug(f"Received JSON data for delete cron job: {data}")
+    # --- Platform Check ---
+    if platform.system() != "Linux":
+        msg = "Deleting cron jobs is only supported on Linux."
+        logger.error(f"API Delete Cron Job failed: {msg}")
+        return jsonify(status="error", message=msg), 403  # Forbidden
 
-    if not data or not isinstance(data, dict):
-        logger.warning(f"API Delete Cron Job request: Empty or invalid JSON body.")
-        return (
-            jsonify(
-                {"status": "error", "message": "Invalid or missing JSON request body."}
-            ),
-            400,
-        )
-
-    # Extract the cron job string to delete
-    cron_string = data.get("cron_string")
-    logger.debug(f"Cron string to delete: '{cron_string}'")
-
-    if not cron_string or not isinstance(cron_string, str) or not cron_string.strip():
-        logger.warning(f"API Delete Cron Job request: Missing or empty 'cron_string'.")
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Cron job string ('cron_string') is required.",
-                }
-            ),
-            400,
-        )
-
-    cron_string = cron_string.strip()
-
-    logger.info(f"Attempting to delete cron job via api: '{cron_string}'")
-    # Call the api to delete the job
-    logger.debug("Calling delete_cron_job...")
-    delete_response = task_scheduler.delete_cron_job(cron_string)
-    logger.debug(f"Delete cron job api response: {delete_response}")
-
-    # Determine status code
-    status_code = (
-        200 if delete_response and delete_response.get("status") == "success" else 500
-    )
-
-    if status_code == 200:
-        logger.info(f"Cron job deleted successfully via API: '{cron_string}'")
-        if delete_response and "message" not in delete_response:
-            delete_response["message"] = "Cron job deleted successfully."
-    else:
-        error_message = (
-            delete_response.get("message", "Unknown error deleting cron job")
-            if delete_response
-            else "Delete cron api failed unexpectedly"
-        )
-        logger.error(f"API Delete Cron Job failed: {error_message}")
-        if not delete_response:
-            delete_response = {}
-        delete_response["status"] = "error"
-        if "message" not in delete_response:
-            delete_response["message"] = "Failed to delete cron job."
-
+    # --- Get Cron String from Query Parameter ---
+    # request.args contains URL query parameters (e.g., ?cron_string=...)
+    cron_string = request.args.get("cron_string")
     logger.debug(
-        f"Returning JSON response for delete cron job API with status code {status_code}."
+        f"API Delete Cron Job: Received cron_string from query param: '{cron_string}'"
     )
-    return jsonify(delete_response), status_code
+
+    # --- Input Validation ---
+    if not cron_string or not isinstance(cron_string, str) or not cron_string.strip():
+        msg = "Cron job string ('cron_string') is required as a query parameter."
+        logger.warning(f"API Delete Cron Job: {msg}")
+        return jsonify(status="error", message=msg), 400  # Bad Request
+
+    cron_string_stripped = cron_string.strip()  # Use stripped version
+
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal error
+    try:
+        logger.info(f"Calling API handler to delete cron job: '{cron_string_stripped}'")
+        # Call the API function which handles core logic and returns a dict
+        result = api_task_scheduler.delete_cron_job(cron_string_stripped)
+        logger.debug(f"API Delete Cron Job '{server_name}': Handler response: {result}")
+
+        # Process the result from the API handler
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200  # OK
+            # Use message from API handler, or provide a default
+            success_msg = result.get(
+                "message",
+                f"Cron job '{cron_string_stripped}' deleted successfully (if it existed).",
+            )
+            logger.info(f"API Delete Cron Job successful for: '{cron_string_stripped}'")
+            result["message"] = success_msg  # Ensure message key exists
+        else:
+            # Handler indicated failure or returned unexpected format
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error deleting cron job.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Delete Cron Job failed: {error_msg}")
+            # Ensure result dict has error status and message for JSON response
+            result = {"status": "error", "message": error_msg}
+
+    except MissingArgumentError as e:  # Catch errors raised directly by API func
+        logger.warning(
+            f"API Delete Cron Job '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except (
+        CommandNotFoundError,
+        ScheduleError,
+        FileOperationError,
+    ) as e:  # Catch errors from core funcs via API
+        logger.error(
+            f"API Delete Cron Job '{server_name}': Core error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Error deleting cron job: {e}"}
+    except Exception as e:  # Catch unexpected errors during API orchestration
+        logger.error(
+            f"API Delete Cron Job '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    # Return the JSON response and HTTP status code
+    logger.debug(
+        f"Returning JSON response for delete cron job API '{server_name}' with status code {status_code}."
+    )
+    return jsonify(result), status_code
 
 
 # --- Route: Schedule Tasks Page (Windows) ---
-@schedule_tasks_bp.route("/server/<server_name>/task_scheduler", methods=["GET"])
-@login_required
-def schedule_tasks_windows_route(server_name):
-    """Displays the Windows Task Scheduler management page for a server."""
+@schedule_tasks_bp.route("/server/<string:server_name>/task_scheduler", methods=["GET"])
+@login_required  # Requires web session
+def schedule_tasks_windows_route(server_name: str) -> Response:
+    """
+    Displays the Windows Task Scheduler management page for a specific server.
+
+    Lists existing scheduled tasks associated with the server found in the config directory.
+
+    Args:
+        server_name: The name of the server passed in the URL.
+
+    Returns:
+        Rendered HTML page ('schedule_tasks_windows.html') with task data, or redirects
+        with a flash message if not on Windows or if errors occur.
+    """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"Route '/server/{server_name}/tasks' accessed - Rendering Windows task schedule page."
+        f"User '{identity}' accessed Windows Task Scheduler page for server '{server_name}'."
     )
-    base_dir = get_base_dir()  # Needed? Not directly used here.
-    config_dir = settings._config_dir
-    logger.debug(f"Config directory: {config_dir}")
 
-    # Ensure this is running on Windows
     if platform.system() != "Windows":
-        flash("Windows Task Scheduling is only available on Windows.", "error")
-        logger.error(
-            f"Attempted to access Windows task scheduler page for '{server_name}' from non-Windows OS."
+        msg = "Windows Task Scheduling management is only available on Windows."
+        flash(msg, "warning")
+        logger.warning(
+            f"Attempted access to Windows scheduler page for '{server_name}' on non-Windows OS ({platform.system()})."
         )
-        return redirect(url_for("main_routes.index"))  # Redirect away if not Windows
+        return redirect(url_for("main_routes.index"))
 
-    # Get task names associated with this server from the config directory
-    logger.debug(f"Calling get_server_task_names for '{server_name}'...")
-    task_names_response = task_scheduler.get_server_task_names(server_name, config_dir)
-    logger.debug(f"Get task names api response: {task_names_response}")
+    tasks = []  # Default empty list
+    try:
+        config_dir = getattr(settings, "_config_dir", None)
+        if not config_dir:
+            raise FileOperationError("Base configuration directory not set.")
 
-    tasks = []  # Default empty list for template
-    if task_names_response["status"] == "error":
-        error_msg = f"Error retrieving associated task names for '{server_name}': {task_names_response.get('message', 'Unknown error')}"
-        flash(error_msg, "error")
-        logger.error(error_msg)
-    else:
-        # Extract just the names from the api response (which might include paths)
-        task_names = [task[0] for task in task_names_response.get("task_names", [])]
+        # API call to get list of task names/paths from config dir
         logger.debug(
-            f"Found {len(task_names)} task names associated with '{server_name}': {task_names}"
+            f"Calling API: api_task_scheduler.get_server_task_names for '{server_name}'"
+        )
+        task_names_response = api_task_scheduler.get_server_task_names(
+            server_name, config_dir
+        )
+        logger.debug(f"Get task names API response: {task_names_response}")
+
+        if task_names_response.get("status") == "error":
+            error_msg = f"Error retrieving task names: {task_names_response.get('message', 'Unknown error')}"
+            flash(error_msg, "error")
+            logger.error(f"{error_msg} for server '{server_name}'")
+        else:
+            task_name_path_list = task_names_response.get("task_names", [])
+            if task_name_path_list:
+                task_names_only = [
+                    task[0] for task in task_name_path_list
+                ]  # Extract just names
+                logger.debug(
+                    f"Found {len(task_names_only)} associated task names. Getting details..."
+                )
+
+                # API call to get details for the found tasks
+                task_info_response = api_task_scheduler.get_windows_task_info(
+                    task_names_only
+                )
+                logger.debug(f"Get task info API response: {task_info_response}")
+
+                if task_info_response.get("status") == "error":
+                    error_msg = f"Error retrieving task details: {task_info_response.get('message', 'Unknown error')}"
+                    flash(error_msg, "error")
+                    logger.error(f"{error_msg} for server '{server_name}'")
+                else:
+                    tasks = task_info_response.get("task_info", [])
+                    logger.info(
+                        f"Successfully retrieved details for {len(tasks)} Windows tasks for server '{server_name}'."
+                    )
+            else:
+                logger.info(f"No task XML files found for server '{server_name}'.")
+
+    except (
+        MissingArgumentError,
+        FileOperationError,
+    ) as e:  # Catch errors raised directly by API calls
+        flash(f"Error preparing scheduler page: {e}", "error")
+        logger.error(
+            f"Error preparing Windows scheduler page for '{server_name}': {e}",
+            exc_info=True,
+        )
+    except Exception as e:  # Catch unexpected errors
+        flash("An unexpected error occurred while loading scheduled tasks.", "error")
+        logger.error(
+            f"Unexpected error preparing Windows scheduler page for '{server_name}': {e}",
+            exc_info=True,
         )
 
-        if task_names:
-            # Get detailed information for these tasks using the api
-            logger.debug(f"Calling get_windows_task_info for tasks: {task_names}...")
-            task_info_response = task_scheduler.get_windows_task_info(task_names)
-            logger.debug(f"Get task info api response: {task_info_response}")
-
-            if task_info_response["status"] == "error":
-                error_msg = f"Error retrieving task details for '{server_name}': {task_info_response.get('message', 'Unknown error')}"
-                flash(error_msg, "error")
-                logger.error(error_msg)
-            else:
-                tasks = task_info_response.get("task_info", [])
-                logger.debug(
-                    f"Successfully retrieved details for {len(tasks)} Windows tasks."
-                )
-        else:
-            logger.info(
-                f"No Windows tasks found associated with server '{server_name}'."
-            )
-
-    # Render the Windows scheduling template
-    logger.debug(f"Rendering schedule_tasks_windows.html for '{server_name}'.")
+    logger.debug(
+        f"Rendering 'schedule_tasks_windows.html' for '{server_name}' with {len(tasks)} tasks."
+    )
     return render_template(
         "schedule_tasks_windows.html",
         server_name=server_name,
-        tasks=tasks,  # Pass the list of task detail dictionaries
-        app_name=app_name,
+        tasks=tasks,
     )
 
 
 # --- API Route: Add Windows Task ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/task_scheduler/add", methods=["POST"]
+    "/api/server/<string:server_name>/task_scheduler/add", methods=["POST"]
 )
-@csrf.exempt
-@auth_required
-def add_windows_task_api(server_name):
-    """API endpoint to add a new Windows scheduled task."""
-    logger.info(f"API POST request received for /api/server/{server_name}/tasks/add")
-    base_dir = get_base_dir()
-    config_dir = settings._config_dir
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to add a new Windows scheduled task.
 
-    # Ensure Windows OS
+    Expects JSON body with command and trigger details.
+
+    Args:
+        server_name: The name of the server passed in the URL.
+
+    JSON Request Body Example:
+        {
+            "command": "backup-all",
+            "triggers": [
+                {"type": "Daily", "start": "2023-10-27T03:00", "interval": 1},
+                {"type": "Weekly", "start": "2023-10-27T05:00", "interval": 1, "days": ["Sunday"]}
+            ]
+        }
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 201 Created on success: {"status": "success", "message": "...", "created_task_name": "..."}
+        - 400 Bad Request on invalid input.
+        - 403 Forbidden if not on Windows.
+        - 500 Internal Server Error on failure to create task.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Add Windows task requested by user '{identity}' for server '{server_name}'."
+    )
+
     if platform.system() != "Windows":
-        logger.error(
-            f"Add Windows task API called from non-Windows OS for server '{server_name}'."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Task scheduling only available on Windows.",
-                }
-            ),
-            403,
-        )  # Forbidden
+        msg = "Adding Windows tasks is only supported on Windows."
+        logger.error(f"API Add Windows Task failed: {msg}")
+        return jsonify(status="error", message=msg), 403
 
-    # Get JSON data from the request body
-    data = request.get_json()
-    if not data:
-        logger.warning("API Add Windows Task request: Missing JSON body.")
+    # --- Input Validation ---
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data, dict):
+        logger.warning("API Add Windows Task: Invalid/missing JSON request body.")
         return (
-            jsonify(
-                {"status": "error", "message": "Missing or invalid JSON request body."}
-            ),
+            jsonify(status="error", message="Invalid or missing JSON request body."),
             400,
         )
 
-    logger.debug(f"Received JSON data for add task: {data}")
-
-    # --- Extract data from JSON ---
+    logger.debug(f"API Add Windows Task '{server_name}': Received data: {data}")
     command = data.get("command")
-    triggers = data.get(
-        "triggers"
-    )  # Expecting a list of trigger dicts [{type: "...", start: "...", ...}, ...]
+    triggers = data.get("triggers")
 
-    # --- Basic Validation ---
-    valid_commands = [  # Keep this list aligned with your capabilities/frontend options
+    # Validate command
+    valid_commands = [
         "update-server",
         "backup-all",
         "start-server",
@@ -473,287 +638,303 @@ def add_windows_task_api(server_name):
         "scan-players",
     ]
     if not command or command not in valid_commands:
-        logger.warning(f"API Add Windows Task: Invalid or missing command '{command}'.")
-        return (
-            jsonify(
-                {"status": "error", "message": f"Invalid or missing command specified."}
-            ),
-            400,
-        )
-    if not triggers or not isinstance(triggers, list) or len(triggers) == 0:
-        logger.warning(
-            f"API Add Windows Task: Missing, empty, or invalid triggers data."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "At least one trigger definition is required.",
-                }
-            ),
-            400,
-        )
-    # TODO: Add deeper validation for the structure and values within each trigger dictionary
-    # Example: check if 'type' and 'start' exist in each trigger, check specific fields per type
+        msg = f"Invalid or missing 'command'. Must be one of: {valid_commands}."
+        logger.warning(f"API Add Windows Task '{server_name}': {msg} Got: '{command}'")
+        return jsonify(status="error", message=msg), 400
+
+    # Validate triggers (basic structure)
+    if not triggers or not isinstance(triggers, list) or not triggers:
+        msg = "Missing or invalid 'triggers' list in request body. At least one trigger is required."
+        logger.warning(f"API Add Windows Task '{server_name}': {msg}")
+        return jsonify(status="error", message=msg), 400
     for i, trigger in enumerate(triggers):
         if (
             not isinstance(trigger, dict)
             or not trigger.get("type")
             or not trigger.get("start")
         ):
+            msg = (
+                f"Invalid trigger structure at index {i}. Requires 'type' and 'start'."
+            )
             logger.warning(
-                f"API Add Windows Task: Invalid trigger structure at index {i}: {trigger}"
+                f"API Add Windows Task '{server_name}': {msg} Got: {trigger}"
             )
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Invalid trigger structure at index {i}.",
-                    }
-                ),
-                400,
-            )
-        # Add more checks based on trigger type here if needed
+            return jsonify(status="error", message=msg), 400
 
-    # --- Determine command arguments and task name ---
-    # (This logic assumes task name is derived from command; adjust if needed)
-    command_args = f"--server {server_name}"
-    if command == "scan-players":
-        command_args = (
-            ""  # scan-players doesn't need --server arg based on previous examples
-        )
-
-    # Generate task name - IMPORTANT: Consider adding a unique identifier (timestamp/UUID)
-    # to allow multiple tasks with the same command, otherwise adding again will overwrite.
-    task_name_base = command.replace("-", "_")
-    # Example with timestamp:
-    # from ...utils import get_timestamp # Assuming you have a timestamp util
-    # timestamp = get_timestamp(format="%Y%m%d%H%M%S")
-    # task_name = f"bedrock_{server_name}_{task_name_base}_{timestamp}"
-    # Simpler version (overwrites if command is the same):
-    task_name = f"bedrock_{server_name}_{task_name_base}"
-    logger.debug(
-        f"API Add Windows Task: Determined args='{command_args}', task_name='{task_name}'"
-    )
-
-    # --- Call api to create the task ---
-    logger.info(f"Calling create_windows_task for task '{task_name}' via API...")
+    # --- Prepare Args and Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500
     try:
-        result = task_scheduler.create_windows_task(
+        config_dir = getattr(
+            settings, "_config_dir", None
+        )  # Get config dir for saving XML
+        if not config_dir:
+            raise FileOperationError("Base configuration directory not set.")
+
+        # Determine command args and generate task name
+        command_args = f"--server {server_name}" if command != "scan-players" else ""
+
+        # Use API helper to generate name (includes timestamp for uniqueness)
+        task_name = api_task_scheduler.create_task_name(
+            server_name, command
+        )  # Pass command if no args
+
+        logger.info(
+            f"Attempting to create Windows task '{task_name}' for command '{command}' via API..."
+        )
+        result = api_task_scheduler.create_windows_task(
             server_name=server_name,
-            command=command,  # Base command name
-            command_args=command_args,  # Generated arguments
-            task_name=task_name,  # Generated task name
+            command=command,
+            command_args=command_args,
+            task_name=task_name,
             config_dir=config_dir,
-            triggers=triggers,  # Pass the list of trigger dicts directly
-            base_dir=base_dir,
+            triggers=triggers,
         )
-        logger.debug(f"Create task api result: {result}")
-
-    except InvalidInputError as e:  # Catch specific validation errors from api/core
-        logger.warning(f"Invalid input during task creation for '{task_name}': {e}")
-        return jsonify({"status": "error", "message": str(e)}), 400
-    except Exception as e:  # Catch unexpected errors during api execution
-        logger.exception(
-            f"Unexpected error during create_windows_task call for '{task_name}': {e}"
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "An unexpected error occurred while creating the task.",
-                }
-            ),
-            500,
+        logger.debug(
+            f"API Add Windows Task '{server_name}': Handler response: {result}"
         )
 
-    # --- Return JSON Response based on api result ---
-    if result and result.get("status") == "success":
-        status_code = 201  # HTTP 201 Created is appropriate for successful creation
-        logger.info(f"Windows task '{task_name}' added successfully via API.")
-        if (
-            "message" not in result
-        ):  # Add a default success message if api doesn't provide one
-            result["message"] = f"Task '{task_name}' created successfully."
-        # Optionally include the created task name or details in the response body
-        result["created_task_name"] = task_name
-        return jsonify(result), status_code
-    else:
-        status_code = 500  # Default Internal Server Error for api failure
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 201  # Created
+            success_msg = result.get(
+                "message", f"Task '{task_name}' created successfully."
+            )
+            logger.info(f"API Add Windows Task successful for '{task_name}'.")
+            result["message"] = success_msg
+            result["created_task_name"] = task_name  # Return generated name
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error creating task.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Add Windows Task failed for '{task_name}': {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (
+        MissingArgumentError,
+        TypeError,
+        InvalidInputError,
+    ) as e:  # Catch errors raised directly by API func
+        logger.warning(
+            f"API Add Windows Task '{server_name}': Input error: {e}", exc_info=True
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except (
+        TaskError,
+        CommandNotFoundError,
+        FileOperationError,
+    ) as e:  # Catch errors from core funcs via API
         logger.error(
-            f"API Add Windows Task failed for '{task_name}': {result.get('message', 'Unknown api error')}"
+            f"API Add Windows Task '{server_name}': Core task error: {e}", exc_info=True
         )
-        # Ensure result is a dict even if api failed unexpectedly
-        if not isinstance(result, dict):
-            result = {"status": "error", "message": "api failed unexpectedly."}
-        elif "status" not in result:
-            result["status"] = "error"
-        return jsonify(result), status_code
+        status_code = 500
+        result = {"status": "error", "message": f"Error creating task: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.error(
+            f"API Add Windows Task '{server_name}': Unexpected error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
 # --- API Route: Get Windows Task Details ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/task_scheduler/details/<path:task_name>", methods=["GET"]
+    "/api/server/<string:server_name>/task_scheduler/details", methods=["POST"]
 )
-@auth_required
-def get_windows_task_details_api(server_name, task_name):
-    """API endpoint to get details for a specific Windows scheduled task by parsing its XML config."""
-    logger.info(
-        f"API GET request received for /api/server/{server_name}/tasks/details/{task_name}"
-    )
-    config_dir = settings._config_dir
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def get_windows_task_details_api_post(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to get details for a specific Windows scheduled task
+    by parsing its saved XML configuration file.
 
-    # Ensure Windows OS
+    Expects JSON body with 'task_name' key containing the task name to retrieve details for.
+
+    Args:
+        server_name: The server context (used to find the config file).
+
+    Returns:
+        JSON response containing task details or an error.
+        - 200 OK: {"status": "success", "base_command": "...", "triggers": [...]}
+        - 400 Bad Request: Invalid JSON or missing task name.
+        - 403 Forbidden if not on Windows.
+        - 404 Not Found if task config XML doesn't exist.
+        - 500 Internal Server Error on parsing or other errors.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Get Windows task details requested by user '{identity}' for server '{server_name}'."
+    )
+
     if platform.system() != "Windows":
-        logger.error(
-            f"Get Windows task details API called from non-Windows OS for task '{task_name}'."
+        msg = "Windows Task Scheduler functions are only supported on Windows."
+        logger.error(f"API Get Task Details failed: {msg}")
+        return jsonify(status="error", message=msg), 403
+
+    # --- Input Validation ---
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data, dict):
+        logger.warning(
+            f"API Get Task Details '{server_name}': Invalid/missing JSON body."
         )
         return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Task scheduling only available on Windows.",
-                }
-            ),
-            403,
+            jsonify(status="error", message="Invalid or missing JSON request body."),
+            400,
         )
 
-    if not task_name:
-        logger.warning(f"API Get Windows Task Details request: Missing task name.")
-        return jsonify({"status": "error", "message": "Task name is required."}), 400
+    task_name = data.get("task_name")
+    if not task_name or not isinstance(task_name, str):
+        msg = "Missing or invalid 'task_name' in request body."
+        logger.warning(f"API Get Task Details '{server_name}': {msg}")
+        return jsonify(status="error", message=msg), 400
 
-    # --- Find the task file path using the api ---
-    task_file_path = None
+    logger.debug(f"API Get Task Details: Request for task_name='{task_name}'")
+
+    result: Dict[str, Any] = {}
+    status_code = 500
     try:
-        task_list_result = task_scheduler.get_server_task_names(server_name, config_dir)
-        if task_list_result and task_list_result.get("status") == "success":
-            task_names_with_paths = task_list_result.get("task_names", [])
-            for name, path in task_names_with_paths:
-                normalized_name = str(name).lstrip("\\") if name else ""
+        config_dir = getattr(settings, "_config_dir", None)
+        if not config_dir:
+            raise FileOperationError("Base configuration directory not set.")
+
+        # --- Find XML File Path ---
+        # Use the API function which returns list of tuples (name, path)
+        task_list_result = api_task_scheduler.get_server_task_names(
+            server_name, config_dir
+        )
+        task_file_path = None
+        if task_list_result.get("status") == "success":
+            for name, path in task_list_result.get("task_names", []):
+                normalized_name = name.lstrip("\\") if name else ""
                 if normalized_name == task_name:
                     task_file_path = path
                     break
+
         if not task_file_path:
-            logger.error(
-                f"API Get Details: Configuration file path not found for task '{task_name}'."
+            raise FileNotFoundError(
+                f"Configuration XML file for task '{task_name}' not found."
             )
-            return (
-                jsonify(
-                    {
-                        "status": "error",
-                        "message": f"Configuration file for task '{task_name}' not found.",
-                    }
-                ),
-                404,
+
+        logger.debug(f"API Get Task Details: Found XML path: {task_file_path}")
+
+        # --- Call API Handler to Parse XML ---
+        result = api_task_scheduler.get_windows_task_details(
+            task_file_path
+        )  # API func returns dict
+        logger.debug(f"API Get Task Details '{task_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            logger.info(
+                f"API Get Task Details: Successfully retrieved details for task '{task_name}'."
             )
-    except Exception as e:
-        logger.exception(
-            f"Error finding task file path for '{task_name}' during get details API call: {e}"
-        )
-        return (
-            jsonify(
-                {"status": "error", "message": "Error finding task configuration path."}
-            ),
-            500,
-        )
+            # Response format is already {"status": "success", "task_details": {...}} from api func
+        else:
+            status_code = 500  # Treat handler errors as internal error
+            error_msg = (
+                result.get("message", "Unknown error parsing task details.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Get Task Details failed for '{task_name}': {error_msg}")
+            result = {"status": "error", "message": error_msg}
 
-    # --- Call the ENHANCED details api ---
-    logger.debug(
-        f"Calling api 'get_windows_task_details' for task '{task_name}' (path: {task_file_path})..."
-    )
-    try:
-        # This api now returns more details including base_command and structured triggers
-        result = task_scheduler.get_windows_task_details(task_file_path)
-    except Exception as api_ex:
-        logger.exception(
-            f"Unexpected error calling get_windows_task_details for path '{task_file_path}': {api_ex}"
+    except FileNotFoundError as e:
+        logger.warning(
+            f"API Get Task Details '{server_name}': Task config file not found: {e}",
+            exc_info=True,
         )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Unexpected error retrieving task details from api.",
-                }
-            ),
-            500,
-        )
-
-    # --- Process api result ---
-    if result and result.get("status") == "success":
-        logger.debug(
-            f"Successfully retrieved details for task '{task_name}' via API api."
-        )
-        task_details = result.get("task_details", {})  # Get the nested details dict
-        # Ensure the status is included in the final response for consistency
-        response_data = {
-            "status": "success",
-            **task_details,
-        }  # Unpack details (base_command, triggers, etc.)
-        return jsonify(response_data), 200  # OK
-    else:
+        status_code = 404
+        result = {"status": "error", "message": f"Task configuration not found: {e}"}
+    except (MissingArgumentError, FileOperationError) as e:  # Catch setup errors
         logger.error(
-            f"API Get Windows Task Details failed for '{task_name}'. api message: {result.get('message')}"
+            f"API Get Task Details '{server_name}': Configuration/Input error: {e}",
+            exc_info=True,
         )
-        status_code = 404 if "not found" in result.get("message", "").lower() else 500
-        if not isinstance(result, dict):
-            result = {
-                "status": "error",
-                "message": "api returned unexpected result.",
-            }
-        elif "status" not in result:
-            result["status"] = "error"
-        return jsonify(result), status_code
+        status_code = 500
+        result = {"status": "error", "message": f"Configuration or input error: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.error(
+            f"API Get Task Details '{server_name}': Unexpected error for task '{task_name}': {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
 # --- API Route: Modify Windows Task ---
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/task_scheduler/modify/<path:task_name>", methods=["PUT"]
+    "/api/server/<string:server_name>/task_scheduler/task/<path:task_name>",
+    methods=["PUT"],
 )
-@csrf.exempt
-@auth_required
-def modify_windows_task_api(server_name, task_name):
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def modify_windows_task_api(server_name: str, task_name: str) -> Tuple[Response, int]:
     """
     API endpoint to modify an existing Windows scheduled task.
-    Receives the complete desired state (command, triggers) in the JSON payload.
+
+    Deletes the existing task specified by `task_name` in the URL and creates a
+    new one based on the data provided in the JSON request body. The new task
+    will have a newly generated name including a timestamp.
+
+    Args:
+        server_name: The server context (used for config path).
+        task_name: The current name of the task to modify (from URL path).
+
+    JSON Request Body Example: (Similar to Add Task)
+        {
+            "command": "backup-all",
+            "triggers": [ {"type": "Daily", "start": "...", "interval": ...}, ... ]
+        }
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK on success: {"status": "success", "message": "...", "new_task_name": "..."}
+        - 400 Bad Request on invalid input.
+        - 403 Forbidden if not on Windows.
+        - 500 Internal Server Error on failure.
     """
+    identity = get_current_identity() or "Unknown"
     logger.info(
-        f"API PUT request received for /api/server/{server_name}/tasks/modify/{task_name}"
+        f"API: Modify Windows task '{task_name}' requested by user '{identity}' for server '{server_name}'."
     )
-    base_dir = get_base_dir()
-    config_dir = settings._config_dir
 
-    # Ensure Windows OS
     if platform.system() != "Windows":
-        logger.error(
-            f"Modify Windows task API called from non-Windows OS for task '{task_name}'."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Task scheduling only available on Windows.",
-                }
-            ),
-            403,
-        )
+        msg = "Modifying Windows tasks is only supported on Windows."
+        logger.error(f"API Modify Task failed: {msg}")
+        return jsonify(status="error", message=msg), 403
 
-    # Get JSON data from request body
-    data = request.get_json()
-    if not data:
-        logger.warning(f"API Modify Windows Task request: Missing JSON body.")
+    # --- Input Validation ---
+    if not task_name:
         return (
-            jsonify({"status": "error", "message": "Missing JSON request body."}),
+            jsonify(status="error", message="Original task name required in URL path."),
             400,
         )
 
-    logger.debug(f"Received JSON data for modify task '{task_name}': {data}")
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data, dict):
+        logger.warning(
+            f"API Modify Task '{task_name}': Invalid/missing JSON request body."
+        )
+        return (
+            jsonify(status="error", message="Invalid or missing JSON request body."),
+            400,
+        )
 
-    # --- Extract desired state from JSON ---
-    command = data.get("command")  # The new desired command (e.g., "start-server")
-    triggers = data.get("triggers")  # The new desired list of triggers
+    logger.debug(f"API Modify Task '{task_name}': Received data: {data}")
+    new_command = data.get("command")
+    new_triggers = data.get("triggers")
 
-    # --- Basic Validation ---
-    valid_commands = [  # Keep this list updated
+    # Validate command
+    valid_commands = [
         "update-server",
         "backup-all",
         "start-server",
@@ -761,199 +942,206 @@ def modify_windows_task_api(server_name, task_name):
         "restart-server",
         "scan-players",
     ]
-    if not task_name:
-        logger.error(
-            f"API Modify Windows Task request: Missing original task name in URL."
-        )
-        return (
-            jsonify(
-                {"status": "error", "message": "Original task name is required in URL."}
-            ),
-            400,
-        )
-    if not command or command not in valid_commands:
-        logger.warning(
-            f"API Modify Windows Task: Invalid or missing command '{command}' in JSON payload."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": f"Invalid or missing command specified in request body.",
-                }
-            ),
-            400,
-        )
-    if not triggers or not isinstance(triggers, list) or len(triggers) == 0:
-        logger.warning(
-            f"API Modify Windows Task: Missing, empty, or invalid triggers data in JSON payload."
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "At least one trigger definition is required in request body.",
-                }
-            ),
-            400,
-        )
-    # TODO: Deeper validation of trigger structure/values
+    if not new_command or new_command not in valid_commands:
+        msg = f"Invalid or missing 'command'. Must be one of: {valid_commands}."
+        logger.warning(f"API Modify Task '{task_name}': {msg} Got: '{new_command}'")
+        return jsonify(status="error", message=msg), 400
 
-    # --- Determine command args for the NEW command ---
-    command_args = f"--server {server_name}"
-    if command == "scan-players":
-        command_args = ""
-    command = data.get("base_command")
-    logger.debug(
-        f"API Modify Windows Task: Using command='{command}', args='{command_args}' for new/updated task."
-    )
+    # Validate triggers
+    if not new_triggers or not isinstance(new_triggers, list) or not new_triggers:
+        msg = "Missing or invalid 'triggers' list in request body. At least one trigger is required."
+        logger.warning(f"API Modify Task '{task_name}': {msg}")
+        return jsonify(status="error", message=msg), 400
 
-    # --- Generate the New Task Name (based on the *submitted* command) ---
-    # This allows changing the command to also change the task name, as before
-    new_task_name_base = command
-    timestamp = get_timestamp()
-    new_task_name = f"bedrock_{server_name}_{new_task_name_base}_{timestamp}"
-    logger.debug(
-        f"API Modify Windows Task: OldName='{task_name}', Generated NewName='{new_task_name}'"
-    )
-
-    # --- Call the modify api ---
-    # Pass the OLD name, the NEW desired state (command, args, triggers), and the NEW name
-    logger.info(
-        f"Calling modify_windows_task for old task '{task_name}', new task '{new_task_name}' via API..."
-    )
+    # --- Prepare Args and Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500
     try:
-        result = task_scheduler.modify_windows_task(
-            old_task_name=task_name,  # Original task name from URL
-            server_name=server_name,  # Server context
-            command=command,  # NEW desired command from JSON
-            command_args="",  # Args corresponding to NEW command
-            new_task_name=new_task_name,  # Generated new task name
-            config_dir=config_dir,
-            triggers=triggers,  # NEW trigger definitions from JSON
-            base_dir=base_dir,
-        )
-        logger.debug(f"Modify task api result: {result}")
+        config_dir = getattr(settings, "_config_dir", None)
+        if not config_dir:
+            raise FileOperationError("Base configuration directory not set.")
 
-    except InvalidInputError as e:
-        logger.warning(
-            f"Invalid input during task modification api for '{task_name}': {e}"
+        # Determine new command args and generate NEW task name
+        new_command_args = (
+            f"--server {server_name}" if new_command != "scan-players" else ""
         )
-        return jsonify({"status": "error", "message": str(e)}), 400
-    except Exception as e:
-        logger.exception(
-            f"Unexpected error during modify_windows_task call for '{task_name}': {e}"
-        )
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "An unexpected error occurred while modifying the task.",
-                }
-            ),
-            500,
+        new_task_name = api_task_scheduler.create_task_name(
+            server_name, new_command
         )
 
-    # --- Return JSON Response based on api result ---
-    if result and result.get("status") == "success":
-        status_code = 200  # OK
         logger.info(
-            f"Windows task '{task_name}' modified successfully via API. New task name is '{new_task_name}'."
+            f"Calling API handler to modify task '{task_name}' (will be replaced by '{new_task_name}')..."
         )
-        if "message" not in result:
-            result["message"] = (
-                f"Task '{task_name}' updated successfully as '{new_task_name}'."
+        # API function handles delete-then-create logic
+        result = api_task_scheduler.modify_windows_task(
+            old_task_name=task_name,
+            server_name=server_name,
+            command=new_command,
+            command_args=new_command_args,
+            new_task_name=new_task_name,  # Pass the newly generated name
+            config_dir=config_dir,
+            triggers=new_triggers,
+        )
+        logger.debug(f"API Modify Task '{task_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200  # OK
+            success_msg = result.get(
+                "message",
+                f"Task '{task_name}' modified successfully (new name: '{new_task_name}').",
             )
-        result["new_task_name"] = new_task_name  # Include new name in response
-        return jsonify(result), status_code
-    else:
-        status_code = 500  # Default Internal Server Error
-        logger.error(
-            f"API Modify Windows Task failed for '{task_name}'. api message: {result.get('message', 'Unknown api error')}"
+            logger.info(
+                f"API Modify Task successful: '{task_name}' replaced by '{new_task_name}'."
+            )
+            result["message"] = success_msg
+            result["new_task_name"] = new_task_name  # Ensure new name is in response
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error modifying task.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Modify Task failed for '{task_name}': {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (
+        MissingArgumentError,
+        TypeError,
+        InvalidInputError,
+    ) as e:  # Catch input validation errors
+        logger.warning(
+            f"API Modify Task '{task_name}': Input error: {e}", exc_info=True
         )
-        if not isinstance(result, dict):
-            result = {"status": "error", "message": "api failed unexpectedly."}
-        elif "status" not in result:
-            result["status"] = "error"
-        return jsonify(result), status_code
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except (
+        TaskError,
+        CommandNotFoundError,
+        FileOperationError,
+    ) as e:  # Catch core function errors
+        logger.error(
+            f"API Modify Task '{task_name}': Core task error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Error modifying task: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.error(
+            f"API Modify Task '{task_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code
 
 
-# --- Route: Delete Windows Task ---
+# --- API Route: Delete Windows Task ---
+# Corrected route path to use task_name from URL
 @schedule_tasks_bp.route(
-    "/api/server/<server_name>/task_scheduler/delete/<path:task_name>",
+    "/api/server/<string:server_name>/task_scheduler/task/<path:task_name>",
     methods=["DELETE"],
 )
-@csrf.exempt
-@auth_required
-def delete_windows_task_api(server_name, task_name):
-    """API endpoint to delete an existing Windows scheduled task."""
-    logger.info(
-        f"API DELETE request received for /api/server/{server_name}/tasks/delete/{task_name}"
-    )
-    config_dir = settings._config_dir
+@csrf.exempt  # API endpoint
+@auth_required  # Requires session OR JWT
+def delete_windows_task_api(server_name: str, task_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to delete an existing Windows scheduled task and its config file.
 
-    # Ensure Windows OS
+    Args:
+        server_name: The server context (used to find config file).
+        task_name: The name of the task to delete (from URL path).
+
+    Returns:
+        JSON response indicating success or failure, with appropriate HTTP status code.
+        - 200 OK on success: {"status": "success", "message": "..."}
+        - 400 Bad Request on invalid input (missing task name).
+        - 403 Forbidden if not on Windows.
+        - 500 Internal Server Error on failure.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Delete Windows task '{task_name}' requested by user '{identity}' for server '{server_name}'."
+    )
+
     if platform.system() != "Windows":
-        logger.error(
-            f"Delete Windows task API called from non-Windows OS for task '{task_name}'."
-        )
+        msg = "Deleting Windows tasks is only supported on Windows."
+        logger.error(f"API Delete Task failed: {msg}")
+        return jsonify(status="error", message=msg), 403
+
+    if not task_name:  # Check task_name from URL
         return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": "Task scheduling only available on Windows.",
-                }
-            ),
-            403,
-        )  # Forbidden
-
-    if not task_name:
-        logger.warning(f"API Delete Windows Task request: Missing task name.")
-        return jsonify({"status": "error", "message": "Task name is required."}), 400
-
-    logger.info(
-        f"Attempting to delete Windows task '{task_name}' via API for server '{server_name}'..."
-    )
-
-    # --- Find the task file path ---
-    task_file_path = None
-    # Use the api to find the path
-    get_names_result = task_scheduler.get_server_task_names(server_name, config_dir)
-    if get_names_result["status"] == "success":
-        task_names_with_paths = get_names_result["task_names"]
-
-    for name, path in task_names_with_paths:
-        # Task names from XML might have leading '\', match carefully
-        normalized_name = name.lstrip("\\")
-        if normalized_name == task_name:
-            task_file_path = path
-            logger.debug(f"Found config file path for '{task_name}': {task_file_path}")
-            break
-    if not task_file_path:
-        logger.warning(
-            f"Could not find configuration file path for task '{task_name}'. Task might only exist in scheduler, not config. Proceeding with scheduler delete only."
+            jsonify(status="error", message="Task name is required in URL path."),
+            400,
         )
-        # If deleting the XML is critical, return error here:
-        # return jsonify({"status": "error", "message": f"Configuration file for task '{task_name}' not found."}), 404
 
-    # --- End Find Path ---
+    result: Dict[str, Any] = {}
+    status_code = 500
+    try:
+        config_dir = getattr(settings, "_config_dir", None)
+        if not config_dir:
+            raise FileOperationError("Base configuration directory not set.")
 
-    # Call the api
-    logger.debug("Calling delete_windows_task...")
-    logger.info(task_file_path)
-    result = task_scheduler.delete_windows_task(
-        task_name, task_file_path
-    )  # Pass name and potentially None path
-    logger.debug(f"Delete task api result: {result}")
+        # --- Find XML File Path ---
+        task_file_path = None
+        task_list_result = api_task_scheduler.get_server_task_names(
+            server_name, config_dir
+        )
+        if task_list_result.get("status") == "success":
+            for name, path in task_list_result.get("task_names", []):
+                normalized_name = name.lstrip("\\") if name else ""
+                if normalized_name == task_name:
+                    task_file_path = path
+                    break
+        if not task_file_path:
+            logger.warning(
+                f"Could not find configuration file path for task '{task_name}'. Will only attempt deletion from scheduler."
+            )
+            # Proceed without path, delete_windows_task API func handles None path
 
-    if result["status"] == "error":
-        status_code = 500
+        # --- Call API Handler ---
+        logger.info(
+            f"Calling API handler to delete Windows task '{task_name}' (and XML if found: {task_file_path})..."
+        )
+        result = api_task_scheduler.delete_windows_task(
+            task_name, task_file_path
+        )  # API func returns dict
+        logger.debug(f"API Delete Task '{task_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200  # OK
+            success_msg = result.get(
+                "message", f"Task '{task_name}' deleted successfully."
+            )
+            logger.info(f"API Delete Task successful for '{task_name}'.")
+            result["message"] = success_msg
+        else:
+            status_code = 500
+            error_msg = (
+                result.get("message", "Unknown error deleting task.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Delete Task failed for '{task_name}': {error_msg}")
+            result = {"status": "error", "message": error_msg}
+
+    except (MissingArgumentError, FileOperationError) as e:  # Catch setup errors
         logger.error(
-            f"API Delete Windows Task failed for '{task_name}': {result.get('message', 'Unknown api error')}"
+            f"API Delete Task '{task_name}': Input or Configuration error: {e}",
+            exc_info=True,
         )
-        return jsonify(result), status_code
-    else:
-        logger.info(f"Windows task '{task_name}' deleted successfully via API.")
-        if "message" not in result:
-            result["message"] = f"Task '{task_name}' deleted successfully."
-        return jsonify(result), 200  # OK
+        status_code = 500  # Treat config errors as internal
+        result = {"status": "error", "message": f"Configuration or input error: {e}"}
+    except (TaskError, CommandNotFoundError) as e:  # Catch core function errors
+        logger.error(
+            f"API Delete Task '{task_name}': Core task error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Error deleting task: {e}"}
+    except Exception as e:  # Catch unexpected errors
+        logger.error(
+            f"API Delete Task '{task_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+    return jsonify(result), status_code

@@ -1,138 +1,192 @@
-// bedrock-server-manager/bedrock_server_manager/web/static/js/backup_restore.js
+// bedrock-server-manager/web/static/js/backup_restore.js
+/**
+ * @fileoverview Frontend JavaScript functions for triggering server backup and restore operations.
+ * These functions typically gather necessary info, show confirmation dialogs, and
+ * then call `sendServerActionRequest` (from utils.js) to interact with the backend API.
+ * Depends on functions defined in utils.js (showStatusMessage, sendServerActionRequest).
+ */
 
-// Depends on: utils.js (showStatusMessage, sendServerActionRequest)
+// Ensure utils.js is loaded before this script
+if (typeof sendServerActionRequest === 'undefined' || typeof showStatusMessage === 'undefined') {
+    console.error("Error: Missing required functions from utils.js. Ensure utils.js is loaded first.");
+    // Optionally display an error to the user on the page itself
+}
 
 /**
- * Triggers a backup operation for the specified server and type (e.g., 'world', 'config', 'all').
- * Prompts for confirmation if backupType is 'all'.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
- * @param {string} backupType The type of backup ('world', 'config', 'all').
+ * Initiates a backup operation via the API based on the specified type.
+ * Shows a confirmation prompt for 'all' type backups.
+ *
+ * @param {HTMLButtonElement} buttonElement - The button element clicked, used for disabling during the request.
+ * @param {string} serverName - The name of the server to back up.
+ * @param {string} backupType - The type of backup requested ('world', 'config', 'all'). Note: 'config' type here implies backing up *all* standard config files unless `triggerSpecificConfigBackup` is used.
  */
 function triggerBackup(buttonElement, serverName, backupType) {
-    // Log function entry with parameters
-    console.log(`triggerBackup called - Server: ${serverName}, Type: ${backupType}, Button:`, buttonElement);
+    const functionName = 'triggerBackup';
+    console.log(`${functionName}: Initiated. Server: '${serverName}', Type: '${backupType}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Specific confirmation for 'all' type backup due to potential size/time
+    // --- Confirmation for potentially long/impactful operations ---
     if (backupType === 'all') {
-        console.log("Backup type is 'all', prompting for confirmation.");
-        if (!confirm(`Performing a full backup (world + config) for '${serverName}'. This might take a moment. Continue?`)) {
-            // Log cancellation and inform user
-            console.log("Full backup cancelled by user.");
+        console.debug(`${functionName}: Backup type is 'all'. Prompting user for confirmation.`);
+        const confirmationMessage = `Perform a full backup (world + standard config files) for server '${serverName}'? This may take a few moments.`;
+        if (!confirm(confirmationMessage)) {
+            console.log(`${functionName}: Full backup cancelled by user.`);
             showStatusMessage('Full backup cancelled.', 'info');
-            return; // Abort if user cancels
+            return; // Abort operation
         }
-        console.log("Confirmation received for 'all' backup.");
+        console.log(`${functionName}: User confirmed 'all' backup.`);
     }
+    // Add confirmation for 'world' backup too? It can also take time.
+    // else if (backupType === 'world') { ... confirm(...) ... }
 
-    // Construct the request body with the backup type
+    // --- Prepare API Request ---
     const requestBody = {
         backup_type: backupType
+        // 'file_to_backup' is NOT included here; this triggers backup of the type specified ('world' or 'all')
+        // or implicitly backs up standard configs if backupType is 'config' without a specific file.
+        // The backend API handler for 'config' without a file needs to handle this case if desired.
+        // Usually, the UI would call triggerSpecificConfigBackup for individual files.
     };
-    console.log("Constructed request body for backup:", requestBody);
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
 
-    // Call the generic action helper to send the request
-    console.log("Calling sendServerActionRequest for backup/action...");
+    // --- Call API Helper ---
+    const apiUrl = `/api/server/${serverName}/backup/action`;
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for backup type '${backupType}'...`);
+    // sendServerActionRequest handles disabling button, showing status messages, and handling response
     sendServerActionRequest(serverName, 'backup/action', 'POST', requestBody, buttonElement);
-    // Note: Execution continues immediately after this async call is initiated.
-    console.log("Returned from initiating sendServerActionRequest call for backup (operation running asynchronously).");
+
+    console.log(`${functionName}: Backup request initiated (asynchronous).`);
 }
 
 /**
- * Triggers a backup operation for a specific config file.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
- * @param {string} filename The specific config file to backup (relative to server config dir).
+ * Initiates a backup operation for a *specific* configuration file via the API.
+ *
+ * @param {HTMLButtonElement} buttonElement - The button element clicked.
+ * @param {string} serverName - The name of the server.
+ * @param {string} filename - The relative path or name of the specific configuration file to back up (e.g., "server.properties").
  */
 function triggerSpecificConfigBackup(buttonElement, serverName, filename) {
-    // Log function entry with parameters
-    console.log(`triggerSpecificConfigBackup called - Server: ${serverName}, Filename: ${filename}, Button:`, buttonElement);
+    const functionName = 'triggerSpecificConfigBackup';
+    console.log(`${functionName}: Initiated. Server: '${serverName}', File: '${filename}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Validate filename presence
-    if (!filename) {
-        console.error("triggerSpecificConfigBackup called without a filename!");
-        showStatusMessage("Internal error: No filename specified for backup.", "error");
+    // --- Input Validation ---
+    if (!filename || typeof filename !== 'string' || !filename.trim()) {
+        const errorMsg = "Internal error: No filename provided for specific config backup.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
         return;
     }
+    const trimmedFilename = filename.trim();
 
-    // Construct the request body with backup type 'config' and the specific file
+    // --- Confirmation (Optional but recommended) ---
+    // const confirmationMessage = `Back up the specific configuration file '${trimmedFilename}' for server '${serverName}'?`;
+    // if (!confirm(confirmationMessage)) {
+    //     console.log(`${functionName}: Specific config backup cancelled by user.`);
+    //     showStatusMessage(`Backup for '${trimmedFilename}' cancelled.`, 'info');
+    //     return;
+    // }
+    // console.log(`${functionName}: User confirmed backup for '${trimmedFilename}'.`);
+
+    // --- Prepare API Request ---
     const requestBody = {
-        backup_type: 'config',
-        file_to_backup: filename
+        backup_type: 'config', // Specify config type
+        file_to_backup: trimmedFilename // Provide the specific filename
     };
-    console.log("Constructed request body for specific config backup:", requestBody);
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
 
-    // Call the generic action helper to send the request
-    console.log("Calling sendServerActionRequest for backup/action (specific config)...");
+    // --- Call API Helper ---
+    const apiUrl = `/api/server/${serverName}/backup/action`; // Same endpoint, body specifies action
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for specific config backup ('${trimmedFilename}')...`);
     sendServerActionRequest(serverName, 'backup/action', 'POST', requestBody, buttonElement);
-    console.log("Returned from initiating sendServerActionRequest call for specific config backup (async).");
+
+    console.log(`${functionName}: Specific config backup request initiated (asynchronous).`);
 }
 
 /**
- * Triggers a restoration operation from a specific backup file after confirmation.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
- * @param {string} restoreType 'world' or 'config' (determines where to restore).
- * @param {string} backupFile The filename of the backup archive to restore.
+ * Initiates a restore operation for a specific backup file via the API, after user confirmation.
+ *
+ * @param {HTMLButtonElement} buttonElement - The button element clicked.
+ * @param {string} serverName - The name of the server to restore to.
+ * @param {string} restoreType - The type of restore ('world' or 'config').
+ * @param {string} backupFilePath - The full path (as known by the server/backend) of the backup file to restore.
  */
-function triggerRestore(buttonElement, serverName, restoreType, backupFile) {
-    // Log function entry with parameters
-    console.log(`triggerRestore called - Server: ${serverName}, Type: ${restoreType}, File: ${backupFile}, Button:`, buttonElement);
+function triggerRestore(buttonElement, serverName, restoreType, backupFilePath) {
+    const functionName = 'triggerRestore';
+    console.log(`${functionName}: Initiated. Server: '${serverName}', Type: '${restoreType}', File: '${backupFilePath}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Validate presence of backupFile and restoreType
-    if (!backupFile) {
-        console.error("triggerRestore called without backupFile!");
-        showStatusMessage("Internal error: No backup file specified for restore.", "error");
+    // --- Input Validation ---
+    if (!backupFilePath || typeof backupFilePath !== 'string' || !backupFilePath.trim()) {
+        const errorMsg = "Internal error: No backup file path provided for restore.";
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
         return;
     }
-    if (!restoreType || (restoreType !== 'world' && restoreType !== 'config')) { // Added type check
-        console.error(`triggerRestore called with invalid restoreType: ${restoreType}`);
-        showStatusMessage(`Internal error: Invalid restore type specified (${restoreType}).`, "error");
+    const trimmedBackupFilePath = backupFilePath.trim();
+    const backupFilename = trimmedBackupFilePath.split(/[\\/]/).pop(); // Extract filename for messages
+
+    const validTypes = ['world', 'config'];
+    if (!restoreType || !validTypes.includes(restoreType.toLowerCase())) {
+        const errorMsg = `Internal error: Invalid restore type '${restoreType}'.`;
+        console.error(`${functionName}: ${errorMsg}`);
+        showStatusMessage(errorMsg, "error");
         return;
     }
+    const normalizedRestoreType = restoreType.toLowerCase();
 
-    // Confirmation dialog to prevent accidental overwrite
-    console.log("Prompting user for restore confirmation.");
-    if (!confirm(`Are you sure you want to restore '${backupFile}' for server '${serverName}'?\nThis will OVERWRITE current ${restoreType} data!`)) {
-        console.log("Restore cancelled by user.");
+    // --- Confirmation ---
+    console.debug(`${functionName}: Prompting user for restore confirmation.`);
+    const confirmationMessage = `Are you sure you want to restore backup '${backupFilename}' for server '${serverName}'?\n\nThis will OVERWRITE the current server ${normalizedRestoreType} data!`;
+    if (!confirm(confirmationMessage)) {
+        console.log(`${functionName}: Restore operation cancelled by user.`);
         showStatusMessage('Restore operation cancelled.', 'info');
         return; // Abort if user cancels
     }
-    console.log("Restore confirmed by user.");
+    console.log(`${functionName}: User confirmed restore operation.`);
 
-    // Construct the request body with restore type and filename
+    // --- Prepare API Request ---
     const requestBody = {
-        restore_type: restoreType,
-        backup_file: backupFile
+        restore_type: normalizedRestoreType,
+        backup_file: trimmedBackupFilePath // Send the full path
     };
-    console.log("Constructed request body for restore:", requestBody);
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
 
-    // Call the generic action helper for the restore action
-    console.log("Calling sendServerActionRequest for restore/action...");
+    // --- Call API Helper ---
+    const apiUrl = `/api/server/${serverName}/restore/action`;
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for restore type '${normalizedRestoreType}'...`);
     sendServerActionRequest(serverName, 'restore/action', 'POST', requestBody, buttonElement);
-    console.log("Returned from initiating sendServerActionRequest call for restore (async).");
+
+    console.log(`${functionName}: Restore request initiated (asynchronous).`);
 }
 
 /**
- * Triggers restoring ALL available backup files for a server after confirmation.
- * @param {HTMLElement} buttonElement The button that was clicked.
- * @param {string} serverName The name of the server.
+ * Initiates restoring ALL latest backup files (world, configs) for a server via the API,
+ * after user confirmation.
+ *
+ * @param {HTMLButtonElement} buttonElement - The button element clicked.
+ * @param {string} serverName - The name of the server to restore.
  */
 function triggerRestoreAll(buttonElement, serverName) {
-    // Log function entry
-    console.log(`triggerRestoreAll called for server: ${serverName}, Button:`, buttonElement);
+    const functionName = 'triggerRestoreAll';
+    console.log(`${functionName}: Initiated for server: '${serverName}'`);
+    console.debug(`${functionName}: Button Element:`, buttonElement);
 
-    // Confirmation dialog for restoring all (potentially dangerous)
-    console.log("Prompting user for Restore All confirmation.");
-    if (!confirm(`Are you sure you want to restore ALL latest backup files for server '${serverName}'?\nThis will OVERWRITE current world and config files with the newest available backups.`)) {
-        console.log("Restore All cancelled by user.");
+    // --- Confirmation ---
+    console.debug(`${functionName}: Prompting user for Restore All confirmation.`);
+    const confirmationMessage = `Are you sure you want to restore ALL latest backups for server '${serverName}'?\n\nThis will OVERWRITE the current world and configuration files!`;
+    if (!confirm(confirmationMessage)) {
+        console.log(`${functionName}: Restore All operation cancelled by user.`);
         showStatusMessage('Restore All operation cancelled.', 'info');
         return; // Abort if user cancels
     }
-    console.log("Restore All confirmed by user.");
+    console.log(`${functionName}: User confirmed Restore All operation.`);
 
-    // Call the generic action helper for the restore all action (no body needed)
-    console.log("Calling sendServerActionRequest for restore/all...");
+    // --- Call API Helper ---
+    // No request body needed for this specific action
+    const apiUrl = `/api/server/${serverName}/restore/all`;
+    console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for restore all...`);
     sendServerActionRequest(serverName, 'restore/all', 'POST', null, buttonElement);
-    console.log("Returned from initiating sendServerActionRequest call for restore all (async).");
+
+    console.log(`${functionName}: Restore All request initiated (asynchronous).`);
 }

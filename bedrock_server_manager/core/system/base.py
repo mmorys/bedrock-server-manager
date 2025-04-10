@@ -1,14 +1,32 @@
 # bedrock-server-manager/bedrock_server_manager/core/system/base.py
+"""
+Provides base system utilities and cross-platform functionalities.
+
+Includes prerequisite checks, internet connectivity verification, permission setting,
+and process status/resource monitoring using platform-agnostic approaches where possible,
+or acting as a dispatcher to platform-specific implementations.
+"""
+
 import platform
 import shutil
 import logging
 import socket
 import stat
-import psutil
 import subprocess
 import os
 import time
 from datetime import timedelta
+from typing import Optional, Dict, Any
+
+# Third-party imports
+try:
+    import psutil
+
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
+# Local imports
 from bedrock_server_manager.error import (
     SetFolderPermissionsError,
     DirectoryError,
@@ -23,556 +41,681 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def check_prerequisites():
-    """Checks for required command-line tools (Linux-specific).
+def check_prerequisites() -> None:
+    """
+    Checks if essential command-line tools are available on the system.
+
+    Currently checks for 'screen' and 'systemctl' (implicitly) on Linux. No-op on Windows.
 
     Raises:
-        MissingPackagesError: If required packages are missing on Linux.
+        MissingPackagesError: If any required packages/commands are missing on Linux.
     """
-    if platform.system() == "Linux":
-        packages = ["screen", "systemd"]
-        missing_packages = []
+    os_name = platform.system()
+    logger.debug(f"Checking prerequisites for operating system: {os_name}")
 
-        for pkg in packages:
-            if shutil.which(pkg) is None:
-                missing_packages.append(pkg)
+    if os_name == "Linux":
+        # Define essential Linux commands needed
+        required_commands = [
+            "screen",
+            "systemctl",
+            "pgrep",
+            "crontab",
+        ]
+        missing_commands = []
 
-        if missing_packages:
-            logger.error(f"Missing required packages: {missing_packages}")
-            raise MissingPackagesError(f"Missing required packages: {missing_packages}")
+        for command in required_commands:
+            if shutil.which(command) is None:
+                logger.warning(f"Required command '{command}' not found in PATH.")
+                missing_commands.append(command)
+
+        if missing_commands:
+            error_msg = f"Missing required command(s) on Linux: {', '.join(missing_commands)}. Please install them."
+            logger.error(error_msg)
+            raise MissingPackagesError(error_msg)
         else:
-            logger.debug("All required packages are installed.")
+            logger.debug("All required Linux prerequisites appear to be installed.")
 
-    elif platform.system() == "Windows":
-        logger.debug("No checks needed")
+    elif os_name == "Windows":
+        # Check for optional but recommended psutil
+        if not PSUTIL_AVAILABLE:
+            logger.warning(
+                "'psutil' package not found. Process monitoring features will be unavailable."
+            )
+
+        # Check for schtasks
+        if shutil.which("schtasks") is None:
+            error_msg = "'schtasks.exe' command not found. Task scheduling features will be unavailable."
+            logger.error(error_msg)
+            # Eaise MissingPackagesError
+            raise MissingPackagesError(error_msg)
+
+        logger.debug(
+            "Windows prerequisites checked (schtasks found, psutil recommended)."
+        )
 
     else:
-        logger.warning("Unsupported operating system.")
+        logger.warning(
+            f"Prerequisite check not implemented for unsupported operating system: {os_name}"
+        )
 
 
-def check_internet_connectivity(host="8.8.8.8", port=53, timeout=3):
-    """Checks for internet connectivity by attempting a socket connection.
+def check_internet_connectivity(
+    host: str = "8.8.8.8", port: int = 53, timeout: int = 3
+) -> None:
+    """
+    Checks for basic internet connectivity by attempting a TCP socket connection.
+
+    Defaults to checking Google's public DNS server (8.8.8.8) on the standard DNS port (53).
 
     Args:
-        host (str): The hostname or IP address to connect to.
-        port (int): The port number to connect to.
-        timeout (int): The timeout in seconds.
+        host: The hostname or IP address to connect to.
+        port: The port number to connect to.
+        timeout: The connection timeout in seconds.
 
     Raises:
-        InternetConnectivityError: If the connection fails.
+        InternetConnectivityError: If the socket connection fails within the timeout.
     """
     logger.debug(
-        f"Checking internet connectivity to {host}:{port} with timeout {timeout}s"
+        f"Checking internet connectivity by attempting connection to {host}:{port}..."
     )
     try:
-        # Attempt a socket connection.
-        socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
-        logger.debug("Internet connectivity OK.")
-    except socket.error as ex:
-        logger.error(f"Connectivity test failed: {ex}")
-        raise InternetConnectivityError(f"Connectivity test failed: {ex}") from ex
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
-        raise InternetConnectivityError(f"An unexpected error occurred: {e}") from e
+        socket.create_connection((host, port), timeout=timeout).close()
+        logger.debug("Internet connectivity check successful.")
+    except socket.timeout:
+        error_msg = f"Connectivity check failed: Connection to {host}:{port} timed out after {timeout} seconds."
+        logger.error(error_msg)
+        raise InternetConnectivityError(error_msg) from None
+    except (
+        OSError
+    ) as ex:  # Catches errors like "Network is unreachable" or DNS resolution failure
+        error_msg = (
+            f"Connectivity check failed: Cannot connect to {host}:{port}. Error: {ex}"
+        )
+        logger.error(error_msg)
+        raise InternetConnectivityError(error_msg) from ex
+    except Exception as e:  # Catch any other unexpected errors
+        error_msg = f"An unexpected error occurred during connectivity check: {e}"
+        logger.error(error_msg, exc_info=True)
+        raise InternetConnectivityError(error_msg) from e
 
 
-def set_server_folder_permissions(server_dir):
-    """Sets appropriate owner:group and permissions on the server directory.
+def set_server_folder_permissions(server_dir: str) -> None:
+    """
+    Sets appropriate file and directory permissions for the server installation directory.
+
+    - Linux: Sets owner/group to current user/group, sets 775 for dirs, 664 for files,
+             and 755 for the 'bedrock_server' executable.
+    - Windows: Attempts to ensure the 'write' permission is set for files and directories
+               (removes read-only attribute).
 
     Args:
-        server_dir (str): The server directory.
+        server_dir: The full path to the server's installation directory.
 
     Raises:
-        MissingArgumentError: If server_dir is empty.
-        DirectoryError: If server_dir does not exist or is not a directory.
-        SetFolderPermissionsError: If setting permissions fails.
+        MissingArgumentError: If `server_dir` is empty.
+        DirectoryError: If `server_dir` does not exist or is not a directory.
+        SetFolderPermissionsError: If setting permissions fails due to OS errors.
     """
-
     if not server_dir:
-        raise MissingArgumentError(
-            "set_server_folder_permissions: server_dir is empty."
-        )
+        raise MissingArgumentError("Server directory cannot be empty.")
     if not os.path.isdir(server_dir):
         raise DirectoryError(
-            f"set_server_folder_permissions: server_dir '{server_dir}' does not exist or is not a directory."
+            f"Server directory does not exist or is not a directory: '{server_dir}'"
         )
 
-    if platform.system() == "Linux":
-        try:
-            real_user = os.getuid()
-            real_group = os.getgid()
-            logger.info(f"Setting folder permissions to {real_user}:{real_group}")
+    os_name = platform.system()
+    logger.debug(
+        f"Attempting to set appropriate permissions for server directory: {server_dir} (OS: {os_name})"
+    )
 
-            for root, dirs, files in os.walk(server_dir):
-                for d in dirs:
-                    os.chown(os.path.join(root, d), real_user, real_group)
-                    os.chmod(os.path.join(root, d), 0o775)
-                    """logger.debug(
-                        f"Set permissions on directory: {os.path.join(root, d)}"
-                    )"""
-                for f in files:
-                    file_path = os.path.join(root, f)
-                    os.chown(file_path, real_user, real_group)
-                    if os.path.basename(file_path) == "bedrock_server":
-                        os.chmod(file_path, 0o755)
-                        logger.debug(f"Set execute permissions on: {file_path}")
-                    else:
-                        os.chmod(file_path, 0o664)
-                        """logger.debug(f"Set permissions on file: {file_path}")"""
-            logger.info("Folder permissions set.")
-        except OSError as e:
-            logger.error(f"Failed to set server folder permissions: {e}")
-            raise SetFolderPermissionsError(
-                f"Failed to set server folder permissions: {e}"
-            ) from e
+    try:
+        if os_name == "Linux":
+            try:
+                # Get effective UID/GID - use these for ownership
+                current_uid = os.geteuid()
+                current_gid = os.getegid()
+                logger.debug(
+                    f"Setting ownership to UID={current_uid}, GID={current_gid}"
+                )
 
-    elif platform.system() == "Windows":
-        logger.info("Setting folder permissions...")
-        try:
-            for root, dirs, files in os.walk(server_dir):
-                for d in dirs:
-                    dir_path = os.path.join(root, d)
-                    current_permissions = os.stat(dir_path).st_mode
-                    if not (current_permissions & stat.S_IWRITE):
-                        os.chmod(dir_path, current_permissions | stat.S_IWRITE)
-                        logger.debug(f"Set write permissions on directory: {dir_path}")
-                for f in files:
-                    file_path = os.path.join(root, f)
-                    current_permissions = os.stat(file_path).st_mode
-                    if not (current_permissions & stat.S_IWRITE):
-                        os.chmod(file_path, current_permissions | stat.S_IWRITE)
-                        logger.debug(f"Set write permissions on file: {file_path}")
-            logger.info("Folder permissions set.")
-        except OSError as e:
-            logger.error(f"Failed to set folder permissions: {e}")
-            raise SetFolderPermissionsError(
-                f"Failed to set folder permissions on Windows: {e}"
-            ) from e
+                # Set initial permissions on the base directory
+                os.chown(server_dir, current_uid, current_gid)
+                os.chmod(server_dir, 0o775)  # rwxrwxr-x
 
-    else:
-        logger.warning("set_server_folder_permissions: Unsupported operating system.")
+                # Walk through directory tree
+                for root, dirs, files in os.walk(server_dir):
+                    # Set ownership and permissions for subdirectories
+                    for d in dirs:
+                        dir_path = os.path.join(root, d)
+                        os.chown(dir_path, current_uid, current_gid)
+                        os.chmod(dir_path, 0o775)  # rwxrwxr-x
+                        # logger.debug(f"Set permissions 775 on dir: {dir_path}")
+                    # Set ownership and permissions for files
+                    for f in files:
+                        file_path = os.path.join(root, f)
+                        os.chown(file_path, current_uid, current_gid)
+                        if os.path.basename(file_path) == "bedrock_server":
+                            # Executable needs execute permissions
+                            os.chmod(
+                                file_path, 0o775
+                            )  # rwxrwxr-x (or 755 rwxr-xr-x if group write isn't needed)
+                            logger.debug(
+                                f"Set executable permissions (775) on: {file_path}"
+                            )
+                        else:
+                            # Regular files
+                            os.chmod(file_path, 0o664)  # rw-rw-r--
+                            # logger.debug(f"Set permissions 664 on file: {file_path}")
+
+                logger.info(f"Successfully set Linux permissions for: {server_dir}")
+            except OSError as e:
+                logger.error(
+                    f"Failed to set Linux permissions for '{server_dir}': {e}",
+                    exc_info=True,
+                )
+                raise SetFolderPermissionsError(
+                    f"Failed to set permissions/ownership: {e}"
+                ) from e
+
+        elif os_name == "Windows":
+            logger.debug(
+                "Attempting to ensure write permissions (remove read-only) on Windows..."
+            )
+            # Use the separate remove_readonly function for clarity
+            remove_readonly(server_dir)  # This function handles walking the tree
+            logger.debug(f"Ensured write permissions for: {server_dir}")
+
+        else:
+            logger.warning(
+                f"Permission setting not implemented for unsupported OS: {os_name}"
+            )
+
+    except Exception as e:  # Catch any unexpected errors
+        logger.error(
+            f"Unexpected error setting permissions for '{server_dir}': {e}",
+            exc_info=True,
+        )
+        raise SetFolderPermissionsError(
+            f"Unexpected error setting permissions: {e}"
+        ) from e
 
 
-def is_server_running(server_name, base_dir):
-    """Checks if the server is running.
+def is_server_running(server_name: str, base_dir: str) -> bool:
+    """
+    Checks if a Bedrock server process corresponding to the server name is running.
+
+    - Linux: Checks if a `screen` session named `bedrock-{server_name}` exists.
+    - Windows: Checks if a `bedrock_server.exe` process exists whose executable path
+               matches the expected location based on `base_dir` and `server_name`.
 
     Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers.
+        server_name: The name of the server.
+        base_dir: The base directory containing the server's folder.
 
     Returns:
-        bool: True if the server is running, False otherwise.
-    Raises:
-        CommandNotFoundError: If the 'screen' command is not found on Linux.
+        True if a matching server process is found, False otherwise.
 
+    Raises:
+        MissingArgumentError: If `server_name` or `base_dir` is empty.
+        CommandNotFoundError: If required commands (`screen` on Linux) are not found.
+        ResourceMonitorError: If `psutil` is unavailable on Windows.
     """
-    logger.debug(f"Checking if server {server_name} is running")
-    if platform.system() == "Linux":
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
+
+    os_name = platform.system()
+    logger.debug(f"Checking running status for server '{server_name}' (OS: {os_name})")
+
+    if os_name == "Linux":
+        screen_cmd = shutil.which("screen")
+        if not screen_cmd:
+            logger.error("'screen' command not found. Cannot check server status.")
+            raise CommandNotFoundError("screen")
         try:
-            result = subprocess.run(
-                ["screen", "-ls"],
+            # Use screen -ls to list sessions and check for the specific session name
+            screen_session_name = f"bedrock-{server_name}"
+            process = subprocess.run(
+                [screen_cmd, "-ls"],
                 capture_output=True,
                 text=True,
-                check=False,
+                check=False,  # Don't raise error if screen -ls fails (e.g., no sessions)
+                encoding="utf-8",
+                errors="replace",
             )
-            is_running = f".bedrock-{server_name}" in result.stdout
-            logger.debug(f"Server {server_name} running: {is_running} (Linux - screen)")
+            # Check if the specific session name exists in the output (usually starts with PID.session_name)
+            # Add dot prefix check for robustness as screen often lists as ".session_name"
+            is_running = (
+                f".{screen_session_name}\t" in process.stdout
+                or f"\t{screen_session_name}\t" in process.stdout
+            )
+            logger.debug(f"Server '{server_name}' running (screen check): {is_running}")
             return is_running
-        except FileNotFoundError:
-            logger.error("screen command not found.")
-            raise CommandNotFoundError(
-                "screen", message="screen command not found."
-            ) from None
+        except FileNotFoundError:  # Safeguard
+            logger.error("'screen' command not found unexpectedly.")
+            raise CommandNotFoundError("screen") from None
+        except Exception as e:
+            logger.error(
+                f"Error checking screen sessions for server '{server_name}': {e}",
+                exc_info=True,
+            )
+            return False  # Assume not running if check fails
 
-    elif platform.system() == "Windows":
+    elif os_name == "Windows":
+        if not PSUTIL_AVAILABLE:
+            logger.error(
+                "'psutil' package not found. Cannot check server status on Windows."
+            )
+            raise ResourceMonitorError("'psutil' is required on Windows.")
+
         try:
-            # Construct the expected full path to the target executable
-            target_exe_path = os.path.join(base_dir, server_name, "bedrock_server.exe")
-
-            normalized_target_exe = os.path.normcase(os.path.abspath(target_exe_path))
+            # Construct the expected full, normalized path to the target executable
+            expected_exe_path = os.path.join(
+                base_dir, server_name, "bedrock_server.exe"
+            )
+            normalized_expected_exe = os.path.normcase(
+                os.path.abspath(expected_exe_path)
+            )
             logger.debug(
-                f"Looking for server {server_name} with normalized executable path: {normalized_target_exe}"
+                f"Searching for process with executable path: {normalized_expected_exe}"
             )
 
-            found_matching_process = False
-            # Add 'exe' to the attributes we fetch
             for proc in psutil.process_iter(["pid", "name", "exe"]):
                 try:
                     proc_info = proc.info
-                    # Check name first (quick filter)
+                    # Quick check on name
                     if proc_info["name"] == "bedrock_server.exe":
-                        proc_exe = proc_info["exe"]
-                        # Check if executable path is available and not empty
-                        if proc_exe:
-                            # Normalize the process's executable path for comparison
+                        proc_exe_path = proc_info.get("exe")
+                        if proc_exe_path:
+                            # Compare normalized absolute paths
                             normalized_proc_exe = os.path.normcase(
-                                os.path.abspath(proc_exe)
+                                os.path.abspath(proc_exe_path)
                             )
-
-                            # --- Crucial Change: Compare normalized executable paths ---
-                            if normalized_proc_exe == normalized_target_exe:
+                            if normalized_proc_exe == normalized_expected_exe:
                                 logger.debug(
-                                    f"Server {server_name} running: True (Windows - process {proc.pid} found with matching executable path: {normalized_proc_exe})"
+                                    f"Found matching process for server '{server_name}' with PID {proc_info['pid']}."
                                 )
-                                found_matching_process = True
-                                break  # Found the specific server, no need to check further
+                                return True  # Found the specific server process
 
                 except (
                     psutil.NoSuchProcess,
-                    psutil.AccessDenied,  # Might occur when trying to access proc_info['exe']
+                    psutil.AccessDenied,
                     psutil.ZombieProcess,
                 ):
-                    # Process might have terminated, access denied, or is a zombie
-                    # Ignore and continue checking other processes
-                    pass
+                    continue  # Ignore processes that ended, we can't access, or are zombies
                 except Exception as proc_err:
-                    # Log error accessing specific process info but continue iterating
                     logger.warning(
-                        f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}"
+                        f"Error accessing info for process PID {proc.pid if proc else 'N/A'}: {proc_err}",
+                        exc_info=True,
                     )
 
-            if found_matching_process:
-                return True
-            else:
-                logger.debug(
-                    f"Server {server_name} running: False (Windows - no bedrock_server.exe process found with executable path exactly matching {normalized_target_exe})"
-                )
-                return False
+            # If loop finishes without returning True
+            logger.debug(
+                f"No running process found with executable path matching '{normalized_expected_exe}'."
+            )
+            return False
 
         except Exception as e:
-            # General error during process iteration
-            logger.error(f"Error checking processes on Windows: {e}")
-            return False
+            logger.error(f"Error iterating processes on Windows: {e}", exc_info=True)
+            return False  # Assume not running if process iteration fails
+
     else:
-        logger.error("Unsupported operating system for running check.")
+        logger.error(f"Unsupported operating system for running check: {os_name}")
         return False
 
 
-_last_cpu_times = {}
-_last_timestamp = None
+# --- Global state for delta CPU calculation ---
+_last_cpu_times: Dict[int, psutil._common.scpustats] = (
+    {}
+)  # Store previous psutil._common.scpustat objects
+_last_timestamp: Optional[float] = None  # Store timestamp of the last update
+# --- End Global State ---
 
 
-def _get_bedrock_process_info(server_name, base_dir):
-    """Gets resource usage information for the running Bedrock server,
-    using delta-based CPU usage calculation similar to _linux_monitor.
+def _get_bedrock_process_info(
+    server_name: str, base_dir: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Gets resource usage information (PID, CPU%, Mem MB, Uptime) for a running Bedrock server process.
+
+    Identifies the process based on platform specifics. Uses `psutil` for details.
+    Calculates CPU usage based on the difference in CPU times between consecutive calls
+    (delta method).
+
+    NOTE: The first call for a specific process after startup or after a period of
+          inactivity in monitoring will report 0.0% CPU. Accuracy depends on regular calls.
+          CPU% might still report 0% under Linux/screen due to process nesting.
 
     Args:
-        server_name (str): The name of the server.
-        base_dir (str): The base directory for servers
+        server_name: The name of the server.
+        base_dir: The base directory containing the server's folder.
 
     Returns:
-        dict or None: A dictionary containing process information, or None
-                      if the server is not running or an error occurs.
-                      The dictionary has the following keys:
-                        - pid (int): The process ID.
-                        - cpu_percent (float): The CPU usage percentage.
-                        - memory_mb (float): The memory usage in megabytes.
-                        - uptime (str): The server uptime as a string.
+        A dictionary containing process information {'pid', 'cpu_percent', 'memory_mb', 'uptime'},
+        or None if the server process is not found, inaccessible, or `psutil` is unavailable.
+
     Raises:
-        ResourceMonitorError: If there is any error during monitoring.
+        MissingArgumentError: If `server_name` or `base_dir` is empty.
+        ResourceMonitorError: If `psutil` is unavailable, or if an unexpected error occurs
+                              during process detail retrieval.
     """
+    # Declare intent to modify global variables
+    global _last_cpu_times, _last_timestamp
 
-    global _last_timestamp
-    logger.debug(f"Getting Bedrock process info for: {server_name}")
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
 
-    if platform.system() == "Linux":
-        try:
-            # Find the screen process running the Bedrock server
-            screen_pid = None
+    if not PSUTIL_AVAILABLE:
+        logger.error("'psutil' package not found. Cannot get process info.")
+        raise ResourceMonitorError("'psutil' is required for process monitoring.")
+
+    logger.debug(
+        f"Attempting to get process info for server '{server_name}' (using delta CPU)..."
+    )
+    bedrock_process: Optional[psutil.Process] = None
+    pid: Optional[int] = None
+    os_name = platform.system()
+    target_server_dir = os.path.normpath(
+        os.path.abspath(os.path.join(base_dir, server_name))
+    )
+
+    try:
+        # --- Find the target Bedrock Process ---
+        if os_name == "Linux":
+            screen_session_name = f"bedrock-{server_name}"
+            parent_screen_pid: Optional[int] = None
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
                     if proc.info[
                         "name"
-                    ] == "screen" and f"bedrock-{server_name}" in " ".join(
-                        proc.info["cmdline"]
+                    ] == "screen" and screen_session_name in " ".join(
+                        proc.info.get("cmdline", [])
                     ):
-                        screen_pid = proc.info["pid"]
+                        parent_screen_pid = proc.info["pid"]
                         break
-                except (
-                    psutil.NoSuchProcess,
-                    psutil.AccessDenied,
-                    psutil.ZombieProcess,
-                ):
+                except (psutil.Error, TypeError):
                     continue
+            if not parent_screen_pid:
+                return None  # Screen session not found
 
-            if not screen_pid:
-                logger.warning(
-                    f"No running 'screen' process found for service {server_name}."
-                )
-                return None
-
-            # Find the Bedrock server process (child of screen)
-            bedrock_pid = None
-            try:
-                screen_process = psutil.Process(screen_pid)
-                for child in screen_process.children(recursive=True):
-                    if "bedrock_server" in child.name():
-                        bedrock_pid = child.pid
-                        break
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-
-            if not bedrock_pid:
-                logger.warning(
-                    f"No running Bedrock server process found for service {server_name}."
-                )
-                return None
-
-            # Get process details
-            try:
-                bedrock_process = psutil.Process(bedrock_pid)
-                with bedrock_process.oneshot():
-                    current_cpu_times = bedrock_process.cpu_times()
-
-                    # Get previous CPU times and timestamp; if not set, initialize them.
-                    if _last_timestamp is None:
-                        _last_cpu_times[bedrock_pid] = current_cpu_times
-                        _last_timestamp = time.time()
-                        # Not enough data to calculate delta; return 0% CPU usage.
-                        cpu_percent = 0.0
-                    else:
-                        current_timestamp = time.time()
-                        time_delta = current_timestamp - _last_timestamp
-
-                        prev_cpu_times = _last_cpu_times.get(
-                            bedrock_pid, current_cpu_times
+            found_child = False
+            for proc in psutil.process_iter(["pid", "ppid", "name", "cwd", "status"]):
+                try:
+                    if (
+                        proc.info["name"] == "bedrock_server"
+                        and proc.info["status"] != psutil.STATUS_ZOMBIE
+                        and proc.info.get("ppid") == parent_screen_pid
+                        and proc.info.get("cwd")
+                    ):
+                        proc_cwd_normalized = os.path.normpath(
+                            os.path.abspath(proc.info["cwd"])
                         )
-                        cpu_time_delta = (
-                            current_cpu_times.user + current_cpu_times.system
-                        ) - (prev_cpu_times.user + prev_cpu_times.system)
-                        cpu_percent = (
-                            (cpu_time_delta / time_delta * 100)
-                            if time_delta > 0
-                            else 0.0
-                        )
+                        if proc_cwd_normalized == target_server_dir:
+                            pid = proc.info["pid"]
+                            bedrock_process = psutil.Process(pid)
+                            found_child = True
+                            break
+                except (psutil.Error, TypeError):
+                    continue
+            if not found_child:
+                return None  # Child not found matching criteria
 
-                        # Update globals for the next call
-                        _last_cpu_times[bedrock_pid] = current_cpu_times
-                        _last_timestamp = current_timestamp
-
-                    # Memory Usage (in MB)
-                    memory_mb = bedrock_process.memory_info().rss / (1024 * 1024)
-
-                    # Uptime calculation
-                    uptime_seconds = time.time() - bedrock_process.create_time()
-                    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
-
-                    logger.debug(
-                        f"Process info: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
-                    )
-                    return {
-                        "pid": bedrock_pid,
-                        "cpu_percent": cpu_percent,
-                        "memory_mb": memory_mb,
-                        "uptime": uptime_str,
-                    }
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                logger.warning(f"Process {bedrock_pid} not found or access denied.")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error during monitoring: {e}")
-            raise ResourceMonitorError(f"Error during monitoring: {e}") from e
-
-    elif platform.system() == "Windows":
-        bedrock_pid = None
-        try:
-
-            target_exe_path = os.path.join(base_dir, server_name, "bedrock_server.exe")
-            normalized_target_exe = os.path.normcase(os.path.abspath(target_exe_path))
-            logger.debug(
-                f"Looking for server process for {server_name} with exe path: {normalized_target_exe}"
+        elif os_name == "Windows":
+            expected_exe_path = os.path.join(
+                base_dir, server_name, "bedrock_server.exe"
             )
-
+            normalized_expected_exe = os.path.normcase(
+                os.path.abspath(expected_exe_path)
+            )
+            found_proc = False
             for proc in psutil.process_iter(["pid", "name", "exe"]):
                 try:
-                    proc_info = proc.info
-                    # Check name first
-                    if proc_info["name"] == "bedrock_server.exe":
-                        proc_exe = proc_info.get("exe")
-                        if proc_exe:
-                            normalized_proc_exe = os.path.normcase(
-                                os.path.abspath(proc_exe)
-                            )
-
-                            if normalized_proc_exe == normalized_target_exe:
-                                bedrock_pid = proc_info["pid"]
-                                logger.debug(
-                                    f"Found matching process for {server_name}: PID {bedrock_pid}"
-                                )
-                                break  # Exit loop once found
-                except (
-                    psutil.NoSuchProcess,
-                    psutil.AccessDenied,
-                    psutil.ZombieProcess,
-                ):
-                    pass  # Ignore processes that ended or we can't access
-                except Exception as proc_err:
-                    logger.warning(
-                        f"Error accessing info for process {proc.pid if proc else 'N/A'}: {proc_err}"
-                    )
-
-            if not bedrock_pid:
-                # Log updated to reflect the check performed
-                logger.warning(
-                    f"No running Bedrock server process found for {server_name} with exe path {normalized_target_exe}."
-                )
-                return None  # Or return an empty dict, depending on desired behaviour
-
-            # Get process details (this part remains largely the same)
-            try:
-                bedrock_process = psutil.Process(bedrock_pid)
-                with bedrock_process.oneshot():  # Improves performance
-                    # CPU Usage
-                    cpu_percent = (
-                        bedrock_process.cpu_percent(interval=1.0) / psutil.cpu_count()
-                    )
-
-                    # Memory Usage (RSS is usually appropriate)
-                    memory_info = bedrock_process.memory_info()
-                    memory_mb = memory_info.rss / (
-                        1024 * 1024
-                    )  # Resident Set Size in MB
-
-                    # Uptime
-                    create_time = bedrock_process.create_time()
-                    uptime_seconds = time.time() - create_time
-                    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
-
-                    logger.debug(
-                        f"Process info for {server_name}: pid={bedrock_pid}, cpu={cpu_percent:.2f}%, mem={memory_mb:.2f}MB, uptime={uptime_str}"
-                    )
-                    return {
-                        "pid": bedrock_pid,
-                        "cpu_percent": cpu_percent,
-                        "memory_mb": memory_mb,
-                        "uptime": uptime_str,
-                    }
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                # Process might have terminated between finding PID and getting details
-                logger.warning(
-                    f"Process {bedrock_pid} for {server_name} disappeared or access denied before getting details."
-                )
-                return None  # Or empty dict
-            except Exception as detail_err:
-                logger.error(
-                    f"Error getting details for process {bedrock_pid} ({server_name}): {detail_err}"
-                )
+                    if proc.info["name"] == "bedrock_server.exe":
+                        proc_exe = proc.info.get("exe")
+                        if (
+                            proc_exe
+                            and os.path.normcase(os.path.abspath(proc_exe))
+                            == normalized_expected_exe
+                        ):
+                            pid = proc.info["pid"]
+                            bedrock_process = psutil.Process(pid)
+                            found_proc = True
+                            break
+                except (psutil.Error, TypeError):
+                    continue
+            if not found_proc:
                 return None
+        else:
+            logger.error(f"Process info retrieval not supported on OS: {os_name}")
+            return None
 
-        except Exception as e:
-            # General error during process iteration or setup
-            logger.error(f"Error during monitoring setup for {server_name}: {e}")
-            # Raising prevents silent failure if the monitoring loop itself errors out
-            raise ResourceMonitorError(
-                f"Error during monitoring setup for {server_name}: {e}"
-            ) from e
-    else:
-        logger.error("Unsupported OS for monitoring")
-        return None
+        # --- Get Process Details using psutil AND Calculate Delta CPU ---
+        if bedrock_process and pid:
+            try:
+                with bedrock_process.oneshot():
+                    # --- CPU Delta Calculation ---
+                    current_cpu_times: psutil._common.scpustats = (
+                        bedrock_process.cpu_times()
+                    )
+                    current_timestamp = time.time()
+                    cpu_percent = 0.0  # Default for first call or error
 
+                    # Check if we have previous data for *this specific PID*
+                    if pid in _last_cpu_times and _last_timestamp is not None:
+                        time_delta = current_timestamp - _last_timestamp
+                        if (
+                            time_delta > 0.01
+                        ):  # Avoid division by zero or tiny intervals
+                            prev_cpu_times: psutil._common.scpustat = _last_cpu_times[
+                                pid
+                            ]
+                            # Calculate total CPU time used (user + system) since last measurement
+                            # Ensure attributes exist before subtraction
+                            process_delta = (
+                                current_cpu_times.user - prev_cpu_times.user
+                            ) + (current_cpu_times.system - prev_cpu_times.system)
 
-def remove_readonly(path):
-    """Removes the read-only attribute from a file or directory (cross-platform).
-
-    Args:
-        path (str): The path to the file or directory.
-
-    Raises:
-        SetFolderPermissionsError: If removing read-only fails
-        FileOperationError: If an unexpected file operation error occurs.
-
-    """
-    if not os.path.exists(path):
-        logger.debug(f"Path does not exist, nothing to do: {path}")
-        return  # Not an error if it doesn't exist
-
-    logger.info(f"Ensuring write permissions for: {path}")
-
-    if platform.system() == "Windows":
-        try:
-            # Avoid shell=True by constructing the full path to attrib.exe
-            attrib_path = os.path.join(
-                os.environ["SYSTEMROOT"], "System32", "attrib.exe"
-            )
-            subprocess.run(
-                [attrib_path, "-R", path, "/S"],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            logger.debug("Removed read-only attribute on Windows.")
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}"
-            )
-            raise SetFolderPermissionsError(
-                f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}"
-            ) from e
-        except FileNotFoundError:
-            # If SYSTEMROOT is not set, this is a serious system issue.
-            logger.error(
-                "attrib command not found (SYSTEMROOT environment variable not set)."
-            )
-            raise FileOperationError(
-                "attrib command not found (SYSTEMROOT environment variable not set)."
-            ) from None
-        except Exception as e:
-            logger.error(f"Unexpected error using attrib command: {e}")
-            raise FileOperationError(
-                f"Unexpected error using attrib command: {e}"
-            ) from e
-
-    elif platform.system() == "Linux":
-        try:
-            if os.path.isfile(path):
-                if "bedrock_server" in path:
-                    os.chmod(path, os.stat(path).st_mode | stat.S_IXUSR | stat.S_IWUSR)
-                    logger.debug(f"Set execute and write permissions on file: {path}")
-                else:
-                    os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
-                    logger.debug(f"Set write permissions on file: {path}")
-            elif os.path.isdir(path):
-                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR | stat.S_IXUSR)
-                logger.debug(f"Set write and execute permissions on directory: {path}")
-                for root, dirs, files in os.walk(path):
-                    for d in dirs:
-                        dir_path = os.path.join(root, d)
-                        os.chmod(
-                            dir_path,
-                            os.stat(dir_path).st_mode | stat.S_IWUSR | stat.S_IXUSR,
-                        )
-                        logger.debug(
-                            f"Set write and execute permissions on directory: {dir_path}"
-                        )
-                    for f in files:
-                        file_path = os.path.join(root, f)
-                        if "bedrock_server" in file_path:
-                            os.chmod(
-                                file_path,
-                                os.stat(file_path).st_mode
-                                | stat.S_IWUSR
-                                | stat.S_IXUSR,
-                            )
+                            # Calculate percentage over the elapsed time window
+                            # This represents utilization equivalent to one core. Can exceed 100 on multi-core.
+                            cpu_percent = (process_delta / time_delta) * 100
                             logger.debug(
-                                f"Set execute and write permissions on file: {file_path}"
+                                f"Delta CPU Calc: PID={pid}, TimeDelta={time_delta:.3f}s, CPUTimeDelta={process_delta:.4f}, CPU%={cpu_percent:.1f}"
                             )
                         else:
-                            os.chmod(
-                                file_path, os.stat(file_path).st_mode | stat.S_IWUSR
+                            logger.debug(
+                                f"Delta CPU Calc: Skipping for PID {pid} due to small time_delta ({time_delta:.3f}s)"
                             )
-                            logger.debug(f"Set write permissions on file: {file_path}")
-            else:
-                logger.warning(f"Unsupported file type: {path}")
-            logger.debug("Removed read-only attribute on Linux.")
-        except OSError as e:
-            logger.error(f"Failed to remove read-only attribute on Linux: {e}")
-            raise SetFolderPermissionsError(
-                f"Failed to remove read-only attribute on Linux: {e}"
-            ) from e
-    else:
-        logger.warning(
-            f"Unsupported operating system in remove_readonly: {platform.system()}"
+                    else:
+                        logger.debug(
+                            f"Delta CPU Calc: No previous data for PID {pid}. Reporting 0.0% CPU for first measurement."
+                        )
+
+                    # Update global state for the next call *for this PID*
+                    _last_cpu_times[pid] = current_cpu_times
+                    # Only update the *global* timestamp; time_delta uses this single point
+                    _last_timestamp = current_timestamp
+                    # --- End CPU Delta Calculation ---
+
+                    # Memory Usage (RSS in MB)
+                    memory_mb = bedrock_process.memory_info().rss / (1024 * 1024)
+
+                    # Uptime
+                    uptime_seconds = current_timestamp - bedrock_process.create_time()
+                    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
+                    process_info = {
+                        "pid": pid,
+                        "cpu_percent": (
+                            round(cpu_percent, 1) if cpu_percent is not None else 0.0
+                        ),
+                        "memory_mb": (
+                            round(memory_mb, 1) if memory_mb is not None else 0.0
+                        ),
+                        "uptime": uptime_str,
+                    }
+                    logger.debug(
+                        f"Retrieved process info for '{server_name}': {process_info}"
+                    )
+                    return process_info
+
+            except (
+                psutil.NoSuchProcess,
+                psutil.AccessDenied,
+                psutil.ZombieProcess,
+            ) as e:
+                logger.warning(
+                    f"Process PID {pid} for '{server_name}' disappeared or access denied: {e}"
+                )
+                # Clean up stale PID entry from globals if process disappears
+                if pid in _last_cpu_times:
+                    try:
+                        del _last_cpu_times[pid]
+                    except KeyError:
+                        pass
+                    logger.debug(f"Removed stale PID {pid} from CPU time cache.")
+                return None
+            except Exception as detail_err:
+                logger.error(
+                    f"Error getting details for process PID {pid} ('{server_name}'): {detail_err}",
+                    exc_info=True,
+                )
+                raise ResourceMonitorError(
+                    f"Error getting process details for '{server_name}': {detail_err}"
+                ) from detail_err
+        else:
+            logger.debug(f"Bedrock process object not obtained for '{server_name}'.")
+            return None
+
+    except Exception as e:
+        # Catch unexpected errors during the process finding stage
+        logger.error(
+            f"Unexpected error getting process info for '{server_name}': {e}",
+            exc_info=True,
         )
+        raise ResourceMonitorError(
+            f"Unexpected error getting process info for '{server_name}': {e}"
+        ) from e
+
+
+def remove_readonly(path: str) -> None:
+    """
+    Recursively removes the read-only attribute from a file or directory.
+
+    Uses platform-specific methods (`chmod` on Linux, `attrib` on Windows).
+
+    Args:
+        path: The path to the file or directory.
+
+    Raises:
+        SetFolderPermissionsError: If removing the read-only attribute fails due to OS errors.
+        FileOperationError: If an unexpected error occurs, or `attrib.exe` is not found on Windows.
+        CommandNotFoundError: If `attrib.exe` cannot be found on Windows.
+    """
+    if not os.path.exists(path):
+        logger.debug(f"Path '{path}' does not exist. Skipping remove_readonly.")
+        return
+
+    os_name = platform.system()
+    logger.debug(
+        f"Ensuring write permissions (removing read-only) for path: '{path}' (OS: {os_name})"
+    )
+
+    try:
+        if os_name == "Windows":
+            # Use attrib command as it reliably handles ACLs/inheritance issues sometimes missed by os.chmod
+            attrib_cmd = shutil.which("attrib")
+            if not attrib_cmd:
+                # Try finding in System32 explicitly if not in PATH
+                system32_attrib = os.path.join(
+                    os.environ.get("SYSTEMROOT", "C:\\Windows"),
+                    "System32",
+                    "attrib.exe",
+                )
+                if os.path.isfile(system32_attrib):
+                    attrib_cmd = system32_attrib
+                else:
+                    logger.error(
+                        "'attrib.exe' command not found. Cannot remove read-only attribute."
+                    )
+                    raise CommandNotFoundError("attrib.exe")
+
+            # Apply recursively (/S) and also process directories (/D)
+            process = subprocess.run(
+                [attrib_cmd, "-R", path, "/S", "/D"],
+                check=True,
+                capture_output=True,  # Capture output for logging/debugging
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            logger.debug(
+                f"Windows 'attrib -R /S /D' executed for '{path}'. Output: {process.stdout}{process.stderr}"
+            )
+            logger.debug(
+                f"Successfully ensured write permissions for '{path}' on Windows."
+            )
+
+        elif os_name == "Linux":
+            # Set write permission for the owner (u+w) recursively
+            logger.debug(
+                f"Recursively adding write permission for owner on '{path}'..."
+            )
+            if os.path.isdir(path):
+                # Set owner write on the top-level directory first
+                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
+                # Walk and set owner write on all contents
+                for root, dirs, files in os.walk(path):
+                    for name in dirs + files:
+                        item_path = os.path.join(root, name)
+                        try:
+                            current_mode = os.stat(item_path).st_mode
+                            os.chmod(item_path, current_mode | stat.S_IWUSR)
+                        except OSError as chmod_err:
+                            # Log warning but continue if possible
+                            logger.warning(
+                                f"Could not set write permission on '{item_path}': {chmod_err}",
+                                exc_info=True,
+                            )
+            elif os.path.isfile(path):
+                # Set owner write on the single file
+                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
+            else:
+                logger.warning(
+                    f"Path '{path}' is not a file or directory. Cannot set write permission."
+                )
+
+            logger.debug(
+                f"Successfully ensured owner write permissions for '{path}' on Linux."
+            )
+
+        else:
+            logger.warning(
+                f"Read-only removal not implemented for unsupported OS: {os_name}"
+            )
+
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Failed to remove read-only attribute using 'attrib' for '{path}'. Error: {e.stderr}"
+        logger.error(error_msg, exc_info=True)
+        raise SetFolderPermissionsError(error_msg) from e
+    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
+        logger.error("'attrib.exe' command not found unexpectedly.")
+        raise CommandNotFoundError("attrib.exe") from None
+    except OSError as e:
+        logger.error(
+            f"OS error while removing read-only attribute for '{path}': {e}",
+            exc_info=True,
+        )
+        raise SetFolderPermissionsError(
+            f"Failed to remove read-only attribute: {e}"
+        ) from e
+    except Exception as e:
+        logger.error(
+            f"Unexpected error removing read-only attribute for '{path}': {e}",
+            exc_info=True,
+        )
+        raise FileOperationError(
+            f"Unexpected error removing read-only attribute: {e}"
+        ) from e

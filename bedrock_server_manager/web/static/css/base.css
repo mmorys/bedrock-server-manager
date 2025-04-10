@@ -1,172 +1,269 @@
 /* bedrock-server-manager/bedrock_server_manager/web/static/css/base.css */
+/**
+ * Base styling for the Bedrock Server Manager web interface.
+ * Includes basic resets, layout, typography, header, specific component styles,
+ * and responsive adjustments.
+ */
+
+/* ==========================================================================
+   Panorama Background Animation
+   ========================================================================== */
 
 @keyframes panoramaScroll {
     0% {
-        background-position: 100% 50%; /* Start at the left */
+        /* Start position (e.g., right edge aligned with viewport right) */
+        background-position: 0% 50%;
     }
     100% {
-        background-position: 0% 50%; /* Scroll one full image width */
-        /* Adjust percentage or use pixel value based on image width if repeat-x isn't perfect */
-        /* e.g., background-position: -4096px 50%; if image is 4096px wide */
+        /* End position (e.g., scroll one full image width to the left) */
+        /* Use a large percentage to ensure smooth repeat with repeat-x */
+        /* The exact value depends slightly on image aspect and background-size, */
+        /* but a large value like 200% or more usually works for horizontal scroll. */
+        /* Or calculate based on image width if known and fixed. */
+        background-position: 200% 50%;
     }
 }
 
-/* Basic Reset and Font */
+/* ==========================================================================
+   Basic Reset, Body Styling, Background & Overlay
+   ========================================================================== */
+
 body {
-    /* Keep font, margin, padding, text color, font-smoothing */
+    /* Font Stack & Typography */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-    margin: 0;
-    padding: 0;
-    color: #eee;
     font-size: 16px;
+    line-height: 1.5;
+    color: #eee; /* Default light text color on dark background */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    line-height: 1.5;
 
-    /* --- ADD Panorama Background --- */
-    background-image: url('../image/panorama.jpeg'); /* FILENAME */
-    background-size: auto 100vh; /* Height fills viewport, width auto - adjust as needed */
-    /* Other options: 'cover', 'contain', fixed size like '4096px auto' */
-    background-repeat: repeat-x; /* Repeat horizontally */
-    background-attachment: fixed; /* Fixed background */
+    /* Reset */
+    margin: 0;
+    padding: 0;
 
-    /* Apply the animation */
+    /* --- Panorama Background --- */
+    /* Sets the background image */
+    /* url('../image/panorama.jpeg') assumes the image is in static/image relative to CSS */
+    /* Use url_for('static', filename='image/panorama.jpeg') in template or adjust path */
+    background-image: url('../image/panorama.jpeg'); /* Default Panorama */
+    /* Custom panorama URL will override this via inline style if set */
+
+    /* Sizing: Height fills viewport, width adjusts automatically. */
+    /* 'cover' or 'contain' or fixed px values are alternatives */
+    background-size: auto 100vh;
+
+    /* Repeat horizontally to cover wide screens and enable scrolling effect */
+    background-repeat: repeat-x;
+
+    /* Keep background fixed relative to viewport during page scroll */
+    background-attachment: fixed;
+
+    /* --- Panorama Animation --- */
     animation-name: panoramaScroll;
-    animation-duration: 120s; /* <<<=== Adjust duration for speed (e.g., 60s, 90s, 180s) */
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-    animation-play-state: running;
+    animation-duration: 280s; /* <<<=== ADJUST DURATION for scroll speed (longer = slower) */
+    animation-timing-function: linear; /* Constant speed */
+    animation-iteration-count: infinite; /* Loop forever */
+    animation-play-state: running; /* Animation is active */
+
+    /* Ensure body takes at least full viewport height */
+    min-height: 100vh;
+    position: relative; /* Needed for pseudo-element positioning */
 }
 
-/* --- ADD Overlay --- */
+/* --- Dark Overlay --- */
+/* Creates a semi-transparent overlay between the background image and content */
 body::before {
-    content: "";
-    position: fixed; /* Cover viewport */
+    content: ""; /* Required for pseudo-element */
+    position: fixed; /* Cover the entire viewport */
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(34, 34, 34, 0.30); /* Dark overlay (#222 at 80% opacity) - Adjust opacity */
-    z-index: -1; /* Behind content, above background-image */
+    /* Dark color with transparency (adjust alpha for darkness) */
+    background-color: rgba(34, 34, 34, 0.25); /* Example: #222 at 65% opacity */
+    /* Place overlay behind the main content (.container) but above the background image */
+    z-index: -1;
 }
 
 
-/* --- Splash Text Styling --- */
+/* ==========================================================================
+   Splash Text
+   ========================================================================== */
+
+.anchor-word {
+    position: relative;
+    display: inline-block;
+}
+
 .splash-text {
-    position: absolute; /* Position relative to the header */
-    /* Adjust top/right based on title size */
-    top: 74px;
-    /* Use right or left - positioning relative to the centered header link is tricky */
-    /* Let's try positioning relative to the overall header width */
-    right: 24%; /* Adjust percentage or use pixels */
-    /* Or try left: 55%; */
-
-    transform: rotate(-15deg); /* Rotation */
-    transform-origin: center center; /* Rotate around center */
-
-    font-family: "Arial Black", Gadget, sans-serif; /* Chunky font */
+    position: absolute; /* Position relative to nearest positioned ancestor (.anchor-word) */
+    z-index: 5; /* Ensure it's visually on top */
+    white-space: nowrap; /* Prevent splash text itself from wrapping */
+    pointer-events: none; /* Clicks pass through */
+    user-select: none; /* Prevent text selection */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    /* --- Anchored Positioning --- */
+    top: 49%;               
+    right: 15%;             
+    margin-left: 5px;       */ /* Add a small gap */
+    transform: translateY(-50%) rotate(-15deg); */ /* Center vertically & rotate */
+    transform-origin: left center; */
+    /* --- Visual Styling --- */
+    font-family: "Arial Black", Gadget, sans-serif;
     font-weight: bold;
-    font-size: 0.5em; /* Adjust size */
-    color: #FFFF00; /* Yellow */
-    text-shadow: 2px 2px 0px #404040; /* Dark grey shadow - adjust color/offset */
-
+    font-size: 0.3em; /* Adjust size as needed */
+    color: #FFFF00;
     padding: 2px 5px;
-    white-space: nowrap; /* Prevent wrapping */
-    z-index: 5; /* Ensure it's above header elements if needed */
-    pointer-events: none; /* Prevent it interfering with clicks */
+    /* text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.6); */ /* Uncomment if desired */
+    /* --- Animation --- */
+    /* Note: The transform in the keyframes needs to match the base transform */
+    animation: splashPulse 2.5s infinite ease-in-out;
 }
 
 
-/* --- Mobile Adjustments --- */
+@keyframes splashPulse {
+    0% {
+        /* Match transform from .splash-text rule (Option 1) */
+        transform: scale(1) rotate(-15deg);
+        /* Match transform from .splash-text rule (Option 2 - if used) */
+        /* transform: translateY(-50%) scale(1) rotate(-15deg); */
+    }
 
-/* Existing header/logo/h1 mobile adjustments ... */
-@media (max-width: 768px) {
-    /* ... */
-    .splash-text {
-        font-size: 0.4em; /* Smaller font */
-        top: 58px; /* Adjust position */
-        right: 10%; /* Adjust position */
-        /* Or hide it completely if it gets in the way */
-        /* display: none; */
-        text-shadow: 1px 1px 0px #404040; /* Smaller shadow */
+    50% {
+        /* Match transform from .splash-text rule (Option 1) */
+        transform: scale(1.1) rotate(-15deg);
+        /* Match transform from .splash-text rule (Option 2 - if used) */
+        /* transform: translateY(-50%) scale(1.1) rotate(-15deg); */
+    }
+
+    100% {
+        /* Match transform from .splash-text rule (Option 1) */
+        transform: scale(1) rotate(-15deg);
+        /* Match transform from .splash-text rule (Option 2 - if used) */
+        /* transform: translateY(-50%) scale(1) rotate(-15deg); */
     }
 }
 
-@media (max-width: 480px) {
-    /* ... */
-    .splash-text {
-        font-size: 0.4em; /* Even smaller font */
-        top: 92px; /* Adjust position */
-        right: 19%; /* Adjust position */
-        transform: rotate(-12deg); /* Less rotation maybe */
-         /* Definitely consider hiding if too cluttered */
-         /* display: none; */
-    }
-}
+
+/* ==========================================================================
+   Main Container Layout
+   ========================================================================== */
 
 .container {
-    width: 90%;
-    max-width: 1200px;
-    margin: 20px auto;
-    padding: 25px;
-    /* Make container background semi-transparent */
-    background-color: rgba(51, 51, 51, 0.92); /* #333 at 92% opacity - adjust as needed */
-    /* Or keep solid: background-color: #333; */
-    border: 1px solid #555;
-    border-radius: 0px;
-    box-sizing: border-box;
-    position: relative; /* Needed to ensure it's above the body::before overlay */
+    width: 90%; /* Responsive width */
+    max-width: 1200px; /* Maximum width for large screens */
+    margin: 20px auto; /* Center horizontally, add top/bottom margin */
+    padding: 25px; /* Inner spacing */
+
+    /* Background for content readability over the panorama */
+    /* Semi-transparent background */
+    background-color: rgba(51, 51, 51, 0.92); /* #333 at 92% opacity */
+    /* Or use a solid color: */
+    /* background-color: #333; */
+
+    border: 1px solid #555; /* Subtle border */
+    border-radius: 0px; /* Sharp corners */
+    box-sizing: border-box; /* Include padding and border in width/height */
+
+    /* Positioning context for absolute children if needed */
+    position: relative;
+    /* Ensure container is above the body::before overlay */
     z-index: 1;
 }
 
-/* Header Styling */
-/* Header Styling */
+/* ==========================================================================
+   Header Styles
+   ========================================================================== */
+
 .header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #555;
-    /* Remove text-align if using flexbox below */
-    /* text-align: center; */
-    display: flex; /* Use flexbox for alignment */
-    justify-content: center; /* Center the link block */
-    align-items: center; /* Vertically align items in the link */
+    margin-bottom: 30px; /* Space below header */
+    padding-bottom: 20px; /* Space above border */
+    border-bottom: 1px solid #555; /* Separator line */
+
+    /* Flexbox for centering the logo and title block */
+    display: flex;
+    justify-content: center; /* Center items horizontally */
+    align-items: center; /* Align items vertically */
 }
 
-/* Style the link containing logo and h1 */
 .header-link {
-    display: inline-flex; /* Use flex for inline alignment of logo and h1 */
-    align-items: center; /* Vertically align logo and h1 */
-    text-decoration: none; /* Remove underline from link */
-    color: inherit; /* Inherit text color (usually #eee) */
-    gap: 15px; /* Space between logo and h1 */
+    /* Container for logo and h1, acts as a single link */
+    display: inline-flex; /* Align logo and title inline */
+    align-items: center; /* Vertically center logo and title */
+    text-decoration: none; /* Remove link underline */
+    color: inherit; /* Use body text color */
+    gap: 15px; /* Space between logo and title */
 }
 
-/* Style the logo image */
 .header-logo {
-    height: 70px; /* Adjust height as needed */
+    height: 70px; /* Control logo size */
     width: auto; /* Maintain aspect ratio */
-    /* Optional: Add vertical-align if not using flex on parent */
-    /* vertical-align: middle; */
-    /* Optional: Add margin if needed */
-    /* margin-right: 15px; */
+    /* flex-shrink: 0; */ /* Prevent logo from shrinking if title is very long */
 }
 
-/* Adjust H1 styling */
 .header h1 {
-    font-size: 2.2em;
+    /* Main application title */
+    font-size: 2.2em; /* Large size */
     letter-spacing: 1px;
-    font-weight: 600;
-    color: #eee;
-    word-wrap: break-word;
-    /* Remove margins if flexbox handles spacing */
-    margin: 0;
-    /* Text shadow was already removed */
+    font-weight: 600; /* Semi-bold */
+    color: #eee; /* Ensure high contrast */
+    word-wrap: break-word; /* Allow wrapping if needed, although less likely with flex */
+    margin: 0; /* Remove default margin */
+    text-shadow: none; /* Ensure no shadow if previously applied */
 }
 
 
-/* --- Mobile Adjustments for Header --- */
-@media (max-width: 768px) {
+/* ==========================================================================
+   Monitor Page Specific Styles
+   ========================================================================== */
+
+/* Style for the preformatted text block showing server output */
+pre.monitor-output {
+    background-color: #111; /* Very dark background */
+    color: #00dd00; /* Bright green text (classic console look) */
+    border: 1px solid #444; /* Subtle border, slightly darker than container */
+    padding: 15px;
+    font-family: "Consolas", "Monaco", "Courier New", monospace; /* Monospaced font */
+    font-size: 0.9em; /* Slightly smaller than body text */
+    line-height: 1.4;
+    overflow-x: auto; /* Allow horizontal scrolling for long lines */
+    white-space: pre; /* Preserve whitespace and line breaks */
+    min-height: 200px; /* Minimum height */
+    max-height: 500px; /* Maximum height, enable vertical scroll beyond this */
+    overflow-y: auto; /* Enable vertical scrollbar when needed */
+    border-radius: 0px; /* Consistent sharp corners */
+    /* box-shadow: none; */ /* Removed inset shadow */
+}
+
+/* Container for buttons below the monitor output */
+.monitor-actions {
+     border-top: none; /* No top border needed if below pre */
+     margin-top: 15px; /* Space above buttons */
+     text-align: center; /* Center buttons */
+}
+
+/* Ensure monitor action buttons don't have extra left margin if reusing main-button class */
+.monitor-actions .main-button {
+    margin-left: 5px; /* Adjust spacing between buttons if needed */
+    margin-right: 5px;
+}
+/* If only one button, center it implicitly via text-align: center; */
+
+
+/* ==========================================================================
+   Responsive Adjustments (Mobile)
+   ========================================================================== */
+
+@media (max-width: 768px) { /* Tablet and smaller */
+    .container {
+        width: 95%; /* Slightly wider */
+        padding: 20px;
+        margin-top: 15px;
+        margin-bottom: 15px;
+    }
+
     .header {
         margin-bottom: 25px;
         padding-bottom: 15px;
@@ -174,62 +271,24 @@ body::before {
     }
 
     .header-logo {
-        height: 35px; /* Slightly smaller logo */
-    }
-
-    .header h1 {
-        font-size: 2em;
-        letter-spacing: 0.5px;
-    }
-}
-
-@media (max-width: 480px) {
-    .header {
-        gap: 8px; /* Further reduce gap */
-    }
-    .header-logo {
         height: 50px; /* Smaller logo */
     }
+
     .header h1 {
-        font-size: 1.6em; /* Adjusted size */
+        font-size: 1.8em; /* Smaller title */
+        letter-spacing: 0.5px;
     }
-}
 
-/* --- Monitor Output Styles --- */
-/* Keep these largely as-is for now, they serve a specific function */
-/* Maybe just tweak border/shadow slightly for consistency */
-pre.monitor-output {
-    background-color: #111;
-    color: #00ff00;
-    /* --- CHANGE: Make border consistent with container --- */
-    border: 1px solid #444; /* Slightly darker than container border */
-    padding: 15px;
-    /* --- Keep monospace specifically for this element --- */
-    font-family: "Consolas", "Monaco", "Courier New", monospace;
-    font-size: 0.9em;
-    line-height: 1.4;
-    overflow-x: auto;
-    white-space: pre;
-    min-height: 200px;
-    max-height: 500px;
-    overflow-y: auto;
-    /* --- CHANGE: Simplify shadow --- */
-    /* box-shadow: 2px 2px 0 #000 inset; */ /* Removing inset shadow for now */
-    border-radius: 0px; /* Ensure no radius */
-}
+    .splash-text {
+        font-size: 0.2em; /* Smaller font */
+        top: 6em; /* Adjust position slightly */
+        right: 14%; /* Adjust position slightly */
+        transform: rotate(-12deg); /* Maybe less rotation */
+        /* Keep other styles */
+        animation: splashPulseMobile 2.5s infinite ease-in-out; /* Use mobile animation if different */
+    }
 
-/* Actions specific to the monitor page */
-.monitor-actions {
-     border-top: none;
-     margin-top: 15px;
-     text-align: center;
-}
-.monitor-actions .main-button {
-    margin-left: 0;
-}
 
-/* --- Mobile Adjustments for Monitor --- */
-@media (max-width: 768px) {
     pre.monitor-output {
         padding: 10px;
         font-size: 0.85em;
@@ -237,3 +296,83 @@ pre.monitor-output {
         max-height: 400px;
     }
 }
+
+@media (max-width: 480px) { /* Mobile phones */
+    body {
+         font-size: 15px; /* Slightly smaller base font */
+         /* Reduce animation speed on potentially weaker devices? Optional. */
+         /* animation-duration: 240s; */
+    }
+
+    .container {
+        width: 100%; /* Full width */
+        margin-top: 10px;
+        margin-bottom: 10px;
+        padding: 15px;
+        border-left: none;
+        border-right: none;
+        border-radius: 0; /* No radius on full width */
+    }
+
+    .header {
+        gap: 8px;
+        flex-direction: column; /* Stack logo and title vertically */
+        text-align: center; /* Re-center text when stacked */
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+
+     .header-link {
+         flex-direction: column; /* Stack logo/title in link */
+         gap: 5px; /* Reduce gap further */
+     }
+
+    .header-logo {
+        height: 45px; /* Even smaller logo */
+        margin-bottom: 5px; /* Add space below logo when stacked */
+    }
+
+    .header h1 {
+        font-size: 1.6em; /* Further reduced size */
+    }
+
+    .splash-text {
+        /* Option 1: Hide it completely */
+         display: none;
+    }
+
+    pre.monitor-output {
+        font-size: 0.8em;
+        padding: 8px;
+        min-height: 100px;
+        max-height: 300px;
+    }
+}
+
+@keyframes splashPulseMobile {
+    0% {
+        transform: scale(1) rotate(-12deg); /* Match tablet rotation */
+        /* transform: rotate(-10deg); /* Match mobile rotation */
+    }
+
+    50% {
+        transform: scale(1.05) rotate(-12deg); /* Match tablet rotation */
+        /* transform: rotate(-10deg); /* Match mobile rotation */
+    }
+
+    100% {
+        transform: scale(1) rotate(-12deg); /* Match tablet rotation */
+        /* transform: rotate(-10deg); /* Match mobile rotation */
+    }
+}
+
+
+.header {
+    position: relative;
+    /* Keep existing styles */
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #555;
+    display: flex;
+    justify-content: center;
+    al

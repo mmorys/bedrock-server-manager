@@ -1,4 +1,13 @@
 # bedrock-server-manager/bedrock_server_manager/core/server/addon.py
+"""
+Manages the processing and installation of Minecraft addons for Bedrock servers.
+
+Handles different addon file types (.mcaddon, .mcpack, .mcworld), extracts
+their contents, processes manifests, and installs behavior/resource packs
+and worlds into the appropriate server directories. Updates world pack
+configuration JSON files accordingly.
+"""
+
 import os
 import glob
 import shutil
@@ -6,6 +15,10 @@ import zipfile
 import tempfile
 import json
 import logging
+import re
+from typing import Tuple, List
+
+# Local imports
 from bedrock_server_manager.core.server import server
 from bedrock_server_manager.core.server import world
 from bedrock_server_manager.error import (
@@ -20,475 +33,803 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def process_addon(addon_file, server_name, base_dir):
-    """Processes the selected addon file (.mcaddon or .mcpack).
+def process_addon(addon_file: str, server_name: str, base_dir: str) -> None:
+    """
+    Processes a given addon file (.mcaddon or .mcpack) for a specific server.
+
+    Determines the file type and delegates to the appropriate processing function.
 
     Args:
-        addon_file (str): Path to the addon file.
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
+        addon_file: The full path to the addon file (.mcaddon or .mcpack).
+        server_name: The name of the target server.
+        base_dir: The base directory containing all server installations.
 
     Raises:
-        MissingArgumentError: If addon_file or server_name is empty.
-        FileOperationError: If addon_file does not exist.
-        InvalidAddonPackTypeError: If the addon file type is unsupported.
-        # Other exceptions might be raised by process_mcaddon or process_mcpack
+        MissingArgumentError: If `addon_file`, `server_name`, or `base_dir` is empty.
+        InvalidServerNameError: If the server name is invalid (e.g., contains invalid chars).
+                                (Raised indirectly by functions called within).
+        FileNotFoundError: If `addon_file` does not exist.
+        InvalidAddonPackTypeError: If the `addon_file` extension is not .mcaddon or .mcpack.
+        AddonExtractError: If extraction of the addon archive fails (e.g., invalid zip).
+                           (Raised by delegated functions).
+        FileOperationError: If file/directory operations fail during processing.
+                            (Raised by delegated functions).
+        DirectoryError: If expected directories are missing or invalid.
+                        (Raised by delegated functions).
     """
     if not addon_file:
-        raise MissingArgumentError("process_addon: addon_file is empty.")
+        raise MissingArgumentError("Addon file path cannot be empty.")
     if not server_name:
-        raise InvalidServerNameError("process_addon: server_name is empty.")
-    if not os.path.exists(addon_file):
-        raise FileOperationError(
-            f"process_addon: addon_file does not exist: {addon_file}"
-        )
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
 
-    if addon_file.lower().endswith(".mcaddon"):
-        logger.info(f"Processing .mcaddon file: {os.path.basename(addon_file)}...")
-        process_mcaddon(addon_file, server_name, base_dir)  # Let it raise exceptions
-    elif addon_file.lower().endswith(".mcpack"):
-        logger.info(f"Processing .mcpack file: {os.path.basename(addon_file)}...")
-        process_mcpack(addon_file, server_name, base_dir)  # Let it raise exceptions
+    logger.info(
+        f"Processing addon file '{os.path.basename(addon_file)}' for server '{server_name}'."
+    )
+
+    if not os.path.exists(addon_file):
+        error_msg = f"Addon file not found at: {addon_file}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+
+    addon_file_lower = addon_file.lower()
+    if addon_file_lower.endswith(".mcaddon"):
+        logger.debug(f"Detected .mcaddon file type. Delegating to process_mcaddon.")
+        process_mcaddon(
+            addon_file, server_name, base_dir
+        )  # Let it raise specific exceptions
+    elif addon_file_lower.endswith(".mcpack"):
+        logger.debug(f"Detected .mcpack file type. Delegating to process_mcpack.")
+        process_mcpack(
+            addon_file, server_name, base_dir
+        )  # Let it raise specific exceptions
     else:
-        logger.error(f"Unsupported addon file type: {addon_file}")
-        raise InvalidAddonPackTypeError(f"Unsupported addon file type: {addon_file}")
+        error_msg = f"Unsupported addon file type: '{os.path.basename(addon_file)}'. Only .mcaddon and .mcpack are supported."
+        logger.error(error_msg)
+        raise InvalidAddonPackTypeError(error_msg)
 
 
-def process_mcaddon(addon_file, server_name, base_dir):
-    """Processes an .mcaddon file (extracts and handles contained files).
+def process_mcaddon(addon_file: str, server_name: str, base_dir: str) -> None:
+    """
+    Processes an .mcaddon file by extracting its contents and handling nested packs/worlds.
+
+    An .mcaddon is typically a ZIP archive containing multiple .mcpack and/or .mcworld files.
 
     Args:
-        addon_file (str): Path to the .mcaddon file.
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
+        addon_file: Path to the .mcaddon file.
+        server_name: The name of the target server.
+        base_dir: The base directory for servers.
 
     Raises:
-        MissingArgumentError: If addon_file or server_name is empty.
-        InvalidServerNameError: If server_name is invalid
-        FileOperationError: If addon_file doesn't exist or extraction fails.
-        AddonExtractError: If addon_file is not a zip file
-        # Other exceptions might be raised by _process_mcaddon_files
+        MissingArgumentError: If arguments are empty.
+        InvalidServerNameError: If the server name is invalid.
+        FileNotFoundError: If `addon_file` does not exist.
+        AddonExtractError: If `addon_file` is not a valid ZIP archive.
+        FileOperationError: If file/directory operations fail during extraction or processing.
+        DirectoryError: If temporary directory processing fails.
     """
     if not addon_file:
-        raise MissingArgumentError("process_mcaddon: addon_file is empty.")
+        raise MissingArgumentError("mcaddon file path cannot be empty.")
     if not server_name:
-        raise InvalidServerNameError("process_mcaddon: server_name is empty.")
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
+
+    logger.info(
+        f"Processing .mcaddon: '{os.path.basename(addon_file)}' for server '{server_name}'."
+    )
+
     if not os.path.exists(addon_file):
-        raise FileOperationError(
-            f"process_mcaddon: addon_file does not exist: {addon_file}"
-        )
+        raise FileNotFoundError(f"mcaddon file not found: {addon_file}")
 
-    temp_dir = tempfile.mkdtemp()
-    logger.info(f"Extracting {os.path.basename(addon_file)} to {temp_dir}...")
+    temp_dir = tempfile.mkdtemp(prefix=f"mcaddon_{server_name}_")
+    logger.debug(f"Created temporary directory for extraction: {temp_dir}")
 
     try:
-        with zipfile.ZipFile(addon_file, "r") as zip_ref:
-            zip_ref.extractall(temp_dir)
-        logger.debug(f"Extracted {os.path.basename(addon_file)} successfully")
-    except zipfile.BadZipFile:
-        shutil.rmtree(temp_dir)
-        logger.error(
-            f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
-        )
-        raise AddonExtractError(
-            f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)"
-        ) from None
-    except OSError as e:
-        shutil.rmtree(temp_dir)
-        logger.error(f"Failed to unzip .mcaddon file: {e}")
-        raise FileOperationError(f"Failed to unzip .mcaddon file: {e}") from e
-
-    try:
-        _process_mcaddon_files(
-            temp_dir, server_name, base_dir
-        )  # Let it raise exceptions
-    finally:
-        logger.debug(f"Removing temporary directory: {temp_dir}")
-        shutil.rmtree(temp_dir)
-
-
-def _process_mcaddon_files(temp_dir, server_name, base_dir):
-    """Processes the files extracted from an .mcaddon file.
-
-    Args:
-        temp_dir (str): Path to the temporary directory.
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
-
-    Raises:
-        MissingArgumentError: If temp_dir or server_name is empty.
-        DirectoryError: If temp_dir is not a directory.
-        InvalidServerNameError: If server_name is invalid.
-        FileOperationError: If world name cannot be found.
-        # Other exceptions may be raised by world.extract_world or process_mcpack
-    """
-
-    if not temp_dir:
-        raise MissingArgumentError("_process_mcaddon_files: temp_dir is empty.")
-    if not server_name:
-        raise InvalidServerNameError("_process_mcaddon_files: server_name is empty.")
-    if not os.path.isdir(temp_dir):
-        logger.error(
-            f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
-        )
-        raise DirectoryError(
-            f"_process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
-        )
-
-    # Process .mcworld files
-    for world_file in glob.glob(os.path.join(temp_dir, "*.mcworld")):
-        logger.info(f"Processing .mcworld file: {os.path.basename(world_file)}")
+        # Extract the .mcaddon contents
         try:
-            world_name = server.get_world_name(server_name, base_dir)
-            if world_name is None or not world_name:
-                logger.error("Failed to determine world name. Can not install world.")
-                raise FileOperationError(
-                    "Failed to determine world name. Can not install world."
-                )
-            extract_dir = os.path.join(base_dir, server_name, "worlds", world_name)
-            world.extract_world(
-                world_file, extract_dir
-            )  # Use core function and let it raise exceptions
-        except Exception as e:
-            logger.error(f"Failed to extract world {world_file}: {e}")
+            logger.info(
+                f"Extracting '{os.path.basename(addon_file)}' to temporary directory..."
+            )
+            with zipfile.ZipFile(addon_file, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+            logger.debug(f"Successfully extracted '{os.path.basename(addon_file)}'.")
+        except zipfile.BadZipFile as e:
+            logger.error(
+                f"Failed to extract '{addon_file}': Invalid or corrupted ZIP file. {e}",
+                exc_info=True,
+            )
+            raise AddonExtractError(
+                f"Invalid .mcaddon file (not a zip): {os.path.basename(addon_file)}"
+            ) from e
+        except OSError as e:
+            logger.error(
+                f"OS error during extraction of '{addon_file}': {e}", exc_info=True
+            )
             raise FileOperationError(
-                f"Failed to extract world {world_file}: {e}"
+                f"Error extracting '{os.path.basename(addon_file)}': {e}"
             ) from e
 
-    # Process .mcpack files
-    for pack_file in glob.glob(os.path.join(temp_dir, "*.mcpack")):
-        logger.info(f"Processing .mcpack file: {os.path.basename(pack_file)}")
-        process_mcpack(pack_file, server_name, base_dir)  # Let it raise exceptions
+        # Process the extracted files (.mcpack, .mcworld)
+        _process_extracted_mcaddon_contents(temp_dir, server_name, base_dir)
 
-
-def process_mcpack(pack_file, server_name, base_dir):
-    """Processes an .mcpack file (extracts and processes manifest).
-
-    Args:
-        pack_file (str): Path to the .mcpack file.
-        server_name (str): The name of the server.
-        base_dir (str): Base directory.
-
-    Raises:
-        MissingArgumentError: If pack_file or server_name is empty.
-        InvalidServerNameError: If server name is invalid.
-        FileOperationError: If pack_file doesn't exist or extraction fails.
-        AddonExtractError: If pack_file is not a zip file
-        # Other exceptions might be raised by _process_manifest
-    """
-    if not pack_file:
-        raise MissingArgumentError("process_mcpack: pack_file is empty.")
-    if not server_name:
-        raise InvalidServerNameError("process_mcpack: server_name is empty.")
-    if not os.path.exists(pack_file):
-        raise FileOperationError(
-            f"process_mcpack: pack_file does not exist: {pack_file}"
-        )
-
-    temp_dir = tempfile.mkdtemp()
-    logger.info(f"Extracting {os.path.basename(pack_file)} to {temp_dir}...")
-
-    try:
-        with zipfile.ZipFile(pack_file, "r") as zip_ref:
-            zip_ref.extractall(temp_dir)
-        logger.debug(f"Extracted {os.path.basename(pack_file)} successfully")
-    except zipfile.BadZipFile:
-        shutil.rmtree(temp_dir)
-        logger.error(
-            f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
-        )
-        raise AddonExtractError(
-            f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)"
-        ) from None
-    except OSError as e:
-        shutil.rmtree(temp_dir)
-        logger.error(f"Failed to unzip .mcpack file: {e}")
-        raise FileOperationError(f"Failed to unzip .mcpack file: {e}") from e
-
-    try:
-        _process_manifest(temp_dir, server_name, pack_file, base_dir)
     finally:
-        logger.debug(f"Removing temporary directory: {temp_dir}")
-        shutil.rmtree(temp_dir)
+        # Ensure temporary directory is always cleaned up
+        if os.path.isdir(temp_dir):
+            try:
+                logger.debug(f"Cleaning up temporary directory: {temp_dir}")
+                shutil.rmtree(temp_dir)
+            except OSError as e:
+                logger.warning(
+                    f"Could not completely remove temporary directory '{temp_dir}': {e}",
+                    exc_info=True,
+                )
 
 
-def _process_manifest(temp_dir, server_name, pack_file, base_dir):
-    """Processes the manifest.json file within an extracted .mcpack.
+def _process_extracted_mcaddon_contents(
+    temp_dir: str, server_name: str, base_dir: str
+) -> None:
+    """
+    Processes files found within an extracted .mcaddon archive (e.g., .mcpack, .mcworld).
 
     Args:
-        temp_dir (str): Path to the temporary directory.
-        server_name (str): The name of the server.
-        pack_file (str): Original path to the .mcpack file (for logging).
-        base_dir (str): Base directory.
+        temp_dir: Path to the directory containing extracted contents.
+        server_name: The name of the target server.
+        base_dir: The base directory for servers.
 
     Raises:
-        MissingArgumentError: If temp_dir, server_name, or pack_file is empty.
-        InvalidServerNameError: if server_name is invalid.
-        FileOperationError: If manifest info is missing.
-        # Other exceptions may be raised by _extract_manifest_info or install_pack
+        MissingArgumentError: If arguments are empty.
+        InvalidServerNameError: If the server name is invalid.
+        DirectoryError: If `temp_dir` is not a valid directory.
+        FileOperationError: If processing nested files (worlds/packs) fails.
     """
     if not temp_dir:
-        raise MissingArgumentError("process_manifest: temp_dir is empty.")
+        raise MissingArgumentError("Temporary directory path cannot be empty.")
     if not server_name:
-        raise InvalidServerNameError("process_manifest: server_name is empty.")
-    if not pack_file:
-        raise MissingArgumentError("process_manifest: pack_file is empty.")
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
 
-    manifest_info = _extract_manifest_info(temp_dir)
-    if manifest_info is None:
-        logger.error(
-            f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
-        )
-        raise FileOperationError(
-            f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
+    if not os.path.isdir(temp_dir):
+        raise DirectoryError(
+            f"Temporary directory does not exist or is invalid: {temp_dir}"
         )
 
-    pack_type, uuid, version, addon_name_from_manifest = manifest_info
-    logger.debug(
-        f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
-    )
+    logger.debug(f"Processing extracted contents in: {temp_dir}")
 
-    install_pack(
-        pack_type,
-        temp_dir,
-        server_name,
-        pack_file,
-        base_dir,
-        uuid,
-        version,
-        addon_name_from_manifest,
-    )
+    # Process any .mcworld files found
+    mcworld_files = glob.glob(os.path.join(temp_dir, "*.mcworld"))
+    if mcworld_files:
+        logger.info(f"Found {len(mcworld_files)} .mcworld file(s) in .mcaddon.")
+        try:
+            # Determine the target world directory path ONCE
+            world_name = server.get_world_name(
+                server_name, base_dir
+            )  # Raises FileOperationError if props missing/invalid
+            if not world_name:  # Should be caught by get_world_name
+                raise FileOperationError(
+                    f"Could not determine world name for server '{server_name}'. Cannot install world."
+                )
+            world_extract_base_dir = os.path.join(base_dir, server_name, "worlds")
+
+            for world_file in mcworld_files:
+                world_filename = os.path.basename(world_file)
+                logger.info(f"Processing extracted world file: '{world_filename}'")
+                # Note: extract_world expects the *target directory* for the world contents,
+                # not the base 'worlds' directory.
+                target_world_dir = os.path.join(world_extract_base_dir, world_name)
+                try:
+                    # Use the core world extraction function
+                    world.extract_world(
+                        world_file, target_world_dir
+                    )  # Raises AddonExtractError, FileOperationError
+                    logger.info(
+                        f"Successfully processed world file '{world_filename}' into '{target_world_dir}'."
+                    )
+                except Exception as e:  # Catch exceptions from world.extract_world
+                    logger.error(
+                        f"Failed to process world file '{world_filename}': {e}",
+                        exc_info=True,
+                    )
+                    raise FileOperationError(
+                        f"Failed to process world file '{world_filename}': {e}"
+                    ) from e
+
+        except FileOperationError as e:  # Catch error from get_world_name
+            logger.error(f"Cannot process .mcworld files: {e}", exc_info=True)
+            raise  # Re-raise the error
+
+    # Process any .mcpack files found
+    mcpack_files = glob.glob(os.path.join(temp_dir, "*.mcpack"))
+    if mcpack_files:
+        logger.info(f"Found {len(mcpack_files)} .mcpack file(s) in .mcaddon.")
+        for pack_file in mcpack_files:
+            pack_filename = os.path.basename(pack_file)
+            logger.info(f"Processing extracted pack file: '{pack_filename}'")
+            try:
+                # Delegate to the .mcpack processor
+                process_mcpack(pack_file, server_name, base_dir)
+            except Exception as e:  # Catch exceptions from process_mcpack
+                logger.error(
+                    f"Failed to process pack file '{pack_filename}': {e}", exc_info=True
+                )
+                # Re-raise to signal failure
+                raise FileOperationError(
+                    f"Failed to process pack file '{pack_filename}': {e}"
+                ) from e
+
+    if not mcworld_files and not mcpack_files:
+        logger.warning(
+            f"No .mcworld or .mcpack files found within the extracted .mcaddon contents in '{temp_dir}'."
+        )
 
 
-def _extract_manifest_info(temp_dir):
-    """Extracts information from manifest.json.
+def process_mcpack(pack_file: str, server_name: str, base_dir: str) -> None:
+    """
+    Processes an .mcpack file by extracting it and installing based on its manifest.
+
+    An .mcpack is a ZIP archive containing either a behavior pack or a resource pack.
+    Its type is determined by reading the 'manifest.json' file within it.
 
     Args:
-        temp_dir (str): Path to the temporary directory.
+        pack_file: Path to the .mcpack file.
+        server_name: The name of the target server.
+        base_dir: The base directory for servers.
+
+    Raises:
+        MissingArgumentError: If arguments are empty.
+        InvalidServerNameError: If the server name is invalid.
+        FileNotFoundError: If `pack_file` does not exist.
+        AddonExtractError: If `pack_file` is not a valid ZIP archive or manifest is invalid/missing.
+        FileOperationError: If file/directory operations fail during extraction or installation.
+    """
+    if not pack_file:
+        raise MissingArgumentError("mcpack file path cannot be empty.")
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
+
+    pack_filename = os.path.basename(pack_file)
+    logger.info(f"Processing .mcpack: '{pack_filename}' for server '{server_name}'.")
+
+    if not os.path.exists(pack_file):
+        raise FileNotFoundError(f"mcpack file not found: {pack_file}")
+
+    temp_dir = tempfile.mkdtemp(prefix=f"mcpack_{server_name}_")
+    logger.debug(f"Created temporary directory for extraction: {temp_dir}")
+
+    try:
+        # 1. Extract the .mcpack contents
+        try:
+            logger.info(f"Extracting '{pack_filename}' to temporary directory...")
+            with zipfile.ZipFile(pack_file, "r") as zip_ref:
+                zip_ref.extractall(temp_dir)
+            logger.debug(f"Successfully extracted '{pack_filename}'.")
+        except zipfile.BadZipFile as e:
+            logger.error(
+                f"Failed to extract '{pack_file}': Invalid or corrupted ZIP file. {e}",
+                exc_info=True,
+            )
+            raise AddonExtractError(
+                f"Invalid .mcpack file (not a zip): {pack_filename}"
+            ) from e
+        except OSError as e:
+            logger.error(
+                f"OS error during extraction of '{pack_file}': {e}", exc_info=True
+            )
+            raise FileOperationError(f"Error extracting '{pack_filename}': {e}") from e
+
+        # 2. Process the manifest and install the pack
+        _process_manifest_and_install(temp_dir, server_name, pack_file, base_dir)
+
+    finally:
+        # Ensure temporary directory is always cleaned up
+        if os.path.isdir(temp_dir):
+            try:
+                logger.debug(f"Cleaning up temporary directory: {temp_dir}")
+                shutil.rmtree(temp_dir)
+            except OSError as e:
+                logger.warning(
+                    f"Could not completely remove temporary directory '{temp_dir}': {e}",
+                    exc_info=True,
+                )
+
+
+def _process_manifest_and_install(
+    temp_dir: str, server_name: str, pack_file: str, base_dir: str
+) -> None:
+    """
+    Reads manifest.json from extracted pack, determines type, and installs it.
+
+    Args:
+        temp_dir: Path to the directory with extracted pack contents.
+        server_name: The name of the target server.
+        pack_file: Original path of the .mcpack file (used for logging).
+        base_dir: The base directory for servers.
+
+    Raises:
+        MissingArgumentError: If arguments are empty.
+        InvalidServerNameError: If the server name is invalid.
+        AddonExtractError: If manifest.json is missing, invalid, or lacks required info.
+        FileOperationError: If installation (copying files, updating JSON) fails.
+        InvalidAddonPackTypeError: If manifest specifies an unknown pack type.
+    """
+    if not temp_dir:
+        raise MissingArgumentError("Temporary directory path cannot be empty.")
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not pack_file:
+        raise MissingArgumentError("Original pack file path cannot be empty.")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
+
+    pack_filename = os.path.basename(pack_file)
+    logger.debug(
+        f"Processing manifest for pack from '{pack_filename}' in '{temp_dir}'."
+    )
+
+    try:
+        manifest_info = _extract_manifest_info(
+            temp_dir
+        )  # Raises AddonExtractError if issues
+        pack_type, uuid, version, addon_name_from_manifest = manifest_info
+        logger.info(
+            f"Manifest extracted: Type='{pack_type}', UUID='{uuid}', Version='{version}', Name='{addon_name_from_manifest}'"
+        )
+
+        install_pack(  # Raises FileOperationError, InvalidAddonPackTypeError
+            pack_type=pack_type,
+            extracted_pack_dir=temp_dir,  # Pass the source of extracted files
+            server_name=server_name,
+            pack_filename=pack_filename,  # Pass original filename for logging
+            base_dir=base_dir,
+            uuid=uuid,
+            version=version,
+            addon_name_from_manifest=addon_name_from_manifest,
+        )
+    except AddonExtractError as e:  # Catch manifest reading errors
+        logger.error(
+            f"Failed to process manifest for '{pack_filename}': {e}", exc_info=True
+        )
+        raise  # Re-raise specific error
+    except (
+        FileOperationError,
+        InvalidAddonPackTypeError,
+        InvalidServerNameError,
+    ) as e:  # Catch installation errors
+        logger.error(
+            f"Failed to install pack from '{pack_filename}': {e}", exc_info=True
+        )
+        raise  # Re-raise specific error
+    except Exception as e:  # Catch unexpected errors
+        logger.error(
+            f"Unexpected error processing manifest or installing pack '{pack_filename}': {e}",
+            exc_info=True,
+        )
+        raise FileOperationError(
+            f"Unexpected error processing pack '{pack_filename}': {e}"
+        ) from e
+
+
+def _extract_manifest_info(extracted_pack_dir: str) -> Tuple[str, str, list, str]:
+    """
+    Extracts key information (type, uuid, version, name) from manifest.json.
+
+    Args:
+        extracted_pack_dir: Path to the directory containing the extracted pack files,
+                            including manifest.json.
 
     Returns:
-        tuple: (pack_type, uuid, version, addon_name_from_manifest)
+        A tuple containing: (pack_type, uuid, version_list, addon_name).
 
     Raises:
-        MissingArgumentError: If temp_dir is empty.
-        FileOperationError: If manifest.json is missing, invalid, or data is missing.
+        MissingArgumentError: If `extracted_pack_dir` is empty.
+        AddonExtractError: If manifest.json is missing, not valid JSON, or lacks
+                           required header/module fields (uuid, version, name, type).
     """
-    manifest_file = os.path.join(temp_dir, "manifest.json")
-    logger.debug(f"Looking for manifest file at: {manifest_file}")
+    if not extracted_pack_dir:
+        raise MissingArgumentError("Extracted pack directory path cannot be empty.")
 
-    if not temp_dir:
-        raise MissingArgumentError("_extract_manifest_info: temp_dir is empty.")
-    if not os.path.exists(manifest_file):
-        logger.error(f"manifest.json not found in {temp_dir}")
-        raise FileOperationError(f"manifest.json not found in {temp_dir}")
+    manifest_file = os.path.join(extracted_pack_dir, "manifest.json")
+    logger.debug(f"Attempting to read manifest file: {manifest_file}")
+
+    if not os.path.isfile(manifest_file):
+        logger.error(
+            f"Manifest file 'manifest.json' not found in extracted directory: {extracted_pack_dir}"
+        )
+        raise AddonExtractError(f"Manifest not found in pack: {extracted_pack_dir}")
 
     try:
-        with open(manifest_file, "r") as f:
+        with open(manifest_file, "r", encoding="utf-8") as f:
             manifest_data = json.load(f)
-        logger.debug(f"Loaded manifest data: {manifest_data}")
+        logger.debug(f"Successfully loaded manifest JSON data.")
 
-        pack_type = manifest_data["modules"][0]["type"]
-        uuid = manifest_data["header"]["uuid"]
-        version = manifest_data["header"]["version"]
-        addon_name_from_manifest = manifest_data["header"]["name"]
+        # Validate and extract required fields carefully
+        if not isinstance(manifest_data, dict):
+            raise AddonExtractError("Manifest content is not a valid JSON object.")
+
+        header = manifest_data.get("header")
+        if not isinstance(header, dict):
+            raise AddonExtractError("Manifest missing or invalid 'header' object.")
+
+        uuid = header.get("uuid")
+        version = header.get("version")  # Should be a list [major, minor, patch]
+        addon_name = header.get("name")
+
+        modules = manifest_data.get("modules")
+        if not isinstance(modules, list) or not modules:
+            raise AddonExtractError("Manifest missing or invalid 'modules' array.")
+
+        # Assuming the type is defined in the first module
+        first_module = modules[0]
+        if not isinstance(first_module, dict):
+            raise AddonExtractError(
+                "First item in 'modules' array is not a valid object."
+            )
+        pack_type = first_module.get("type")
+
+        # Check if all required fields were found and have basic validity
+        if not all(
+            [
+                uuid,
+                isinstance(uuid, str),
+                version,
+                isinstance(version, list),
+                len(version) == 3,
+                addon_name,
+                isinstance(addon_name, str),
+                pack_type,
+                isinstance(pack_type, str),
+            ]
+        ):
+            missing = [
+                field
+                for field, value in [
+                    ("uuid", uuid),
+                    ("version", version),
+                    ("name", addon_name),
+                    ("type", pack_type),
+                ]
+                if not value or not isinstance(value, (str, list))  # Basic check
+            ]
+            logger.error(
+                f"Manifest file '{manifest_file}' is missing required fields or has invalid types: {missing}"
+            )
+            raise AddonExtractError(
+                f"Invalid manifest structure in {manifest_file}. Missing fields: {missing}"
+            )
+
+        # Clean/validate pack_type (e.g., lower case)
+        pack_type = pack_type.lower()
+        if pack_type not in ("data", "resources"):
+            logger.warning(f"Uncommon pack type found in manifest: '{pack_type}'.")
+            raise InvalidAddonPackTypeError(
+                f"Uncommon pack type found in manifest: '{pack_type}'. Proceeding, but may cause issues."
+            )
 
         logger.debug(
-            f"Extracted manifest info: type={pack_type}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+            f"Extracted manifest details: Type='{pack_type}', UUID='{uuid}', Version='{version}', Name='{addon_name}'"
         )
-        return pack_type, uuid, version, addon_name_from_manifest
-    except (OSError, json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error(f"Failed to extract info from manifest.json: {e}")
-        raise FileOperationError(
-            f"Failed to extract info from manifest.json: {e}"
+        return pack_type, uuid, version, addon_name
+
+    except json.JSONDecodeError as e:
+        logger.error(
+            f"Failed to parse manifest file '{manifest_file}' (Invalid JSON): {e}",
+            exc_info=True,
+        )
+        raise AddonExtractError(f"Invalid JSON in manifest: {manifest_file}") from e
+    except OSError as e:
+        logger.error(
+            f"Failed to read manifest file '{manifest_file}': {e}", exc_info=True
+        )
+        raise AddonExtractError(f"Cannot read manifest file: {manifest_file}") from e
+    except KeyError as e:
+        logger.error(
+            f"Manifest file '{manifest_file}' is missing expected key: {e}",
+            exc_info=True,
+        )
+        raise AddonExtractError(
+            f"Missing key '{e}' in manifest: {manifest_file}"
         ) from e
 
 
 def install_pack(
-    pack_type,
-    temp_dir,
-    server_name,
-    pack_file,
-    base_dir,
-    uuid,
-    version,
-    addon_name_from_manifest,
-):
-    """Installs a pack based on its type (data/resources).
+    pack_type: str,
+    extracted_pack_dir: str,
+    server_name: str,
+    pack_filename: str,
+    base_dir: str,
+    uuid: str,
+    version: List[int],
+    addon_name_from_manifest: str,
+) -> None:
+    """
+    Installs an extracted pack (behavior or resource) into the server's world directory.
+
+    Copies files from the temporary extraction directory to the appropriate
+    behavior_packs or resource_packs folder within the world, and updates the
+    corresponding world JSON file (world_behavior_packs.json or world_resource_packs.json).
 
     Args:
-        pack_type (str): "data" or "resources".
-        temp_dir (str): Path to the temporary directory.
-        server_name (str): The name of the server.
-        pack_file (str): Original path to the .mcpack file (for logging).
-        base_dir (str): The base directory for servers.
-        uuid (str): The UUID from the manifest.
-        version (list): The version array from the manifest.
-        addon_name_from_manifest (str): The addon name from the manifest.
+        pack_type: The type of pack ('data' for behavior, 'resources' for resource).
+        extracted_pack_dir: The temporary directory containing the extracted pack files.
+        server_name: The name of the target server.
+        pack_filename: The original filename of the .mcpack (for logging).
+        base_dir: The base directory containing all server installations.
+        uuid: The pack's UUID from its manifest.
+        version: The pack's version list (e.g., [1, 0, 0]) from its manifest.
+        addon_name_from_manifest: The pack's name from its manifest.
 
     Raises:
-        MissingArgumentError: If required arguments are empty/missing.
-        InvalidServerNameError: If the server name is invalid
-        FileOperationError: If world name is invalid or file operations fail
-        InvalidAddonPackTypeError: If the pack_type is invalid.
+        MissingArgumentError: If required arguments are empty.
+        InvalidServerNameError: If the server name is invalid.
+        FileOperationError: If determining the world name fails, or if copying files
+                            or updating the world pack JSON fails.
+        InvalidAddonPackTypeError: If `pack_type` is not 'data' or 'resources'.
     """
+    # Validate essential arguments
     if not pack_type:
-        raise MissingArgumentError("install_pack: type is empty.")
-    if not temp_dir:
-        raise MissingArgumentError("install_pack: temp_dir is empty.")
+        raise MissingArgumentError("Pack type cannot be empty.")
+    if not extracted_pack_dir:
+        raise MissingArgumentError("Extracted pack directory cannot be empty.")
     if not server_name:
-        raise InvalidServerNameError("install_pack: server_name is empty.")
-    if not pack_file:
-        raise MissingArgumentError("install_pack: pack_file is empty.")
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not pack_filename:
+        raise MissingArgumentError("Pack filename cannot be empty (for logging).")
+    if not base_dir:
+        raise MissingArgumentError("Base directory cannot be empty.")
+    if not uuid:
+        raise MissingArgumentError("Pack UUID cannot be empty.")
+    if not version or not isinstance(version, list):
+        raise MissingArgumentError("Pack version (list) cannot be empty.")
+    if not addon_name_from_manifest:
+        raise MissingArgumentError("Addon name from manifest cannot be empty.")
 
     logger.debug(
-        f"Installing pack: type={pack_type}, server={server_name}, file={pack_file}, uuid={uuid}, version={version}, name={addon_name_from_manifest}"
+        f"Preparing to install pack '{addon_name_from_manifest}' (Type: {pack_type}, UUID: {uuid}) from '{pack_filename}' into server '{server_name}'."
     )
 
+    # 1. Determine world name and paths
     try:
-        world_name = server.get_world_name(server_name, base_dir)
-        if not world_name:
-            logger.error("Could not find level-name in server.properties")
-            raise FileOperationError("Could not find level-name in server.properties")
-    except Exception as e:
-        logger.error(f"Error getting world name: {e}")
-        raise FileOperationError(f"Error getting world name: {e}") from e
+        world_name = server.get_world_name(
+            server_name, base_dir
+        )  # Raises FileOperationError
+        if not world_name:  # Should be caught by get_world_name
+            raise FileOperationError(
+                f"Could not determine world name for server '{server_name}'."
+            )
+        logger.debug(f"Target world name determined: '{world_name}'.")
 
-    behavior_dir = os.path.join(
-        base_dir, server_name, "worlds", world_name, "behavior_packs"
-    )
-    resource_dir = os.path.join(
-        base_dir, server_name, "worlds", world_name, "resource_packs"
-    )
-    behavior_json = os.path.join(
-        base_dir, server_name, "worlds", world_name, "world_behavior_packs.json"
-    )
-    resource_json = os.path.join(
-        base_dir, server_name, "worlds", world_name, "world_resource_packs.json"
-    )
-    logger.debug(f"Behavior dir: {behavior_dir}")
-    logger.debug(f"Resource dir: {resource_dir}")
-    logger.debug(f"Behavior JSON: {behavior_json}")
-    logger.debug(f"Resource JSON: {resource_json}")
+        world_dir = os.path.join(base_dir, server_name, "worlds", world_name)
+        behavior_packs_base_dir = os.path.join(world_dir, "behavior_packs")
+        resource_packs_base_dir = os.path.join(world_dir, "resource_packs")
+        behavior_json_path = os.path.join(world_dir, "world_behavior_packs.json")
+        resource_json_path = os.path.join(world_dir, "world_resource_packs.json")
 
-    # Create directories if they don't exist
-    os.makedirs(behavior_dir, exist_ok=True)
-    logger.debug(f"Created directory: {behavior_dir}")
-    os.makedirs(resource_dir, exist_ok=True)
-    logger.debug(f"Created directory: {resource_dir}")
+        # Ensure base pack directories exist within the world
+        os.makedirs(behavior_packs_base_dir, exist_ok=True)
+        os.makedirs(resource_packs_base_dir, exist_ok=True)
+
+    except FileOperationError as e:
+        logger.error(
+            f"Failed to determine world name or paths for server '{server_name}': {e}",
+            exc_info=True,
+        )
+        raise  # Re-raise error related to getting world info
+    except OSError as e:
+        logger.error(
+            f"Failed to create base pack directories in world '{world_name}': {e}",
+            exc_info=True,
+        )
+        raise FileOperationError(
+            f"Failed to create pack directories in world '{world_name}': {e}"
+        ) from e
+
+    # 2. Determine target installation directory and JSON file based on pack type
+    # Create a version string for the directory name, e.g., "1.0.0"
+    version_str = ".".join(map(str, version))
+    # Sanitize addon name for directory usage (replace invalid chars) - basic example
+    safe_addon_name = re.sub(r'[<>:"/\\|?*]', "_", addon_name_from_manifest)
+    target_addon_dir_name = f"{safe_addon_name}_{version_str}"
 
     if pack_type == "data":
-        logger.info(f"Installing behavior pack to {server_name}")
-        addon_behavior_dir = os.path.join(
-            behavior_dir, f"{addon_name_from_manifest}_{'.'.join(map(str, version))}"
+        target_install_dir = os.path.join(
+            behavior_packs_base_dir, target_addon_dir_name
         )
-        os.makedirs(addon_behavior_dir, exist_ok=True)
-        logger.debug(f"Created directory: {addon_behavior_dir}")
-        try:
-            # Copy all files from temp_dir to addon_behavior_dir
-            for item in os.listdir(temp_dir):
-                s = os.path.join(temp_dir, item)
-                d = os.path.join(addon_behavior_dir, item)
-                if os.path.isdir(s):
-                    shutil.copytree(s, d, dirs_exist_ok=True)
-                    logger.debug(f"Copied directory: {s} to {d}")
-                else:
-                    shutil.copy2(s, d)
-                    logger.debug(f"Copied file: {s} to {d}")
-            _update_pack_json(behavior_json, uuid, version)
-            logger.info(f"Installed {os.path.basename(pack_file)} to {server_name}.")
-        except OSError as e:
-            logger.error(f"Failed to copy behavior pack files: {e}")
-            raise FileOperationError(f"Failed to copy behavior pack files: {e}") from e
-
+        target_json_file = behavior_json_path
+        pack_type_friendly = "behavior"
     elif pack_type == "resources":
-        logger.info(f"Installing resource pack to {server_name}")
-        addon_resource_dir = os.path.join(
-            resource_dir, f"{addon_name_from_manifest}_{'.'.join(map(str, version))}"
+        target_install_dir = os.path.join(
+            resource_packs_base_dir, target_addon_dir_name
         )
-        os.makedirs(addon_resource_dir, exist_ok=True)
-        logger.debug(f"Created directory: {addon_resource_dir}")
-        try:
-            # Copy all files from temp_dir to addon_resource_dir
-            for item in os.listdir(temp_dir):
-                s = os.path.join(temp_dir, item)
-                d = os.path.join(addon_resource_dir, item)
-                if os.path.isdir(s):
-                    shutil.copytree(s, d, dirs_exist_ok=True)
-                    logger.debug(f"Copied directory: {s} to {d}")
-                else:
-                    shutil.copy2(s, d)
-                    logger.debug(f"Copied file: {s} to {d}")
-            _update_pack_json(resource_json, uuid, version)
-            logger.info(f"Installed {os.path.basename(pack_file)} to {server_name}.")
-        except OSError as e:
-            logger.error(f"Failed to copy resource pack files: {e}")
-            raise FileOperationError(f"Failed to copy resource pack files: {e}") from e
+        target_json_file = resource_json_path
+        pack_type_friendly = "resource"
     else:
-        logger.error(f"Unknown pack type: {pack_type}")
-        raise InvalidAddonPackTypeError(f"Unknown pack type: {pack_type}")
+        logger.error(f"Unknown pack type specified for installation: '{pack_type}'")
+        raise InvalidAddonPackTypeError(
+            f"Cannot install unknown pack type: '{pack_type}'"
+        )
+
+    logger.info(
+        f"Installing {pack_type_friendly} pack '{addon_name_from_manifest}' v{version_str} into: {target_install_dir}"
+    )
+
+    # 3. Copy extracted files to target directory
+    try:
+        # Remove existing target directory first to ensure clean install/update
+        if os.path.isdir(target_install_dir):
+            logger.debug(f"Removing existing target directory: {target_install_dir}")
+            shutil.rmtree(target_install_dir)
+
+        # Copy contents using copytree
+        shutil.copytree(
+            extracted_pack_dir, target_install_dir, dirs_exist_ok=False
+        )  # Ensure target doesn't exist before copy
+        logger.debug(
+            f"Successfully copied pack contents from '{extracted_pack_dir}' to '{target_install_dir}'."
+        )
+
+    except OSError as e:
+        logger.error(
+            f"Failed to copy {pack_type_friendly} pack files to '{target_install_dir}': {e}",
+            exc_info=True,
+        )
+        raise FileOperationError(
+            f"Failed to copy {pack_type_friendly} pack files: {e}"
+        ) from e
+
+    # 4. Update the corresponding world JSON file
+    try:
+        _update_world_pack_json(target_json_file, uuid, version)
+        logger.info(
+            f"Successfully installed and activated {pack_type_friendly} pack '{addon_name_from_manifest}' v{version_str} for server '{server_name}'."
+        )
+    except (MissingArgumentError, FileOperationError) as e:
+        logger.error(
+            f"Pack files copied, but failed to update world JSON '{target_json_file}': {e}",
+            exc_info=True,
+        )
+        # Raise the error, as activation failed
+        raise FileOperationError(
+            f"Failed to update world activation JSON '{os.path.basename(target_json_file)}': {e}"
+        ) from e
 
 
-def _update_pack_json(json_file, pack_id, version):
-    """Updates the world_behavior_packs.json or world_resource_packs.json file.
+def _update_world_pack_json(
+    json_file_path: str, pack_uuid: str, pack_version: List[int]
+) -> None:
+    """
+    Updates a world's pack list JSON file (behavior or resource) with a pack entry.
+
+    Adds the pack if it doesn't exist or updates the version if a newer one is provided.
 
     Args:
-        json_file (str): Path to the JSON file.
-        pack_id (str): The pack UUID.
-        version (list): The pack version as a list (e.g., [1, 2, 3]).
+        json_file_path: Full path to the world_behavior_packs.json or world_resource_packs.json.
+        pack_uuid: The UUID of the pack to add/update.
+        pack_version: The version list (e.g., [1, 0, 0]) of the pack.
+
     Raises:
-        MissingArgumentError: If json_file, pack_id, or version is empty.
-        FileOperationError: If there's an error reading or writing the JSON file.
+        MissingArgumentError: If arguments are empty.
+        FileOperationError: If reading/writing the JSON file fails or JSON is invalid.
     """
-    logger.debug(f"Updating {os.path.basename(json_file)}.")
+    if not json_file_path:
+        raise MissingArgumentError("JSON file path cannot be empty.")
+    if not pack_uuid:
+        raise MissingArgumentError("Pack UUID cannot be empty.")
+    if not pack_version or not isinstance(pack_version, list):
+        raise MissingArgumentError("Pack version (list) cannot be empty.")
 
-    if not json_file:
-        raise MissingArgumentError("_update_pack_json: json_file is empty.")
-    if not pack_id:
-        raise MissingArgumentError("_update_pack_json: pack_id is empty.")
-    if not version:
-        raise MissingArgumentError("_update_pack_json: version is empty.")
+    json_filename = os.path.basename(json_file_path)
+    logger.debug(
+        f"Updating world pack JSON file: '{json_filename}' with UUID: {pack_uuid}, Version: {pack_version}"
+    )
 
-    if not os.path.exists(json_file):
-        try:
-            with open(json_file, "w") as f:
-                json.dump([], f)  # Create empty JSON array
-            logger.debug(f"Created empty JSON file: {json_file}")
-        except OSError as e:
-            logger.error(f"Failed to initialize JSON file: {json_file}: {e}")
-            raise FileOperationError(
-                f"Failed to initialize JSON file: {json_file}: {e}"
-            ) from e
-
+    packs = []
+    # 1. Load existing JSON data, handling file not found or invalid JSON
     try:
-        with open(json_file, "r") as f:
-            try:
-                packs = json.load(f)
-            except json.JSONDecodeError:
-                logger.warning(
-                    f"Failed to parse JSON in {json_file}.  Creating a new file"
-                )
-                packs = []
-        logger.debug(f"Loaded existing packs from {json_file}: {packs}")
+        if os.path.exists(json_file_path):
+            with open(json_file_path, "r", encoding="utf-8") as f:
+                try:
+                    content = f.read()
+                    # Handle empty file case
+                    if not content.strip():
+                        logger.debug(
+                            f"JSON file '{json_filename}' is empty. Initializing as empty list."
+                        )
+                        packs = []
+                    else:
+                        packs = json.loads(content)
+                        # Basic validation: should be a list
+                        if not isinstance(packs, list):
+                            logger.warning(
+                                f"JSON file '{json_filename}' does not contain a list. Overwriting with new structure."
+                            )
+                            packs = []
+                        else:
+                            logger.debug(
+                                f"Loaded {len(packs)} existing pack entries from '{json_filename}'."
+                            )
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        f"Failed to parse JSON in '{json_filename}'. File will be overwritten. Error: {e}",
+                        exc_info=True,
+                    )
+                    packs = []  # Reset to empty list if parsing fails
+        else:
+            logger.debug(
+                f"JSON file '{json_filename}' not found. Will create new file with the pack entry."
+            )
+            packs = []  # Initialize empty list
 
-        pack_exists = False
-        for i, pack in enumerate(packs):
-            if pack["pack_id"] == pack_id:
-                pack_exists = True
-                pack_version = tuple(pack["version"])
-                input_version = tuple(version)
-                if input_version > pack_version:
-                    packs[i] = {"pack_id": pack_id, "version": version}
-                    logger.info(f"Updated existing pack entry in {json_file}")
-                break
+    except OSError as e:
+        logger.error(f"Failed to read JSON file '{json_filename}': {e}", exc_info=True)
+        raise FileOperationError(
+            f"Failed to read world pack JSON: {json_filename}"
+        ) from e
 
-        if not pack_exists:
-            packs.append({"pack_id": pack_id, "version": version})
-            logger.debug(f"Added new pack entry to {json_file}")
+    # 2. Update or add the pack entry
+    pack_found = False
+    input_version_tuple = tuple(pack_version)  # Convert list to tuple for comparison
 
-        with open(json_file, "w") as f:
-            json.dump(packs, f, indent=4)
-        logger.debug(f"Updated {json_file} with: {packs}")
+    for i, existing_pack in enumerate(packs):
+        # Ensure existing entry is valid before accessing keys
+        if isinstance(existing_pack, dict) and "pack_id" in existing_pack:
+            if existing_pack["pack_id"] == pack_uuid:
+                pack_found = True
+                # Compare versions if existing entry has a valid version list
+                existing_version = existing_pack.get("version")
+                if isinstance(existing_version, list):
+                    existing_version_tuple = tuple(existing_version)
+                    if (
+                        input_version_tuple >= existing_version_tuple
+                    ):  # Update if same or newer
+                        if input_version_tuple > existing_version_tuple:
+                            logger.info(
+                                f"Updating existing pack '{pack_uuid}' in '{json_filename}' from version {existing_version} to {pack_version}."
+                            )
+                        else:
+                            logger.debug(
+                                f"Pack '{pack_uuid}' version {pack_version} already exists in '{json_filename}'. Ensuring entry is correct."
+                            )
+                        packs[i] = {"pack_id": pack_uuid, "version": pack_version}
+                    else:
+                        # Input version is older, don't downgrade
+                        logger.warning(
+                            f"Skipping update for pack '{pack_uuid}' in '{json_filename}'. Existing version {existing_version} is newer than input {pack_version}."
+                        )
+                else:
+                    # Existing entry has invalid version, overwrite it
+                    logger.warning(
+                        f"Existing entry for pack '{pack_uuid}' in '{json_filename}' has invalid version '{existing_version}'. Overwriting."
+                    )
+                    packs[i] = {"pack_id": pack_uuid, "version": pack_version}
+                break  # Stop searching once found
+        else:
+            logger.warning(
+                f"Skipping invalid entry in '{json_filename}': {existing_pack}"
+            )
 
-    except (OSError, TypeError) as e:
-        logger.error(f"Failed to update {json_file}: {e}")
-        raise FileOperationError(f"Failed to update {json_file}: {e}") from e
+    if not pack_found:
+        logger.info(
+            f"Adding new pack entry for UUID '{pack_uuid}', Version: {pack_version} to '{json_filename}'."
+        )
+        packs.append({"pack_id": pack_uuid, "version": pack_version})
+
+    # 3. Write the updated list back to the JSON file
+    try:
+        # Ensure parent directory exists (should already, but safeguard)
+        os.makedirs(os.path.dirname(json_file_path), exist_ok=True)
+        with open(json_file_path, "w", encoding="utf-8") as f:
+            json.dump(
+                packs, f, indent=4, sort_keys=True
+            )  # Use indent and sort for readability
+        logger.debug(f"Successfully wrote updated pack list to '{json_filename}'.")
+    except OSError as e:
+        logger.error(
+            f"Failed to write updated JSON to '{json_filename}': {e}", exc_info=True
+        )
+        raise FileOperationError(
+            f"Failed to write world pack JSON: {json_filename}"
+        ) from e

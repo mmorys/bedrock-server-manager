@@ -81,6 +81,7 @@ SPLASH_TEXTS_MINECRAFT = [
 SPLASH_TEXTS_OPENSOURCE = [
     "Open Source Power!",
     "MIT Licenced.",
+    "Star the Github Project!",
 ]
 
 # --- Miscellaneous ---

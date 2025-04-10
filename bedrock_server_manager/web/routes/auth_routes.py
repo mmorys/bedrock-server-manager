@@ -1,16 +1,20 @@
 # bedrock-server-manager/bedrock_server_manager/web/routes/auth_routes.py
-import os
+"""
+Flask Blueprint for handling user authentication.
+
+Provides routes for:
+- Web UI login (session-based) using Flask-WTF forms.
+- API login (JWT-based) expecting JSON credentials.
+- User logout (clears session).
+Includes a decorator `login_required` specifically for protecting views requiring
+a valid web session.
+"""
+
 import functools
 import logging
-import secrets
-from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
-from flask_jwt_extended import JWTManager
-from werkzeug.security import check_password_hash
-from flask_jwt_extended import create_access_token
-from wtforms.validators import DataRequired, Length
-from wtforms import StringField, PasswordField, SubmitField
-from bedrock_server_manager.config.settings import env_name, app_name
+from typing import Callable
+
+# Third-party imports
 from flask import (
     Blueprint,
     render_template,
@@ -21,216 +25,308 @@ from flask import (
     flash,
     current_app,
     jsonify,
-    abort,
+    Response,
+)
+
+from werkzeug.security import check_password_hash
+from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Length
+from flask_jwt_extended import create_access_token, JWTManager
+
+# Local imports
+from bedrock_server_manager.config.settings import (
+    env_name,
+    app_name,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
 
-auth_bp = Blueprint("auth", __name__)
+# --- Blueprint and Extension Setup ---
+# Blueprint for authentication routes
+auth_bp = Blueprint(
+    "auth",
+    __name__,
+    template_folder="../templates",
+    static_folder="../static",
+)
 
+# Initialize extensions (these instances are configured in app.py)
 csrf = CSRFProtect()
 jwt = JWTManager()
 
 
+# --- Forms ---
 class LoginForm(FlaskForm):
-    """Login form using Flask-WTF."""
+    """Login form definition using Flask-WTF."""
 
     username = StringField(
         "Username",
         validators=[
             DataRequired(message="Username is required."),
-            Length(min=1, max=80),
+            Length(
+                min=1, max=80, message="Username length invalid."
+            ),  # Example length validation
         ],
     )
     password = PasswordField(
         "Password", validators=[DataRequired(message="Password is required.")]
     )
-    submit = SubmitField("Login")
+    submit = SubmitField("Log In")  # Changed button text slightly
 
 
-# --- Helper Function / Decorator for Route Protection ---
-def login_required(view):
+# --- Decorator for Session-Based Authentication ---
+def login_required(view: Callable) -> Callable:
     """
-    Decorator that checks for a valid WEB SESSION.
-    Redirects browser users to login if not authenticated via session.
-    Returns 401 for non-browser requests trying to access session-protected routes.
-    *** THIS DECORATOR DOES NOT VALIDATE JWT TOKENS ***
+    Decorator enforcing authentication via Flask web session ONLY.
+
+    - If `session['logged_in']` is True, allows the request to proceed.
+    - If not logged in via session:
+        - Browser clients (Accept: text/html) are redirected to the login page.
+        - API/non-browser clients receive a 401 Unauthorized JSON error.
+
+    *** IMPORTANT: This decorator DOES NOT check for JWT tokens. ***
+    Use the `auth_required` decorator from `auth_decorators.py` for routes
+    that should accept either session OR JWT authentication.
+
+    Args:
+        view: The view function to protect.
+
+    Returns:
+        The decorated view function with session authentication check.
     """
 
     @functools.wraps(view)
-    def wrapped_view(**kwargs):
-        # 1. Check for active web session ONLY
-        if "logged_in" in session:
-            # logger.debug(f"Session check passed for user '{session.get('username', 'unknown')}' for path '{request.path}'")
-            return view(**kwargs)  # User is logged in via browser session
-
-        # Session not found, determine response type
-        best = request.accept_mimetypes.best_match(["application/json", "text/html"])
-        is_browser_like = (
-            best == "text/html"
-            and request.accept_mimetypes[best]
-            > request.accept_mimetypes["application/json"]
-        )
-        # logger.debug(f"Session authentication failed for path '{request.path}'. Browser-like client: {is_browser_like}")
-
-        if is_browser_like:
-            # It's likely a browser, redirect to login page
-            logger.warning(
-                f"Unauthenticated browser access to session-protected route {request.path} from {request.remote_addr}. Redirecting to login."
-            )
-            flash("Please log in to access this page.", "warning")
-            return redirect(url_for("auth.login", next=request.url))
+    def wrapped_view(*args, **kwargs) -> Response:
+        # Check only for the presence and truthiness of 'logged_in' in the session
+        if session.get("logged_in"):
+            # Session exists and user is marked as logged in
+            # logger.debug(f"Session authentication successful for path: {request.path}") # Can be noisy
+            return view(*args, **kwargs)
         else:
-            # It's likely an API client hitting a BROWSER route, return 401
+            # No valid session found
             logger.warning(
-                f"Unauthenticated API/non-browser access to session-protected route {request.path} from {request.remote_addr}. Responding with 401."
+                f"Session authentication failed for path '{request.path}' from {request.remote_addr}."
             )
-            return (
-                jsonify(
-                    error="Unauthorized",
-                    message="Authentication required. This endpoint requires a valid web session.",
-                ),
-                401,
+
+            # Determine client type for appropriate response
+            best_match = request.accept_mimetypes.best_match(
+                ["application/json", "text/html"]
             )
+            prefers_html = (
+                best_match == "text/html"
+                and request.accept_mimetypes[best_match]
+                > request.accept_mimetypes["application/json"]
+            )
+
+            if prefers_html:
+                # Redirect browser to login page
+                flash("Please log in to access this page.", "warning")
+                login_url = url_for("auth.login", next=request.url)  # Pass original URL
+                logger.debug(f"Redirecting browser to login: {login_url}")
+                return redirect(login_url)
+            else:
+                # Return JSON error for non-browser clients
+                logger.debug("Returning 401 JSON response for non-browser client.")
+                return (
+                    jsonify(
+                        error="Unauthorized",
+                        message="Valid web session required for this endpoint.",
+                    ),
+                    401,
+                )
 
     return wrapped_view
 
 
-# --- Login Route ---
+# --- Web UI Login Route ---
 @auth_bp.route("/login", methods=["GET", "POST"])
-def login():
-    """Handles user login using Flask-WTF Form."""
-    if "logged_in" in session:
+def login() -> Response:
+    """
+    Handles user login for the web UI using username/password form (session-based).
+
+    - GET: Displays the login form.
+    - POST: Validates form data, checks credentials against configured environment
+            variables, sets session variables on success, and redirects. Shows
+            errors on failure.
+    """
+    # If user is already logged in via session, redirect to index
+    if session.get("logged_in"):
+        logger.debug("User already logged in via session, redirecting to index.")
         return redirect(url_for("main_routes.index"))
 
-    # --- Instantiate the form ---
     form = LoginForm()
-    logger.debug(f"LoginForm instantiated for request method: {request.method}")
+    logger.debug(f"Login route accessed: Method='{request.method}'")
 
-    # --- Use form.validate_on_submit() ---
+    # validate_on_submit() checks if it's a POST request and if form data is valid
     if form.validate_on_submit():
-        # --- Form submitted and validated ---
-        username_attempt = form.username.data  # Access data via form object
+        # Form was submitted via POST and passed WTForms validation
+        username_attempt = form.username.data
         password_attempt = form.password.data
         logger.info(
-            f"Login attempt (validated) for username: '{username_attempt}' from {request.remote_addr}"
+            f"Web login attempt for username '{username_attempt}' from {request.remote_addr}"
         )
 
-        # Get credentials from app config
-        expected_username_env = f"{env_name}_USERNAME"
-        stored_password_hash_env = f"{env_name}_PASSWORD"
-        expected_username = current_app.config.get(expected_username_env)
-        stored_password_hash = current_app.config.get(stored_password_hash_env)
+        # Retrieve configured credentials securely
+        username_env = f"{env_name}_USERNAME"
+        password_env = f"{env_name}_PASSWORD"
+        expected_username = current_app.config.get(username_env)
+        stored_password_hash = current_app.config.get(
+            password_env
+        )  # This should be a hash
 
-        # --- VALIDATION (Server-side config check) ---
+        # --- Validate Server Configuration ---
         if not expected_username or not stored_password_hash:
-            # Log error as before
-            logger.error(
-                f"{expected_username_env} or {stored_password_hash_env} not set correctly!"
+            error_msg = f"Server authentication configuration error: '{username_env}' or '{password_env}' not set."
+            logger.critical(error_msg)  # Critical failure if auth env vars missing
+            flash(
+                "Login failed due to server configuration issue. Please contact the administrator.",
+                "danger",
             )
-            # Flash message is good, but form validation might already show required field errors
-            flash("Application authentication is not configured correctly.", "danger")
-            # Render the template again, passing the form to show errors
+            # Return 500 status code as it's a server-side problem
             return render_template("login.html", app_name=app_name, form=form), 500
 
-        # --- Check Credentials using Hashing ---
-        if username_attempt == expected_username and check_password_hash(
-            stored_password_hash, password_attempt
-        ):
+        # --- Validate Credentials ---
+        # Compare submitted username and check hashed password
+        # Ensure stored_password_hash is actually a hash, otherwise check_password_hash might error
+        try:
+            is_valid_password = check_password_hash(
+                stored_password_hash, password_attempt
+            )
+        except Exception as hash_err:
+            logger.error(
+                f"Error during password hash check (is '{password_env}' correctly hashed?): {hash_err}",
+                exc_info=True,
+            )
+            is_valid_password = False  # Treat hash errors as invalid password
+
+        if username_attempt == expected_username and is_valid_password:
             # --- Login Success ---
             session["logged_in"] = True
             session["username"] = username_attempt
+            # session.permanent = True # Optionally make session permanent (cookie expiration)
             logger.info(
-                f"User '{username_attempt}' logged in successfully from {request.remote_addr}."
+                f"Web login successful for user '{username_attempt}' from {request.remote_addr}."
             )
             flash("You were successfully logged in!", "success")
+            # Redirect to the originally requested page ('next') or default to index
             next_url = request.args.get("next") or url_for("main_routes.index")
             logger.debug(f"Redirecting logged in user to: {next_url}")
             return redirect(next_url)
         else:
             # --- Login Failure ---
             logger.warning(
-                f"Invalid login attempt for username: '{username_attempt}' from {request.remote_addr}."
+                f"Invalid web login attempt for username '{username_attempt}' from {request.remote_addr}."
             )
-            flash("Invalid username or password.", "danger")
-            # Render the template again, passing the form (validation might add errors)
+            flash("Invalid username or password provided.", "danger")
+            # Re-render login form, WTForms errors (if any) are implicitly passed via form object
+            # Return 401 Unauthorized status code
             return render_template("login.html", app_name=app_name, form=form), 401
 
-    # --- GET request OR POST request with validation errors ---
-    # Pass the form object to the template context
+    # --- GET Request or Failed POST Validation ---
+    # If it's a GET request, or if form.validate_on_submit() returned False (e.g., missing fields)
+    # WTForms validation errors are automatically available in the template via `form.errors`.
     logger.debug(
-        f"Rendering login page for GET request or failed validation from {request.remote_addr}"
+        f"Rendering login page (GET request or failed POST validation) from {request.remote_addr}"
     )
-    # Any validation errors from a failed POST will be in 'form.errors'
     return render_template("login.html", app_name=app_name, form=form)
 
 
+# --- API Login Route ---
 @auth_bp.route("/api/login", methods=["POST"])
-@csrf.exempt
-def api_login():
-    """API endpoint to authenticate and receive a JWT access token."""
-    logger.debug(f"Received request for /api/login from {request.remote_addr}")
+@csrf.exempt  # Exempt API login from CSRF protection (uses JWT instead)
+def api_login() -> Response:
+    """
+    Handles API user login using username/password in JSON request body.
 
-    # Expect credentials in JSON body
+    Validates credentials against configured environment variables and returns
+    a JWT access token on success.
+
+    Expected JSON Body:
+    {
+        "username": "your_username",
+        "password": "your_password"
+    }
+
+    Returns:
+        - 200 OK with {"access_token": "..."} on success.
+        - 400 Bad Request if JSON body is missing or lacks credentials.
+        - 401 Unauthorized if credentials are invalid.
+        - 500 Internal Server Error if server auth config is missing.
+    """
+    logger.debug(
+        f"API login request received for /api/login from {request.remote_addr}"
+    )
+
     if not request.is_json:
-        logger.warning("API login attempt failed: Request missing JSON body.")
-        return jsonify({"msg": "Missing JSON in request"}), 400
+        logger.warning(
+            f"API login failed from {request.remote_addr}: Request body is not JSON."
+        )
+        return jsonify(message="Request must be JSON"), 400
 
-    username_attempt = request.json.get("username", None)
-    password_attempt = request.json.get("password", None)
+    data = request.get_json()
+    username_attempt = data.get("username")
+    password_attempt = data.get("password")
 
     if not username_attempt or not password_attempt:
         logger.warning(
-            f"API login attempt failed: Missing username or password in JSON body."
+            f"API login failed from {request.remote_addr}: Missing 'username' or 'password' in JSON body."
         )
-        return jsonify({"msg": "Missing username or password parameter"}), 400
+        return jsonify(message="Missing username or password parameter"), 400
 
     logger.info(
-        f"API login attempt for username: '{username_attempt}' from {request.remote_addr}"
+        f"API login attempt for username '{username_attempt}' from {request.remote_addr}"
     )
 
-    # Get configured credentials from app config (same as web login)
-    expected_username_env = f"{env_name}_USERNAME"
-    stored_password_hash_env = f"{env_name}_PASSWORD"
-    expected_username = current_app.config.get(expected_username_env)
-    stored_password_hash = current_app.config.get(stored_password_hash_env)
+    # Retrieve configured credentials (same as web login)
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
+    expected_username = current_app.config.get(username_env)
+    stored_password_hash = current_app.config.get(password_env)
 
-    # --- Validate Server Config (same check as web login) ---
+    # --- Validate Server Configuration ---
     if not expected_username or not stored_password_hash:
-        logger.error(
-            f"API login failed: {expected_username_env} or {stored_password_hash_env} not set correctly!"
-        )
-        # Avoid overly specific errors to client
-        return jsonify({"msg": "Server authentication configuration error."}), 500
+        error_msg = f"Server authentication configuration error: '{username_env}' or '{password_env}' not set."
+        logger.critical(error_msg)  # Critical failure
+        return jsonify(message="Server configuration error prevents login."), 500
 
-    # --- Check Credentials using Hashing (same check as web login) ---
-    if username_attempt == expected_username and check_password_hash(
-        stored_password_hash, password_attempt
-    ):
-        # --- Credentials are valid: Generate the JWT ---
-        # The 'identity' is stored in the token. It can be the username, user ID, etc.
-        # It must be JSON serializable. Username is fine here.
+    # --- Validate Credentials ---
+    try:
+        is_valid_password = check_password_hash(stored_password_hash, password_attempt)
+    except Exception as hash_err:
+        logger.error(f"Error during API password hash check: {hash_err}", exc_info=True)
+        is_valid_password = False
+
+    if username_attempt == expected_username and is_valid_password:
+        # --- Login Success: Create JWT ---
+        # Identity can be username or any unique identifier
         access_token = create_access_token(identity=username_attempt)
         logger.info(
-            f"JWT created successfully for API user '{username_attempt}' from {request.remote_addr}"
+            f"API login successful for user '{username_attempt}' from {request.remote_addr}. JWT issued."
         )
-        # Return the token to the client
-        return jsonify(access_token=access_token), 200  # OK status
+        return jsonify(access_token=access_token), 200
     else:
-        # --- Invalid Credentials ---
+        # --- Login Failure ---
         logger.warning(
-            f"Invalid API login attempt for username: '{username_attempt}' from {request.remote_addr}."
+            f"Invalid API login attempt for username '{username_attempt}' from {request.remote_addr}."
         )
-        return jsonify({"msg": "Bad username or password"}), 401  # Unauthorized status
+        return jsonify(message="Bad username or password"), 401
 
 
 # --- Logout Route ---
 @auth_bp.route("/logout")
-def logout():
-    """Logs the user out."""
-    username = session.get("username", "Unknown user")  # Get username before popping
+@login_required  # Requires user to be logged in via session to log out
+def logout() -> Response:
+    """Logs the user out by clearing the Flask session."""
+    username = session.get(
+        "username", "Unknown user"
+    )  # Get username for logging before clearing
+    # Clear specific session keys related to login state
     session.pop("logged_in", None)
     session.pop("username", None)
+    # session.clear() # Alternative: Clears the entire session
+
     logger.info(f"User '{username}' logged out from {request.remote_addr}.")
-    flash("You have been logged out.", "info")
-    return redirect(url_for("auth.login"))
+    flash("You have been successfully logged out.", "info")
+    return redirect(url_for("auth.login"))  # Redirect to login page after logout
