@@ -29,7 +29,6 @@ except ImportError:
 
 
 # Local imports
-from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api import (
     backup_restore as backup_restore_api,
 )
