@@ -282,9 +282,7 @@ def attach_console(server_name: str) -> None:
         logger.debug(
             f"Calling API: api_utils.attach_to_screen_session for '{server_name}'"
         )
-        response = api_utils.attach_to_screen_session(
-            server_name
-        )  # Returns dict
+        response = api_utils.attach_to_screen_session(server_name)  # Returns dict
         logger.debug(f"API response from attach_to_screen_session: {response}")
 
         # --- User Interaction: Print Result ---

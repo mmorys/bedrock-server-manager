@@ -743,9 +743,7 @@ def main() -> None:
             "restart-server": lambda args: cli_server.restart_server(
                 args.server, base_dir, args.send_message
             ),
-            "attach-console": lambda args: cli_utils.attach_console(
-                args.server, base_dir
-            ),
+            "attach-console": lambda args: cli_utils.attach_console(args.server),
             "delete-server": lambda args: cli_server.delete_server(
                 args.server, base_dir, config_dir, skip_confirmation=args.yes
             ),

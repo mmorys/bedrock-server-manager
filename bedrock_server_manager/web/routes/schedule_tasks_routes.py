@@ -965,9 +965,7 @@ def modify_windows_task_api(server_name: str, task_name: str) -> Tuple[Response,
         new_command_args = (
             f"--server {server_name}" if new_command != "scan-players" else ""
         )
-        new_task_name = api_task_scheduler.create_task_name(
-            server_name, new_command
-        )
+        new_task_name = api_task_scheduler.create_task_name(server_name, new_command)
 
         logger.info(
             f"Calling API handler to modify task '{task_name}' (will be replaced by '{new_task_name}')..."

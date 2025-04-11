@@ -1009,9 +1009,7 @@ def add_windows_task(server_name: str, base_dir: str, config_dir: str) -> None:
         )
 
         # Generate task name using API helper
-        task_name = api_task_scheduler.create_task_name(
-            server_name, selected_command
-        )
+        task_name = api_task_scheduler.create_task_name(server_name, selected_command)
         print(
             f"{_INFO_PREFIX}Generated Task Name: {task_name} (You can change this in Task Scheduler later if needed)"
         )
