@@ -401,7 +401,7 @@ def _get_bedrock_process_info(
                               during process detail retrieval.
     """
     # Declare intent to modify global variables
-    global _last_cpu_times, _last_timestamp
+    global _last_timestamp
 
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
