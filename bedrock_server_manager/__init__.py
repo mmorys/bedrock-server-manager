@@ -652,7 +652,7 @@ def main() -> None:
 
         web_server_stop_parser = subparsers.add_parser(
             "stop-web-server",
-            help="Stop the detached web server process",
+            help="Stop the detached web server process (NOT IMPLEMENTED)",
         )
 
         # --- Command Dispatch Dictionary ---
@@ -887,7 +887,7 @@ def main() -> None:
         elif args.subcommand is None:
             # No command given, show main menu by default
             logger.info("No subcommand provided, launching help display...")
-            parser.print_help()
+            parser.print_help()  # Print help display
         else:
             # Should not happen if choices are restricted, but handle anyway
             logger.error(f"Unknown subcommand provided: {args.subcommand}")
