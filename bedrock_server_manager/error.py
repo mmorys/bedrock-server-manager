@@ -22,6 +22,11 @@ class InvalidInputError(BedrockManagerError):
 
     pass
 
+class ValueError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
+    pass
+
 
 class ServerNotFoundError(BedrockManagerError):
     """Raised when the server executable is not found."""
