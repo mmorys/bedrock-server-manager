@@ -9,6 +9,7 @@ context processors, and provides a function to run the web server using Waitress
 """
 
 import os
+import sys
 import logging
 import ipaddress
 import datetime
@@ -35,6 +36,7 @@ from bedrock_server_manager.web.utils.variable_inject import inject_global_varia
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
 from bedrock_server_manager.web.routes.server_actions_routes import server_actions_bp
 from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
+from bedrock_server_manager.web.routes.api_info_routes import api_info_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.util_routes import util_bp
 from bedrock_server_manager.web.routes.auth_routes import (
@@ -188,6 +190,7 @@ def create_app() -> Flask:
     app.register_blueprint(backup_restore_bp)
     app.register_blueprint(content_bp)
     app.register_blueprint(util_bp)
+    app.register_blueprint(api_info_bp)
     app.register_blueprint(auth_bp)
     logger.debug("Registered application blueprints.")
 
@@ -292,33 +295,47 @@ def run_web_server(host: Optional[str] = None, debug: bool = False) -> None:
     logger.info(f"Starting web server in {server_mode} mode...")
 
     if debug:
-            # Flask's development server
-            logger.warning("Running in DEBUG mode with Flask development server. NOT suitable for production.")
+        # Flask's development server
+        logger.warning(
+            "Running in DEBUG mode with Flask development server. NOT suitable for production."
+        )
 
-            debug_host = None
-            if host is None:
-                # If user didn't specify --host, default Flask debug to listen on standard IPv4 loopback
-                debug_host = '127.0.0.1'
-                logger.warning("Debug mode: No host specified, binding only to IPv4 loopback (127.0.0.1). Use --host '::' for all IPv6+IPv4 or --host '::1' for IPv6 loopback.")
-            elif isinstance(host, list):
-                # Extract host part, removing brackets if present
-                debug_host = host[0].split(':')[0].strip('[]')
-                logger.warning(f"Debug mode: Multiple hosts specified, binding only to the first: {debug_host}")
-            else: # A single host string was provided
-                 # Extract host part, removing brackets if present
-                debug_host = host.split(':')[0].strip('[]')
+        debug_host = None
+        if host is None:
+            # If user didn't specify --host, default Flask debug to listen on standard IPv4 loopback
+            debug_host = "127.0.0.1"
+            logger.warning(
+                "Debug mode: No host specified, binding only to IPv4 loopback (127.0.0.1). Use --host '::' for all IPv6+IPv4 or --host '::1' for IPv6 loopback."
+            )
+        elif isinstance(host, list):
+            # Extract host part, removing brackets if present
+            debug_host = host[0].split(":")[0].strip("[]")
+            logger.warning(
+                f"Debug mode: Multiple hosts specified, binding only to the first: {debug_host}"
+            )
+        else:  # A single host string was provided
+            # Extract host part, removing brackets if present
+            debug_host = host.split(":")[0].strip("[]")
 
-            logger.info(f"Attempting to start Flask development server on host='{debug_host}', port={port}...")
-            try:
-                # Pass the determined host to app.run
-                app.run(host=debug_host, port=port, debug=True)
-            except OSError as e:
-                 logger.critical(f"Failed to start Flask development server on {debug_host}:{port}. Error: {e}", exc_info=True)
-                 # Common errors: Address already in use, Permission denied (for low ports), Invalid address format
-                 sys.exit(1) # Exit if debug server fails to start
-            except Exception as e: # Catch other unexpected errors
-                logger.critical(f"Unexpected error starting Flask development server: {e}", exc_info=True)
-                sys.exit(1)
+        logger.info(
+            f"Attempting to start Flask development server on host='{debug_host}', port={port}..."
+        )
+        try:
+            # Pass the determined host to app.run
+            app.run(host=debug_host, port=port, debug=True)
+        except OSError as e:
+            logger.critical(
+                f"Failed to start Flask development server on {debug_host}:{port}. Error: {e}",
+                exc_info=True,
+            )
+            # Common errors: Address already in use, Permission denied (for low ports), Invalid address format
+            sys.exit(1)  # Exit if debug server fails to start
+        except Exception as e:  # Catch other unexpected errors
+            logger.critical(
+                f"Unexpected error starting Flask development server: {e}",
+                exc_info=True,
+            )
+            sys.exit(1)
     else:
         # Production server (Waitress)
         if not WAITRESS_AVAILABLE:
