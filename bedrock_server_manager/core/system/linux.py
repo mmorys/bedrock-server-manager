@@ -30,7 +30,6 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
     DirectoryError,
-    InvalidInputError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")

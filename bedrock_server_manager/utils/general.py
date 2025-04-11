@@ -37,7 +37,6 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.logging import log_separator
 
 
 logger = logging.getLogger("bedrock_server_manager")

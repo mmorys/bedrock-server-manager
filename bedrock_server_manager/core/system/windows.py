@@ -13,7 +13,6 @@ import xml.etree.ElementTree as ET
 import os
 import subprocess
 import logging
-import platform
 import shutil
 import re
 from datetime import datetime
