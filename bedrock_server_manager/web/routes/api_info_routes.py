@@ -13,7 +13,7 @@ from flask import Blueprint, jsonify, Response, request
 # Local imports
 from bedrock_server_manager.api import info as info_api
 from bedrock_server_manager.api import player as player_api
-from bedrock_server_manager.api import backup as backup_api
+from bedrock_server_manager.api import backup_restore as backup_restore_api
 from bedrock_server_manager.api import world as api_world
 from bedrock_server_manager.api import utils as utils_api
 from bedrock_server_manager.api import misc as misc_api
@@ -367,7 +367,7 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
         # Call the backup API function (handles base_dir, uses setting for keep if None)
-        result = backup_api.prune_old_backups(server_name, backup_keep=keep_count)
+        result = backup_restore_api.prune_old_backups(server_name, backup_keep=keep_count)
         status_code = (
             200
             if result.get("status") == "success"
