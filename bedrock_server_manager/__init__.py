@@ -633,8 +633,9 @@ def main() -> None:
         web_server_start_parser.add_argument(
             "-H",
             "--host",
-            help="Host address to bind to (default: all interfaces)",
+            help="One or more host addresses/hostnames to bind to (space-separated). Default: all IPv4/IPv6.",
             required=False,
+            nargs="+",
         )
         web_server_start_parser.add_argument(
             "-d",

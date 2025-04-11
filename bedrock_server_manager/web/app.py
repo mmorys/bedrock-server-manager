@@ -263,33 +263,27 @@ def run_web_server(host: Optional[str] = None, debug: bool = False) -> None:
     # --- Determine Listening Addresses ---
     listen_addresses = []
     host_info = ""
-    if host is None:
+
+    # Check if host list was provided and is not empty
+    if host and isinstance(host, list) and len(host) > 0:
+        host_info = f"specified address(es): {', '.join(host)}"
+        for h in host:
+            # Format each host correctly (add brackets for IPv6)
+            try:
+                ip = ipaddress.ip_address(h)
+                if isinstance(ip, ipaddress.IPv6Address):
+                    listen_addresses.append(f"[{h}]:{port}")
+                else:
+                    listen_addresses.append(f"{h}:{port}")
+            except ValueError:
+                # Assume hostname
+                listen_addresses.append(f"{h}:{port}")
+        logger.info(f"Binding to {host_info} -> {listen_addresses}")
+    else:
         # Default: Listen on local host only IPv4 and IPv6 interfaces
         listen_addresses = [f"127.0.0.1:{port}", f"[::1]:{port}"]
-        host_info = "local host only interface (IPv4 and IPv6 dual-stack)"
-        logger.info(
-            f"Binding to local host only interfaces (dual-stack): {listen_addresses}"
-        )
-    else:
-        # Specific host provided
-        try:
-            ip = ipaddress.ip_address(host)
-            # Format based on IP version
-            if isinstance(ip, ipaddress.IPv6Address):
-                listen_addresses = [
-                    f"[{host}]:{port}"
-                ]  # Brackets required for IPv6+port
-                host_info = f"specific IPv6 address: {host}"
-            else:  # IPv4
-                listen_addresses = [f"{host}:{port}"]
-                host_info = f"specific IPv4 address: {host}"
-            logger.info(f"Binding to {host_info} -> {listen_addresses[0]}")
-        except ValueError:
-            # Not a valid IP address, assume it's a hostname
-            listen_addresses = [f"{host}:{port}"]
-            host_info = f"hostname: {host}"
-            logger.info(f"Attempting to bind to {host_info} -> {listen_addresses[0]}")
-            # Note: Waitress/Flask will handle DNS resolution for hostnames
+        host_info = "local host only interfaces (IPv4 and IPv6 dual-stack)"
+        logger.info(f"Binding to {host_info} -> {listen_addresses}")
 
     # --- Start Server (Debug vs. Production) ---
     server_mode = (
@@ -298,48 +292,46 @@ def run_web_server(host: Optional[str] = None, debug: bool = False) -> None:
     logger.info(f"Starting web server in {server_mode} mode...")
 
     if debug:
-        # Flask's development server
-        # Note: Flask dev server doesn't easily support binding to multiple addresses simultaneously.
-        # If host=None, we bind only to 127.0.0.1 for simplicity in debug mode.
-        debug_host = "127.0.0.1" if host is None else host
-        logger.warning(
-            "Running in DEBUG mode with Flask development server. NOT suitable for production."
-        )
-        if host is None:
-            logger.warning(
-                "Binding only to local host IPv4 (127.0.0.1) in debug mode when host is not specified."
-            )
-        try:
-            app.run(host=debug_host, port=port, debug=True)
-        except OSError as e:
-            logger.critical(
-                f"Failed to start Flask development server on {debug_host}:{port}. Error: {e}",
-                exc_info=True,
-            )
-            raise
+            # Flask's development server
+            logger.warning("Running in DEBUG mode with Flask development server. NOT suitable for production.")
+
+            debug_host = None
+            if host is None:
+                # If user didn't specify --host, default Flask debug to listen on standard IPv4 loopback
+                debug_host = '127.0.0.1'
+                logger.warning("Debug mode: No host specified, binding only to IPv4 loopback (127.0.0.1). Use --host '::' for all IPv6+IPv4 or --host '::1' for IPv6 loopback.")
+            elif isinstance(host, list):
+                # Extract host part, removing brackets if present
+                debug_host = host[0].split(':')[0].strip('[]')
+                logger.warning(f"Debug mode: Multiple hosts specified, binding only to the first: {debug_host}")
+            else: # A single host string was provided
+                 # Extract host part, removing brackets if present
+                debug_host = host.split(':')[0].strip('[]')
+
+            logger.info(f"Attempting to start Flask development server on host='{debug_host}', port={port}...")
+            try:
+                # Pass the determined host to app.run
+                app.run(host=debug_host, port=port, debug=True)
+            except OSError as e:
+                 logger.critical(f"Failed to start Flask development server on {debug_host}:{port}. Error: {e}", exc_info=True)
+                 # Common errors: Address already in use, Permission denied (for low ports), Invalid address format
+                 sys.exit(1) # Exit if debug server fails to start
+            except Exception as e: # Catch other unexpected errors
+                logger.critical(f"Unexpected error starting Flask development server: {e}", exc_info=True)
+                sys.exit(1)
     else:
         # Production server (Waitress)
         if not WAITRESS_AVAILABLE:
-            logger.critical(
-                "Waitress package not found, cannot start production server. Install 'waitress'."
-            )
             raise ImportError("Waitress package not found.")
 
-        listen_string = " ".join(
-            listen_addresses
-        )  # Waitress takes space-separated list for listen
+        listen_string = " ".join(listen_addresses)  # Join the list for Waitress
         logger.info(
             f"Starting Waitress production server. Listening on: {listen_string}"
         )
         try:
-            serve(
-                app,
-                listen=listen_string,
-                threads=4,  # Default number of threads
-            )
+            serve(app, listen=listen_string, threads=4)
         except Exception as e:
-            # Catch potential errors during Waitress startup (e.g., port unavailable)
             logger.critical(
                 f"Failed to start Waitress server. Error: {e}", exc_info=True
             )
-            raise  # Re-raise the exception
+            raise
