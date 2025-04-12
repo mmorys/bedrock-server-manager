@@ -11,6 +11,7 @@ from typing import Dict, Any
 
 # Local imports
 from bedrock_server_manager.utils import get_utils
+from bedrock_server_manager.config import settings
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -35,6 +36,7 @@ def inject_global_variables() -> Dict[str, Any]:
         "panorama_url": getattr(get_utils, "_get_panorama_url", None),
         "splash_text": getattr(get_utils, "_get_splash_text", None),
         "app_name": getattr(get_utils, "_get_app_name", None),
+        "app_version": getattr(get_utils, "_get_app_version", None),
     }
 
     global_vars: Dict[str, Any] = {}

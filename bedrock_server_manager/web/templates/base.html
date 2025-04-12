@@ -110,8 +110,10 @@ content and scripts using Jinja2 blocks.
         {# --- Footer --- #}
         <footer class="footer" style="text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #555; font-size: 0.9em; color: #aaa;">
             <p>
-                © 2025 <strong>Bedrock Server Manager</strong> —
-                <a href="https://github.com/dmedina559/bedrock-server-manager" target="_none" rel="noopener">GitHub</a>
+                <a href="{{ url_for('main_routes.index') }}" target="_none" rel="noopener">Index</a> |
+                <a href="{{ url_for('doc_routes.doc_index') }}" target="_none" rel="noopener">Docs</a> |
+                <a href="https://github.com/dmedina559/bedrock-server-manager" target="_none" rel="noopener">GitHub</a> |
+                <strong>{{ app_name }}</strong> {{ app_version }} © 2025
             </p>
 
         </footer>

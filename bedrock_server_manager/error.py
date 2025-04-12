@@ -22,6 +22,7 @@ class InvalidInputError(BedrockManagerError):
 
     pass
 
+
 class ValueError(BedrockManagerError):
     """Raised when the input is invalid."""
 

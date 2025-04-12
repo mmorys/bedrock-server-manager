@@ -367,7 +367,9 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
         # Call the backup API function (handles base_dir, uses setting for keep if None)
-        result = backup_restore_api.prune_old_backups(server_name, backup_keep=keep_count)
+        result = backup_restore_api.prune_old_backups(
+            server_name, backup_keep=keep_count
+        )
         status_code = (
             200
             if result.get("status") == "success"

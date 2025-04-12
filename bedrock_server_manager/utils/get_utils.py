@@ -15,7 +15,7 @@ from flask import url_for, current_app
 
 # Local imports
 from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.settings import settings, __version__
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -173,3 +173,29 @@ def _get_app_name() -> str:
         app_name = default_app_name  # Fallback on unexpected errors
 
     return app_name
+
+
+def _get_app_version() -> str:
+    """
+    Retrieves the application version for web server display
+
+    Requires a version string in a '#.#.#' format.
+
+    Returns:
+        The application version string pulled from app meta,
+        or a default version if not found.
+    """
+    default_app_version: str = "0.0.0"  # Default version
+    app_version: str = default_app_version
+
+    try:
+        # Get app version from settings
+        app_version = __version__
+
+    except Exception as e:
+        logger.exception(
+            f"Context Helper: Unexpected error getting app version: {e}", exc_info=True
+        )
+        app_veersion = default_app_version  # Fallback on unexpected errors
+
+    return app_version

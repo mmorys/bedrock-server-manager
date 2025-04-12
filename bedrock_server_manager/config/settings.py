@@ -78,8 +78,8 @@ class Settings:
                 f"Using custom data directory from environment variable {env_var_name}: {data_dir}"
             )
         else:
-            # Default to ~/.bedrock-server-manager
-            data_dir = os.path.join(os.path.expanduser("~"), f".{package_name}")
+            # Default to ~/bedrock-server-manager
+            data_dir = os.path.join(os.path.expanduser("~"), f"{package_name}")
             logger.info(
                 f"Environment variable {env_var_name} not set. "
                 f"Using default data directory: {data_dir}"
@@ -145,7 +145,7 @@ class Settings:
             "DOWNLOAD_KEEP": 3,
             "LOGS_KEEP": 3,
             "LOG_LEVEL": logging.INFO,  # Default logging level
-            f"{env_name}_PORT": 11325,  # Default port for web server
+            "WEB_PORT": 11325,  # Default port for web server
             "TOKEN_EXPIRES_WEEKS": 4,  # Defailt jwt token expire time
         }
 
