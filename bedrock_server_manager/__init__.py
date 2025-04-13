@@ -95,6 +95,7 @@ try:
         player as cli_player,
         system as cli_system,
         web as cli_web,
+        generate_password,
     )
 except ImportError as e:
     logger.critical(
@@ -656,6 +657,12 @@ def main() -> None:
             help="Stop the detached web server process (NOT IMPLEMENTED)",
         )
 
+        # generate-paswword
+        generate_password_parser = subparsers.add_parser(
+            "generate-password",
+            help="Interactive flow to generate a password hash for the web server",
+        )
+
         # --- Command Dispatch Dictionary ---
         # Maps subcommand names to lambda functions calling the appropriate CLI handler
         commands = {
@@ -872,6 +879,7 @@ def main() -> None:
                 args.host, args.debug, args.mode
             ),
             "stop-web-server": lambda args: cli_web.stop_web_server(),
+            "generate-password": lambda args: generate_password.generate_hash()
         }
 
         # --- Parse Arguments and Execute ---
