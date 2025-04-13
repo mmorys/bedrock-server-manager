@@ -793,7 +793,7 @@ def main() -> None:
             "prune-old-downloads": lambda args: downloader.prune_old_downloads(
                 args.download_dir, args.keep
             ),  # Call core directly
-            "manage-script-config": lambda: (
+            "manage-script-config": lambda args: (
                 print(settings.get(args.key))
                 if args.operation == "read"
                 else settings.set(args.key, args.value)
