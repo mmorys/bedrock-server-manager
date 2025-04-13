@@ -218,3 +218,7 @@ The switch to python allows cross platform support, standardized processes, and 
 11. Added WEB_PORT and TOKEN_EXPIRE_WEEKS to script_config.json
 12. Added various documentation accessible in the web server
 13. Added splash text to Main Menu in CLI
+
+### 3.1.1
+1. Fixed missing js files and images for web server
+2. Added missing generate-password command
