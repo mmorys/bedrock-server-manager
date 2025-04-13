@@ -1,0 +1,220 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_allowlist.html -->
+{# Extends the base layout template #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Configure Allowlist: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{# Include JavaScript files needed for this page #}
+{% block head_scripts %}
+    {# Core utilities (showStatusMessage, sendServerActionRequest) #}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# install_config.js might contain toggle switch logic if not globally included #}
+    {# <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script> #}
+    {# Specific JS for allowlist actions (add/remove/refresh) #}
+    <script src="{{ url_for('static', filename='js/allowlist.js') }}" defer></script>
+{% endblock %}
+
+
+{# --- Main Content Block --- #}
+{% block content %}
+    {# Main heading for the page #}
+    <h2>Configure Allowlist</h2>
+
+    {# Display server context and installation step if applicable #}
+    <p style="margin-bottom: 15px;">
+        Server: <strong>{{ server_name }}</strong>
+        {% if new_install %}
+             {# Indicator for multi-step installation workflow #}
+             <br><span class="step-indicator">(Step 2 of 4 for New Installation)</span>
+        {% endif %}
+    </p>
+
+    {# --- Status Message Area --- #}
+    {# Targeted by JavaScript (showStatusMessage) #}
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages from allowlist actions will appear here -->
+    </div>
+
+    {# Server-side flash messages (handled by base.html) #}
+    {# {% with messages = get_flashed_messages(with_categories=true) %} ... {% endwith %} #}
+
+    {# --- Section for Adding New Players --- #}
+    <section class="allowlist-add-section form-section"> {# Added form-section class for potential common styling #}
+        <h3>Add Players</h3>
+        <p>Enter player names (Gamertags), one per line, to add them to the allowlist.</p>
+
+        {# Group for the textarea input #}
+        <div class="form-group">
+            <label for="player-names-add" class="form-label">Player Names to Add:</label>
+            <textarea id="player-names-add" name="player_names_add" class="form-input" rows="5" placeholder="PlayerOne\nAnotherPlayer\nGamertag123"></textarea>
+            {# Optional: Placeholder for JS validation errors for this field #}
+            {# <div class="validation-error" data-field="player_names_add"></div> #}
+        </div>
+
+        {# Group for the 'Ignore Player Limit' toggle switch #}
+        {# This setting applies to *all* players being added in this batch #}
+        <div class="form-group form-group-toggle-container">
+            <div class="form-label-group">
+                <span class="form-label">Ignore Player Limit:</span>
+                <small class="form-help-text">Allow the player(s) being added to join even if the server is full?</small>
+            </div>
+            <div class="toggle-switch-container">
+                 {# The hidden checkbox that stores the state #}
+                 <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add-cb" class="toggle-input" value="true"> {# Defaults to unchecked (false) #}
+                 {# The clickable visual switch linked to the checkbox #}
+                 <label for="ignore-limit-add" class="toggle-switch"></label>
+            </div>
+             {# Associated hidden input to ensure 'false' is sent when checkbox is unchecked #}
+             {# JS in install_config.js should handle disabling this when checkbox is checked #}
+             <input type="hidden" name="ignore_limit_add" class="toggle-hidden-false" value="false">
+             {# Optional: Placeholder for JS validation errors #}
+             {# <div class="validation-error" data-field="ignore_limit_add" style="grid-column: 1 / -1;"></div> #}
+        </div>
+        {# --- End Toggle Switch --- #}
+
+        {# Actions for the 'Add Players' section #}
+        <div class="form-actions"> {# Align button to the right (or center based on theme) #}
+            {# Button triggers the addAllowlistPlayers JS function #}
+            <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name | e }}')" class="action-button start-button"> {# Green 'add' button #}
+                Add These Players
+            </button>
+        </div>
+
+    </section> {# --- End of allowlist-add-section --- #}
+
+
+    {# --- Section to Display Current Allowlist --- #}
+    <section class="current-allowlist-section list-section">
+        <h2>Current Allowlist</h2>
+        {# This list is populated/updated by fetchAndUpdateAllowlistDisplay() in allowlist.js #}
+        <ul id="current-allowlist-display" class="item-list">
+            {# Jinja loop populates the initial list on page load #}
+            {% for player in existing_players %}
+            <li>
+                <span class="player-name">{{ player.name }}</span>
+                <span class="player-meta">(Ignores Limit: {% if player.ignoresPlayerLimit %}Yes{% else %}No{% endif %})</span>
+                 {# Example Remove Button - Requires JS handler (see body_scripts block) #}
+                 <button type="button"
+                         onclick="removeAllowlistPlayer(this, '{{ server_name | e }}', '{{ player.name | e }}')"
+                         class="action-button remove-button danger-button" {# Style as danger #}
+                         title="Remove {{ player.name | e }} from allowlist">
+                     Remove
+                 </button>
+            </li>
+            {% else %}
+            {# Message shown if the list is empty - ID used by JS #}
+            <li id="no-players-message" style="font-style: italic; color: #aaa;">No players currently in allowlist.</li>
+            {% endfor %}
+        </ul>
+    </section> {# --- End of current-allowlist-section --- #}
+
+
+    {# --- Navigation Actions (Conditional) --- #}
+    <div class="form-actions navigation-link"> {# Use form-actions for consistent spacing/alignment #}
+        {% if new_install %}
+            {# If part of new install, link to next step #}
+            <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">
+                Skip & Go to Permissions » {# Use » for right arrow #}
+            </a>
+        {% else %}
+            {# Standard navigation back to dashboard #}
+             <a href="{{ url_for('main_routes.index') }}" class="action-link">
+                 « Back to Dashboard {# Use « for left arrow #}
+             </a>
+        {% endif %}
+    </div>
+
+{% endblock %}
+
+
+{# --- Page-Specific JavaScript Block (at end of body) --- #}
+{% block body_scripts %}
+    {# Example JavaScript for handling the 'Remove' button clicks #}
+    {# IMPORTANT: This assumes a corresponding DELETE endpoint exists at /api/server/<serverName>/allowlist #}
+    {# The endpoint should likely expect a body like {"players": ["PlayerNameToRemove"]} #}
+    <script>
+        /**
+         * Handles removing a player from the allowlist via API after confirmation.
+         * @param {HTMLButtonElement} buttonElement The remove button clicked.
+         * @param {string} serverName The name of the server.
+         * @param {string} playerName The name of the player to remove.
+         */
+        async function removeAllowlistPlayer(buttonElement, serverName, playerName) {
+            const functionName = 'removeAllowlistPlayer';
+            console.log(`${functionName}: Initiated for Player: '${playerName}', Server: '${serverName}'`);
+            console.debug(`${functionName}: Button Element:`, buttonElement);
+
+            if (!playerName) {
+                 console.error(`${functionName}: Player name missing.`);
+                 showStatusMessage("Internal error: Player name missing for removal.", "error");
+                 return;
+            }
+
+            // Confirmation
+            if (confirm(`Are you sure you want to remove '${playerName}' from the allowlist for server '${serverName}'?`)) {
+                console.log(`${functionName}: Deletion confirmed for '${playerName}'.`);
+                const requestBody = {
+                    players: [playerName] // API likely expects a list of names to remove
+                };
+                console.debug(`${functionName}: Constructed request body:`, requestBody);
+
+                // Call API - Assuming DELETE method for removing specific players
+                const apiUrl = `/api/server/${serverName}/allowlist`; // Needs backend route adjustment if using DELETE on this path with body
+                // Alternative: POST to a specific /allowlist/remove endpoint? Using DELETE for now.
+                console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} (DELETE)...`);
+                const apiResponseData = await sendServerActionRequest(null, apiUrl, 'DELETE', requestBody, buttonElement);
+                console.log(`${functionName}: Delete allowlist player API call finished. Response data:`, apiResponseData);
+
+                if (apiResponseData && apiResponseData.status === 'success') {
+                    console.log(`${functionName}: Player '${playerName}' removed successfully.`);
+                    // Remove the list item from the display on success
+                    const listItem = buttonElement.closest('li');
+                    if (listItem) {
+                        listItem.remove();
+                        console.debug(`${functionName}: Removed list item for '${playerName}'.`);
+                        // Check if the list is now empty and display the 'no players' message if needed
+                        const list = document.getElementById('current-allowlist-display');
+                        const noPlayersLi = document.getElementById('no-players-message');
+                        if (list && list.querySelectorAll('li:not(#no-players-message)').length === 0) {
+                             if(noPlayersLi) {
+                                 noPlayersLi.style.display = ''; // Show existing message
+                             } else {
+                                 // Create and add if it somehow got deleted
+                                 const li = document.createElement('li');
+                                 li.id = 'no-players-message';
+                                 li.textContent = 'No players currently in allowlist.';
+                                 li.style.fontStyle = 'italic';
+                                 list.appendChild(li);
+                             }
+                             console.debug(`${functionName}: List is now empty, displayed 'no players' message.`);
+                        }
+                    } else {
+                         console.warn(`${functionName}: Could not find parent list item to remove after successful delete.`);
+                         // Reload maybe safer if UI manipulation fails?
+                         // window.location.reload();
+                    }
+                    // Success message shown by sendServerActionRequest
+                } else {
+                    console.error(`${functionName}: Player '${playerName}' removal failed or API reported an error.`);
+                    // Error message shown by sendServerActionRequest
+                }
+            } else {
+                console.log(`${functionName}: Player removal cancelled by user.`);
+                showStatusMessage('Player removal cancelled.', 'info');
+            }
+        } // End of removeAllowlistPlayer
+
+        // Initial fetch of allowlist when page loads (if not doing initial population via Jinja only)
+        document.addEventListener('DOMContentLoaded', () => {
+             const serverNameFromPage = "{{ server_name | e }}"; // Get server name safely
+             if (serverNameFromPage) {
+                  console.log("DOMContentLoaded (Allowlist Page): Performing initial fetch of allowlist display.");
+                  fetchAndUpdateAllowlistDisplay(serverNameFromPage);
+             } else {
+                  console.error("DOMContentLoaded (Allowlist Page): Server name not available for initial fetch.");
+             }
+        });
+    </script>
+{% endblock %}

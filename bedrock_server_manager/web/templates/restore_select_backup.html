@@ -1,0 +1,96 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/restore_select_backup.html -->
+{# Extends the base layout template #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Select Backup to Restore: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{# Include JavaScript files needed for restore actions #}
+{% block head_scripts %}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# backup_restore.js contains the triggerRestore function #}
+    <script src="{{ url_for('static', filename='js/backup_restore.js') }}" defer></script>
+{% endblock %}
+
+
+{# --- Main Content Block --- #}
+{% block content %}
+    {# Main heading for the page #}
+    <h2>Select Backup to Restore</h2>
+
+    {# Display context: Server Name and Restore Type #}
+    <p style="margin-bottom: 5px;">Server: <strong>{{ server_name }}</strong></p>
+    <p style="margin-bottom: 15px;">Restore Type: <strong>{{ restore_type | title }}</strong></p> {# Capitalize restore type #}
+
+    {# --- Status Message Area --- #}
+    {# Targeted by JavaScript (showStatusMessage) #}
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages from restore actions will appear here -->
+    </div>
+
+    {# Server-side flash messages (handled by base.html) #}
+
+    {# Section containing the backup selection list #}
+    <section class="restore-select-section list-section"> {# Use list-section for potential common styling #}
+
+        {# Check if the backups list (passed from the route) is not empty #}
+        {% if backups %}
+            <p>Select one of the available backups below to restore. <strong>Warning:</strong> This will overwrite current data.</p>
+
+            {# Wrap table for responsiveness #}
+            <div class="table-responsive-wrapper">
+                <table class="server-table"> {# Use standard table styling #}
+                    <thead>
+                        <tr>
+                            <th scope="col">Backup File</th>
+                            <th scope="col" style="width: 180px; text-align: center;">Action</th> {# Fixed width for action #}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {# Loop through the list of backup file paths #}
+                    {% for backup_path in backups %}
+                        <tr>
+                            {# Display only the filename part using the basename filter #}
+                            {# IMPORTANT: Assumes 'basename' filter is registered in Flask Jinja env #}
+                            <td data-label="Backup File">{{ backup_path | basename }}</td>
+                            {# Center the button in the actions cell #}
+                            <td data-label="Action" style="text-align: center;">
+                                {# Button triggers the JS restore function #}
+                                <button type="button"
+                                        class="action-button restore-button" {# Specific class for targeting if needed #}
+                                        {# Pass 'this' button, server name, restore type, and the FULL backup path #}
+                                        {# Crucial Escaping: |e for HTML, |replace for JS backslashes #}
+                                        onclick="triggerRestore(this, '{{ server_name | e }}', '{{ restore_type | e }}', '{{ backup_path | e | replace('\\', '\\\\') }}')">
+                                    Restore This Backup
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div> {# --- End .table-responsive-wrapper --- #}
+        {% else %}
+             {# Message displayed if the backups list is empty #}
+             {# Use consistent styling with .no-servers-message or similar #}
+             <p class="no-servers-message"> {# Or use the table row version if preferred #}
+                 No backups found for server '{{ server_name }}' of type '{{ restore_type }}'.
+             </p>
+        {% endif %}
+
+        {# --- Navigation Link Back --- #}
+        <div class="navigation-link" style="margin-top: 25px;">
+             {# Link back to the main restore menu for this server #}
+             <a href="{{ url_for('backup_restore_routes.restore_menu_route', server_name=server_name) }}" class="action-link">
+                 « Back to Restore Options
+             </a>
+        </div>
+
+    </section> {# --- End .restore-select-section --- #}
+
+{% endblock %}
+
+{# --- Optional Body Scripts Block --- #}
+{% block body_scripts %}
+{# No page-specific JS usually needed here, actions are in onclick #}
+{% endblock %}

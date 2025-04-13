@@ -1,0 +1,195 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_tasks.html -->
+{# Linux Cron Job Scheduler Page #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Cron Scheduler: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{% block head_scripts %}
+    {# Define page-specific JS variables within a namespace #}
+    <script>
+        const pageConfig = {
+            serverName: "{{ server_name | e }}", {# Escape server name #}
+            csrfToken: "{{ csrf_token() }}",
+            expath: "{{ EXPATH | e }}" {# Pass EXPATH for command construction #}
+        };
+    </script>
+    {# Core utilities #}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# JS specific to Linux cron job interactions #}
+    <script src="{{ url_for('static', filename='js/linux_task.js') }}" defer></script>
+{% endblock %}
+
+
+{# --- Main Content Block --- #}
+{% block content %}
+    {# Main heading for the page #}
+    <h2>Cron Job Scheduler (Linux)</h2>
+    {# Server context #}
+    <p style="margin-bottom: 15px;">Server Context: <strong>{{ server_name }}</strong></p>
+
+    {# --- Status Message Area --- #}
+    {# Targeted by JavaScript (showStatusMessage) #}
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages appear here -->
+    </div>
+
+    {# Server-side flash messages (handled by base.html) #}
+
+    {# --- Section to Display Existing Cron Jobs --- #}
+    <section class="schedule-tasks-section list-section"> {# Use list-section for consistency #}
+        <h3>Current Scheduled Jobs</h3>
+        <p>List of cron jobs associated with this server context found in the user's crontab.</p>
+
+        {# Check if table_data (passed from route) has jobs #}
+        {% if table_data %}
+             {# Responsive table wrapper #}
+             <div class="table-responsive-wrapper">
+                <table class="server-table">
+                    <thead>
+                        <tr>
+                            {# Table headers #}
+                            <th scope="col">Min</th>
+                            <th scope="col">Hour</th>
+                            <th scope="col">Day</th>
+                            <th scope="col">Mon</th>
+                            <th scope="col">DoW</th>
+                            <th scope="col">Readable Schedule</th> {# Readable time #}
+                            <th scope="col">Command Action</th> {# Display command #}
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {# Loop through formatted job data #}
+                        {% for job in table_data %}
+                            <tr>
+                                {# Display raw schedule parts #}
+                                <td data-label="Min">{{ job.minute }}</td>
+                                <td data-label="Hour">{{ job.hour }}</td>
+                                <td data-label="Day">{{ job.day_of_month }}</td>
+                                <td data-label="Mon">{{ job.month }}</td>
+                                <td data-label="DoW">{{ job.day_of_week }}</td>
+                                {# Display human-readable schedule #}
+                                <td data-label="Schedule">{{ job.schedule_time }}</td>
+                                {# Display simplified command #}
+                                <td data-label="Command">{{ job.command_display }}</td>
+                                {# Action links/buttons #}
+                                <td data-label="Actions">
+                                    <div class="actions"> {# Wrapper for buttons #}
+                                        {# Modify Link: Calls JS function to populate form #}
+                                        {# Arguments need escaping for JS string literals #}
+                                        <a href="#"
+                                           onclick="event.preventDefault(); fillModifyForm('{{ job.minute | e }}', '{{ job.hour | e }}', '{{ job.day_of_month | e }}', '{{ job.month | e }}', '{{ job.day_of_week | e }}', '{{ job.command | e | replace('\\', '\\\\') }}');"
+                                           class="action-link modify-link" title="Modify this job's schedule">Modify</a>
+                                        {# Delete Link: Calls JS function with confirmation #}
+                                        {# Construct the full original string needed by the delete API #}
+                                        {% set original_cron_string = job.minute ~ ' ' ~ job.hour ~ ' ' ~ job.day_of_month ~ ' ' ~ job.month ~ ' ' ~ job.day_of_week ~ ' ' ~ job.command %}
+                                        <a href="#"
+                                           onclick="event.preventDefault(); confirmDelete('{{ original_cron_string | e | replace('\\', '\\\\') }}', '{{ server_name | e }}');"
+                                           class="action-button danger-button" title="Delete this job">Delete</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div> {# --- End .table-responsive-wrapper --- #}
+        {% else %}
+             {# Message if no jobs are found for this server #}
+             <p class="no-servers-message"> {# Use consistent class #}
+                 No specific cron jobs found scheduled for server context '{{ server_name }}'.
+             </p>
+        {% endif %}
+
+        {# Navigation/Action related to the list view #}
+        <div class="list-actions form-actions">
+             <a href="{{ url_for('main_routes.index') }}" class="action-link">« Back to Dashboard</a>
+             {# Button to scroll to/show the Add form #}
+             <button type="button" onclick="document.getElementById('add-modify-cron-section').scrollIntoView({ behavior: 'smooth' }); document.getElementById('command').focus();" class="action-button">Add New Job</button>
+        </div>
+    </section> {# --- End .schedule-tasks-section --- #}
+
+
+    {# --- Section for Add/Modify Form --- #}
+    <section class="add-cron-job-section form-section" id="add-modify-cron-section"> {# Use ID for scrolling/linking #}
+        {# Form title will be updated by JS when modifying #}
+        <h2 id="cron-form-title">Add New Cron Job</h2>
+        {# Use onsubmit on the form tag to call JS handler #}
+        {# novalidate disables default browser validation bubbles #}
+        <form id="cron-form" novalidate data-server-name="{{ server_name | e }}" data-expath="{{ EXPATH | e }}">
+            {# CSRF token - important if your JS sends it via header (like in utils.js) #}
+            {# Although crontab modification might not need CSRF if done server-side, keep for consistency if API uses it #}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {# Add data attribute to pass EXPATH to JS if needed #}
+            <input type="hidden" id="form-expath-data" data-expath="{{ EXPATH | e }}">
+
+            {# --- Command Selection --- #}
+            <div class="form-group">
+                <label for="command" class="form-label">Select Command:</label>
+                <select id="command" name="command" class="form-input" required>
+                    <option value="" disabled selected>-- Select Command --</option>
+                    {# Values should match command slugs expected by backend/JS #}
+                    <option value="update-server">Update Server</option>
+                    <option value="backup-all">Backup Server (All)</option>
+                    <option value="start-server">Start Server</option>
+                    <option value="stop-server">Stop Server</option>
+                    <option value="restart-server">Restart Server</option>
+                    <option value="scan-players">Scan Players (Global)</option>
+                </select>
+                <div class="validation-error" data-field="command"></div> {# Placeholder for JS validation #}
+            </div>
+
+            {# --- Cron Time Fields --- #}
+            <p>Enter schedule time (* = any value):</p>
+            {# Use grid layout for better alignment #}
+            <div class="form-grid cron-grid">
+                <div class="form-group">
+                    <label for="minute" class="form-label">Minute:</label>
+                    {# Basic pattern validation for guidance; full validation server-side/JS #}
+                    <input type="text" id="minute" name="minute" class="form-input" value="*" required pattern="^(\*|([0-5]?\d)(-[0-5]?\d)?(,[0-5]?\d(-[0-5]?\d)?)*|\*\/([1-9]|[1-5]\d))$" title="0-59, *, */n, n-m, n,m">
+                    <small class="form-help-text">0-59, *</small>
+                    <div class="validation-error" data-field="minute"></div>
+                </div>
+                <div class="form-group">
+                    <label for="hour" class="form-label">Hour:</label>
+                    <input type="text" id="hour" name="hour" class="form-input" value="*" required pattern="^(\*|([01]?\d|2[0-3])(-([01]?\d|2[0-3]))?(,([01]?\d|2[0-3])(-([01]?\d|2[0-3]))?)*|\*\/([1-9]|1\d|2[0-3]))$" title="0-23, *">
+                    <small class="form-help-text">0-23, *</small>
+                    <div class="validation-error" data-field="hour"></div>
+                </div>
+                <div class="form-group">
+                    <label for="day" class="form-label">Day of Month:</label>
+                    <input type="text" id="day" name="day" class="form-input" value="*" required pattern="^(\*|([1-9]|[12]\d|3[01])(-([1-9]|[12]\d|3[01]))?(,([1-9]|[12]\d|3[01])(-([1-9]|[12]\d|3[01]))?)*|\*\/([1-9]|[12]\d|3[01]))$" title="1-31, *">
+                    <small class="form-help-text">1-31, *</small>
+                    <div class="validation-error" data-field="day"></div>
+                </div>
+                <div class="form-group">
+                    <label for="month" class="form-label">Month:</label>
+                    <input type="text" id="month" name="month" class="form-input" value="*" required pattern="^(\*|([1-9]|1[0-2])(-([1-9]|1[0-2]))?(,([1-9]|1[0-2])(-([1-9]|1[0-2]))?)*|\*\/([1-9]|1[0-2]))$" title="1-12, *">
+                    <small class="form-help-text">1-12, *</small>
+                    <div class="validation-error" data-field="month"></div>
+                </div>
+                <div class="form-group">
+                    <label for="weekday" class="form-label">Day of Week:</label>
+                    <input type="text" id="weekday" name="weekday" class="form-input" value="*" required pattern="^(\*|[0-6](-[0-6])?(,[0-6](-[0-6])?)*|\*\/[1-6])$" title="0-6 (Sun=0), *">
+                    <small class="form-help-text">0-6 (Sun=0), *</small>
+                    <div class="validation-error" data-field="weekday"></div>
+                </div>
+            </div> {# --- End .cron-grid --- #}
+
+            {# Hidden input stores the original full cron string when modifying #}
+            {# JS uses this to determine if it's an ADD or MODIFY action #}
+            <input type="hidden" id="original_cron_string" name="original_cron_string" value="">
+
+            {# --- Form Actions --- #}
+            <div class="form-actions">
+                {# JS should change text to 'Update Job' when modifying #}
+                {# Button type="submit" triggers form's onsubmit event #}
+                <button type="submit" class="action-button start-button" id="cron-submit-btn">Add Job</button> {# Use start-button style #}
+                {# Optional button to clear/reset the form fields #}
+                <button type="button" onclick="document.getElementById('cron-form').reset(); document.getElementById('original_cron_string').value=''; document.getElementById('cron-form-title').textContent='Add New Cron Job';" class="action-link">Clear Form</button>
+            </div>
+        </form> {# --- End #cron-form --- #}
+    </section> {# --- End .add-cron-job-section --- #}
+
+{% endblock %}

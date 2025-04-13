@@ -1,0 +1,160 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/schedule_tasks_windows.html -->
+{# Windows Task Scheduler Management Page #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Task Scheduler: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{% block head_scripts %}
+    {# Define page-specific JS variables within a namespace #}
+    <script>
+        const pageConfig = {
+            // Pass server name escaped for JS string usage
+            serverName: "{{ server_name | e }}",
+            // CSRF token needed if JS makes POST/PUT/DELETE via fetch directly (handled by sendServerActionRequest)
+            csrfToken: "{{ csrf_token() }}"
+        };
+    </script>
+    {# Core utilities (showStatusMessage, sendServerActionRequest) #}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# JS specific to Windows task scheduling UI interactions and API calls #}
+    <script src="{{ url_for('static', filename='js/windows_task.js') }}" defer></script>
+{% endblock %}
+
+{# --- Main Content Block --- #}
+{% block content %}
+    {# Main heading for the page #}
+    <h2>Windows Task Scheduler</h2>
+    {# Server context #}
+    <p style="margin-bottom: 15px;">Server: <strong>{{ server_name }}</strong></p>
+
+    {# --- Status Message Area --- #}
+    {# Targeted by JavaScript (showStatusMessage) #}
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages appear here -->
+    </div>
+
+    {# Server-side flash messages (handled by base.html) #}
+
+    {# --- Section to Display Existing Tasks --- #}
+    <section class="windows-tasks-section list-section"> {# Use list-section for consistency #}
+        <h3>Current Scheduled Tasks</h3>
+        <p>List of scheduled tasks associated with this server found in the configuration.</p>
+
+        {# Container for the task list table #}
+        <div id="task-list-container">
+            {# Check if tasks data (list of dicts) was passed from the route #}
+            {% if tasks %}
+                 {# Responsive wrapper for the table #}
+                 <div class="table-responsive-wrapper">
+                    <table class="server-table"> {# Use standard table style #}
+                        <thead>
+                            <tr>
+                                <th scope="col">Task Name</th>
+                                <th scope="col">Command</th>
+                                <th scope="col">Schedule</th>
+                                <th scope="col" style="width: 150px; text-align: center;">Actions</th> {# Fixed width #}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {# Loop through tasks passed from the route #}
+                            {% for task in tasks %}
+                            <tr>
+                                <td data-label="Task Name">{{ task.task_name }}</td>
+                                <td data-label="Command">{{ task.command }}</td>
+                                <td data-label="Schedule">{{ task.schedule }}</td>
+                                <td data-label="Actions" style="text-align: center;">
+                                    <div class="actions"> {# Wrapper for buttons #}
+                                        {# Modify Button: Calls JS to populate form #}
+                                        <a href="#" onclick="event.preventDefault(); fillModifyFormWindows('{{ task.task_name | e }}', '{{ server_name | e }}')" class="action-link modify-link" title="Modify this task">Modify</a>
+                                        {# Delete Button: Calls JS with confirmation #}
+                                        <a href="#" onclick="event.preventDefault(); confirmDeleteWindows('{{ task.task_name | e }}', '{{ server_name | e }}')" class="action-button danger-button" title="Delete this task">Delete</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div> {# --- End .table-responsive-wrapper --- #}
+            {% else %}
+                 {# Message displayed if no tasks are found #}
+                 <p class="no-servers-message"> {# Use consistent class #}
+                     No scheduled tasks found associated with server '{{ server_name }}'.
+                 </p>
+            {% endif %}
+        </div> {# --- End #task-list-container --- #}
+
+        {# Actions related to the list view #}
+        <div class="list-actions form-actions"> {# Consistent actions wrapper #}
+            {# Button calls JS function to prepare and show the Add form #}
+            <button type="button" onclick="prepareNewTaskForm()" class="action-button">Add New Task</button>
+            <a href="{{ url_for('main_routes.index') }}" class="action-link">« Back to Dashboard</a>
+        </div>
+    </section> {# --- End .windows-tasks-section --- #}
+
+
+    {# --- Section for Add/Modify Form (Initially Hidden) --- #}
+    <section class="add-modify-task-section form-section" id="add-modify-task-section" style="display: none;"> {# Hidden by default #}
+        {# Title is updated by JS ('Add New Task' or 'Modify Task: <name>') #}
+        <h2 id="form-title">Add/Modify Task</h2>
+
+        {# Form element - Submission handled by event listener in windows_task.js #}
+        <form id="task-form" novalidate data-server-name="{{ server_name | e }}" data-expath="{{ EXPATH | e }}">
+            {# novalidate prevents default browser validation UI #}
+            {# CSRF Token (sent via header by sendServerActionRequest) #}
+            {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+
+            {# Hidden input to store original task name when modifying. JS uses this to determine action. #}
+            <input type="hidden" id="original_task_name" name="original_task_name" value="">
+            {# Data attribute to pass EXPATH if needed by JS command construction #}
+            <input type="hidden" id="form-expath-data" data-expath="{{ EXPATH | e }}">
+            {# Data attribute to pass server name if needed by JS #}
+            <input type="hidden" id="form-server-name" data-server-name="{{ server_name | e }}">
+
+            {# --- Command Selection --- #}
+            <div class="form-group">
+                <label for="command" class="form-label">Select Command:</label>
+                <select id="command" name="command" class="form-input" required>
+                    <option value="" disabled selected>-- Select Command --</option>
+                    {# Values should match command slugs #}
+                    <option value="update-server">Update Server</option>
+                    <option value="backup-all">Backup Server (All)</option>
+                    <option value="start-server">Start Server</option>
+                    <option value="stop-server">Stop Server</option>
+                    <option value="restart-server">Restart Server</option>
+                    <option value="scan-players">Scan Players (Global)</option>
+                </select>
+                <div class="validation-error" data-field="command"></div> {# Placeholder for JS validation #}
+            </div>
+
+            {# Separator #}
+            <hr style="border-color: #555; margin: 25px 0;">
+
+            {# --- Triggers Section --- #}
+            <h3>Triggers</h3>
+            <p>Define when the task should run. Add at least one trigger.</p>
+            {# Container where JS dynamically adds trigger group UI elements #}
+            <div id="triggers-container">
+                {# Trigger groups will be added here by JS #}
+            </div>
+            {# Button to add another trigger group via JS #}
+            <button type="button" onclick="addTrigger()" class="action-button secondary-button" id="add-trigger-btn">
+                {# Added ID #}
+                Add Another Trigger
+            </button>
+
+            {# Separator #}
+            <hr style="border-color: #555; margin: 25px 0;">
+
+            {# --- Form Actions --- #}
+            <div class="form-actions">
+                {# Submit button triggers the form's submit event, handled by JS #}
+                <button type="submit" class="action-button start-button" id="submit-task-btn">Save Task</button> {# Green save button #}
+                {# Cancel button hides the form and resets fields via JS #}
+                <button type="button" onclick="cancelTaskForm()" class="action-link cancel-button">Cancel</button>
+            </div>
+        </form> {# --- End #task-form --- #}
+    </section> {# --- End .add-modify-task-section --- #}
+
+{% endblock %}

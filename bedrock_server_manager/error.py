@@ -23,6 +23,12 @@ class InvalidInputError(BedrockManagerError):
     pass
 
 
+class ValueError(BedrockManagerError):
+    """Raised when the input is invalid."""
+
+    pass
+
+
 class ServerNotFoundError(BedrockManagerError):
     """Raised when the server executable is not found."""
 
@@ -113,6 +119,10 @@ class InvalidAddonPackTypeError(BedrockManagerError):
     pass
 
 
+class TypeError(BedrockManagerError):
+    pass
+
+
 class FileOperationError(BedrockManagerError):
     pass
 
@@ -141,6 +151,12 @@ class PlayerDataError(BedrockManagerError):
 
 class DownloadError(BedrockManagerError):
     """Raised when the input is invalid."""
+
+    pass
+
+
+class FileNotFoundError(BedrockManagerError):
+    """Raised when a file path is invalid."""
 
     pass
 

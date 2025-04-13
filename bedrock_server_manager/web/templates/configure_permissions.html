@@ -1,0 +1,133 @@
+<!-- bedrock-server-manager/bedrock_server_manager/web/templates/configure_permissions.html -->
+{# Extends the base layout template #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Configure Permissions: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{# Include JavaScript files needed for this page #}
+{% block head_scripts %}
+    {# Core utilities #}
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# Contains savePermissions function and potentially toggle logic #}
+    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script>
+{% endblock %}
+
+
+{# --- Main Content Block --- #}
+{% block content %}
+    {# Main heading for the page #}
+    <h2>Configure Player Permissions</h2>
+
+    {# Display server context and installation step if applicable #}
+    <p style="margin-bottom: 15px;">
+        Server: <strong>{{ server_name }}</strong>
+        {% if new_install %}
+             {# Indicator for multi-step installation workflow #}
+             <br><span class="step-indicator">(Step 3 of 4 for New Installation)</span>
+        {% endif %}
+    </p>
+
+    {# --- Status Message Area --- #}
+    {# Targeted by JavaScript (showStatusMessage) for general feedback #}
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages from save actions will appear here -->
+    </div>
+
+    {# --- Validation Error Area --- #}
+    {# Targeted by JavaScript for displaying overall validation errors from API #}
+    <div id="validation-error-area" class="message-box message-error" style="margin-bottom: 15px; display: none;">
+        <!-- Overall validation errors will appear here -->
+    </div>
+
+    {# Server-side flash messages (handled by base.html) #}
+
+    {# Section containing the permissions table and actions #}
+    <section class="permissions-config-section">
+        <p>Set the permission level for each known player found in the global player list or existing permissions file.</p>
+
+        {# **Crucial wrapper for table responsiveness** #}
+        <div class="table-responsive-wrapper">
+            <table class="server-table"> {# Use standard table style #}
+                <thead>
+                    <tr>
+                        {# Use scope="col" for table header accessibility #}
+                        <th scope="col">Player Name</th>
+                        <th scope="col">XUID</th>
+                        <th scope="col" style="min-width: 150px;">Permission Level</th> {# Give level column min-width #}
+                    </tr>
+                </thead>
+                <tbody>
+                    {# Loop through players passed from the route #}
+                    {% if players %}
+                        {% for player in players %}
+                        <tr>
+                            {# Add data-label for potential CSS stacking on mobile #}
+                            <td data-label="Player Name">{{ player.name | default('N/A') }}</td>
+                            <td data-label="XUID">{{ player.xuid | default('N/A') }}</td>
+                            <td data-label="Permission Level">
+                                {# Dropdown select for permission level #}
+                                {# Name attribute is the player's XUID - JS reads this #}
+                                {# data-xuid is also set for easier selection in JS #}
+                                <select name="{{ player.xuid }}" data-xuid="{{ player.xuid }}" class="form-input permission-select">
+                                    {# Option values match expected backend values #}
+                                    {# Jinja logic sets 'selected' attribute based on current permission map #}
+                                    <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
+                                    {# Default to 'member' if player not in permissions map #}
+                                    <option value="member" {% if permissions.get(player.xuid, 'member') == 'member' %}selected{% endif %}>Member</option>
+                                    <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
+                                </select>
+                                {# Placeholder for potential inline validation errors from API response #}
+                                <div class="validation-error inline-error" data-field="{{ player.xuid }}"></div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        {# Displayed if the players list passed from the route is empty #}
+                        {# Using CSS classes from tables.css for consistent styling #}
+                        <tr class="no-servers-row"> {# Re-use class name, style applies #}
+                            <td colspan="3" class="no-servers"> {# Span all columns #}
+                                No players found in global list or permissions file. Cannot set permissions.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div> {# --- End of .table-responsive-wrapper --- #}
+
+        {# --- Form Actions / Navigation --- #}
+        <div class="form-actions">
+             {# Save button - disabled if no players are loaded #}
+             {# Calls savePermissions JS function onClick #}
+             {# Passes 'this' button, server_name, and boolean new_install flag #}
+             <button type="button"
+                     onclick="savePermissions(this, '{{ server_name | e }}', {{ new_install | tojson }})"
+                     class="action-button start-button" {# Green 'Save' button #}
+                     {% if not players %}disabled title="No players loaded to configure"{% endif %}> {# Disable if no players #}
+                 Save Permissions
+             </button>
+
+            {# Conditional navigation link based on install workflow #}
+            {% if new_install %}
+                {# Link to the next step (Service Configuration) #}
+                <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">
+                    Skip & Go to Service Config »
+                </a>
+            {% else %}
+                {# Standard navigation back to dashboard #}
+                 <a href="{{ url_for('main_routes.index') }}" class="action-link">
+                     « Back to Dashboard
+                 </a>
+            {% endif %}
+        </div>
+    </section> {# --- End of .permissions-config-section --- #}
+
+{% endblock %}
+
+{# --- Optional Body Scripts Block --- #}
+{% block body_scripts %}
+{# <script>
+    // Any page-specific initialization if needed, e.g., confirming data before save
+</script> #}
+{% endblock %}
