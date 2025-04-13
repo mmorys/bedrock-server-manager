@@ -50,7 +50,7 @@ body {
 
     /* Sizing: Height fills viewport, width adjusts automatically. */
     /* 'cover' or 'contain' or fixed px values are alternatives */
-    background-size: auto 100vh;
+    background-size: auto 200%;
 
     /* Repeat horizontally to cover wide screens and enable scrolling effect */
     background-repeat: repeat-x;
@@ -60,13 +60,13 @@ body {
 
     /* --- Panorama Animation --- */
     animation-name: panoramaScroll;
-    animation-duration: 280s; /* <<<=== ADJUST DURATION for scroll speed (longer = slower) */
+    animation-duration: 380s; /* <<<=== ADJUST DURATION for scroll speed (longer = slower) */
     animation-timing-function: linear; /* Constant speed */
     animation-iteration-count: infinite; /* Loop forever */
     animation-play-state: running; /* Animation is active */
 
     /* Ensure body takes at least full viewport height */
-    min-height: 100vh;
+    min-height: 200%;
     position: relative; /* Needed for pseudo-element positioning */
 }
 
