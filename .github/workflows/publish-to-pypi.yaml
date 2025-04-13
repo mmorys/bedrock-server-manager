@@ -30,7 +30,7 @@ jobs:
         run: python -m build
 
       - name: Publish to TestPyPI
-        if: github.event.release.prerelease == false
+        if: github.event.release.prerelease == true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
