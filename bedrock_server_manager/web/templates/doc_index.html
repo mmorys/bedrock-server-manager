@@ -1,0 +1,81 @@
+{# bedrock-server-manager/bedrock_server_manager/web/templates/doc_index.html #}
+{% extends "base.html" %}
+
+{# --- Page Title --- #}
+{% block title %}Documentation Index - {{ super() }}{% endblock %}
+
+{# --- Page Specific Styles (Optional) --- #}
+{% block head_styles %}
+{{ super() }} {# Include styles from base if needed #}
+<style>
+    .docs-index-list {
+        list-style: none; /* Remove default bullets */
+        padding-left: 0;
+        margin-top: 1.5em;
+    }
+
+        .docs-index-list li {
+            margin-bottom: 1em;
+            font-size: 1.1em;
+        }
+
+        .docs-index-list a {
+            color: #90CAF9; /* Light blue link color */
+            text-decoration: none;
+            font-weight: 600;
+            padding: 5px 0; /* Add some vertical padding for easier clicking */
+            transition: color 0.2s ease;
+        }
+
+            .docs-index-list a:hover {
+                color: #BBDEFB; /* Lighter blue on hover */
+                text-decoration: underline;
+            }
+        /* Style for the description paragraph */
+        .docs-index-list p {
+            font-size: 0.9em;
+            color: #bbb;
+            margin-top: 3px;
+            margin-left: 5px; /* Slight indent for description */
+            line-height: 1.4;
+        }
+</style>
+{% endblock %}
+
+
+{# --- Main Content --- #}
+{% block content %}
+<h1>Documentation Index</h1>
+<p>Welcome to the Bedrock Server Manager documentation. Select a topic below to learn more:</p>
+
+<ul class="docs-index-list">
+    <li>
+        {# Link to Getting Started Docs #}
+        <a href="{{ url_for('doc_routes.getting_started') }}">Getting Started Guide</a>
+        <p>Overview, features, installation, configuration, and basic usage.</p>
+    </li>
+    <li>
+        {# Link to API Docs #}
+        <a href="{{ url_for('doc_routes.api_docs') }}">HTTP API Documentation</a>
+        <p>Detailed reference for all available HTTP API endpoints.</p>
+    </li>
+    <li>
+        {# Link to Changelog #}
+        <a href="{{ url_for('doc_routes.changelog') }}">Changelog</a>
+        <p>History of changes and new features across different versions.</p>
+    </li>
+    {# --- Add links to other documentation pages here as you create them --- #}
+    {# Example Placeholder:
+    <li>
+        <a href="#">Configuration Reference</a>
+        <p>Explanation of all configuration settings available in BSM.</p>
+    </li>
+    #}
+</ul>
+
+{% endblock %}
+
+{# --- Page Specific Body Scripts (Optional) --- #}
+{% block body_scripts %}
+{{ super() }}
+{% endblock %}

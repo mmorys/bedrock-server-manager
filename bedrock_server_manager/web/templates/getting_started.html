@@ -1,0 +1,787 @@
+﻿{# bedrock-server-manager/bedrock_server_manager/web/templates/getting_started.html #}
+{% extends "base.html" %}
+
+{# --- Page Title --- #}
+{% block title %}Getting Started - {{ super() }}{% endblock %}
+
+{# --- Page Specific Styles --- #}
+{% block head_styles %}
+{{ super() }} {# Include styles from base if needed #}
+    {# Include table styles if not already globally included/needed #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
+
+<style>
+    .getting-started-container {
+        /* Content will inherit padding/styles from the main .container in base.html */
+    }
+
+        .getting-started-container h1 { /* Main Page Title */
+            margin-bottom: 0.8em;
+            padding-bottom: 0.5em; /* Added padding */
+            border-bottom: 1px solid #666; /* Added border */
+            font-size: 2em;
+            color: #eee; /* Ensure color consistency */
+        }
+
+        .getting-started-container h2 { /* Major Section */
+            margin-top: 2em;
+            margin-bottom: 1em;
+            padding-bottom: 0.5em;
+            border-bottom: 1px solid #666;
+            font-size: 1.8em;
+            color: #eee; /* Match h1 color */
+        }
+
+        .getting-started-container h3 { /* Sub-Section */
+            margin-top: 1.8em;
+            margin-bottom: 0.8em;
+            font-size: 1.4em;
+            color: #e0e0e0;
+            /* Optional: Add subtle border */
+            /* border-bottom: 1px dotted #555; */
+            /* padding-bottom: 0.3em; */
+        }
+
+        .getting-started-container h4 { /* Sub-Sub-Section */
+            margin-top: 1.5em;
+            margin-bottom: 0.6em;
+            font-size: 1.2em;
+            color: #dcdcdc;
+        }
+
+        .getting-started-container h5 { /* Smaller Sub-Section */
+            margin-top: 1.3em;
+            margin-bottom: 0.5em;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #cccccc;
+        }
+
+        .getting-started-container p {
+            line-height: 1.6;
+            margin-bottom: 1em;
+            color: #eee; /* Ensure consistent text color */
+        }
+
+        .getting-started-container ul,
+        .getting-started-container ol {
+            margin-left: 25px; /* Indentation */
+            margin-bottom: 1.5em;
+            padding-left: 15px; /* Add padding for list marker */
+            color: #eee; /* Ensure consistent text color */
+        }
+
+            .getting-started-container ul ul,
+            .getting-started-container ol ol {
+                margin-top: 0.5em;
+                margin-bottom: 1em;
+                margin-left: 20px; /* Additional indent */
+            }
+
+        .getting-started-container li {
+            margin-bottom: 0.6em;
+            line-height: 1.5;
+        }
+
+        .getting-started-container code { /* Inline code */
+            background-color: #4a4a4a;
+            padding: 0.2em 0.4em;
+            border-radius: 0; /* Match sharp corners */
+            font-size: 0.9em;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            color: #f0f0f0;
+            word-break: break-word; /* Allow wrapping */
+        }
+
+        .getting-started-container pre { /* Code blocks */
+            background-color: #282828; /* Darker code block bg */
+            border: 1px solid #444; /* Slightly lighter border than default */
+            padding: 12px 15px; /* Adjust padding */
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre; /* Keep pre formatting for commands */
+            border-radius: 0px;
+            margin-top: 0.5em;
+            margin-bottom: 1.5em;
+            color: #e0e0e0;
+            max-width: 100%; /* Prevent overflow */
+            box-sizing: border-box;
+        }
+
+            .getting-started-container pre code { /* Reset inline style within pre */
+                background-color: transparent;
+                padding: 0;
+                border-radius: 0;
+                font-size: inherit;
+                color: inherit;
+                white-space: inherit; /* Inherit pre's whitespace handling */
+                display: inline; /* Should be inline within pre */
+                word-break: normal; /* Don't force break inside pre code */
+            }
+
+    /* Style for the back link */
+    .back-to-docs-link {
+        display: inline-block;
+        margin-bottom: 1.5em;
+        font-size: 0.95em;
+    }
+
+        .back-to-docs-link a {
+            color: #90CAF9;
+            text-decoration: none;
+        }
+
+            .back-to-docs-link a:hover {
+                color: #BBDEFB;
+                text-decoration: underline;
+            }
+
+    /* Table specific adjustments */
+    .getting-started-container .table-responsive-wrapper {
+        /* Inherits base styles, no extra needed unless override */
+        margin-bottom: 1.5em; /* Add space after tables */
+    }
+
+    .getting-started-container .server-table th,
+    .getting-started-container .server-table td {
+        padding: 8px 12px; /* Slightly tighter padding */
+        font-size: 0.95em;
+        vertical-align: top; /* Align content top for readability */
+        line-height: 1.4; /* Ensure consistent line height */
+    }
+
+        .getting-started-container .server-table td:nth-child(1) { /* Command name */
+            white-space: nowrap; /* Prevent wrapping for command */
+            font-weight: 600; /* Make command bold */
+        }
+
+        .getting-started-container .server-table td:nth-child(3) { /* Arguments */
+            white-space: normal; /* Allow args to wrap if needed */
+            word-break: break-word;
+        }
+
+            .getting-started-container .server-table td:nth-child(3) code {
+                font-size: 0.9em; /* Slightly smaller code font in table */
+                display: inline-block; /* Better spacing */
+                margin-bottom: 2px; /* Space if args wrap */
+            }
+
+        .getting-started-container .server-table td:nth-child(4) { /* Platform */
+            text-align: center;
+            white-space: nowrap;
+        }
+
+    /* Disclaimer Box */
+    .disclaimer-box {
+        border-width: 1px;
+        border-style: solid;
+        padding: 15px 20px; /* Adjust padding */
+        margin: 1.5em 0;
+        border-radius: 0;
+        color: #eee; /* Default text color */
+    }
+        /* Warning/Amber Box */
+        .disclaimer-box.warning {
+            border-color: #FFA000; /* Amber border */
+            background-color: rgba(255, 160, 0, 0.1); /* Light amber background */
+        }
+        /* Info/Blue Box */
+        .disclaimer-box.info {
+            border-color: #1E88E5; /* Blue border */
+            background-color: rgba(30, 136, 229, 0.1); /* Light blue background */
+        }
+
+
+        .disclaimer-box h4 {
+            margin-top: 0;
+            margin-bottom: 0.5em;
+            font-size: 1.15em; /* Slightly larger */
+            font-weight: 600;
+        }
+
+        .disclaimer-box.warning h4 {
+            color: #FFB74D;
+        }
+        /* Lighter Amber */
+        .disclaimer-box.info h4 {
+            color: #90CAF9;
+        }
+        /* Lighter Blue */
+
+        .disclaimer-box ul {
+            margin-bottom: 0.5em;
+            margin-left: 20px; /* Indent list within box */
+            padding-left: 10px;
+        }
+
+            .disclaimer-box ul ul {
+                margin-left: 15px; /* Further indent nested lists */
+            }
+
+        .disclaimer-box li {
+            margin-bottom: 0.4em;
+        }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .getting-started-container h1 {
+            font-size: 1.8em;
+        }
+
+        .getting-started-container h2 {
+            font-size: 1.6em;
+            margin-top: 1.8em;
+        }
+
+        .getting-started-container h3 {
+            font-size: 1.3em;
+            margin-top: 1.6em;
+        }
+
+        .getting-started-container h4 {
+            font-size: 1.15em;
+            margin-top: 1.4em;
+        }
+
+        .getting-started-container h5 {
+            font-size: 1.05em;
+            margin-top: 1.2em;
+        }
+
+        .getting-started-container ol,
+        .getting-started-container ul {
+            margin-left: 20px;
+            padding-left: 10px;
+        }
+
+        .getting-started-container .server-table th,
+        .getting-started-container .server-table td {
+            font-size: 0.9em;
+            padding: 6px 10px;
+        }
+
+        .disclaimer-box {
+            padding: 12px 15px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .getting-started-container h1 {
+            font-size: 1.6em;
+        }
+
+        .getting-started-container h2 {
+            font-size: 1.45em;
+            margin-top: 1.6em;
+        }
+
+        .getting-started-container h3 {
+            font-size: 1.25em;
+            margin-top: 1.5em;
+        }
+
+        .getting-started-container h4 {
+            font-size: 1.1em;
+            margin-top: 1.3em;
+        }
+
+        .getting-started-container h5 {
+            font-size: 1em;
+            margin-top: 1.1em;
+        }
+
+        .getting-started-container ol,
+        .getting-started-container ul {
+            margin-left: 15px;
+            padding-left: 10px;
+        }
+
+        .getting-started-container pre {
+            font-size: 0.85em;
+            padding: 10px;
+        }
+
+        .getting-started-container code {
+            font-size: 0.85em;
+        }
+
+        .getting-started-container .server-table th,
+        .getting-started-container .server-table td {
+            font-size: 0.85em;
+            padding: 5px 8px;
+        }
+
+            .getting-started-container .server-table td:nth-child(1), /* Command name */
+            .getting-started-container .server-table td:nth-child(4) { /* Platform */
+                white-space: normal; /* Allow wrapping on very small screens */
+            }
+
+        .disclaimer-box {
+            padding: 10px 12px;
+        }
+
+            .disclaimer-box h4 {
+                font-size: 1.1em;
+            }
+    }
+</style>
+{% endblock %}
+
+
+{# --- Main Content --- #}
+{% block content %}
+<div class="getting-started-container">
+
+    <h1>Bedrock Server Manager</h1>
+
+    {# --- Link back to the Documentation Index --- #}
+    <p class="back-to-docs-link">
+        <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+    </p>
+
+    <p>Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease, and is Linux/Windows compatable.</p>
+
+    <h2>Features</h2>
+    <ul>
+        <li>Install New Servers: Quickly set up a server with customizable options like version (LATEST, PREVIEW, or specific versions).</li>
+        <li>Update Existing Servers: Seamlessly download and update server files while preserving critical configuration files and backups.</li>
+        <li>Backup Management: Automatically backup worlds and configuration files, with pruning for older backups.</li>
+        <li>Server Configuration: Easily modify server properties, and allow-list interactively.</li>
+        <li>Auto-Update supported: Automatically update the server with a simple restart.</li>
+        <li>Command-Line Tools: Send game commands, start, stop, and restart servers directly from the command line.</li>
+        <li>Interactive Menu: Access a user-friendly interface to manage servers without manually typing commands.</li>
+        <li>Install/Update Content: Easily import <code>.mcworld</code>/<code>.mcpack</code> files into your server.</li>
+        <li>Automate Various Server Task: Quickly create cron task to automate task such as backup-server or restart-server (Linux only).</li>
+        <li>View Resource Usage: View how much CPU and RAM your server is using.</li>
+        <li>Web Server: Easily manage your Minecraft servers in your browser, even if you're on mobile!</li>
+    </ul>
+
+    <h2>Prerequisites</h2>
+    <p>This script requires <strong>Python 3.10</strong> or later, and you will need <strong>pip</strong> installed.</p>
+    <p>On Linux, you'll also need:</p>
+    <ul>
+        <li><code>screen</code></li>
+        <li><code>systemd</code> (for service management features)</li>
+    </ul>
+
+    <h2>Installation</h2>
+    <h3>Install The Package:</h3>
+    <ol>
+        <li>Run the command:</li>
+    </ol>
+    <pre><code>pip install bedrock-server-manager</code></pre>
+
+    <h2>Configuration</h2>
+    <h3>Setup The Configuration:</h3>
+    <p>Bedrock Server Manager will use the Environment Variable <code>BEDROCK_SERVER_MANAGER_DATA_DIR</code> for setting the default config/data location. If this variable does not exist it will default to <code>$HOME/bedrock-server-manager</code> (Linux/macOS) or the user's home directory equivalent on Windows.</p>
+    <p>Follow your platform's documentation for setting Environment Variables.</p>
+    <p>The script will create its data folders in this location. This is where servers will be installed to and where the script will look when managing various server aspects.</p>
+    <p>Certain variables can be changed directly in the <code><DATA_DIR>/.config/script_config.json</code> file or with the <code>manage-script-config</code> command.</p>
+
+    <h4>Configurable Variables (via <code>script_config.json</code>):</h4>
+    <ul>
+        <li><code>BASE_DIR</code>: Directory where servers will be installed (within the main data directory).</li>
+        <li><code>CONTENT_DIR</code>: Directory where the app will look for addons/worlds (within the main data directory).</li>
+        <li><code>DOWNLOAD_DIR</code>: Directory where server archives are downloaded (within the main data directory).</li>
+        <li><code>BACKUP_DIR</code>: Directory where server backups will go (within the main data directory).</li>
+        <li><code>LOG_DIR</code>: Directory where app logs will be saved (within the main data directory).</li>
+        <li><code>BACKUP_KEEP</code>: How many world/config backups to keep per server.</li>
+        <li><code>DOWNLOAD_KEEP</code>: How many downloaded server archives to keep.</li>
+        <li><code>LOGS_KEEP</code>: How many application log files to keep.</li>
+        <li><code>LOG_LEVEL</code>: Logging level (e.g., INFO, DEBUG).</li>
+        <li><code>BEDROCK_SERVER_MANAGER_PORT</code>: Port for the web server (default 11325).</li> {# Added Port based on later section #}
+    </ul>
+
+    <h2>Usage</h2>
+    <h3>Run the script:</h3>
+    <pre><code>bedrock-server-manager <command> [options]</code></pre>
+
+    <h3>Available commands:</h3>
+    <p><sub>When interacting with the script, <code>server_name</code> is the name of the server's folder (the name you chose during the first step of installation, also displayed in the Server Status table/menu).</sub></p>
+
+    <div class="table-responsive-wrapper">
+        <table class="server-table">
+            <thead>
+                <tr>
+                    <th>Command</th>
+                    <th>Description</th>
+                    <th>Arguments</th>
+                    <th>Platform</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>main</strong></td>
+                    <td>Open Bedrock Server Manager menu</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>list-servers</strong></td>
+                    <td>List all servers and their statuses</td>
+                    <td><code>-l, --loop</code>: Continuously list servers (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>get-status</strong></td>
+                    <td>Get the status of a specific server (from config)</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>configure-allowlist</strong></td>
+                    <td>Configure the allowlist for a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>configure-permissions</strong></td>
+                    <td>Configure permissions for a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>configure-properties</strong></td>
+                    <td>Configure individual server.properties</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-p, --property <prop></code> (required)<br><code>-v, --value <val></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>install-server</strong></td>
+                    <td>Install a new server</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>update-server</strong></td>
+                    <td>Update an existing server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>start-server</strong></td>
+                    <td>Start a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>stop-server</strong></td>
+                    <td>Stop a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>install-world</strong></td>
+                    <td>Install a world from a .mcworld file</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>install-addon</strong></td>
+                    <td>Install an addon (.mcaddon or .mcpack)</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>restart-server</strong></td>
+                    <td>Restart a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>delete-server</strong></td>
+                    <td>Delete a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>backup-server</strong></td>
+                    <td>Backup server files</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-t, --type <type></code> (required)<br><code>-f, --file <path></code> (optional)<br><code>--no-stop</code> (optional flag)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>backup-all</strong></td>
+                    <td>Backup world and config files for a server</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>--no-stop</code> (optional flag)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>restore-server</strong></td>
+                    <td>Restore server files from backup</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (required)<br><code>-t, --type <type></code> (required)<br><code>--no-stop</code> (optional flag)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>restore-all</strong></td>
+                    <td>Restores all newest files (world and configs)</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>--no-stop</code> (optional flag)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>scan-players</strong></td>
+                    <td>Scan server logs for player data</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>add-players</strong></td>
+                    <td>Manually add player:xuid to players.json</td>
+                    <td><code>-p, --players <p1:xuid> [<p2:xuid> ...]</code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>monitor-usage</strong></td>
+                    <td>Monitor server resource usage</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>prune-old-backups</strong></td>
+                    <td>Prunes old backups</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file-name <name></code> (optional)<br><code>-k, --keep <num></code> (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>prune-old-downloads</strong></td>
+                    <td>Prunes old downloads</td>
+                    <td><code>-d, --download-dir <path></code> (required)<br><code>-k, --keep <num></code> (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>manage-script-config</strong></td>
+                    <td>Manages the script's configuration file</td>
+                    <td><code>-k, --key <key></code> (required)<br><code>-o, --operation {read|write}</code> (required)<br><code>-v, --value <val></code> (required for write)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>manage-server-config</strong></td>
+                    <td>Manages individual server config files</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-k, --key <key></code> (required)<br><code>-o, --operation {read|write}</code> (required)<br><code>-v, --value <val></code> (required for write)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>get-installed-version</strong></td>
+                    <td>Gets the installed version of a server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>check-server-status</strong></td>
+                    <td>Checks the server status (via logs)</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>get-world-name</strong></td>
+                    <td>Gets the world name from server.properties</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>create-service</strong></td>
+                    <td>Enable/Disable Auto-Update, Reconfigures Systemd file</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>is-server-running</strong></td>
+                    <td>Checks if server process is running</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>send-command</strong></td>
+                    <td>Sends a command to the server</td>
+                    <td><code>-s, --server <name></code> (required)<br><code>-c, --command <cmd></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>export-world</strong></td>
+                    <td>Exports world to backup dir</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>validate-server</strong></td>
+                    <td>Checks if server dir and executable exist</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>check-internet</strong></td>
+                    <td>Checks for internet connectivity</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>cleanup</strong></td>
+                    <td>Clean up project files (cache, logs)</td>
+                    <td><code>-c, --cache</code> (optional flag)<br><code>-l, --logs</code> (optional flag)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>start-webserver</strong></td>
+                    <td>Start the web management interface</td>
+                    <td><code>-H <host></code> (optional)<br><code>-p <port></code> (optional)<br><code>-d, --debug</code> (optional flag)<br><code>-m {direct|detached}</code> (optional)</td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    <td><strong>stop-webserver</strong></td>
+                    <td>Stop the detached web server process</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+                <tr>
+                    {# Added Generate Password #}
+                    <td><strong>generate-password</strong></td>
+                    <td>Generates a password hash for web UI config</td>
+                    <td><em>(None)</em></td>
+                    <td>All</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h4>Linux-Specific Commands</h4>
+    <div class="table-responsive-wrapper">
+        <table class="server-table">
+            <thead>
+                <tr>
+                    <th>Command</th>
+                    <th>Description</th>
+                    <th>Arguments</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>attach-console</strong></td>
+                    <td>Attaches to screen session for a running server</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                </tr>
+                <tr>
+                    <td><strong>enable-service</strong></td>
+                    <td>Enables a systemd service</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                </tr>
+                <tr>
+                    <td><strong>disable-service</strong></td>
+                    <td>Disables a systemd service</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                </tr>
+                <tr>
+                    <td><strong>check-service-exists</strong></td>
+                    <td>Checks if a systemd service file exists</td>
+                    <td><code>-s, --server <name></code> (required)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h5>Examples:</h5>
+    <p>Open Main Menu:</p>
+    <pre><code>bedrock-server-manager main</code></pre>
+
+    <p>Send Command:</p>
+    <pre><code>bedrock-server-manager send-command -s server_name -c "tell @a hello"</code></pre>
+
+    <p>Update Server:</p>
+    <pre><code>bedrock-server-manager update-server --server server_name</code></pre>
+
+    <p>Manage Script Config:</p>
+    <pre><code>bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write --value 5</code></pre>
+
+    <h2>Install Content</h2>
+    <p>Easily import addons and worlds into your servers. The app will look in the configured <code>CONTENT_DIR</code> directories for addon files.</p>
+    <p>Place <code>.mcworld</code> files in <code><CONTENT_DIR>/worlds</code> or <code>.mcpack</code>/<code>.mcaddon</code> files in <code><CONTENT_DIR>/addons</code></p>
+    <p>Use the interactive menu to choose which file to install or use the command:</p>
+    <pre><code>bedrock-server-manager install-world --server server_name --file '/path/to/WORLD.mcworld'</code></pre>
+    <pre><code>bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON.mcpack'</code></pre>
+
+    <h2>Web Server</h2>
+    <p>Bedrock Server Manager 3.1.0 includes a Web server you can run to easily manage your bedrock servers in your web browser, and is also mobile friendly!</p>
+    <p>The web ui has full parity with the CLI. With the web server you can:</p>
+    <ul>
+        <li>Install New Server</li>
+        <li>Configure various server config files such as allowlist and permissions</li>
+        <li>Start/Stop/Restart Bedrock server</li>
+        <li>Update/Delete Bedrock server</li>
+        <li>Monitor resource usage</li>
+        <li>Schedule cron/task</li>
+        <li>Install world/addons</li>
+        <li>Backup and Restore all or individual files/worlds</li>
+    </ul>
+
+    <h3>Configure the Web Server:</h3>
+
+    <h4>Environment Variables:</h4>
+    <p>To get started using the web server you must first set these environment variables:</p>
+    <ul>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_USERNAME</code></strong>: Required. Plain text username for web UI and API login. <strong>The web server will not start if this is not set.</strong></li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_PASSWORD</code></strong>: Required. Hashed password for web UI and API login. Use the generate-password utility. <strong>The web server will not start if this is not set.</strong></li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_SECRET</code></strong>: Recommended. A long, random, secret string. If not set, a temporary key is generated, and web UI sessions will not persist across restarts, requiring reauthentication.</li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_TOKEN</code></strong>: Recommended. A long, random, secret string (different from _SECRET). If not set, a temporary key is generated, and JWT tokens used for API authentication will become invalid across restarts. <strong>JWT tokens expire every 4 weeks.</strong></li>
+    </ul>
+    <p>Follow your platform's documentation for setting Environment Variables.</p>
+
+    <h4>Generate Password Hash:</h4>
+    <p>For the web server to start you must first set the <code>BEDROCK_SERVER_MANAGER_PASSWORD</code> environment variable.</p>
+    <p>This must be set to the password hash and NOT the plain text password.</p>
+    <p>Use the following command to generate a password:</p>
+    <pre><code>bedrock-server-manager generate-password</code></pre>
+    <p>Follow the on-screen prompt to hash your password.</p>
+
+    <h4>Hosts:</h4>
+    <p>By Default Bedrock Server Manager will only listen to local host only interfaces <code>127.0.0.1</code> and <code>[::1]</code>.</p>
+    <p>To change which host to listen to start the web server with the specified host.</p>
+    <p>Example: specify local host only ipv4 and ipv6:</p>
+    <pre><code>bedrock-server-manager start-web-server --host 127.0.0.1 "::1"</code></pre>
+
+    <h4>Port:</h4>
+    <p>By default Bedrock Server Manager will use port <code>11325</code>. This can be changed in <code>script_config.json</code>:</p>
+    <pre><code>bedrock-server-manager manage-script-config --key BEDROCK_SERVER_MANAGER_PORT --operation write --value 11325</code></pre>
+
+    <h2>Disclaimers</h2>
+    <div class="disclaimer-box warning">
+        {# Added warning class #}
+        <h4>Platform Differences:</h4>
+        <ul>
+            <li>
+                Windows support has the following limitations:
+                <ul>
+                    <li><code>send-command</code> requires separate start method (not yet available)</li>
+                    <li>No attach to console support</li>
+                    <li>No system service integration (autostart on boot, etc.)</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="disclaimer-box info">
+        {# Added info class #}
+        <h4>Tested Systems:</h4>
+        <ul>
+            <li>Debian 12 (bookworm)</li>
+            <li>Ubuntu 24.04</li>
+            <li>Windows 11 24H2</li>
+            <li>WSL2</li>
+        </ul>
+    </div>
+
+
+    {# --- Optional: Back link at the bottom --- #}
+    <hr style="margin-top: 3em; border: 0; height: 1px; background-color: #555;"> {# Consistent hr style #}
+    <p class="back-to-docs-link">
+        <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+    </p>
+
+</div> {# End .getting-started-container #}
+{% endblock %}
+
+{# --- Page Specific Body Scripts (Optional) --- #}
+{% block body_scripts %}
+{{ super() }}
+    {# Add any JS specific to this page if needed #}
+{% endblock %}

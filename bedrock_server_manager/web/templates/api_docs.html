@@ -1,0 +1,1431 @@
+﻿<!-- bedrock-server-manager/bedrock_server_manager/web/templates/api_docs.html -->
+{% extends "base.html" %}
+
+{# --- Page Title --- #}
+{% block title %}API Documentation - {{ super() }}{% endblock %}
+
+{# --- Specific Styles for API Docs --- #}
+{% block head_styles %}
+    {# Add specific styles for API docs elements on top of base CSS #}
+<style>
+    /* --- Section & Endpoint Structure --- */
+    .api-section {
+        margin-bottom: 35px;
+        padding-bottom: 25px;
+        border-bottom: 1px solid #555; /* Separator between major sections */
+    }
+
+        .api-section:last-child {
+            border-bottom: none; /* No border after the last section */
+        }
+
+    .api-endpoint {
+        margin-bottom: 25px;
+        padding: 15px 20px;
+        background-color: #3f3f3f; /* Slightly lighter background for endpoints */
+        border: 1px solid #505050;
+        border-radius: 0;
+        position: relative; /* For potential future absolute elements if needed */
+    }
+    /* Don't add extra bottom margin to the last endpoint in a section */
+    .api-section .api-endpoint:last-child {
+        margin-bottom: 0;
+    }
+
+    /* --- Headings --- */
+    h1.api-title { /* Specific style for the main H1 of this page */
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #666;
+        font-size: 1.8em; /* Slightly smaller than main site title */
+    }
+
+    .api-section > h2 { /* Major section titles (Auth, Server Actions...) */
+        margin-top: 0;
+        margin-bottom: 25px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed #555;
+        font-size: 1.6em;
+        color: #eee;
+    }
+
+    .api-endpoint h3 { /* Endpoint title (includes method tag & path) */
+        margin-top: 0;
+        margin-bottom: 15px;
+        display: flex; /* Align method tag and text */
+        align-items: center;
+        flex-wrap: wrap; /* Allow wrapping on small screens */
+        gap: 10px; /* Space between tag and text */
+        font-size: 1.4em;
+        color: #f0f0f0;
+        line-height: 1.3;
+    }
+
+    .api-endpoint h4 { /* Sub-headings within an endpoint (Auth, Body, Response...) */
+        margin-top: 20px;
+        margin-bottom: 8px;
+        font-size: 1.1em;
+        color: #ddd;
+        border-bottom: 1px dotted #5f5f5f;
+        padding-bottom: 5px;
+        font-weight: 600;
+    }
+
+        .api-endpoint h4:first-of-type {
+            margin-top: 15px; /* Reduce top margin for the very first h4 */
+        }
+
+    /* --- Method Tags --- */
+    .method-tag {
+        display: inline-block;
+        padding: 3px 8px;
+        font-size: 0.75em; /* Smaller font */
+        font-weight: bold;
+        line-height: 1.2;
+        border-radius: 0; /* Keep sharp */
+        color: #fff;
+        text-transform: uppercase;
+        vertical-align: middle; /* Align nicely with text */
+        flex-shrink: 0; /* Prevent shrinking */
+        border-width: 1px;
+        border-style: solid;
+    }
+
+    .method-get {
+        background-color: #4CAF50;
+        border-color: #66BB6A;
+    }
+    /* Green */
+    .method-post {
+        background-color: #1E88E5;
+        border-color: #42A5F5;
+    }
+    /* Blue */
+    .method-put {
+        background-color: #FB8C00;
+        border-color: #FFB74D;
+    }
+    /* Orange */
+    .method-delete {
+        background-color: #D32F2F;
+        border-color: #E57373;
+    }
+    /* Red */
+
+    /* --- Endpoint Path --- */
+    .endpoint-path {
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        background-color: #4a4a4a;
+        padding: 2px 6px;
+        border-radius: 0;
+        font-size: 0.95em;
+        color: #eee;
+        word-break: break-all; /* Allow long paths to wrap */
+    }
+
+    /* --- Code Blocks --- */
+    .api-code-block {
+        background-color: #282828; /* Darker background for contrast */
+        color: #f0f0f0;
+        border: 1px solid #444;
+        padding: 12px 15px;
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.9em;
+        line-height: 1.4;
+        overflow-x: auto; /* Enable horizontal scroll */
+        white-space: pre; /* Preserve whitespace */
+        border-radius: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+        box-sizing: border-box;
+        display: block; /* Ensure block display */
+        max-width: 100%; /* Prevent overflow issues */
+    }
+    /* Apply to both pre and code for robustness */
+    .api-endpoint pre,
+    .api-endpoint .api-code-block {
+        background-color: #282828;
+        color: #f0f0f0;
+        border: 1px solid #444;
+        padding: 12px 15px;
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.9em;
+        line-height: 1.4;
+        overflow-x: auto;
+        white-space: pre;
+        border-radius: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+        box-sizing: border-box;
+        display: block;
+        max-width: 100%;
+    }
+
+        .api-endpoint pre > code { /* Reset padding/border if code inside pre */
+            padding: 0;
+            border: none;
+            background: none;
+            white-space: inherit; /* Inherit from pre */
+            display: inline; /* Code is inline within pre */
+        }
+    /* Style for the back link */
+    .back-to-docs-link {
+        display: inline-block; /* Or block if you want it on its own line */
+        margin-bottom: 1.5em;
+        font-size: 0.95em;
+    }
+
+        .back-to-docs-link a {
+            color: #90CAF9;
+            text-decoration: none;
+        }
+
+            .back-to-docs-link a:hover {
+                color: #BBDEFB;
+                text-decoration: underline;
+            }
+
+    /* --- Lists & Parameters --- */
+    .api-endpoint ul {
+        list-style: disc;
+        margin-left: 25px; /* Indent list */
+        padding: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+    }
+
+    .api-endpoint li {
+        margin-bottom: 6px;
+        line-height: 1.5;
+    }
+
+        .api-endpoint li code { /* Inline code within list items */
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            background-color: #4f4f4f; /* Slightly different inline code bg */
+            padding: 1px 5px;
+            font-size: 0.9em;
+            border-radius: 0;
+            color: #eee;
+        }
+
+    .param-name { /* Style for parameter names */
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-weight: bold;
+        color: #ddd;
+    }
+
+    .param-type { /* Style for parameter types (string, boolean...) */
+        font-style: italic;
+        color: #bbb;
+        margin-left: 5px;
+        font-size: 0.95em;
+    }
+
+    .param-required { /* Style for "(Required)" text */
+        font-weight: normal;
+        font-style: normal;
+        color: #ffb74d; /* Amber color */
+        font-size: 0.85em;
+        margin-left: 8px;
+    }
+
+    .param-optional { /* Style for "(Optional)" text */
+        font-weight: normal;
+        font-style: normal;
+        color: #90caf9; /* Light blue color */
+        font-size: 0.85em;
+        margin-left: 8px;
+    }
+
+    /* --- Responsive Adjustments (Complementary to base CSS) --- */
+    @media (max-width: 768px) {
+        .api-endpoint h3 {
+            font-size: 1.3em;
+        }
+
+        .api-endpoint h4 {
+            font-size: 1.05em;
+        }
+
+        .api-endpoint {
+            padding: 12px 15px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .api-endpoint h3 {
+            font-size: 1.2em;
+            gap: 8px;
+        }
+
+        .method-tag {
+            font-size: 0.7em;
+            padding: 2px 6px;
+        }
+
+        .endpoint-path {
+            font-size: 0.9em;
+        }
+
+        .api-endpoint h4 {
+            font-size: 1em;
+        }
+
+        .api-endpoint {
+            padding: 10px 12px;
+        }
+
+            .api-endpoint ul {
+                margin-left: 20px;
+            }
+
+            .api-code-block, .api-endpoint pre {
+                font-size: 0.85em;
+                padding: 10px;
+            }
+    }
+</style>
+{% endblock %}
+
+{# --- Main Content Area --- #}
+{% block content %}
+<h1 class="api-title">Bedrock Server Manager - HTTP API Documentation</h1>
+
+    {# --- Link back to the Documentation Index --- #}
+<p class="back-to-docs-link">
+    <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+</p>
+
+<p>This document outlines the available HTTP API endpoints for interacting with the Bedrock Server Manager.</p>
+
+<h4>Base URL:</h4>
+<p>All endpoint paths are relative to the base URL where the manager's web server is running. Replace <code class="endpoint-path">http://&lt;your-manager-host&gt;:&lt;port&gt;</code> with the actual address. The default port is <code class="endpoint-path">11325</code> (configurable via the <code class="param-name">WEB_PORT</code> setting).</p>
+
+<h4>Authentication:</h4>
+<p>Most API endpoints require authentication. This is done by providing a JSON Web Token (JWT) obtained from the <code class="endpoint-path">/api/login</code> endpoint. Include the token in the <code class="param-name">Authorization</code> header as a Bearer token:</p>
+<pre><code class="api-code-block">Authorization: Bearer YOUR_JWT_TOKEN</code></pre>
+<p>The token expiration duration is configurable via the <code class="param-name">TOKEN_EXPIRES_WEEKS</code> setting, defaulting to 4 weeks.</p>
+
+<h4>Content-Type:</h4>
+<p>For requests that include data in the body (POST, PUT), the <code class="param-name">Content-Type</code> header should be set to <code class="endpoint-path">application/json</code>. Responses from the API will typically have a <code class="param-name">Content-Type</code> of <code class="endpoint-path">application/json</code>.</p>
+
+<h4>Standard Responses:</h4>
+<ul>
+    <li>
+        <strong>Success:</strong> Typically returns HTTP status <code>200 OK</code>, <code>201 Created</code> with a JSON body like:
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Operation completed successfully.",
+    "data_key": "optional_data"
+}</code></pre>
+        <em>(Specific <code class="param-name">data_key</code> names vary by endpoint)</em>
+    </li>
+    <li>
+        <strong>Error:</strong> Typically returns HTTP status <code>4xx</code> (Client Error) or <code>5xx</code> (Server Error) with a JSON body like:
+        <pre><code class="api-code-block">{
+    "status": "error",
+    "message": "A description of the error.",
+    "errors": { // Optional: Field-specific validation errors
+        "field_name": "Specific error for this field."
+    }
+}</code></pre>
+        Common error codes:
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid input, missing parameters, validation failed, invalid format (e.g., not JSON).</li>
+            <li><code>401 Unauthorized</code>: Authentication token missing or invalid (for JWT protected routes).</li>
+            <li><code>403 Forbidden</code>: Authenticated user lacks permission (or OS mismatch for platform-specific endpoints like scheduling).</li>
+            <li><code>404 Not Found</code>: Server, task, file, or endpoint not found.</li>
+            <li><code>500 Internal Server Error</code>: An unexpected error occurred on the server during processing (e.g., file operation failure, configuration issue).</li>
+            <li><code>501 Not Implemented</code>: Feature not supported on the current OS (e.g., sending commands on Windows).</li>
+        </ul>
+    </li>
+</ul>
+
+<hr style="margin: 30px 0; border-color: #666;">
+
+{# --- Authentication Section --- #}
+<div class="api-section">
+    <h2>Authentication</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/login</code> - API Login</h3>
+        <p>Authenticates using username and password provided in the JSON body and returns a JWT access token upon success. Credentials must match the <code class="param-name">BEDROCK_SERVER_MANAGER_USERNAME</code> and <code class="param-name">BEDROCK_SERVER_MANAGER_PASSWORD</code> environment variables (password must be the hashed value).</p>
+
+        <h4>Authentication:</h4>
+        <p>None required for this endpoint.</p>
+
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "username": "your_web_ui_username",
+    "password": "your_web_ui_password"
+}</code></pre>
+
+        <h4>Success Response (200 OK):</h4>
+        <pre><code class="api-code-block">{
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}</code></pre>
+
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Missing or non-JSON body, missing username/password field.</li>
+            <li><code>401 Unauthorized</code>: Invalid username or password.</li>
+            <li><code>500 Internal Server Error</code>: Server configuration issue (env vars <code class="param-name">BEDROCK_SERVER_MANAGER_USERNAME</code> or <code class="param-name">BEDROCK_SERVER_MANAGER_PASSWORD</code> not set).</li>
+        </ul>
+
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block">curl -X POST -H "Content-Type: application/json" \
+     -d '{"username": "your_username", "password": "your_password"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/login</code></pre>
+
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">$body = @{ username = 'your_username'; password = 'your_password' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/login" -Body $body -ContentType 'application/json'</code></pre>
+    </div>
+</div>
+
+{# --- Server Actions Section --- #}
+<div class="api-section">
+    <h2>Server Actions</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/start</code> - Start Server</h3>
+        <p>Starts the specified server instance.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server '&lt;server_name&gt;' start initiated successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: Server executable (<code class="endpoint-path">bedrock_server</code>) not found within the server directory.</li>
+            <li><code>500 Internal Server Error</code>: Server start failed (e.g., process error, configuration issue like missing BASE_DIR).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/start</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/start" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/stop</code> - Stop Server</h3>
+        <p>Stops the specified running server instance gracefully (sends 'stop' command).</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server '&lt;server_name&gt;' stopped successfully or was already stopped."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Stop failed (e.g., server not running, command send failed, process interaction error, timeout, configuration issue).</li>
+            <li><code>501 Not Implemented</code>: Sending commands not supported on the OS (relevant for stopping).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/stop</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/stop" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restart</code> - Restart Server</h3>
+        <p>Restarts the specified server instance. Sends an in-game warning first if running. If stopped, it will just start the server.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server '&lt;server_name&gt;' restart completed successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: Server executable missing (during start phase).</li>
+            <li><code>500 Internal Server Error</code>: Stop or start phase failed (e.g., process error, timeout, configuration issue).</li>
+            <li><code>501 Not Implemented</code>: Sending commands not supported on the OS (relevant for stop/warning phase).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restart</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restart" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/send_command</code> - Send Command</h3>
+        <p>Sends a command to the specified running server instance.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "command": "your server command here"
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Command '&lt;command&gt;' sent successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body or empty <code class="param-name">command</code> field, invalid server name.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: Server executable missing.</li>
+            <li><code>500 Internal Server Error</code>: Server is not running, command sending failed (process interaction error), configuration issue.</li>
+            <li><code>501 Not Implemented</code>: Sending commands is not supported on the current operating system (e.g., Windows).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"command": "say Hello from API!"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/send_command</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ command = 'say Hello from API!' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/send_command" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/update</code> - Update Server</h3>
+        <p>Checks for the latest Bedrock Dedicated Server version (based on server's configured target: LATEST or PREVIEW) and updates the specified server instance if a newer version is available.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "updated": true, // boolean: true if an update was performed, false otherwise
+    "new_version": "1.20.x.x", // string: version installed (if updated), null otherwise
+    "message": "Server '&lt;server_name&gt;' updated to version x.x.x.x." // Example message
+}</code></pre>
+        <em>(Message varies depending on whether an update was needed)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Update process failed (download error, extraction error, file operation error, configuration issue).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/update</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/update" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/delete</code> - Delete Server</h3>
+        <p>Deletes the specified server instance's data, including installation files, configuration, and backups. <strong>This action is irreversible.</strong> The server process will be stopped if running.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server to delete.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server '&lt;server_name&gt;' deleted successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Deletion failed (directory removal error, configuration issue, error stopping server).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/delete</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Delete -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/delete" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/status_info</code> - Get Server Status Info</h3>
+        <p>Retrieves runtime status information for a specific server, including running state and basic resource usage (PID, CPU, Memory, Uptime) if the process is active.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4>
+        <ul>
+            <li>
+                If Running:
+                <pre><code class="api-code-block">{
+    "status": "success",
+    "process_info": {
+        "pid": 12345,
+        "name": "bedrock_server",
+        "cpu_percent": 10.5,
+        "memory_percent": 2.3,
+        "memory_mb": 512.5,
+        "uptime_seconds": 3600,
+        "status": "running" // or sleeping, etc.
+    },
+    "message": "Retrieved process info for server '&lt;server_name&gt;'."
+}</code></pre>
+            </li>
+            <li>
+                If Not Running / Not Found:
+                <pre><code class="api-code-block">{
+    "status": "success",
+    "process_info": null,
+    "message": "Server '&lt;server_name&gt;' is not running."
+}</code></pre>
+            </li>
+        </ul>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Error retrieving process information (e.g., permission issue, psutil error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/status_info</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/status_info" -Headers $headers</code></pre>
+    </div>
+</div>
+
+{# --- Server Information Section --- #}
+<div class="api-section">
+    <h2>Server Information</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/world_name</code> - Get World Name</h3>
+        <p>Gets the configured world name (<code class="param-name">level-name</code> from <code class="endpoint-path">server.properties</code>) for the specified server.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "world_name": "YourWorldName"}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read <code class="endpoint-path">server.properties</code> file, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/world_name</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/world_name" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/running_status</code> - Get Running Status</h3>
+        <p>Checks if the server process for the specified server is currently running.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "running": true}</code></pre> or <pre><code class="api-code-block">{"status": "success", "running": false}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Error checking process status (e.g., permission issue, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/running_status</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/running_status" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/config_status</code> - Get Config Status</h3>
+        <p>Gets the status string stored in the server's configuration file (<code class="endpoint-path">config/{server_name}.json</code>).</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "config_status": "Installed"}</code></pre> <em>(Example status)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read configuration file, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/config_status</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/config_status" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/version</code> - Get Installed Version</h3>
+        <p>Gets the installed version string stored in the server's configuration file (<code class="endpoint-path">config/{server_name}.json</code>).</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "installed_version": "1.20.x.x"}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read configuration file, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/version</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/version" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/validate</code> - Validate Server Existence</h3>
+        <p>Validates if the server directory and the main executable (<code class="endpoint-path">bedrock_server</code>) exist for the specified server name.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server directory and executable exist."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: Server directory or executable does not exist. Response body: <pre><code class="api-code-block">{"status": "error", "message": "Server validation failed..."}</code></pre></li>
+            <li><code>500 Internal Server Error</code>: Configuration error (e.g., missing BASE_DIR).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/validate</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/validate" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/export_world</code> - Export World</h3>
+        <p>Exports the server's current world to a <code class="endpoint-path">.mcworld</code> file in the configured <code class="param-name">BACKUP_DIR</code> (defined in settings). The filename will include the server name, world name, and a timestamp.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "World 'YourWorldName' exported successfully to 'export/path/...'."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Export failed (e.g., world directory not found, zip creation error, file operation error, configuration issue).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/export_world</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/export_world" -Headers $headers</code></pre>
+    </div>
+</div>
+
+{# --- Global Actions Section --- #}
+<div class="api-section">
+    <h2>Global Actions</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/players/scan</code> - Scan Player Logs</h3>
+        <p>Triggers a scan of all server logs (<code class="endpoint-path">logs/</code> directory within each server folder under <code class="param-name">BASE_DIR</code>) to update the central <code class="endpoint-path">players.json</code> file in the configuration directory with discovered player names and XUIDs.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Scan complete. Found X players, added Y new players."}</code></pre> <em>(Message details may vary)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Scan failed (e.g., error reading logs, error writing <code class="endpoint-path">players.json</code>, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/players/scan</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/players/scan" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/downloads/prune</code> - Prune Download Cache</h3>
+        <p>Deletes older downloaded server archives (e.g., <code class="endpoint-path">.zip</code> files from updates) from a specified directory, keeping a defined number of the newest files.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "directory": "/path/to/your/download/cache", // Required: Absolute path to the directory to prune
+    "keep": 5 // Optional: Integer number of files to keep (defaults to value in Bedrock Server Manager settings if omitted)
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Pruned X files from '/path/to/your/download/cache', kept Y files."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing <code class="param-name">directory</code> field, invalid <code class="param-name">keep</code> value (must be integer).</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Pruning failed (e.g., directory not found, file operation error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"directory": "/opt/bedrock-server-manager/.downloads/stable", "keep": 3}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/downloads/prune</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ directory = 'C:\bedrock-server-manager\.downloads\stable'; keep = 3 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/downloads/prune" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/backups/prune</code> - Prune Server Backups</h3>
+        <p>Deletes older backups (world <code class="endpoint-path">.mcworld</code> and configuration files) for a specific server from the configured <code class="param-name">BACKUP_DIR</code>, keeping a specified number of the newest backups of each type (world/config).</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server whose backups to prune.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "keep": 10 // Optional: Integer number of backups to keep (defaults to BACKUP_KEEP setting if omitted)
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Pruned backups for server '&lt;server_name&gt;'. Deleted X world backups, Y config backups."}</code></pre> <em>(Message details may vary)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format, invalid <code class="param-name">keep</code> value (must be integer).</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Pruning failed (e.g., backup directory not found, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Using default keep count
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backups/prune
+
+# Specifying keep count
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"keep": 5}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backups/prune</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block"># Using default keep count
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backups/prune" -Headers $headers
+
+# Specifying keep count
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ keep = 5 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backups/prune" -Headers $headers -Body $body</code></pre>
+    </div>
+</div>
+
+{# --- Backup & Restore Section --- #}
+<div class="api-section">
+    <h2>Backup & Restore</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/backup/action</code> - Trigger Backup</h3>
+        <p>Triggers a backup operation for the specified server. Backup files are stored in the configured <code class="param-name">BACKUP_DIR</code>.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <ul>
+            <li>For World Backup: <pre><code class="api-code-block">{"backup_type": "world"}</code></pre></li>
+            <li>For Config Backup: <pre><code class="api-code-block">{"backup_type": "config", "file_to_backup": "server.properties"}</code></pre> (or other config file like <code class="endpoint-path">permissions.json</code>, <code class="endpoint-path">allowlist.json</code>)</li>
+            <li>For All (World + Configs): <pre><code class="api-code-block">{"backup_type": "all"}</code></pre></li>
+        </ul>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Backup type '&lt;type&gt;' for server '&lt;server_name&gt;' completed successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, invalid <code class="param-name">backup_type</code>, missing <code class="param-name">file_to_backup</code> for config type, invalid server name, file not found for config backup.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Backup failed (e.g., world directory not found, zip error, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash - World Backup):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"backup_type": "world"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backup/action</code></pre>
+        <h4>PowerShell Example (Config Backup):</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ backup_type = 'config'; file_to_backup = 'server.properties' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/backup/action" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restore/action</code> - Trigger Restore</h3>
+        <p>Restores a server's world or a specific configuration file from a specified backup file. <strong>Warning:</strong> This overwrites current files. It's recommended to stop the server before restoring.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "restore_type": "world", // or "config"
+    "backup_file": "/full/path/to/backups/ServerName/backup_file.mcworld" // Required: Full path to the backup file (must be within configured BACKUP_DIR)
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Restoration from '&lt;backup_filename&gt;' (type: &lt;type&gt;) completed successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/invalid <code class="param-name">restore_type</code> or <code class="param-name">backup_file</code>, backup file path outside allowed <code class="param-name">BACKUP_DIR</code>.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: Specified <code class="param-name">backup_file</code> does not exist.</li>
+            <li><code>500 Internal Server Error</code>: Restore failed (e.g., extraction error, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash - World Restore):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"restore_type": "world", "backup_file": "/full/path/to/backups/MyServer/world_backup_xyz.mcworld"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restore/action</code></pre>
+        <h4>PowerShell Example (Config Restore):</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ restore_type = 'config'; backup_file = 'C:\full\path\to\backups\MyServer\server.properties_backup_abc.zip' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restore/action" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restore/all</code> - Trigger Restore All</h3>
+        <p>Restores the server's world AND configuration files (<code class="endpoint-path">server.properties</code>, <code class="endpoint-path">allowlist.json</code>, <code class="endpoint-path">permissions.json</code>) from their respective <em>latest</em> available backups found in the configured <code class="param-name">BACKUP_DIR</code>. <strong>Warning:</strong> This overwrites current files. It's recommended to stop the server first.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The unique name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Restore All operation for server '&lt;server_name&gt;' completed successfully."}</code></pre> <em>(May include details about which files were restored)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Restore failed (e.g., no backups found, extraction error, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restore/all</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/restore/all" -Headers $headers</code></pre>
+    </div>
+</div>
+
+{# --- Content Management Section --- #}
+<div class="api-section">
+    <h2>Content Management (Worlds & Addons)</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/install</code> - Install World</h3>
+        <p>Installs a world from a <code class="endpoint-path">.mcworld</code> file into the specified server. The <code class="endpoint-path">.mcworld</code> file must already exist within the configured <code class="endpoint-path">content/worlds</code> directory. <strong>Warning:</strong> This replaces the existing world directory.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server to install the world to.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "filename": "MyCoolWorld.mcworld" // Required: Filename (relative path within content/worlds is okay, but just name is typical)
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "World '&lt;filename&gt;' installed successfully for server '&lt;server_name&gt;'."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/invalid <code class="param-name">filename</code>, filename path traversal attempt.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: The specified world file (<code class="endpoint-path">.mcworld</code>) was not found in the <code class="endpoint-path">content/worlds</code> directory.</li>
+            <li><code>500 Internal Server Error</code>: World import failed (e.g., extraction error, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"filename": "MyDownloadedWorld.mcworld"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/world/install</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ filename = 'MyDownloadedWorld.mcworld' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/world/install" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/addon/install</code> - Install Addon</h3>
+        <p>Installs an addon pack (<code class="endpoint-path">.mcaddon</code> or <code class="endpoint-path">.mcpack</code>) into the specified server. The addon file must already exist within the configured <code class="endpoint-path">content/addons</code> directory. Installs behavior packs and resource packs found within the file.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server to install the addon to.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "filename": "CoolBehaviorPack.mcpack" // Required: Filename (relative path within content/addons okay, just name typical)
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Addon '&lt;filename&gt;' installed successfully for server '&lt;server_name&gt;'."}</code></pre> <em>(May list packs installed)</em>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/invalid <code class="param-name">filename</code>, invalid addon type, filename path traversal attempt.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>404 Not Found</code>: The specified addon file (<code class="endpoint-path">.mcaddon</code>/<code class="endpoint-path">.mcpack</code>) was not found in the <code class="endpoint-path">content/addons</code> directory.</li>
+            <li><code>500 Internal Server Error</code>: Addon import failed (e.g., extraction error, file operation error, configuration error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"filename": "AwesomeAddonCollection.mcaddon"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/addon/install</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ filename = 'AwesomeAddonCollection.mcaddon' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/addon/install" -Headers $headers -Body $body</code></pre>
+    </div>
+</div>
+
+{# --- Server Installation & Configuration Section --- #}
+<div class="api-section">
+    <h2>Server Installation & Configuration</h2>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/install</code> - Install New Server</h3>
+        <p>Creates and installs a new Bedrock server instance. Downloads the specified version, sets up directories, and creates initial configuration files. Allows overwriting an existing server with the same name if <code class="param-name">overwrite</code> is true.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "server_name": "UniqueServerName", // Required: String, no spaces or special chars except '-' and '_'
+    "server_version": "LATEST", // Required: "LATEST", "PREVIEW", or specific version "1.20.x.x"
+    "overwrite": false // Optional: Boolean, defaults to false. If true, deletes existing server data first.
+}</code></pre>
+        <h4>Success Response (201 Created):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Server '&lt;server_name&gt;' installed successfully.",
+    "next_step_url": "/server/&lt;server_name&gt;/configure_properties?new_install=true" // URL for UI to proceed
+}</code></pre>
+        <h4>Success Response (200 OK - Confirmation Needed):</h4>
+        <p>If server exists and <code class="param-name">overwrite</code> is false.</p>
+        <pre><code class="api-code-block">{
+    "status": "confirm_needed",
+    "message": "Server '&lt;server_name&gt;' already exists. Overwrite existing data and reinstall?",
+    "server_name": "UniqueServerName",
+    "server_version": "LATEST"
+}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/invalid <code class="param-name">server_name</code> or <code class="param-name">server_version</code>, invalid <code class="param-name">overwrite</code> value, invalid server name format.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Installation failed (download error, extraction error, file operation error, configuration error, error deleting existing server during overwrite).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Install new server
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"server_name": "MySurvivalServer", "server_version": "LATEST", "overwrite": false}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/install
+
+# Force overwrite existing server
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"server_name": "MySurvivalServer", "server_version": "LATEST", "overwrite": true}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/install</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block"># Install new server
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ server_name = 'MySurvivalServer'; server_version = 'LATEST'; overwrite = $false } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/install" -Headers $headers -Body $body
+
+# Force overwrite existing server
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ server_name = 'MySurvivalServer'; server_version = 'LATEST'; overwrite = $true } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/install" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/properties</code> - Update Server Properties</h3>
+        <p>Updates specific key-value pairs in the <code class="endpoint-path">server.properties</code> file for the given server. Only updates keys allowed by the backend whitelist and performs validation on values.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server whose properties to modify.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <p>An object containing the properties to update.</p>
+        <pre><code class="api-code-block">{
+    "level-name": "Updated World Name",
+    "max-players": "20",
+    "difficulty": "hard"
+    // Only include keys you want to change
+}</code></pre>
+        <p><em>Allowed Keys (example list, check backend <code class="endpoint-path">server_install_config_routes.py</code> for current list):</em> <code class="param-name">server-name</code>, <code class="param-name">level-name</code>, <code class="param-name">gamemode</code>, <code class="param-name">difficulty</code>, <code class="param-name">allow-cheats</code>, <code class="param-name">max-players</code>, <code class="param-name">server-port</code>, <code class="param-name">server-portv6</code>, <code class="param-name">enable-lan-visibility</code>, <code class="param-name">allow-list</code>, <code class="param-name">default-player-permission-level</code>, <code class="param-name">view-distance</code>, <code class="param-name">tick-distance</code>, <code class="param-name">level-seed</code>, <code class="param-name">online-mode</code>, <code class="param-name">texturepack-required</code>.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Server properties for '&lt;server_name&gt;' updated successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, validation failed for one or more property values (response body will contain specific field errors).</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read or write <code class="endpoint-path">server.properties</code>, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"max-players": "12", "allow-list": "true"}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/properties</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ 'max-players' = '12'; 'allow-list' = 'true' } | ConvertTo-Json # Note: quotes around keys with hyphens
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/properties" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/allowlist</code> - Get Allowlist</h3>
+        <p>Retrieves the current list of players from the server's <code class="endpoint-path">allowlist.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server.</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "existing_players": [
+        {"ignoresPlayerLimit": false, "name": "PlayerOne"},
+        {"ignoresPlayerLimit": false, "name": "PlayerTwo"}
+    ],
+    "message": "Successfully retrieved X players from allowlist."
+}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read <code class="endpoint-path">allowlist.json</code>, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/allowlist</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/allowlist" -Headers $headers</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/allowlist</code> - Save/Replace Allowlist</h3>
+        <p>Replaces the entire content of the server's <code class="endpoint-path">allowlist.json</code> file with the provided list of players. An empty list will clear the allowlist.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "players": ["NewPlayer1", "AnotherPlayer"], // List of player names (strings)
+    "ignoresPlayerLimit": false // Boolean: whether these players ignore max-players limit
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Allowlist saved successfully with X player(s)."}</code></pre> or <pre><code class="api-code-block">{"status": "success", "message": "Allowlist cleared successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, <code class="param-name">players</code> key missing or not a list, <code class="param-name">ignoresPlayerLimit</code> not a boolean.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to write <code class="endpoint-path">allowlist.json</code>, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"players": ["AdminUser", "VIP_Player"], "ignoresPlayerLimit": false}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/allowlist</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ players = @('AdminUser', 'VIP_Player'); ignoresPlayerLimit = $false } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/allowlist" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-put">PUT</span> <code class="endpoint-path">/api/server/{server_name}/permissions</code> - Update Player Permissions</h3>
+        <p>Updates the permission levels for specified players in the server's <code class="endpoint-path">permissions.json</code> file. Takes a map of XUIDs to permission levels.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "permissions": {
+        "2535416409681153": "operator", // XUID string mapped to level string
+        "2535457894355891": "member",
+        "2535400000000000": "visitor"
+    }
+}</code></pre>
+        <em>Valid Levels:</em> <code class="param-name">"visitor"</code>, <code class="param-name">"member"</code>, <code class="param-name">"operator"</code> (case-insensitive in request, stored lowercase).
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Permissions updated successfully for X player(s)..."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, <code class="param-name">permissions</code> key missing or not an object, invalid permission level provided for one or more XUIDs (response body will contain specific field errors).</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>500 Internal Server Error</code>: Failed to read or write <code class="endpoint-path">permissions.json</code>, failure setting permission for one or more players (response body may contain details), configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4> <pre><code class="api-code-block">curl -X PUT -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"permissions": {"2535416409681153": "operator", "2535457894355891": "member"}}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/permissions</code></pre>
+        <h4>PowerShell Example:</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$permBody = @{
+    permissions = @{
+        '2535416409681153' = 'operator'
+        '2535457894355891' = 'member'
+    }
+}
+$bodyJson = $permBody | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Method Put -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/permissions" -Headers $headers -Body $bodyJson</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/service</code> - Configure OS Service Settings</h3>
+        <p>Configures OS-specific service settings for the server (e.g., autostart, autoupdate). Behavior depends on the host OS.</p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The name of the server.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <ul>
+            <li>
+                <strong>Linux (systemd):</strong>
+                <pre><code class="api-code-block">{
+    "autoupdate": true, // Boolean: Enable autoupdate timer/service
+    "autostart": true   // Boolean: Enable service to start on boot
+}</code></pre>
+                <em>(Setting these will create/overwrite the systemd service and timer files and enable/disable them)</em>
+            </li>
+            <li>
+                <strong>Windows:</strong>
+                <pre><code class="api-code-block">{
+    "autoupdate": true // Boolean: Set autoupdate flag in server's config JSON
+}</code></pre>
+            </li>
+        </ul>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Service settings for '&lt;server_name&gt;' updated successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, incorrect boolean values for expected keys.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Service configuration not supported on the current OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to create/modify service files (Linux), failed to update config JSON (Windows), error enabling/disabling services, command not found (e.g., <code class="param-name">systemctl</code>), configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash - Linux):</h4> <pre><code class="api-code-block">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"autoupdate": true, "autostart": true}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/service</code></pre>
+        <h4>PowerShell Example (Windows):</h4> <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ autoupdate = $true } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/&lt;server_name&gt;/service" -Headers $headers -Body $body</code></pre>
+    </div>
+</div>
+
+{# --- Scheduled Tasks Section --- #}
+<div class="api-section">
+    <h2>Scheduled Tasks (OS Specific)</h2>
+    <p><em>Note: These endpoints interact with Linux <code>cron</code> or Windows Task Scheduler based on the host OS.</em></p>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/add</code> - Add Cron Job (Linux Only)</h3>
+        <p>Adds a new cron job entry to the system's crontab for the user running Bedrock Server Manager. <strong>Linux only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Server context (used for logging/auth), not directly part of the cron command typically.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">
+    {
+    "new_cron_job": "0 3 * * * /path/to/bedrock-server-manager backup-all --server MyServer" // Required: The full cron job line string
+    }
+</code></pre>
+        <h4>Success Response (201 Created):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Cron job added successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/empty <code class="param-name">new_cron_job</code>.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Linux OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to add job (e.g., <code class="param-name">crontab</code> command error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block">
+    CRON_LINE="0 4 * * * /usr/local/bin/bedrock-server-manager restart-server --server MyProdServer"
+    curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+    -d "{\"new_cron_job\": \"$CRON_LINE\"}" \
+    http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyProdServer/cron_scheduler/add
+</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">
+    # Note: Linux-only endpoint
+    $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+    $cronLine = "0 4 * * * /usr/local/bin/bedrock-server-manager restart-server --server MyProdServer"
+    $body = @{ new_cron_job = $cronLine } | ConvertTo-Json
+    Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyProdServer/cron_scheduler/add" -Headers $headers -Body $body
+</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/modify</code> - Modify Cron Job (Linux Only)</h3>
+        <p>Modifies an existing cron job by replacing the line matching <code class="param-name">old_cron_job</code> with <code class="param-name">new_cron_job</code>. <strong>Linux only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Server context.</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">
+    {
+    "old_cron_job": "0 3 * * * /path/to/bedrock-server-manager backup-all --server MyProdServer", // Required: Exact existing line
+    "new_cron_job": "0 4 * * * /path/to/bedrock-server-manager backup-all --server MyProdServer"  // Required: The replacement line
+    }
+</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Cron job modified successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/empty <code class="param-name">old_cron_job</code> or <code class="param-name">new_cron_job</code>.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Linux OS.</li>
+            <li><code>404 Not Found</code>: The specified <code class="param-name">old_cron_job</code> was not found in the crontab.</li>
+            <li><code>500 Internal Server Error</code>: Failed to modify job (e.g., <code class="param-name">crontab</code> command error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block">OLD_CRON="0 3 * * * ..."
+NEW_CRON="0 4 * * * ..."
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d "{\"old_cron_job\": \"$OLD_CRON\", \"new_cron_job\": \"$NEW_CRON\"}" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyServer/cron_scheduler/modify</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block"># Note: Linux-only endpoint
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$oldCron = "0 3 * * * ..."
+$newCron = "0 4 * * * ..."
+$body = @{ old_cron_job = $oldCron; new_cron_job = $newCron } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyServer/cron_scheduler/modify" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/delete</code> - Delete Cron Job (Linux Only)</h3>
+        <p>Deletes a specific cron job line from the crontab. <strong>Linux only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Server context.</li></ul>
+        <h4>Query Parameters:</h4>
+        <ul><li><code class="param-name">cron_string</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The exact cron job line string to delete (URL encoded).</li></ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Cron job '...' deleted successfully (if it existed)."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Missing or empty <code class="param-name">cron_string</code> query parameter.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Linux OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to delete job (e.g., <code class="param-name">crontab</code> command error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block">
+    # URL Encode the cron string (example using Python)
+    CRON_STRING_URLENCODED=$(python3 -c 'import urllib.parse; print(urllib.parse.quote_plus("0 4 * * * /path/to/bedrock-server-manager backup-all --server MyProdServer"))')
+
+    curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+    "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyServer/cron_scheduler/delete?cron_string=${CRON_STRING_URLENCODED}"
+</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">
+    # Note: Linux-only endpoint
+    $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+    $cronString = "0 4 * * * /path/to/bedrock-server-manager backup-all --server MyProdServer"
+    $encodedCronString = [System.Web.HttpUtility]::UrlEncode($cronString) # Requires .NET Framework access or similar encoding method
+    $uri = "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyServer/cron_scheduler/delete?cron_string=$encodedCronString"
+    Invoke-RestMethod -Method Delete -Uri $uri -Headers $headers
+</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/add</code> - Add Windows Task (Windows Only)</h3>
+        <p>Creates a new scheduled task in Windows Task Scheduler to run a Bedrock Server Manager command. Saves task XML config in the config dir. <strong>Windows only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The server context for the task command (e.g., <code class="param-name">--server &lt;server_name&gt;</code>).</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "command": "backup-all", // Required: Bedrock Server Manager command (e.g., "update-server", "start-server", "scan-players")
+    "triggers": [ // Required: List containing one or more trigger objects
+        {
+            "type": "Daily", // Required: "Daily", "Weekly", "Monthly", "Once", "OnLogon", "OnStartup", "OnIdle"
+            "start": "2024-01-15T03:00:00", // Required: ISO 8601 format start time
+            "interval": 1, // Optional: Day/Week/Month interval (default 1)
+            "days": ["Sunday", "Wednesday"] // Optional: For Weekly trigger (list of day names)
+            // Other type-specific options may exist (e.g., monthDays for Monthly)
+        }
+    ]
+}</code></pre>
+        <em>Valid Commands:</em> <code class="param-name">update-server</code>, <code class="param-name">backup-all</code>, <code class="param-name">start-server</code>, <code class="param-name">stop-server</code>, <code class="param-name">restart-server</code>, <code class="param-name">scan-players</code>.
+        <h4>Success Response (201 Created):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Task '&lt;generated_task_name&gt;' created successfully.", "created_task_name": "&lt;generated_task_name&gt;"}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, invalid <code class="param-name">command</code>, invalid/missing <code class="param-name">triggers</code> list, invalid trigger structure/type/start time.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Windows OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to create task (e.g., <code class="param-name">schtasks.exe</code> error, XML generation error, file operation error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Note: Windows-only endpoint
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"command": "backup-all", "triggers": [{"type": "Daily", "start": "2024-01-16T02:30:00", "interval": 1}]}' \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/add</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$taskBody = @{
+    command = 'backup-all'
+    triggers = @(
+        @{ type = 'Daily'; start = '2024-01-16T02:30:00'; interval = 1 }
+    )
+}
+$bodyJson = $taskBody | ConvertTo-Json -Depth 3
+# Expect error if Bedrock Server Manager host is not Windows
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/add" -Headers $headers -Body $bodyJson</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/details</code> - Get Windows Task Details (Windows Only)</h3>
+        <p>Retrieves details (command, triggers) about a specific Windows scheduled task by parsing its saved XML configuration file. <strong>Windows only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The server context (used to help locate the task XML).</li></ul>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "task_name": "bedrock_MyWinServer_backup-all_..." // Required: The full name of the task
+}</code></pre>
+        <h4>Success Response (200 OK):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "task_details": {
+         "base_command": "backup-all", // The core Bedrock Server Manager command
+         "triggers": [ // List of parsed trigger objects
+            { "type": "Daily", "start": "...", ... }
+         ]
+    },
+    "message": "Successfully retrieved details for task '...'"
+}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, missing/invalid <code class="param-name">task_name</code>.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Windows OS.</li>
+            <li><code>404 Not Found</code>: Task configuration XML file not found for the given name/server context.</li>
+            <li><code>500 Internal Server Error</code>: Error parsing XML file, configuration error.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Note: Windows-only endpoint
+TASK_NAME="bedrock_MyWinServer_backup-all_20240115103000"
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d "{\"task_name\": \"$TASK_NAME\"}" \
+     http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/details</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$taskName = "bedrock_MyWinServer_backup-all_20240115103000"
+$body = @{ task_name = $taskName } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/details" -Headers $headers -Body $body</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-put">PUT</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/task/{task_name}</code> - Modify Windows Task (Windows Only)</h3>
+        <p>Modifies an existing Windows scheduled task by deleting the old task and creating a new one with the provided details. The new task will have a newly generated name. <strong>Windows only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Server context.</li>
+            <li><code class="param-name">task_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The current, full name of the task to modify (URL encoded if needed).</li>
+        </ul>
+        <h4>Request Body (JSON):</h4>
+        <p>Same structure as the "Add Windows Task" request body, defining the <em>new</em> command and triggers.</p>
+        <pre><code class="api-code-block">{
+    "command": "restart-server", // New Bedrock Server Manager command
+    "triggers": [ { "type": "Weekly", "start": "...", "days": ["Saturday"] } ] // New triggers
+}</code></pre>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Task '&lt;old_task_name&gt;' modified successfully (new name: '&lt;new_task_name&gt;').", "new_task_name": "&lt;new_task_name&gt;"}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Invalid/missing JSON body, invalid command/triggers, missing task name in URL.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Windows OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to delete old task or create new task (<code class="param-name">schtasks.exe</code> error, file error).</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Note: Windows-only endpoint
+OLD_TASK_NAME="bedrock_MyWinServer_backup-all_..."
+# URL Encode the task name if it contains special characters
+ENCODED_OLD_TASK_NAME=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("'$OLD_TASK_NAME'"))')
+
+curl -X PUT -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"command": "restart-server", "triggers": [{"type": "Weekly", "start": "2024-01-20T05:00:00", "days": ["Saturday"]}]}' \
+     "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/task/${ENCODED_OLD_TASK_NAME}"</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$oldTaskName = "bedrock_MyWinServer_backup-all_..."
+$encodedOldTaskName = [uri]::EscapeDataString($oldTaskName) # PowerShell Core URI encoding
+
+$newTaskBody = @{
+    command = 'restart-server'
+    triggers = @(
+        @{ type = 'Weekly'; start = '2024-01-20T05:00:00'; days = @('Saturday') }
+    )
+}
+$bodyJson = $newTaskBody | ConvertTo-Json -Depth 3
+$uri = "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/task/$encodedOldTaskName"
+Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body $bodyJson</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/task/{task_name}</code> - Delete Windows Task (Windows Only)</h3>
+        <p>Deletes an existing Windows scheduled task and its associated XML configuration file from the config directory. <strong>Windows only.</strong></p>
+        <h4>Authentication:</h4> <p>Required (JWT).</p>
+        <h4>Path Parameters:</h4>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Server context.</li>
+            <li><code class="param-name">task_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The full name of the task to delete (URL encoded if needed).</li>
+        </ul>
+        <h4>Request Body:</h4> <p>None.</p>
+        <h4>Success Response (200 OK):</h4> <pre><code class="api-code-block">{"status": "success", "message": "Task '&lt;task_name&gt;' deleted successfully."}</code></pre>
+        <h4>Error Responses:</h4>
+        <ul>
+            <li><code>400 Bad Request</code>: Missing task name in URL.</li>
+            <li><code>401 Unauthorized</code>: Invalid/missing JWT.</li>
+            <li><code>403 Forbidden</code>: Attempted on a non-Windows OS.</li>
+            <li><code>500 Internal Server Error</code>: Failed to delete task (<code class="param-name">schtasks.exe</code> error), failed to delete XML file.</li>
+        </ul>
+        <h4><code>curl</code> Example (Bash):</h4>
+        <pre><code class="api-code-block"># Note: Windows-only endpoint
+TASK_NAME="bedrock_MyWinServer_backup-all_..."
+ENCODED_TASK_NAME=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("'$TASK_NAME'"))')
+curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/task/${ENCODED_TASK_NAME}"</code></pre>
+        <h4>PowerShell Example:</h4>
+        <pre><code class="api-code-block">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+$taskName = "bedrock_MyWinServer_backup-all_..."
+$encodedTaskName = [uri]::EscapeDataString($taskName)
+$uri = "http://&lt;your-manager-host&gt;:&lt;port&gt;/api/server/MyWinServer/task_scheduler/task/$encodedTaskName"
+Invoke-RestMethod -Method Delete -Uri $uri -Headers $headers</code></pre>
+    </div>
+
+</div> {# --- End Scheduled Tasks Section --- #}
+
+    {# --- Optional: Back link at the bottom --- #}
+<hr> {# Consistent hr styling applied via CSS #}
+<p class="back-to-docs-link">
+    <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+</p>
+
+{% endblock %}
+
+{# --- Page Specific Scripts --- #}
+{% block body_scripts %}
+    {# Add any JS needed specifically for this page, if any #}
+{% endblock %}

@@ -1,0 +1,601 @@
+﻿{# bedrock-server-manager/bedrock_server_manager/web/templates/changelog.html #}
+{% extends "base.html" %}
+
+{# --- Page Title --- #}
+{% block title %}Changelog - {{ super() }}{% endblock %}
+
+{# --- Page Specific Styles --- #}
+{% block head_styles %}
+{{ super() }} {# Include styles from base's head_styles block if any are defined there #}
+<style>
+    .changelog-container {
+        /* Content will inherit padding/styles from the main .container in base.html */
+        /* This class is mostly for semantic grouping now */
+    }
+
+        .changelog-container h1 { /* Main Page Title */
+            margin-bottom: 0.8em;
+            padding-bottom: 0.5em; /* Added padding */
+            border-bottom: 1px solid #666; /* Added border */
+            font-size: 2em;
+            color: #eee; /* Ensure color consistency */
+        }
+
+        .changelog-container h2 { /* Version Number */
+            margin-top: 2em;
+            margin-bottom: 0.8em;
+            padding-bottom: 0.4em;
+            border-bottom: 1px solid #666; /* Slightly darker/thicker than h1 border */
+            font-size: 1.6em;
+            color: #ededed;
+        }
+
+        .changelog-container h3 { /* Section Title (like Bash vs Python) */
+            margin-top: 1.8em;
+            margin-bottom: 0.8em;
+            font-size: 1.4em;
+            color: #e0e0e0;
+            border-bottom: 1px dotted #555;
+            padding-bottom: 0.3em;
+        }
+
+        .changelog-container h4 { /* Subsection Title */
+            margin-top: 1.5em;
+            margin-bottom: 0.6em;
+            font-size: 1.2em;
+            color: #dcdcdc;
+        }
+
+        .changelog-container p { /* Style paragraphs for consistency */
+            margin-bottom: 1em;
+            line-height: 1.6;
+            color: #eee; /* Ensure consistent text color */
+        }
+
+        .changelog-container ol,
+        .changelog-container ul {
+            margin-left: 25px; /* Indentation */
+            margin-bottom: 1.5em;
+            padding-left: 15px; /* Add padding for list marker */
+            color: #eee; /* Ensure consistent text color */
+        }
+            /* Deeper nesting indentation */
+            .changelog-container ul ul,
+            .changelog-container ul ol,
+            .changelog-container ol ul,
+            .changelog-container ol ol {
+                margin-left: 20px; /* Additional indent for nested lists */
+                margin-top: 0.5em; /* Space above nested list */
+                margin-bottom: 0.8em; /* Space below nested list */
+            }
+
+
+        .changelog-container li {
+            margin-bottom: 0.6em;
+            line-height: 1.5;
+        }
+
+        .changelog-container code { /* Inline code */
+            background-color: #4a4a4a;
+            padding: 0.2em 0.4em;
+            border-radius: 0; /* Keep sharp corners */
+            font-size: 0.9em;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            color: #f0f0f0;
+            word-break: break-word; /* Allow long code to wrap if needed */
+        }
+
+    /* Style for the back link */
+    .back-to-docs-link {
+        display: inline-block; /* Or block if you want it on its own line */
+        margin-bottom: 1.5em;
+        font-size: 0.95em;
+    }
+
+        .back-to-docs-link a {
+            color: #90CAF9;
+            text-decoration: none;
+        }
+
+            .back-to-docs-link a:hover {
+                color: #BBDEFB;
+                text-decoration: underline;
+            }
+
+    /* Optional: Ensure hr has consistent styling */
+    .changelog-container hr {
+        border: 0;
+        height: 1px;
+        background-color: #555;
+        margin: 2em 0;
+    }
+
+    /* Responsive adjustments (complement base CSS) */
+    @media (max-width: 768px) {
+        .changelog-container h1 {
+            font-size: 1.8em;
+        }
+
+        .changelog-container h2 {
+            font-size: 1.45em;
+            margin-top: 1.8em;
+        }
+
+        .changelog-container h3 {
+            font-size: 1.3em;
+            margin-top: 1.6em;
+        }
+
+        .changelog-container h4 {
+            font-size: 1.15em;
+            margin-top: 1.4em;
+        }
+
+        .changelog-container ol,
+        .changelog-container ul {
+            margin-left: 20px;
+            padding-left: 10px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .changelog-container h1 {
+            font-size: 1.6em;
+        }
+
+        .changelog-container h2 {
+            font-size: 1.3em;
+            margin-top: 1.6em;
+        }
+
+        .changelog-container h3 {
+            font-size: 1.2em;
+            margin-top: 1.5em;
+        }
+
+        .changelog-container h4 {
+            font-size: 1.1em;
+            margin-top: 1.3em;
+        }
+
+        .changelog-container ol,
+        .changelog-container ul {
+            margin-left: 15px;
+            padding-left: 10px;
+        }
+
+        .changelog-container code {
+            font-size: 0.85em;
+        }
+    }
+</style>
+{% endblock %}
+
+
+{# --- Main Content --- #}
+{% block content %}
+<div class="changelog-container">
+
+    <h1>Bedrock Server Manager Changelog</h1>
+
+    {# --- Link back to the Documentation Index --- #}
+    <p class="back-to-docs-link">
+        <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+    </p>
+
+    {# --- Version 3.1.0 --- #}
+    <h2>Version 3.1.0</h2>
+    <ol>
+        <li>
+            <strong>Added Web Server</strong>
+            <ul>
+                <li>
+                    Environment Variables:
+                    <dl>
+                        <dt><code>BEDROCK_SERVER_MANAGER_USERNAME</code></dt>
+                        <dd>Required. Plain text username for web UI and API login.</dd>
+
+                        <dt><code>BEDROCK_SERVER_MANAGER_PASSWORD</code></dt>
+                        <dd>Required. Hashed password for web UI and API login. Use the <code>generate-password</code> utility.</dd>
+
+                        <dt><code>BEDROCK_SERVER_MANAGER_SECRET</code></dt>
+                        <dd>Strongly Recommended (Effectively Required for Web UI). A long, random, secret string. If not set, a temporary key is generated, and web UI sessions will not persist across restarts.</dd>
+
+                        <dt><code>BEDROCK_SERVER_MANAGER_TOKEN</code></dt>
+                        <dd>Strongly Recommended. A long, random, secret string (different from <code>_SECRET</code>). If not set, a temporary key is generated, and JWT tokens used for API authentication will become invalid across restarts. JWT tokens expire every 4 weeks by default.</dd>
+                    </dl>
+                </li>
+                <li>
+                    Configuration:
+                    <ul>
+                        <li>Set port in <code>script_config.json</code>: <code>WEB_PORT</code> (Defaults to <code>11325</code>)</li>
+                        <li>Customizable panorama: Save any jpeg as <code>panorama.jpeg</code> in <code>./.config</code></li>
+                    </ul>
+                </li>
+                <li>
+                    Deployment & Tech:
+                    <ul>
+                        <li>It's recommended to run this behind a reverse proxy of your choice (NGINX, CADDY, etc.).</li>
+                        <li>Uses Waitress WSGI server.</li>
+                    </ul>
+                </li>
+                <li>Mobile friendly experience</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Added <code>generate-password</code> command</strong>
+            <ul>
+                <li>Used to generate a hash to set as the <code>BEDROCK_SERVER_MANAGER_PASSWORD</code> Environment Variable.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Added <code>start-web-server</code> command</strong>
+            <ul>
+                <li>
+                    Command Arguments:
+                    <dl>
+                        <dt><code>-d | --debug</code></dt>
+                        <dd>Runs the server using the Flask debug server. <strong>Not recommended for production.</strong></dd>
+
+                        <dt><code>-m | --mode [direct|detached]</code></dt>
+                        <dd>
+                            Sets which mode to run the server:
+                            <ul>
+                                <li><code>direct</code>: Directly runs the web server in the foreground.</li>
+                                <li><code>detached</code>: Runs the web server in a separate background process.</li>
+                            </ul>
+                        </dd>
+
+                        <dt><code>-H | --host <hostname></code></dt>
+                        <dd>Specifies which host to listen on.</dd>
+                    </dl>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <strong>Added <code>stop-web-server</code> command</strong>
+            <ul>
+                <li>Stops a detached web server process.</li>
+            </ul>
+        </li>
+        <li>Removed all related lingering configuration (Linux only).</li>
+        <li>Refactored <code>cli.py</code> and <code>handlers.py</code> into <code>cli/</code> and <code>api/</code> modules.</li>
+        <li>Added more detailed logging throughout code.</li>
+        <li>Added more detailed docstrings/comments throughout code.</li>
+        <li>Added HTML docs which cover the HTTP APIs, CLI environment, and user guide.</li>
+        <li>Removed redundant commands.</li>
+        <li>Added <code>WEB_PORT</code> and <code>TOKEN_EXPIRE_WEEKS</code> to <code>script_config.json</code>.</li>
+        <li>Added various documentation accessible in the web server.</li>
+        <li>Added splash text to Main Menu in CLI.</li>
+    </ol>
+
+    {# --- Version 3.0.3 --- #}
+    <h2>Version 3.0.3</h2>
+    <ol>
+        <li>Fixed Linux resource usage monitor</li>
+        <li>Fixed Linux systemd enable/disable</li>
+    </ol>
+
+    {# --- Version 3.0.2 --- #}
+    <h2>Version 3.0.2</h2>
+    <ol>
+        <li>Fixed <code>EXPATH</code> variable in Linux scheduler</li>
+        <li>Fixed Modify Windows Task</li>
+    </ol>
+
+    {# --- Version 3.0.1 --- #}
+    <h2>Version 3.0.1</h2>
+    <ol>
+        <li>
+            Added handlers module
+            <ul><li>Refactored cli to use handlers</li></ul>
+        </li>
+        <li>
+            Refactored settings module
+            <ul><li>Migrated settings to a class</li></ul>
+        </li>
+        <li>Fixed logger variables</li>
+        <li>
+            [WIP] Send command support for Windows
+            <ul>
+                <li>Requires <code>pywin32</code> module to be installed</li>
+                <li>Requires seperate start method not currently available</li>
+            </ul>
+        </li>
+    </ol>
+
+    {# --- Version 3.0.0 --- #}
+    <h2>Version 3.0.0</h2>
+    <ol>
+        <li>
+            BREAKING CHANGE: Completely refactored .py script to a pip package
+            <ul><li>Now installed/updated with <code>pip</code> command</li></ul>
+        </li>
+        <li>
+            Use <code>BEDROCK_SERVER_MANAGER_DATA_DIR</code> Environment Variable for default data location
+            <ul>
+                <li>Defaults to <code>$HOME/bedrock-server-manager</code> if variable doesnt exist</li>
+                <li>Follow your platforms documentation for setting Environment Variables</li>
+            </ul>
+        </li>
+        <li>
+            Logging refactored to use standard python logging
+            <ul><li>Most functions now raise Exceptions instead of returning an error code</li></ul>
+        </li>
+        <li>Removed <code>windows-start</code>/<code>stop</code> commands</li>
+        <li>Added new commands</li>
+        <li>
+            The following variables were added to <code>script_config.json</code>
+            <ul>
+                <li><code>CONTENT_DIR</code></li>
+                <li><code>DOWNLOAD_DIR</code></li>
+                <li><code>BACKUP_DIR</code></li>
+                <li><code>LOG_DIR</code></li>
+                <li><code>LOGS_KEEP</code></li>
+                <li><code>LOG_LEVEL</code></li>
+            </ul>
+        </li>
+    </ol>
+
+    {# --- Version 2.0.2 --- #}
+    <h2>Version 2.0.2</h2>
+    <ol>
+        <li>Revaluated error codes</li>
+        <li>Ensure write permissions before certain operations such as delete server</li>
+    </ol>
+
+    {# --- Version 2.0.1 --- #}
+    <h2>Version 2.0.1</h2>
+    <ol>
+        <li>Better handle send-command</li>
+    </ol>
+
+    {# --- Version 2.0.0 --- #}
+    <h2>Version 2.0.0</h2>
+    <ol>
+        <li>Complete rewrite of script in python</li>
+        <li>
+            Added Windows support
+            <ul>
+                <li>
+                    Windows support has a few limitations such as:
+                    <ul>
+                        <li>No send-command support</li>
+                        <li>No attach to console support</li>
+                        <li>Doesn't auto restart if crashed</li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ol>
+
+    {# --- Bash vs Python Section --- #}
+    <h3>Bash vs Python Transition</h3>
+    <p>The short lived Bedrock Server Manager Bash script is being discontinued and replaced with a new Python-based version. The Bash script was originally designed to support only Debian-based systems, which limited its usability across different operating systems. The bash script will continue to be available but will no longer receive updates.</p>
+    <p>The switch to python allows cross platform support, standardized processes, and less dependencies. The new script has full feature parity to the bash script</p>
+    <h4>Switching to the Python Version:</h4>
+    <ul>
+        <li>
+            Replace the bash script with the new python script:
+            <ul>
+                <li>Follow install instructions above</li>
+                <li>Place the <code>.py</code> file in the same folder as the <code>.sh</code> file</li>
+                <li>Delete the old <code>.sh</code> file if wanted</li>
+            </ul>
+        </li>
+        <li>Run the script, open the advanced menu then Reconfigure Auto-Update</li>
+    </ul>
+
+    {# --- Version 1.4.2 --- #}
+    <h2>Version 1.4.2</h2>
+    <ol>
+        <li>Removed writing to <code>version.txt</code></li>
+    </ol>
+
+    {# --- Version 1.4.1 --- #}
+    <h2>Version 1.4.1</h2>
+    <ol>
+        <li>Check for internet in update function</li>
+    </ol>
+
+    {# --- Version 1.4.0 --- #}
+    <h2>Version 1.4.0</h2>
+    <ol>
+        <li>
+            Added <code>list-servers</code> command
+            <ul>
+                <li>List all servers, their status, and version</li>
+                <li>Also shows in the menus</li>
+            </ul>
+        </li>
+        <li>
+            Added <code>scan-players</code> command
+            <ul>
+                <li>Scans <code>server_output.txt</code> for players+xuid and saves it to <code>./.config/players.json</code></li>
+                <li>Used to add players to <code>permissions.json</code> file</li>
+                <li>Added to cron scheduler</li>
+            </ul>
+        </li>
+        <li>
+            Added <code>add-players</code> command
+            <ul><li>Manually adds player+xuid to <code>./.config/players.json</code></li></ul>
+        </li>
+        <li>
+            Save script output to <code>./.logs/log_{$timestamp}.log</code>
+            <ul><li>Redirect to file instead of <code>/dev/null</code> when applicable</li></ul>
+        </li>
+        <li>
+            Refactored backups
+            <ul>
+                <li>You can now choose to backup all files, just export the world to a <code>.mcworld</code> file, or backup an individual config file.</li>
+                <li>Backup all executed when running <code>backup-server</code> command</li>
+            </ul>
+        </li>
+        <li>
+            Added Restore menu
+            <ul>
+                <li>You can now restore all most recent files, a specific world file, or specific config file</li>
+                <li>Restore all executed when running <code>update-server</code> command</li>
+            </ul>
+        </li>
+        <li>
+            Moved server configurations such as installed/target version to <code>./.config/$server_name/config.json</code>
+            <ul><li>The script will try to migrate existing configs (server name, installed version, and target version) to the new file</li></ul>
+        </li>
+        <li>Perform validation on <code>server.properties</code> entries</li>
+        <li>Split most of the bigger functions such as <code>download_server</code> into smaller more modular functions</li>
+        <li>
+            Added permissions configuration
+            <ul><li>You can choose players saved in <code>./config/players.json</code> to add to a server permissions file</li></ul>
+        </li>
+        <li>Don't download server if target version is already downloaded</li>
+        <li>
+            Moved script default values to <code>./config/script_config.json</code>
+            <ul><li>Edit this file to set your own servers directory, how many backups and downloads to keep</li></ul>
+        </li>
+        <li>Moved systemd commands to script, reconfigure systemd configuration to update</li>
+    </ol>
+
+    {# --- Version 1.3.0 --- #}
+    <h2>Version 1.3.0</h2>
+    <ol>
+        <li>
+            BREAKING CHANGE: Migrate <code>./bedrock_server_manager</code> to <code>./servers</code>
+            <ul>
+                <li>The script will try to auto migrate servers+systemd services after the user confirms</li>
+                <li>Its recommended to take a backup BEFORE updating the script</li>
+            </ul>
+        </li>
+        <li>Moved backups out of server folder to <code>./backups</code></li>
+        <li>Moved server downloads out of server folder to <code>./.downloads</code></li>
+        <li>Added support for <code>.mcaddon</code> file import (import in bulk)</li>
+    </ol>
+
+    {# --- Version 1.2.1 --- #}
+    <h2>Version 1.2.1</h2>
+    <ol>
+        <li>
+            Added option to enable/disable update on start to systemd flow
+            <ul><li>Added Reconfigure Systemd Service option</li></ul>
+        </li>
+        <li>Fixed Resource Usage page</li>
+    </ol>
+
+    {# --- Version 1.2.0 --- #}
+    <h2>Version 1.2.0</h2>
+    <ol>
+        <li>
+            Added <code>enable-server</code> and <code>disable-server</code> commands
+            <ul><li>Enable or disable systemd autostart service</li></ul>
+        </li>
+        <li>
+            Added interactive cron scheduler
+            <ul><li>You can view add modify delete cron jobs for your servers to automatically run certain script commands such as <code>update-server</code> at scheduled times</li></ul>
+        </li>
+        <li>
+            Backup now makes <code>.mcworld</code> files instead of a <code>.tar.gz</code> file
+            <ul>
+                <li>Added zip as required package</li>
+                <li>Fixed backups not working</li>
+            </ul>
+        </li>
+        <li>View resource usage for server</li>
+        <li>Standardized yes/no prompts</li>
+        <li>Use <code>allowlist reload</code> command when updating allowlist and server is running</li>
+        <li>
+            Rearranged code blocks to a more logical order
+            <ul><li>Centralized/Validate server name before call function</li></ul>
+        </li>
+        <li>Add version to server download file</li>
+        <li>
+            Rearranged menus
+            <ul><li>Added Advanced Menu</li></ul>
+        </li>
+    </ol>
+
+    {# --- Version 1.1.4 --- #}
+    <h2>Version 1.1.4</h2>
+    <ol>
+        <li>Fixed json format for world addon files</li>
+        <li>Set r/w permissions for extracted worlds/addons</li>
+        <li>Ask to restart after installing addon</li>
+    </ol>
+
+    {# --- Version 1.1.3 --- #}
+    <h2>Version 1.1.3</h2>
+    <ol>
+        <li>Better handle send-command arguments</li>
+        <li>Use <code>say</code> instead of <code>tell</code></li>
+    </ol>
+
+    {# --- Version 1.1.2 --- #}
+    <h2>Version 1.1.2</h2>
+    <ol>
+        <li>Check for internet before download to prevent server fail to start (pings example.com)</li>
+        <li>No longer exit when you check for updates with the latest version already installed</li>
+        <li>Call <code>send_command</code> directly throughout script</li>
+        <li>Removed duplicate logging when calling certain functions</li>
+        <li>Backup function now only handles start/stop server if not in update</li>
+    </ol>
+
+    {# --- Version 1.1.1 --- #}
+    <h2>Version 1.1.1</h2>
+    <ol>
+        <li>Optimized <code>$SCRIPTDIR</code> variable</li>
+    </ol>
+
+    {# --- Version 1.1.0 --- #}
+    <h2>Version 1.1.0</h2>
+    <ol>
+        <li>Added option to import <code>.mcworld</code> files from <code>./content/worlds</code> folder</li>
+        <li>Added option to import <code>.mcpack</code> files from <code>./content/addons</code> folder</li>
+        <li>Stop server before backup</li>
+        <li>Use values from <code>server.properties</code> file when reconfiguring server properties</li>
+        <li>Cleaned up some repetitive code</li>
+    </ol>
+
+    {# --- Version 1.0.3 --- #}
+    <h2>Version 1.0.3</h2>
+    <ol>
+        <li>Added <code>update-script</code> command</li>
+        <li>Ask if you want to install pre-request packages first</li>
+        <li>Shutdown server before update if running</li>
+        <li>Send messages to online players about checking for server updates, when its shutting down, and when its restarting</li>
+        <li>Wait 10 seconds before shutdown/restart to allow players time to react to shutdown/restart messages</li>
+    </ol>
+
+    {# --- Version 1.0.2 --- #}
+    <h2>Version 1.0.2</h2>
+    <ol>
+        <li>Execute <code>update-server</code> command and systemd prestart command</li>
+        <li>Make linger command optional</li>
+    </ol>
+
+    {# --- Version 1.0.1 --- #}
+    <h2>Version 1.0.1</h2>
+    <ol>
+        <li>Perform validation on server folder name and level name</li>
+        <li>Fixed getting the scripts current directory</li>
+        <li>Script no longer needs root permissions</li>
+    </ol>
+
+    {# --- Version 1.0.0 --- #}
+    <h2>Version 1.0.0</h2>
+    <ol>
+        <li>Initial Release</li>
+    </ol>
+
+    {# --- Optional: Back link at the bottom --- #}
+    <hr> {# Consistent hr styling applied via CSS #}
+    <p class="back-to-docs-link">
+        <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+    </p>
+
+</div> {# End .changelog-container #}
+{% endblock %}
+
+{# --- Page Specific Body Scripts (Optional) --- #}
+{% block body_scripts %}
+{{ super() }}
+    {# Add any JS specific to the changelog page if needed #}
+{% endblock %}
