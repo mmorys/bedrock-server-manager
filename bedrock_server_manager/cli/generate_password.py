@@ -1,6 +1,6 @@
 # bedrock-server-manager/bedrock_server_manager/cli/generate_password.py
 """
-Standalone utility script to generate a secure password hash for the web interface.
+Utility script to generate a secure password hash for the web interface.
 
 Prompts the user to enter and confirm a password, then generates a hash
 using Werkzeug's security helpers (pbkdf2:sha256 by default) suitable for storing
