@@ -177,3 +177,44 @@ The switch to python allows cross platform support, standardized processes, and 
 ### 3.0.3
 1. Fixed Linux resource usage monitor
 2. Fixed Linux systemd enable/disable
+
+### 3.1.0                                                                        
+1. Added Web Server
+    1. Environment Variable: BEDROCK_SERVER_MANAGER_USERNAME
+        1. Required. Plain text username for web UI and API login.
+    2.  Environment Variable: BEDROCK_SERVER_MANAGER_PASSWORD
+        1. Required. Hashed password for web UI and API login. Use the generate-password utility.
+    3. Environment Variable: BEDROCK_SERVER_MANAGER_SECRET
+        1. Strongly Recommended (Effectively Required for Web UI). A long, random, secret string. If not set, a temporary key is generated, and web UI sessions will not persist across restarts.
+    4. Environment Variable: BEDROCK_SERVER_MANAGER_TOKEN
+        1. Strongly Recommended. A long, random, secret string (different from _SECRET). If not set, a temporary key is generated, and JWT tokens used for API authentication will become invalid across restarts.
+        2. JWT tokens expire every 4 weeks by default
+    5. Set port in script_config.json : WEB_PORT
+        1. Defaults to 11325
+    6. Its recommended to run this behind a reverse proxy of your choice (NGINX, CADDY, etc etc)
+    7. Uses Waitress WSGI server
+    8. Customizable panorama
+        1. Save any jpeg as panorama.jpeg in ./.config
+    9. Mobile friendly experience
+2. Added generate-password command
+    1. Used to generate a hash to set as the BEDROCK_SERVER_MANAGER_PASSWORD Environment Variable
+3. Added start-web-server command
+    1. Command Arguments:
+        1. -d | —debug : runs the server in the flask debug server
+            1. Not recommend to use in production
+        2. -m | -–mode : direct, detached . Sets which mode to run the server
+            1. direct: Directly runs the web server in the foreground
+            2. detached: Runs the web server in a separate background process
+        3. -H | —host : Which host to listen to 
+            1. Defaults to 127.0.0.1
+4. Added stop-web-server command
+    1. Stops a detached web server process 
+5. Removed all related lingering configuration (linux only)
+6. Refactored cli.py and handlers.py into cli/api modules
+7. Added more detailed logging throughout code
+8. Added more detailed docstrings/comments throughout code
+9. Added html docs which covers the http apis, cli environment, and user guide
+10. Removed redundant commands
+11. Added WEB_PORT and TOKEN_EXPIRE_WEEKS to script_config.json
+12. Added various documentation accessible in the web server
+13. Added splash text to Main Menu in CLI
