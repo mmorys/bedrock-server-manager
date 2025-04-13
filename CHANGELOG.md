@@ -222,3 +222,4 @@ The switch to python allows cross platform support, standardized processes, and 
 ### 3.1.1
 1. Fixed missing js files and images for web server
 2. Added missing generate-password command
+3. Fixed manage-script-config command
