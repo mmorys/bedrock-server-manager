@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.1.1"
+version = "3.1.2"
 authors = [
   { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
 ]
@@ -13,7 +13,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 	"Environment :: Console",
 	"Topic :: Games/Entertainment",

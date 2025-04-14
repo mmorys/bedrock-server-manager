@@ -594,9 +594,9 @@ def configure_allowlist_route(server_name: str) -> Response:
     )
 
 
-# --- API Route: Save Allowlist (Replace) ---
+# --- API Route: Save Allowlist ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/allowlist", methods=["POST"]
+    "/api/server/<string:server_name>/allowlist/add", methods=["POST"]
 )
 @csrf.exempt  # API Endpoint
 @auth_required  # Requires Session or JWT
