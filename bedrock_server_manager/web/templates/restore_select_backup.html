@@ -53,15 +53,13 @@
                         <tr>
                             {# Display only the filename part using the basename filter #}
                             {# IMPORTANT: Assumes 'basename' filter is registered in Flask Jinja env #}
-                            <td data-label="Backup File">{{ backup_path | basename }}</td>
+                            <td data-label="Backup File">{{ backup_path.name }}</td>
                             {# Center the button in the actions cell #}
                             <td data-label="Action" style="text-align: center;">
                                 {# Button triggers the JS restore function #}
-                                <button type="button"
-                                        class="action-button restore-button" {# Specific class for targeting if needed #}
-                                        {# Pass 'this' button, server name, restore type, and the FULL backup path #}
-                                        {# Crucial Escaping: |e for HTML, |replace for JS backslashes #}
-                                        onclick="triggerRestore(this, '{{ server_name | e }}', '{{ restore_type | e }}', '{{ backup_path | e | replace('\\', '\\\\') }}')">
+                                <button type='button'
+                                        class='action-button restore-button'
+                                        onclick='triggerRestore(this, {{ server_name | tojson }}, {{ restore_type | tojson }}, {{ backup_path.path | tojson }})'>
                                     Restore This Backup
                                 </button>
                             </td>
