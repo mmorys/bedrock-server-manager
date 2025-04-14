@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => { // Add listener only after
             } catch (validationError) {
                 formIsValid = false;
                 showStatusMessage(`Trigger ${index + 1}: ${validationError.message}`, "error");
-                logger.warn(`${submitFunctionName}: Trigger validation failed.`, validationError);
+                console.warn(`${submitFunctionName}: Trigger validation failed.`, validationError);
             }
         }); // End triggerGroups.forEach
 

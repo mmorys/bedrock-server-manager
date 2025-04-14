@@ -502,7 +502,7 @@ async function saveServiceSettings(buttonElement, serverName, currentOs, isNewIn
 
     // --- Handle Post-Save Actions (Start Server / Navigate) ---
     const saveSuccessMsg = saveResponse.message || "Service settings saved successfully.";
-    logger.info(`${functionName}: Service settings saved successfully for server '${serverName}'.`);
+    console.info(`${functionName}: Service settings saved successfully for server '${serverName}'.`);
 
     if (startServerAfter) {
         console.log(`${functionName}: Service settings saved. Proceeding to start server '${serverName}' as requested...`);

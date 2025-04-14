@@ -195,7 +195,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
                 // Not JSON - read as text and handle based on HTTP status
                 console.debug(`${functionName}: Response not JSON. Reading as text...`);
                 const textResponse = await response.text();
-                logger.warn(`${functionName}: Received non-JSON response (Status: ${response.status}). Body (truncated): ${textResponse.substring(0, 500)}`);
+                console.warn(`${functionName}: Received non-JSON response (Status: ${response.status}). Body (truncated): ${textResponse.substring(0, 500)}`);
                 if (!httpSuccess) { // If HTTP status indicated error (non-2xx)
                     // Construct an error object from the text response
                     responseData = {
