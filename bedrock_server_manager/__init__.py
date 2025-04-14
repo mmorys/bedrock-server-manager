@@ -879,7 +879,7 @@ def main() -> None:
                 args.host, args.debug, args.mode
             ),
             "stop-web-server": lambda args: cli_web.stop_web_server(),
-            "generate-password": lambda args: generate_password.generate_hash()
+            "generate-password": lambda args: generate_password.generate_hash(),
         }
 
         # --- Parse Arguments and Execute ---
