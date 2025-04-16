@@ -2,35 +2,29 @@
   - [Features](#features)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-    - [Install The Package:](#install-the-package)
+    - [Install The Package](#install-the-package)
   - [Configuration](#configuration)
-    - [Setup The Configuration:](#setup-the-configuration)
+    - [Setup The Configuration](#setup-the-configuration)
       - [The following variables are configurable via json](#the-following-variables-are-configurable-via-json)
   - [Usage](#usage)
-    - [Run the app:](#run-the-app)
-          - [Examples:](#examples)
-  - [Install Content:](#install-content)
-  - [Web Server:](#web-server)
-    - [Configure the Web Server:](#configure-the-web-server)
-      - [Environment Variables:](#environment-variables)
-      - [Generate Password Hash:](#generate-password-hash)
-      - [Hosts:](#hosts)
-      - [Port:](#port)
-      - [HTTP API:](#http-api)
-        - [Obtaining a JWT token:](#obtaining-a-jwt-token)
-          - [`curl` Example (Bash):](#curl-example-bash)
-          - [PowerShell Example:](#powershell-example)
+    - [Run the app](#run-the-app)
+  - [Install Content](#install-content)
+  - [Web Server](#web-server)
+    - [Configure the Web Server](#configure-the-web-server)
+      - [Environment Variables](#environment-variables)
+      - [Generate Password Hash](#generate-password-hash)
+      - [Hosts](#hosts)
+      - [Port](#port)
+      - [HTTP API](#http-api)
+        - [Obtaining a JWT token](#obtaining-a-jwt-token)
         - [Using the API](#using-the-api)
-      - [Examples:](#examples-1)
-          - [`curl` Example (Bash):](#curl-example-bash-1)
-          - [PowerShell Example:](#powershell-example-1)
-          - [`curl` Example (Bash):](#curl-example-bash-2)
-          - [PowerShell Example:](#powershell-example-2)
-  - [Disclaimers:](#disclaimers)
-    - [Platform Differences:](#platform-differences)
-    - [Tested on these systems:](#tested-on-these-systems)
+      - [Examples](#examples-1)
+  - [Disclaimers](#disclaimers)
 
-[CHANGELOG](https://github.com/DMedina559/bedrock-server-manager/blob/docs/CHANGELOG.md)
+
+* [CHANGELOG](https://github.com/DMedina559/bedrock-server-manager/blob/docs/CHANGELOG.md)
+* [HTTP API DOCS](https://github.com/DMedina559/bedrock-server-manager/blob/docs/HTTP_API.md)
+* [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/docs/EXTRAS.md)
 
 # Bedrock Server Manager
 
@@ -93,17 +87,17 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 #### The following variables are configurable via json
 
-* BASE_DIR: Directory where servers will be installed
-* CONTENT_DIR: Directory where the app will look for addons/worlds
-* DOWNLOAD_DIR: Directory where servers will download
-* BACKUP_DIR: Directory where server backups will go
-* LOG_DIR: Directory where app logs will be saved
-* BACKUP_KEEP: How many backups to keep
-* DOWNLOAD_KEEP: How many server downloads to keep
-* LOGS_KEEP: How many logs to keep
-* LOG_LEVEL: Level for logging.
-* WEB_PORT: Port used by the web server. 11325 by default
-* TOKEN_EXPIRES_WEEKS: How long JWT tokens are vaild for in weeks.
+* `BASE_DIR`: Directory where servers will be installed
+* `CONTENT_DIR`: Directory where the app will look for addons/worlds
+* `DOWNLOAD_DIR`: Directory where servers will download
+* `BACKUP_DIR`: Directory where server backups will go
+* `LOG_DIR`: Directory where app logs will be saved
+* `BACKUP_KEEP`: How many backups to keep
+* `DOWNLOAD_KEEP`: How many server downloads to keep
+* `LOGS_KEEP`: How many logs to keep
+* `LOG_LEVEL`: Level for logging.
+* `WEB_PORT`: Port used by the web server. 11325 by default
+* `TOKEN_EXPIRES_WEEKS`: How long JWT tokens are vaild for in weeks.
 
 ## Usage
 
@@ -203,7 +197,7 @@ Follow the on-screen prompt to hash your password
 
 #### Hosts:
 
-By Default Bedrock Server Manager will only listen to local host only interfaces 127.0.0.1 and [::1]
+By Default Bedrock Server Manager will only listen to local host only interfaces `127.0.0.1` and `[::1]`
 
 To change which host to listen to start the web server with the specified host
 
@@ -229,13 +223,13 @@ bedrock-server-manager manage-script-config --key WEB_PORT --operation write --v
 
 #### HTTP API:
 
-An HTTP API is provided allowing tools like curl or Invoke-RestMethod to interact with server.
+An HTTP API is provided allowing tools like `curl` or `Invoke-RestMethod` to interact with server.
 
 Before using the API, ensure the following environment variables are set on the system running the app:
 
-- BEDROCK_SERVER_MANAGER_TOKEN: **REQUIRED** for token persistence across server restarts
-- BEDROCK_SERVER_MANAGER_USERNAME: The username for API login.
-- BEDROCK_SERVER_MANAGER_PASSWORD: The hashed password for API login
+- `BEDROCK_SERVER_MANAGER_TOKEN`: **REQUIRED** for token persistence across server restarts
+- `BEDROCK_SERVER_MANAGER_USERNAME`: The username for API login.
+- `BEDROCK_SERVER_MANAGER_PASSWORD`: The hashed password for API login
 
 ##### Obtaining a JWT token:
 
@@ -257,7 +251,7 @@ Response: On success, the API returns a JSON object containing the access_token:
 }
 ```
 
-Tokens expire after the configured duration (default: 4 weeks).
+Tokens expiration is configurable via `script_config.json` (default: 4 weeks).
 
 ###### `curl` Example (Bash):
 
