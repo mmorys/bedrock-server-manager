@@ -22,9 +22,9 @@
   - [Disclaimers](#disclaimers)
 
 
-* [CHANGELOG](https://github.com/DMedina559/bedrock-server-manager/blob/docs/CHANGELOG.md)
-* [HTTP API DOCS](https://github.com/DMedina559/bedrock-server-manager/blob/docs/HTTP_API.md)
-* [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/docs/EXTRAS.md)
+* [CHANGELOG](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md)
+* [HTTP API DOCS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
+* [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/EXTRAS.md)
 
 # Bedrock Server Manager
 
