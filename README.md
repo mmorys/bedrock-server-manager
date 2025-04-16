@@ -101,7 +101,7 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 ## Usage
 
-For a complete list of commands, see [CLI_COMMANDS.md](./docs/CLI_COMMANDS_.md)
+For a complete list of commands, see [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
 
 ### Run the app:
 
@@ -310,7 +310,7 @@ $body = @{ command = 'say Hello from API!' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/send_command" -Headers $headers -Body $body
 ```
 
-For a complete list of endpoints see the [HTTP API Documentation](https://github.com/DMedina559/bedrock-server-manager/blob/docs/HTTP_API.md).
+For a complete list of endpoints see the [HTTP API Documentation](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md).
 
 All documentation can also be found in the web server's footer `Docs` link.
 
