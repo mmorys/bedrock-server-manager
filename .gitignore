@@ -175,6 +175,7 @@ data
 
 # VisualCode
 .vs
+.vscode
 
 
 *Zone.Identifier
