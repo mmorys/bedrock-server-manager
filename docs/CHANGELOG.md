@@ -218,6 +218,7 @@ The switch to python allows cross platform support, standardized processes, and 
 11. Added WEB_PORT and TOKEN_EXPIRE_WEEKS to script_config.json
 12. Added various documentation accessible in the web server
 13. Added splash text to Main Menu in CLI
+14. SEMI-BREAKING CHANGE: Changed data dir, you must add the bedrock-server-manager folder in the environment variable path if upgrading from older 3.0 versions
 
 ### 3.1.1
 1. Fixed missing js files and images for web server
@@ -229,3 +230,6 @@ The switch to python allows cross platform support, standardized processes, and 
 2. Fixed allowlist configuration on web
 3. Fixed restoring backups on web
 4. Fixed warning about jwt token for web sessions
+
+### 3.1.3
+1. Revised docs included with web server

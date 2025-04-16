@@ -64,13 +64,11 @@
         <a href="{{ url_for('doc_routes.changelog') }}">Changelog</a>
         <p>History of changes and new features across different versions.</p>
     </li>
-    {# --- Add links to other documentation pages here as you create them --- #}
-    {# Example Placeholder:
     <li>
-        <a href="#">Configuration Reference</a>
-        <p>Explanation of all configuration settings available in BSM.</p>
+        {# Link to Extra Config #}
+        <a href="{{ url_for('doc_routes.extras') }}">Extras</a>
+        <p>Extra configuration such as panorama/world_icons.</p>
     </li>
-    #}
 </ul>
 
 {% endblock %}

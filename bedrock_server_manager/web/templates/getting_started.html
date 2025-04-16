@@ -326,6 +326,38 @@
                 font-size: 1.1em;
             }
     }
+
+    .docs-index-list {
+        list-style: none; /* Remove default bullets */
+        padding-left: 0;
+        margin-top: 1.5em;
+    }
+
+        .docs-index-list li {
+            margin-bottom: 1em;
+            font-size: 1.1em;
+        }
+
+        .docs-index-list a {
+            color: #90CAF9; /* Light blue link color */
+            text-decoration: none;
+            font-weight: 600;
+            padding: 5px 0; /* Add some vertical padding for easier clicking */
+            transition: color 0.2s ease;
+        }
+
+            .docs-index-list a:hover {
+                color: #BBDEFB; /* Lighter blue on hover */
+                text-decoration: underline;
+            }
+        /* Style for the description paragraph */
+        .docs-index-list p {
+            font-size: 0.9em;
+            color: #bbb;
+            margin-top: 3px;
+            margin-left: 5px; /* Slight indent for description */
+            line-height: 1.4;
+        }
 </style>
 {% endblock %}
 
@@ -343,6 +375,12 @@
 
     <p>Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease, and is Linux/Windows compatable.</p>
 
+{# --- CHANGELOG Link --- #}
+<ul class="docs-index-list">
+    {# Link to Changelog #}
+    <a href="{{ url_for('doc_routes.changelog') }}">Changelog</a>
+</ul>
+
     <h2>Features</h2>
     <ul>
         <li>Install New Servers: Quickly set up a server with customizable options like version (LATEST, PREVIEW, or specific versions).</li>
@@ -353,17 +391,17 @@
         <li>Command-Line Tools: Send game commands, start, stop, and restart servers directly from the command line.</li>
         <li>Interactive Menu: Access a user-friendly interface to manage servers without manually typing commands.</li>
         <li>Install/Update Content: Easily import <code>.mcworld</code>/<code>.mcpack</code> files into your server.</li>
-        <li>Automate Various Server Task: Quickly create cron task to automate task such as backup-server or restart-server (Linux only).</li>
+        <li>Automate Various Server Task: Quickly create cron/task to automate task such as backup-server or restart-server.</li>
         <li>View Resource Usage: View how much CPU and RAM your server is using.</li>
         <li>Web Server: Easily manage your Minecraft servers in your browser, even if you're on mobile!</li>
     </ul>
 
     <h2>Prerequisites</h2>
-    <p>This script requires <strong>Python 3.10</strong> or later, and you will need <strong>pip</strong> installed.</p>
+    <p>This app requires <code>Python 3.10</code> or later, and you will need <code>pip</code> installed.</p>
     <p>On Linux, you'll also need:</p>
     <ul>
         <li><code>screen</code></li>
-        <li><code>systemd</code> (for service management features)</li>
+        <li><code>systemd</code></li>
     </ul>
 
     <h2>Installation</h2>
@@ -371,336 +409,54 @@
     <ol>
         <li>Run the command:</li>
     </ol>
-    <pre><code>pip install bedrock-server-manager</code></pre>
+    <pre><code class="language-bash">pip install bedrock-server-manager</code></pre>
 
     <h2>Configuration</h2>
     <h3>Setup The Configuration:</h3>
-    <p>Bedrock Server Manager will use the Environment Variable <code>BEDROCK_SERVER_MANAGER_DATA_DIR</code> for setting the default config/data location. If this variable does not exist it will default to <code>$HOME/bedrock-server-manager</code> (Linux/macOS) or the user's home directory equivalent on Windows.</p>
+    <p>bedrock-server-manager will use the Environment Variable <code>BEDROCK_SERVER_MANAGER_DATA_DIR</code> for setting the default config/data location, if this variable does not exist it will default to <code>$HOME/bedrock-server-manager</code> (Linux/macOS) or the user's home directory equivalent (Windows).</p>
     <p>Follow your platform's documentation for setting Environment Variables.</p>
-    <p>The script will create its data folders in this location. This is where servers will be installed to and where the script will look when managing various server aspects.</p>
-    <p>Certain variables can be changed directly in the <code><DATA_DIR>/.config/script_config.json</code> file or with the <code>manage-script-config</code> command.</p>
+    <p>The app will create its data folders in this location. This is where servers will be installed to and where the app will look when managing various server aspects.</p>
+    <p>Certain variables can can be changed directly in the <code><DATA_DIR>/.config/script_config.json</code> or with the <code>manage-script-config</code> command.</p>
 
-    <h4>Configurable Variables (via <code>script_config.json</code>):</h4>
+    <h4>The following variables are configurable via json</h4>
     <ul>
-        <li><code>BASE_DIR</code>: Directory where servers will be installed (within the main data directory).</li>
-        <li><code>CONTENT_DIR</code>: Directory where the app will look for addons/worlds (within the main data directory).</li>
-        <li><code>DOWNLOAD_DIR</code>: Directory where server archives are downloaded (within the main data directory).</li>
-        <li><code>BACKUP_DIR</code>: Directory where server backups will go (within the main data directory).</li>
-        <li><code>LOG_DIR</code>: Directory where app logs will be saved (within the main data directory).</li>
-        <li><code>BACKUP_KEEP</code>: How many world/config backups to keep per server.</li>
-        <li><code>DOWNLOAD_KEEP</code>: How many downloaded server archives to keep.</li>
-        <li><code>LOGS_KEEP</code>: How many application log files to keep.</li>
-        <li><code>LOG_LEVEL</code>: Logging level (e.g., INFO, DEBUG).</li>
-        <li><code>BEDROCK_SERVER_MANAGER_PORT</code>: Port for the web server (default 11325).</li> {# Added Port based on later section #}
+        <li><code>BASE_DIR</code>: Directory where servers will be installed</li>
+        <li><code>CONTENT_DIR</code>: Directory where the app will look for addons/worlds</li>
+        <li><code>DOWNLOAD_DIR</code>: Directory where servers will download</li>
+        <li><code>BACKUP_DIR</code>: Directory where server backups will go</li>
+        <li><code>LOG_DIR</code>: Directory where app logs will be saved</li>
+        <li><code>BACKUP_KEEP</code>: How many backups to keep</li>
+        <li><code>DOWNLOAD_KEEP</code>: How many server downloads to keep</li>
+        <li><code>LOGS_KEEP</code>: How many logs to keep</li>
+        <li><code>LOG_LEVEL</code>: Level for logging.</li>
+        <li><code>WEB_PORT</code>: Port used by the web server. 11325 by default</li>
+        <li><code>TOKEN_EXPIRES_WEEKS</code>: How long JWT tokens are vaild for in weeks.</li>
     </ul>
 
     <h2>Usage</h2>
-    <h3>Run the script:</h3>
-    <pre><code>bedrock-server-manager <command> [options]</code></pre>
-
-    <h3>Available commands:</h3>
-    <p><sub>When interacting with the script, <code>server_name</code> is the name of the server's folder (the name you chose during the first step of installation, also displayed in the Server Status table/menu).</sub></p>
-
-    <div class="table-responsive-wrapper">
-        <table class="server-table">
-            <thead>
-                <tr>
-                    <th>Command</th>
-                    <th>Description</th>
-                    <th>Arguments</th>
-                    <th>Platform</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>main</strong></td>
-                    <td>Open Bedrock Server Manager menu</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>list-servers</strong></td>
-                    <td>List all servers and their statuses</td>
-                    <td><code>-l, --loop</code>: Continuously list servers (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>get-status</strong></td>
-                    <td>Get the status of a specific server (from config)</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>configure-allowlist</strong></td>
-                    <td>Configure the allowlist for a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>configure-permissions</strong></td>
-                    <td>Configure permissions for a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>configure-properties</strong></td>
-                    <td>Configure individual server.properties</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-p, --property <prop></code> (required)<br><code>-v, --value <val></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>install-server</strong></td>
-                    <td>Install a new server</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>update-server</strong></td>
-                    <td>Update an existing server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>start-server</strong></td>
-                    <td>Start a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>stop-server</strong></td>
-                    <td>Stop a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>install-world</strong></td>
-                    <td>Install a world from a .mcworld file</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>install-addon</strong></td>
-                    <td>Install an addon (.mcaddon or .mcpack)</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>restart-server</strong></td>
-                    <td>Restart a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>delete-server</strong></td>
-                    <td>Delete a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>backup-server</strong></td>
-                    <td>Backup server files</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-t, --type <type></code> (required)<br><code>-f, --file <path></code> (optional)<br><code>--no-stop</code> (optional flag)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>backup-all</strong></td>
-                    <td>Backup world and config files for a server</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>--no-stop</code> (optional flag)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>restore-server</strong></td>
-                    <td>Restore server files from backup</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file <path></code> (required)<br><code>-t, --type <type></code> (required)<br><code>--no-stop</code> (optional flag)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>restore-all</strong></td>
-                    <td>Restores all newest files (world and configs)</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>--no-stop</code> (optional flag)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>scan-players</strong></td>
-                    <td>Scan server logs for player data</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>add-players</strong></td>
-                    <td>Manually add player:xuid to players.json</td>
-                    <td><code>-p, --players <p1:xuid> [<p2:xuid> ...]</code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>monitor-usage</strong></td>
-                    <td>Monitor server resource usage</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>prune-old-backups</strong></td>
-                    <td>Prunes old backups</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-f, --file-name <name></code> (optional)<br><code>-k, --keep <num></code> (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>prune-old-downloads</strong></td>
-                    <td>Prunes old downloads</td>
-                    <td><code>-d, --download-dir <path></code> (required)<br><code>-k, --keep <num></code> (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>manage-script-config</strong></td>
-                    <td>Manages the script's configuration file</td>
-                    <td><code>-k, --key <key></code> (required)<br><code>-o, --operation {read|write}</code> (required)<br><code>-v, --value <val></code> (required for write)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>manage-server-config</strong></td>
-                    <td>Manages individual server config files</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-k, --key <key></code> (required)<br><code>-o, --operation {read|write}</code> (required)<br><code>-v, --value <val></code> (required for write)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>get-installed-version</strong></td>
-                    <td>Gets the installed version of a server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>check-server-status</strong></td>
-                    <td>Checks the server status (via logs)</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>get-world-name</strong></td>
-                    <td>Gets the world name from server.properties</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>create-service</strong></td>
-                    <td>Enable/Disable Auto-Update, Reconfigures Systemd file</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>is-server-running</strong></td>
-                    <td>Checks if server process is running</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>send-command</strong></td>
-                    <td>Sends a command to the server</td>
-                    <td><code>-s, --server <name></code> (required)<br><code>-c, --command <cmd></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>export-world</strong></td>
-                    <td>Exports world to backup dir</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>validate-server</strong></td>
-                    <td>Checks if server dir and executable exist</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>check-internet</strong></td>
-                    <td>Checks for internet connectivity</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>cleanup</strong></td>
-                    <td>Clean up project files (cache, logs)</td>
-                    <td><code>-c, --cache</code> (optional flag)<br><code>-l, --logs</code> (optional flag)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>start-webserver</strong></td>
-                    <td>Start the web management interface</td>
-                    <td><code>-H <host></code> (optional)<br><code>-p <port></code> (optional)<br><code>-d, --debug</code> (optional flag)<br><code>-m {direct|detached}</code> (optional)</td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    <td><strong>stop-webserver</strong></td>
-                    <td>Stop the detached web server process</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-                <tr>
-                    {# Added Generate Password #}
-                    <td><strong>generate-password</strong></td>
-                    <td>Generates a password hash for web UI config</td>
-                    <td><em>(None)</em></td>
-                    <td>All</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-
-    <h4>Linux-Specific Commands</h4>
-    <div class="table-responsive-wrapper">
-        <table class="server-table">
-            <thead>
-                <tr>
-                    <th>Command</th>
-                    <th>Description</th>
-                    <th>Arguments</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><strong>attach-console</strong></td>
-                    <td>Attaches to screen session for a running server</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                </tr>
-                <tr>
-                    <td><strong>enable-service</strong></td>
-                    <td>Enables a systemd service</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                </tr>
-                <tr>
-                    <td><strong>disable-service</strong></td>
-                    <td>Disables a systemd service</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                </tr>
-                <tr>
-                    <td><strong>check-service-exists</strong></td>
-                    <td>Checks if a systemd service file exists</td>
-                    <td><code>-s, --server <name></code> (required)</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+    {# --- CLI Commands Link (External) --- #}
+    <p>For a complete list of commands, run <code class="language-bash">bedrock-server-manager <command> --help</code> from the Bedrock Server Manager host CLI</p>
+    <h3>Run the app:</h3>
+    <pre><code class="language-bash">bedrock-server-manager <command> [options]</code></pre>
 
     <h5>Examples:</h5>
     <p>Open Main Menu:</p>
-    <pre><code>bedrock-server-manager main</code></pre>
-
+    <pre><code class="language-bash">bedrock-server-manager main</code></pre>
     <p>Send Command:</p>
-    <pre><code>bedrock-server-manager send-command -s server_name -c "tell @a hello"</code></pre>
-
-    <p>Update Server:</p>
-    <pre><code>bedrock-server-manager update-server --server server_name</code></pre>
-
+    <pre><code class="language-bash">bedrock-server-manager send-command --server server_name --command "tell @a hello"</code></pre>
     <p>Manage Script Config:</p>
-    <pre><code>bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write --value 5</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write --value 5</code></pre>
+    <p>Start the Web Server:</p>
+    <pre><code class="language-bash">bedrock-server-manager start-web-server --host 0.0.0.0 "::" --mode direct</code></pre>
 
-    <h2>Install Content</h2>
+    <h2>Install Content:</h2>
     <p>Easily import addons and worlds into your servers. The app will look in the configured <code>CONTENT_DIR</code> directories for addon files.</p>
     <p>Place <code>.mcworld</code> files in <code><CONTENT_DIR>/worlds</code> or <code>.mcpack</code>/<code>.mcaddon</code> files in <code><CONTENT_DIR>/addons</code></p>
     <p>Use the interactive menu to choose which file to install or use the command:</p>
-    <pre><code>bedrock-server-manager install-world --server server_name --file '/path/to/WORLD.mcworld'</code></pre>
-    <pre><code>bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON.mcpack'</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager install-world --server server_name --file '/path/to/WORLD.mcworld'</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON.mcpack'</code></pre>
 
-    <h2>Web Server</h2>
+    <h2>Web Server:</h2>
     <p>Bedrock Server Manager 3.1.0 includes a Web server you can run to easily manage your bedrock servers in your web browser, and is also mobile friendly!</p>
     <p>The web ui has full parity with the CLI. With the web server you can:</p>
     <ul>
@@ -719,10 +475,10 @@
     <h4>Environment Variables:</h4>
     <p>To get started using the web server you must first set these environment variables:</p>
     <ul>
-        <li><strong><code>BEDROCK_SERVER_MANAGER_USERNAME</code></strong>: Required. Plain text username for web UI and API login. <strong>The web server will not start if this is not set.</strong></li>
-        <li><strong><code>BEDROCK_SERVER_MANAGER_PASSWORD</code></strong>: Required. Hashed password for web UI and API login. Use the generate-password utility. <strong>The web server will not start if this is not set.</strong></li>
-        <li><strong><code>BEDROCK_SERVER_MANAGER_SECRET</code></strong>: Recommended. A long, random, secret string. If not set, a temporary key is generated, and web UI sessions will not persist across restarts, requiring reauthentication.</li>
-        <li><strong><code>BEDROCK_SERVER_MANAGER_TOKEN</code></strong>: Recommended. A long, random, secret string (different from _SECRET). If not set, a temporary key is generated, and JWT tokens used for API authentication will become invalid across restarts. <strong>JWT tokens expire every 4 weeks.</strong></li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_USERNAME</code></strong>: Required. Plain text username for web UI and API login. <strong>The web server will not start if this is not set</strong></li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_PASSWORD</code></strong>: Required. Hashed password for web UI and API login. Use the generate-password utility. <strong>The web server will not start if this is not set</strong></li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_SECRET</code></strong>: Recommended. A long, random, secret string. If not set, a temporary key is generated, and web UI sessions will not persist across restarts, and will require reauthentication.</li>
+        <li><strong><code>BEDROCK_SERVER_MANAGER_TOKEN</code></strong>: Recommended. A long, random, secret string (different from _SECRET). If not set, a temporary key is generated, and JWT tokens used for API authentication will become invalid across restarts. <strong>JWT tokens expire every 4 weeks by default</strong></li>
     </ul>
     <p>Follow your platform's documentation for setting Environment Variables.</p>
 
@@ -730,38 +486,101 @@
     <p>For the web server to start you must first set the <code>BEDROCK_SERVER_MANAGER_PASSWORD</code> environment variable.</p>
     <p>This must be set to the password hash and NOT the plain text password.</p>
     <p>Use the following command to generate a password:</p>
-    <pre><code>bedrock-server-manager generate-password</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager generate-password</code></pre>
     <p>Follow the on-screen prompt to hash your password.</p>
 
     <h4>Hosts:</h4>
     <p>By Default Bedrock Server Manager will only listen to local host only interfaces <code>127.0.0.1</code> and <code>[::1]</code>.</p>
     <p>To change which host to listen to start the web server with the specified host.</p>
     <p>Example: specify local host only ipv4 and ipv6:</p>
-    <pre><code>bedrock-server-manager start-web-server --host 127.0.0.1 "::1"</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager start-web-server --host 127.0.0.1 "::1"</code></pre>
+    <p>Example: specify all ipv4 and ipv6 addresses:</p>
+    <pre><code class="language-bash">bedrock-server-manager start-web-server --host 0.0.0.0 "::"</code></pre>
 
     <h4>Port:</h4>
     <p>By default Bedrock Server Manager will use port <code>11325</code>. This can be changed in <code>script_config.json</code>:</p>
-    <pre><code>bedrock-server-manager manage-script-config --key BEDROCK_SERVER_MANAGER_PORT --operation write --value 11325</code></pre>
+    <pre><code class="language-bash">bedrock-server-manager manage-script-config --key WEB_PORT --operation write --value 11325</code></pre>
 
-    <h2>Disclaimers</h2>
+    <h4>HTTP API:</h4>
+    <p>An HTTP API is provided allowing tools like <code>curl</code> or <code>Invoke-RestMethod</code> to interact with the server.</p>
+    <p>Before using the API, ensure the following environment variables are set on the system running the app:</p>
+    <ul>
+        <li><code>BEDROCK_SERVER_MANAGER_TOKEN</code>: <strong>REQUIRED</strong> for token persistence across server restarts</li>
+        <li><code>BEDROCK_SERVER_MANAGER_USERNAME</code>: The username for API login.</li>
+        <li><code>BEDROCK_SERVER_MANAGER_PASSWORD</code>: The hashed password for API login</li>
+    </ul>
+
+    <h5>Obtaining a JWT token:</h5>
+    <p>The API endpoints require authentication using a JSON Web Token (JWT).</p>
+    <p><strong>How:</strong> Obtain a token by sending a POST request to the <code>/api/login</code> endpoint.</p>
+    <p><strong>Request Body:</strong> Include a JSON payload with <code>username</code> and <code>password</code> keys, matching the values set in the environment variables.</p>
+    <pre><code class="language-json">{
+    "username": "username",
+    "password": "password"
+}</code></pre>
+    <p><strong>Response:</strong> On success, the API returns a JSON object containing the <code>access_token</code>:</p>
+    <pre><code class="language-json">{
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}</code></pre>
+    <p>Tokens expire after the configured duration (default: 4 weeks).</p>
+
+    <h6><code>curl</code> Example (Bash):</h6>
+    <pre><code class="language-bash">curl -X POST -H "Content-Type: application/json" \
+     -d '{"username": "your_username", "password": "your_password"}' \
+     http://<your-manager-host>:<port>/api/login</code></pre>
+
+    <h6>PowerShell Example:</h6>
+    <pre><code class="language-powershell">$body = @{ username = 'your_username'; password = 'your_password' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/login" -Body $body -ContentType 'application/json'</code></pre>
+
+    <h5>Using the API</h5>
+    <p>Endpoints requiring authentication will need the obtained <code>access_token</code> included in the <code>Authorization</code> header of your requests:</p>
+    <pre><code>Authorization: Bearer YOUR_JWT_TOKEN</code></pre>
+    <p>For requests sending data (like POST or PUT), set the <code>Content-Type</code> header to <code>application/json</code>.</p>
+
+    <h5>Examples:</h5>
+    <p>Start server:</p>
+    <h6><code>curl</code> Example (Bash):</h6>
+    <pre><code class="language-bash">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/start</code></pre>
+
+    <h6>PowerShell Example:</h6>
+    <pre><code class="language-powershell">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/start" -Headers $headers</code></pre>
+
+    <p>Send Command:</p>
+    <h6><code>curl</code> Example (Bash):</h6>
+    <pre><code class="language-bash">curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"command": "say Hello from API!"}' \
+     http://<your-manager-host>:<port>/api/server/<server_name>/send_command</code></pre>
+
+    <h6>PowerShell Example:</h6>
+    <pre><code class="language-powershell">$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ command = 'say Hello from API!' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/send_command" -Headers $headers -Body $body</code></pre>
+
+    {# --- HTTP API Link --- #}
+    <ul class="docs-index-list">
+        <a href="{{ url_for('doc_routes.api_docs') }}">Full HTTP API Documentation</a>
+    </ul>
+
+    <h2>Disclaimers:</h2>
     <div class="disclaimer-box warning">
-        {# Added warning class #}
         <h4>Platform Differences:</h4>
         <ul>
             <li>
-                Windows support has the following limitations:
+                Windows suppport has the following limitations such as:
                 <ul>
-                    <li><code>send-command</code> requires separate start method (not yet available)</li>
+                    <li><code>send-command</code> requires seperate start method (no yet available)</li>
                     <li>No attach to console support</li>
-                    <li>No system service integration (autostart on boot, etc.)</li>
+                    <li>No service integration</li>
                 </ul>
             </li>
         </ul>
     </div>
 
     <div class="disclaimer-box info">
-        {# Added info class #}
-        <h4>Tested Systems:</h4>
+        <h4>Tested on these systems:</h4>
         <ul>
             <li>Debian 12 (bookworm)</li>
             <li>Ubuntu 24.04</li>
@@ -770,9 +589,8 @@
         </ul>
     </div>
 
-
     {# --- Optional: Back link at the bottom --- #}
-    <hr style="margin-top: 3em; border: 0; height: 1px; background-color: #555;"> {# Consistent hr style #}
+    <hr style="margin-top: 3em; border: 0; height: 1px; background-color: #555;">
     <p class="back-to-docs-link">
         <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
     </p>
