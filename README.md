@@ -101,7 +101,7 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 ## Usage
 
-For a complete list of commands, see [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
+For a complete list of commands, see [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CLI_COMMAMDS.md)
 
 ### Run the app:
 
