@@ -602,7 +602,7 @@ def configure_allowlist_route(server_name: str) -> Response:
 @auth_required  # Requires Session or JWT
 def save_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     """
-    API endpoint to **REPLACE** the server's entire allowlist.
+    API endpoint to add player to the server's entire allowlist.
 
     Expects JSON body containing a 'players' list (names) and 'ignoresPlayerLimit' flag.
     Use this for initial setup or full replacement actions from the UI.
