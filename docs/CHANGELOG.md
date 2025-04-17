@@ -233,3 +233,9 @@ The switch to python allows cross platform support, standardized processes, and 
 
 ### 3.1.3
 1. Revised docs included with web server
+
+### 3.1.4
+1. Revised HTTP docs included with web server
+    - Only includes basic api info, full detailed docs can be found in the docs folder of the repository
+2. Added /api/servers endpoint
+    - Returns a list of all servers and their status
