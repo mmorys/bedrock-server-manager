@@ -123,8 +123,8 @@ def login_required(view: Callable) -> Callable:
             if prefers_html:
                 # Redirect browser to login page
                 flash("Please log in to access this page.", "warning")
-                login_url = url_for("auth.login", next=request.url)  # Pass original URL
-                logger.debug(f"Redirecting browser to login: {login_url}")
+                next_relative_url = request.full_path
+                login_url = url_for("auth.login", next=next_relative_url)
                 return redirect(login_url)
             else:
                 # Return JSON error for non-browser clients
