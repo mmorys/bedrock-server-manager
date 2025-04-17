@@ -239,6 +239,144 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/login
 
 ## Server Information
 
+Okay, here is the API documentation for the `GET /api/servers` endpoint, generated in the requested format based on the provided Flask route and backend functions.
+
+---
+
+### `GET /api/servers` - Get All Servers List and Status
+
+Retrieves a list of all detected Bedrock server instances managed by this application, along with their last known status and installed version as recorded in their respective configuration files.
+
+This endpoint scans the configured base server directory for potential server instance folders and reads metadata from each server's configuration file.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of all detected servers and their details.
+
+*   **Standard Success:**
+    ```json
+    {
+        "status": "success",
+        "servers": [
+            {
+                "name": "survival_world",
+                "status": "STOPPED",
+                "version": "1.20.40.01"
+            },
+            {
+                "name": "creative_flat",
+                "status": "RUNNING",
+                "version": "1.20.50.02"
+            },
+            {
+                "name": "unconfigured_server",
+                "status": "UNKNOWN",
+                "version": "UNKNOWN"
+            }
+            // ... more servers
+        ]
+    }
+    ```
+*   **Partial Success (Errors occurred reading some servers):**
+    If there were issues reading the configuration for one or more servers, the endpoint still returns a `200 OK` with the successfully retrieved data, but includes an additional `message` field detailing the errors encountered.
+    ```json
+    {
+        "status": "success",
+        "servers": [
+            {
+                "name": "survival_world",
+                "status": "STOPPED",
+                "version": "1.20.40.01"
+            }
+            // Server 'corrupt_config_server' might be missing due to errors
+        ],
+        "message": "Completed with errors: Could not get status/version for server 'corrupt_config_server': Config file read error: [Errno 2] No such file or directory: '/path/to/configs/corrupt_config_server/config.json'"
+    }
+    ```
+
+*   **`status`**: Always "success" for a 200 response.
+*   **`servers`**: (*list*): A list of server objects.
+    *   **`name`** (*string*): The unique name of the server instance (directory name).
+    *   **`status`** (*string*): The last known status recorded in the server's config file (e.g., "RUNNING", "STOPPED", etc). Retrieved via `get_server_status_from_config`.
+    *   **`version`** (*string*): The installed version recorded in the server's config file (e.g., "1.20.40.01", "UNKNOWN"). Retrieved via `get_installed_version`.
+*   **`message`** (*string*, optional): Included only if errors occurred while processing individual server configurations during the scan. Provides details about the errors encountered.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid (handled by `@auth_required` decorator).
+        ```json
+        {
+            "error": "Unauthorized",
+            "message": "Authentication required."
+        }
+        ```
+        *(Or a more specific message for invalid tokens)*
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental issue accessing the base server directory or configuration directory needed to scan for servers (e.g., path doesn't exist, permissions error). The message comes from `DirectoryError` or `FileOperationError` caught within `get_all_servers_status`.
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing directories: Base directory does not exist or is not a directory: /path/to/nonexistent/base_dir"
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing directories: Base configuration directory not set."
+        }
+        ```
+    *   If an unexpected error occurs during the directory scan or processing within `get_all_servers_status`.
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred: [Specific error message from the backend exception]"
+        }
+        ```
+    *   If an unexpected error occurs within the Flask route handler *itself* (less likely, but possible).
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred retrieving the server list."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/servers
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/servers" -Headers $headers
+```
+
+---
+
 ### `GET /api/server/{server_name}/world_name` - Get World Name
 
 Gets the configured world name (`level-name` property) from the `server.properties` file for the specified server.
