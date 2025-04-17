@@ -394,3 +394,40 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
         result = {"status": "error", "message": "Unexpected error pruning backups."}
 
     return jsonify(result), status_code
+
+
+@api_info_bp.route("/api/servers", methods=["GET"])
+@csrf.exempt
+@auth_required
+def get_servers_list_api():
+    """
+    API Endpoint to retrieve the list of all managed servers and their status.
+    Calls the internal api_utils.get_all_servers_status function.
+    """
+    logger.debug(f"API request received for GET /api/servers")
+    try:
+        # Call the existing function from api/utils.py
+        # It doesn't need base_dir/config_dir if defaults are okay
+        result = utils_api.get_all_servers_status()
+
+        # The function returns a dict with 'status' and 'servers' or 'message'
+        status_code = 200 if result.get("status") == "success" else 500
+        logger.debug(
+            f"Returning status {status_code} for /api/servers: {result}"
+        )
+        return jsonify(result), status_code
+
+    except Exception as e:
+        # Catch any unexpected errors during the function call itself
+        logger.error(
+            f"Unexpected error in /api/servers endpoint: {e}", exc_info=True
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "An unexpected error occurred retrieving the server list.",
+                }
+            ),
+            500,
+        )

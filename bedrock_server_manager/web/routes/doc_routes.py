@@ -27,6 +27,7 @@ def api_docs():
 def changelog():
     return render_template("changelog.html")
 
+
 @doc_bp.route("/extras")
 def extras():
     return render_template("extras_config.html")
