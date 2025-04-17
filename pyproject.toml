@@ -36,7 +36,7 @@ keywords = ["minecraft", "bedrock", "server"]
 [project.urls]
 Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 "Bug Tracker" = "https://github.com/DMedina559/bedrock-server-manager/issues"
-Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
