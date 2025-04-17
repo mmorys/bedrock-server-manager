@@ -558,7 +558,7 @@ Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt
 
     <div class="api-endpoint">
         <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/config_status</code> - Get Config Status</h3>
-        <p>Gets the status string stored within the server's specific configuration file (<code class="endpoint-path">config/{server_name}.json</code>). Reflects the server's intended or last known state (e.g., "Installed", "Stopped").</p>
+        <p>Gets the status string stored within the server's specific configuration file (<code class="endpoint-path">./.config/{server_name}/{server_name}_config.json</code>). Reflects the server's intended or last known state (e.g., "Installed", "Stopped").</p>
         <p>This endpoint is exempt from CSRF protection but requires authentication.</p>
         <h4>Authentication:</h4> <p>Required (JWT or active Web UI session).</p>
         <h4>Path Parameters:</h4>
@@ -584,7 +584,7 @@ Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt
             </li>
             <li><code>500 Internal Server Error</code>:
                 <ul>
-                    <li>If error accessing/reading config file (permissions, not found, invalid JSON): <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving config status: File not found: /path/to/config/MyServer.json"}</code></pre> or <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving config status: Permission denied accessing /path/to/config/MyServer.json"}</code></pre>.</li>
+                    <li>If error accessing/reading config file (permissions, not found, invalid JSON): <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving config status: File not found: /path/to/.config/MyServer/MyServer_config.json"}</code></pre> or <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving config status: Permission denied accessing /path/to/.config/MyServer/MyServer_config.json"}</code></pre>.</li>
                     <li>If unexpected error occurs: <pre><code class="api-code-block">{"status": "error", "message": "Unexpected error getting config status."}</code></pre>.</li>
                 </ul>
             </li>
@@ -597,7 +597,7 @@ Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt
 
     <div class="api-endpoint">
         <h3><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/version</code> - Get Installed Version</h3>
-        <p>Gets the installed Bedrock server version string stored within the server's specific configuration file (<code class="endpoint-path">config/{server_name}.json</code>).</p>
+        <p>Gets the installed Bedrock server version string stored within the server's specific configuration file (<code class="endpoint-path">./.config/{server_name}/{server_name}_config.json</code>).</p>
         <p>This endpoint is exempt from CSRF protection but requires authentication.</p>
         <h4>Authentication:</h4> <p>Required (JWT or active Web UI session).</p>
         <h4>Path Parameters:</h4>
@@ -623,7 +623,7 @@ Invoke-RestMethod -Method Get -Uri "http://&lt;your-manager-host&gt;:&lt;port&gt
             </li>
             <li><code>500 Internal Server Error</code>:
                 <ul>
-                    <li>If error accessing/reading config file: <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving installed version: File not found: /path/to/config/MyServer.json"}</code></pre> or <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving installed version: Permission denied accessing /path/to/config/MyServer.json"}</code></pre>.</li>
+                    <li>If error accessing/reading config file: <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving installed version: File not found: /path/to/.config/MyServer/MyServer_config.json"}</code></pre> or <pre><code class="api-code-block">{"status": "error", "message": "Error retrieving installed version: Permission denied accessing /path/to/.config/MyServer/MyServer_config.json"}</code></pre>.</li>
                     <li>If unexpected error occurs: <pre><code class="api-code-block">{"status": "error", "message": "Unexpected error getting installed version."}</code></pre>.</li>
                 </ul>
             </li>
@@ -1462,7 +1462,7 @@ Invoke-RestMethod -Method Post -Uri "http://&lt;your-manager-host&gt;:&lt;port&g
                 <ul>
                     <li>Configuration error (missing <code class="param-name">BASE_DIR</code>, config dir).</li>
                     <li>Errors scanning some log files (permissions): <pre><code class="api-code-block">{"status": "error", "message": "Scan completed with errors for server(s): ServerA, ServerC. Player data found in other logs was saved."}</code></pre>.</li>
-                    <li>Error saving data to <code class="endpoint-path">players.json</code> (write permissions, disk full): <pre><code class="api-code-block">{"status": "error", "message": "Error saving player data to JSON: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"}</code></pre>.</li>
+                    <li>Error saving data to <code class="endpoint-path">players.json</code> (write permissions, disk full): <pre><code class="api-code-block">{"status": "error", "message": "Error saving player data to JSON: Failed to write players data to '/path/to/.config/players.json': [Errno 13] Permission denied"}</code></pre>.</li>
                     <li>Unexpected error.</li>
                 </ul>
             </li>

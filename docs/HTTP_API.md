@@ -1,318 +1,50 @@
 ﻿- [Bedrock Server Manager - HTTP API Documentation](#bedrock-server-manager---http-api-documentation)
   - [Introduction](#introduction)
-    - [Base URL](#base-url)
-    - [Authentication](#authentication)
-    - [Content-Type](#content-type)
-    - [Standard Responses](#standard-responses)
   - [Global Server Validation (Request Pre-Processing)](#global-server-validation-request-pre-processing)
-    - [Mechanism](#mechanism)
-    - [Targeted URLs](#targeted-urls)
-    - [Bypassed URLs](#bypassed-urls)
-    - [Validation Process](#validation-process)
-    - [Outcomes](#outcomes)
-    - [Implications for API Users](#implications-for-api-users)
   - [Authentication](#authentication-1)
     - [`POST /api/login` - API Login](#post-apilogin---api-login)
-      - [Authentication](#authentication-2)
-      - [Request Body (`application/json`)](#request-body-applicationjson)
-      - [Success Response (`200 OK`)](#success-response-200-ok)
-      - [Error Responses](#error-responses)
-      - [`curl` Example (Bash)](#curl-example-bash)
-      - [PowerShell Example](#powershell-example)
   - [Server Information](#server-information)
     - [`GET /api/server/{server_name}/world_name` - Get World Name](#get-apiserverserver_nameworld_name---get-world-name)
-      - [Authentication](#authentication-3)
-      - [Path Parameters](#path-parameters)
-      - [Request Body](#request-body)
-      - [Success Response (`200 OK`)](#success-response-200-ok-1)
-      - [Error Responses](#error-responses-1)
-      - [`curl` Example (Bash)](#curl-example-bash-1)
-      - [PowerShell Example](#powershell-example-1)
     - [`GET /api/server/{server_name}/running_status` - Get Running Status](#get-apiserverserver_namerunning_status---get-running-status)
-      - [Authentication](#authentication-4)
-      - [Path Parameters](#path-parameters-1)
-      - [Request Body](#request-body-1)
-      - [Success Response (`200 OK`)](#success-response-200-ok-2)
-      - [Error Responses](#error-responses-2)
-      - [`curl` Example (Bash)](#curl-example-bash-2)
-      - [PowerShell Example](#powershell-example-2)
     - [`GET /api/server/{server_name}/config_status` - Get Config Status](#get-apiserverserver_nameconfig_status---get-config-status)
-      - [Authentication](#authentication-5)
-      - [Path Parameters](#path-parameters-2)
-      - [Request Body](#request-body-2)
-      - [Success Response (`200 OK`)](#success-response-200-ok-3)
-      - [Error Responses](#error-responses-3)
-      - [`curl` Example (Bash)](#curl-example-bash-3)
-      - [PowerShell Example](#powershell-example-3)
     - [`GET /api/server/{server_name}/version` - Get Installed Version](#get-apiserverserver_nameversion---get-installed-version)
-      - [Authentication](#authentication-6)
-      - [Path Parameters](#path-parameters-3)
-      - [Request Body](#request-body-3)
-      - [Success Response (`200 OK`)](#success-response-200-ok-4)
-      - [Error Responses](#error-responses-4)
-      - [`curl` Example (Bash)](#curl-example-bash-4)
-      - [PowerShell Example](#powershell-example-4)
     - [`GET /api/server/{server_name}/validate` - Validate Server Existence](#get-apiserverserver_namevalidate---validate-server-existence)
-      - [Authentication](#authentication-7)
-      - [Path Parameters](#path-parameters-4)
-      - [Request Body](#request-body-4)
-      - [Success Response (`200 OK`)](#success-response-200-ok-5)
-      - [Error Responses](#error-responses-5)
-      - [`curl` Example (Bash)](#curl-example-bash-5)
-      - [PowerShell Example](#powershell-example-5)
     - [`GET /api/server/{server_name}/status_info` - Get Server Status Info](#get-apiserverserver_namestatus_info---get-server-status-info)
-      - [Authentication](#authentication-8)
-      - [Path Parameters](#path-parameters-5)
-      - [Request Body](#request-body-5)
-      - [Success Response (`200 OK`)](#success-response-200-ok-6)
-      - [Error Responses](#error-responses-6)
-      - [`curl` Example (Bash)](#curl-example-bash-6)
-      - [PowerShell Example](#powershell-example-6)
   - [Server Actions](#server-actions)
     - [`POST /api/server/{server_name}/start` - Start Server](#post-apiserverserver_namestart---start-server)
-      - [Authentication](#authentication-9)
-      - [Path Parameters](#path-parameters-6)
-      - [Request Body](#request-body-6)
-      - [Success Response (`200 OK`)](#success-response-200-ok-7)
-      - [Error Responses](#error-responses-7)
-      - [`curl` Example (Bash)](#curl-example-bash-7)
-      - [PowerShell Example](#powershell-example-7)
     - [`POST /api/server/{server_name}/stop` - Stop Server](#post-apiserverserver_namestop---stop-server)
-      - [Authentication](#authentication-10)
-      - [Path Parameters](#path-parameters-7)
-      - [Request Body](#request-body-7)
-      - [Success Response (`200 OK`)](#success-response-200-ok-8)
-      - [Error Responses](#error-responses-8)
-      - [`curl` Example (Bash)](#curl-example-bash-8)
-      - [PowerShell Example](#powershell-example-8)
     - [`POST /api/server/{server_name}/restart` - Restart Server](#post-apiserverserver_namerestart---restart-server)
-      - [Authentication](#authentication-11)
-      - [Path Parameters](#path-parameters-8)
-      - [Request Body](#request-body-8)
-      - [Success Response (`200 OK`)](#success-response-200-ok-9)
-      - [Error Responses](#error-responses-9)
-      - [`curl` Example (Bash)](#curl-example-bash-9)
-      - [PowerShell Example](#powershell-example-9)
     - [`POST /api/server/{server_name}/send_command` - Send Command](#post-apiserverserver_namesend_command---send-command)
-      - [Authentication](#authentication-12)
-      - [Path Parameters](#path-parameters-9)
-      - [Request Body (`application/json`)](#request-body-applicationjson-1)
-      - [Success Response (`200 OK`)](#success-response-200-ok-10)
-      - [Error Responses](#error-responses-10)
-      - [`curl` Example (Bash)](#curl-example-bash-10)
-      - [PowerShell Example](#powershell-example-10)
     - [`POST /api/server/{server_name}/update` - Update Server](#post-apiserverserver_nameupdate---update-server)
-      - [Authentication](#authentication-13)
-      - [Path Parameters](#path-parameters-10)
-      - [Request Body](#request-body-9)
-      - [Success Response (`200 OK`)](#success-response-200-ok-11)
-      - [Error Responses](#error-responses-11)
-      - [`curl` Example (Bash)](#curl-example-bash-11)
-      - [PowerShell Example](#powershell-example-11)
     - [`DELETE /api/server/{server_name}/delete` - Delete Server](#delete-apiserverserver_namedelete---delete-server)
-      - [Authentication](#authentication-14)
-      - [Path Parameters](#path-parameters-11)
-      - [Request Body](#request-body-10)
-      - [Success Response (`200 OK`)](#success-response-200-ok-12)
-      - [Error Responses](#error-responses-12)
-      - [`curl` Example (Bash)](#curl-example-bash-12)
-      - [PowerShell Example](#powershell-example-12)
   - [Backup \& Restore](#backup--restore)
     - [`POST /api/server/{server_name}/export_world` - Export World](#post-apiserverserver_nameexport_world---export-world)
-      - [Authentication](#authentication-15)
-      - [Path Parameters](#path-parameters-12)
-      - [Request Body](#request-body-11)
-      - [Success Response (`200 OK`)](#success-response-200-ok-13)
-      - [Error Responses](#error-responses-13)
-      - [`curl` Example (Bash)](#curl-example-bash-13)
-      - [PowerShell Example](#powershell-example-13)
     - [`POST /api/server/{server_name}/backups/prune` - Prune Server Backups](#post-apiserverserver_namebackupsprune---prune-server-backups)
-      - [Authentication](#authentication-16)
-      - [Path Parameters](#path-parameters-13)
-      - [Query Parameters](#query-parameters)
-      - [Request Body (`application/json`, optional)](#request-body-applicationjson-optional)
-      - [Success Response (`200 OK`)](#success-response-200-ok-14)
-      - [Error Responses](#error-responses-14)
-      - [`curl` Example (Bash)](#curl-example-bash-14)
-      - [PowerShell Example](#powershell-example-14)
     - [`POST /api/server/{server_name}/backup/action` - Trigger Backup](#post-apiserverserver_namebackupaction---trigger-backup)
-      - [Authentication](#authentication-17)
-      - [Path Parameters](#path-parameters-14)
-      - [Request Body (`application/json`)](#request-body-applicationjson-2)
-      - [Success Response (`200 OK`)](#success-response-200-ok-15)
-      - [Error Responses](#error-responses-15)
-      - [`curl` Example (Bash - World Backup)](#curl-example-bash---world-backup)
-      - [PowerShell Example (Config Backup)](#powershell-example-config-backup)
     - [`POST /api/server/{server_name}/restore/action` - Trigger Restore](#post-apiserverserver_namerestoreaction---trigger-restore)
-      - [Authentication](#authentication-18)
-      - [Path Parameters](#path-parameters-15)
-      - [Request Body (`application/json`)](#request-body-applicationjson-3)
-      - [Success Response (`200 OK`)](#success-response-200-ok-16)
-      - [Error Responses](#error-responses-16)
-      - [`curl` Example (Bash - World Restore)](#curl-example-bash---world-restore)
-      - [PowerShell Example (Config Restore)](#powershell-example-config-restore)
     - [`POST /api/server/{server_name}/restore/all` - Trigger Restore All](#post-apiserverserver_namerestoreall---trigger-restore-all)
-      - [Authentication](#authentication-19)
-      - [Path Parameters](#path-parameters-16)
-      - [Request Body](#request-body-12)
-      - [Success Response (`200 OK`)](#success-response-200-ok-17)
-      - [Error Responses](#error-responses-17)
-      - [`curl` Example (Bash)](#curl-example-bash-15)
-      - [PowerShell Example](#powershell-example-15)
   - [World \& Addon Management](#world--addon-management)
     - [`POST /api/server/{server_name}/world/install` - Install World](#post-apiserverserver_nameworldinstall---install-world)
-      - [Authentication](#authentication-20)
-      - [Path Parameters](#path-parameters-17)
-      - [Request Body (`application/json`)](#request-body-applicationjson-4)
-      - [Success Response (`200 OK`)](#success-response-200-ok-18)
-      - [Error Responses](#error-responses-18)
-      - [`curl` Example (Bash)](#curl-example-bash-16)
-      - [PowerShell Example](#powershell-example-16)
     - [`POST /api/server/{server_name}/addon/install` - Install Addon](#post-apiserverserver_nameaddoninstall---install-addon)
-      - [Authentication](#authentication-21)
-      - [Path Parameters](#path-parameters-18)
-      - [Request Body (`application/json`)](#request-body-applicationjson-5)
-      - [Success Response (`200 OK`)](#success-response-200-ok-19)
-      - [Error Responses](#error-responses-19)
-      - [`curl` Example (Bash)](#curl-example-bash-17)
-      - [PowerShell Example](#powershell-example-17)
-  - [Player Management](#player-management)
     - [`POST /api/players/scan` - Scan Player Logs](#post-apiplayersscan---scan-player-logs)
-      - [Authentication](#authentication-22)
-      - [Path Parameters](#path-parameters-19)
-      - [Query Parameters](#query-parameters-1)
-      - [Request Body](#request-body-13)
-      - [Success Response (`200 OK`)](#success-response-200-ok-20)
-      - [Error Responses](#error-responses-20)
-      - [`curl` Example (Bash)](#curl-example-bash-18)
-      - [PowerShell Example](#powershell-example-18)
     - [`GET /api/server/{server_name}/allowlist` - Get Allowlist](#get-apiserverserver_nameallowlist---get-allowlist)
-      - [Authentication](#authentication-23)
-      - [Path Parameters](#path-parameters-20)
-      - [Query Parameters](#query-parameters-2)
-      - [Request Body](#request-body-14)
-      - [Success Response (`200 OK`)](#success-response-200-ok-21)
-      - [Error Responses](#error-responses-21)
-      - [`curl` Example (Bash)](#curl-example-bash-19)
-      - [PowerShell Example](#powershell-example-19)
     - [`POST /api/server/{server_name}/allowlist/add` - Add Players to Allowlist](#post-apiserverserver_nameallowlistadd---add-players-to-allowlist)
-      - [Authentication](#authentication-24)
-      - [Path Parameters](#path-parameters-21)
-      - [Request Body (`application/json`)](#request-body-applicationjson-6)
-      - [Success Response (`200 OK`)](#success-response-200-ok-22)
-      - [Error Responses](#error-responses-22)
-      - [`curl` Example (Bash)](#curl-example-bash-20)
-      - [PowerShell Example](#powershell-example-20)
     - [`PUT /api/server/{server_name}/permissions` - Update Player Permissions](#put-apiserverserver_namepermissions---update-player-permissions)
-      - [Authentication](#authentication-25)
-      - [Path Parameters](#path-parameters-22)
-      - [Request Body (`application/json`)](#request-body-applicationjson-7)
-      - [Success Response (`200 OK`)](#success-response-200-ok-23)
-      - [Error Responses](#error-responses-23)
-      - [`curl` Example (Bash)](#curl-example-bash-21)
-      - [PowerShell Example](#powershell-example-21)
   - [Configuration](#configuration)
     - [`POST /api/server/{server_name}/properties` - Update Server Properties](#post-apiserverserver_nameproperties---update-server-properties)
-      - [Authentication](#authentication-26)
-      - [Path Parameters](#path-parameters-23)
-      - [Request Body (`application/json`)](#request-body-applicationjson-8)
-      - [Success Response (`200 OK`)](#success-response-200-ok-24)
-      - [Error Responses](#error-responses-24)
-      - [`curl` Example (Bash)](#curl-example-bash-22)
-      - [PowerShell Example](#powershell-example-22)
     - [`POST /api/server/{server_name}/service` - Configure OS Service Settings](#post-apiserverserver_nameservice---configure-os-service-settings)
-      - [Authentication](#authentication-27)
-      - [Path Parameters](#path-parameters-24)
-      - [Request Body (`application/json`)](#request-body-applicationjson-9)
-      - [Success Response (`200 OK`)](#success-response-200-ok-25)
-      - [Error Responses](#error-responses-25)
-      - [`curl` Example (Bash - Linux)](#curl-example-bash---linux)
-      - [PowerShell Example (Windows)](#powershell-example-windows)
   - [Downloads](#downloads)
     - [`POST /api/downloads/prune` - Prune Download Cache](#post-apidownloadsprune---prune-download-cache)
-      - [Authentication](#authentication-28)
-      - [Path Parameters](#path-parameters-25)
-      - [Query Parameters](#query-parameters-3)
-      - [Request Body (`application/json`)](#request-body-applicationjson-10)
-      - [Success Response (`200 OK`)](#success-response-200-ok-26)
-      - [Error Responses](#error-responses-26)
-      - [`curl` Example (Bash)](#curl-example-bash-23)
-      - [PowerShell Example](#powershell-example-23)
   - [Server Installation](#server-installation)
     - [`POST /api/server/install` - Install New Server](#post-apiserverinstall---install-new-server)
-      - [Authentication](#authentication-29)
-      - [Path Parameters](#path-parameters-26)
-      - [Query Parameters](#query-parameters-4)
-      - [Request Body (`application/json`)](#request-body-applicationjson-11)
-      - [Success Responses](#success-responses)
-      - [Error Responses](#error-responses-27)
-      - [`curl` Example (Bash)](#curl-example-bash-24)
-      - [PowerShell Example](#powershell-example-24)
   - [Task Scheduler](#task-scheduler)
     - [`POST /api/server/{server_name}/cron_scheduler/add` - Add Cron Job (Linux Only)](#post-apiserverserver_namecron_scheduleradd---add-cron-job-linux-only)
-      - [Authentication](#authentication-30)
-      - [Platform](#platform)
-      - [Path Parameters](#path-parameters-27)
-      - [Request Body (`application/json`)](#request-body-applicationjson-12)
-      - [Success Response (`201 Created`)](#success-response-201-created)
-      - [Error Responses](#error-responses-28)
-      - [`curl` Example (Bash)](#curl-example-bash-25)
-      - [PowerShell Example](#powershell-example-25)
     - [`POST /api/server/{server_name}/cron_scheduler/modify` - Modify Cron Job (Linux Only)](#post-apiserverserver_namecron_schedulermodify---modify-cron-job-linux-only)
-      - [Authentication](#authentication-31)
-      - [Platform](#platform-1)
-      - [Path Parameters](#path-parameters-28)
-      - [Request Body (`application/json`)](#request-body-applicationjson-13)
-      - [Success Response (`200 OK`)](#success-response-200-ok-27)
-      - [Error Responses](#error-responses-29)
-      - [`curl` Example (Bash)](#curl-example-bash-26)
-      - [PowerShell Example](#powershell-example-26)
     - [`DELETE /api/server/{server_name}/cron_scheduler/delete` - Delete Cron Job (Linux Only)](#delete-apiserverserver_namecron_schedulerdelete---delete-cron-job-linux-only)
-      - [Authentication](#authentication-32)
-      - [Platform](#platform-2)
-      - [Path Parameters](#path-parameters-29)
-      - [Query Parameters](#query-parameters-5)
-      - [Request Body](#request-body-15)
-      - [Success Response (`200 OK`)](#success-response-200-ok-28)
-      - [Error Responses](#error-responses-30)
-      - [`curl` Example (Bash)](#curl-example-bash-27)
-      - [PowerShell Example](#powershell-example-27)
     - [`POST /api/server/{server_name}/task_scheduler/add` - Add Windows Task (Windows Only)](#post-apiserverserver_nametask_scheduleradd---add-windows-task-windows-only)
-      - [Authentication](#authentication-33)
-      - [Platform](#platform-3)
-      - [Path Parameters](#path-parameters-30)
-      - [Request Body (`application/json`)](#request-body-applicationjson-14)
-      - [Success Response (`201 Created`)](#success-response-201-created-1)
-      - [Error Responses](#error-responses-31)
-      - [`curl` Example (Bash)](#curl-example-bash-28)
-      - [PowerShell Example](#powershell-example-28)
     - [`POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)](#post-apiserverserver_nametask_schedulerdetails---get-windows-task-details-windows-only)
-      - [Authentication](#authentication-34)
-      - [Platform](#platform-4)
-      - [Path Parameters](#path-parameters-31)
-      - [Request Body (`application/json`)](#request-body-applicationjson-15)
-      - [Success Response (`200 OK`)](#success-response-200-ok-29)
-      - [Error Responses](#error-responses-32)
-      - [`curl` Example (Bash)](#curl-example-bash-29)
-      - [PowerShell Example](#powershell-example-29)
     - [`PUT /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify Windows Task (Windows Only)](#put-apiserverserver_nametask_schedulertasktask_name---modify-windows-task-windows-only)
-      - [Authentication](#authentication-35)
-      - [Platform](#platform-5)
-      - [Path Parameters](#path-parameters-32)
-      - [Request Body (`application/json`)](#request-body-applicationjson-16)
-      - [Success Response (`200 OK`)](#success-response-200-ok-30)
-      - [Error Responses](#error-responses-33)
-      - [`curl` Example (Bash)](#curl-example-bash-30)
-      - [PowerShell Example](#powershell-example-30)
     - [`DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Delete Windows Task (Windows Only)](#delete-apiserverserver_nametask_schedulertasktask_name---delete-windows-task-windows-only)
-      - [Authentication](#authentication-36)
-      - [Platform](#platform-6)
-      - [Path Parameters](#path-parameters-33)
-      - [Request Body](#request-body-16)
-      - [Success Response (`200 OK`)](#success-response-200-ok-31)
-      - [Error Responses](#error-responses-34)
-      - [`curl` Example (Bash)](#curl-example-bash-31)
-      - [PowerShell Example](#powershell-example-31)
 
 # Bedrock Server Manager - HTTP API Documentation
 
@@ -701,7 +433,7 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ### `GET /api/server/{server_name}/config_status` - Get Config Status
 
-Gets the status string stored within the server's specific configuration file (`config/{server_name}.json`). This status usually reflects the server's intended state or last known state managed by the application (e.g., "Installed", "Stopped", "Running", "Updating").
+Gets the status string stored within the server's specific configuration file (`./.config/{server_name}/{server_name}.json`). This status usually reflects the server's intended state or last known state managed by the application (e.g., "Installed", "Stopped", "Running", "Updating").
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -728,7 +460,7 @@ Returns the status string found in the server's configuration file.
 }
 ```
 *   **`status`**: Always "success".
-*   **`config_status`**: The string value associated with the status field within the server's JSON configuration file (e.g., `config/<server_name>.json`). If the file or status key is missing, the underlying function might return a default like "UNKNOWN" (depending on `server_base.get_server_status_from_config` implementation, which isn't shown but is implied by the code).
+*   **`config_status`**: The string value associated with the status field within the server's JSON configuration file.
 
 #### Error Responses
 
@@ -756,14 +488,14 @@ Returns the status string found in the server's configuration file.
         ```json
         {
             "status": "error",
-            "message": "Error retrieving config status: File not found: /path/to/config/MyServer.json"
+            "message": "Error retrieving config status: File not found: /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Error retrieving config status: Permission denied accessing /path/to/config/MyServer.json"
+            "message": "Error retrieving config status: Permission denied accessing /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
     *   If an unexpected error occurs during processing.
@@ -793,7 +525,7 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ### `GET /api/server/{server_name}/version` - Get Installed Version
 
-Gets the installed Bedrock server version string stored within the server's specific configuration file (`config/{server_name}.json`).
+Gets the installed Bedrock server version string stored within the server's specific configuration file (`./.config/{server_name}/{server_name}_config.json`).
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -820,7 +552,7 @@ Returns the installed version string found in the server's configuration file.
 }
 ```
 *   **`status`**: Always "success".
-*   **`installed_version`**: The string value associated with the `installed_version` key within the server's JSON configuration file (e.g., `config/<server_name>.json`). If the version is not found or couldn't be determined during installation/update, this might return a default value like "UNKNOWN" (based on the `server_base.get_installed_version` implementation).
+*   **`installed_version`**: The string value associated with the `installed_version` key within the server's JSON configuration file (e.g., `./.config/<server_name>/<server_name>_config.json`). If the version is not found or couldn't be determined during installation/update, this might return a default value like "UNKNOWN" (based on the `server_base.get_installed_version` implementation).
 
 #### Error Responses
 
@@ -848,14 +580,14 @@ Returns the installed version string found in the server's configuration file.
         ```json
         {
             "status": "error",
-            "message": "Error retrieving installed version: File not found: /path/to/config/MyServer.json"
+            "message": "Error retrieving installed version: File not found: /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Error retrieving installed version: Permission denied accessing /path/to/config/MyServer.json"
+            "message": "Error retrieving installed version: Permission denied accessing /path/to/config/MyServer/MyServer_config.json"
         }
         ```
     *   If an unexpected error occurs during processing (either within the API function or the route handler itself).
@@ -1678,7 +1410,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ### `POST /api/server/{server_name}/update` - Update Server
 
-Checks for the latest Bedrock Dedicated Server version based on the server's configured target version (`target_version` in `config/<server_name>.json`, defaulting to "LATEST") and updates the specified server instance if a newer version is available or if the installed version is unknown. Handles downloading the new version, backing up the existing server (if updating), extracting files, and optionally sending an in-game notification.
+Checks for the latest Bedrock Dedicated Server version based on the server's configured target version (`target_version` in `./.config/<server_name>/<server_name>_config.json`, defaulting to "LATEST") and updates the specified server instance if a newer version is available or if the installed version is unknown. Handles downloading the new version, backing up the existing server (if updating), extracting files, and optionally sending an in-game notification.
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -1755,7 +1487,7 @@ Returned when the update check and/or process completes successfully.
         ```json
         {
             "status": "error",
-            "message": "Configuration/File error: Error reading config for server '<server_name>': File not found: /path/to/config/<server_name>.json"
+            "message": "Configuration/File error: Error reading config for server '<server_name>': File not found: /path/to/.config/<server_name>/<server_name>_config.json"
         }
         ```
     *   If checking internet connectivity fails (`InternetConnectivityError`).
@@ -3091,7 +2823,7 @@ Indicates the scan process initiated and completed, potentially finding players.
         ```json
         {
             "status": "error",
-            "message": "Error saving player data to JSON: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"
+            "message": "Error saving player data to JSON: Failed to write players data to '/path/to/.config/players.json': [Errno 13] Permission denied"
         }
         ```
         *(Note: If both scan and save errors occur, the message might combine them)*
@@ -3609,7 +3341,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 Configures OS-specific service settings for the server instance. The behavior and expected request body depend on the host operating system where the Bedrock Server Manager is running.
 
 *   **Linux:** Creates/updates a systemd user service file (`~/.config/systemd/user/bedrock-<server_name>.service`) and enables/disables it based on the request. Requires the `systemctl` command to be available.
-*   **Windows:** Updates the `autoupdate` flag (boolean `true`/`false`) within the server's specific JSON configuration file (`config/<server_name>.json`).
+*   **Windows:** Updates the `autoupdate` flag (boolean `true`/`false`) within the server's specific JSON configuration file (`./.config/<server_name>/<server_name>_config.json`).
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -3715,7 +3447,7 @@ Returned when the OS-specific configuration is successfully applied.
         ```
     *   **Windows:** If writing the `autoupdate` flag to the server's JSON config fails (`FileOperationError`).
         ```json
-        { "status": "error", "message": "Failed to set autoupdate config: Failed to write config file: /path/to/config/<server_name>.json" }
+        { "status": "error", "message": "Failed to set autoupdate config: Failed to write config file: /path/to/.config/<server_name>/<server_name>_config.json" }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -4613,7 +4345,7 @@ Returned when the task XML file is found and successfully parsed.
         ```
 
 *   **`404 Not Found`**:
-    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`config/<server_name>/...xml`).
+    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`.config/<server_name>/...xml`).
         ```json
         { "status": "error", "message": "Task configuration not found: Configuration XML file for task '<task_name>' not found." }
         ```
@@ -4844,7 +4576,7 @@ Returned when the task deletion from Task Scheduler completes (or if the task wa
         ```
     *   If deleting the task's XML configuration file fails (e.g., permissions) (`FileOperationError`, reported in message).
         ```json
-        { "status": "error", "message": "Task deletion completed with errors: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\config\\<server_name>\\<task_name>.xml')" }
+        { "status": "error", "message": "Task deletion completed with errors: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\.config\\<server_name>\\<task_name>.xml')" }
         ```
     *   If the `schtasks` command is not found (`CommandNotFoundError`).
         ```json
