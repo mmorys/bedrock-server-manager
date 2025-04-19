@@ -239,10 +239,6 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/login
 
 ## Server Information
 
-Okay, here is the API documentation for the `GET /api/servers` endpoint, generated in the requested format based on the provided Flask route and backend functions.
-
----
-
 ### `GET /api/servers` - Get All Servers List and Status
 
 Retrieves a list of all detected Bedrock server instances managed by this application, along with their last known status and installed version as recorded in their respective configuration files.
