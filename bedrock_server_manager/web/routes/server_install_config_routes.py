@@ -52,6 +52,7 @@ from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
     InvalidInputError,
+    DirectoryError,
     TypeError,
 )
 
@@ -797,6 +798,129 @@ def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
         result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
     # Return structure should include 'existing_players' on success
+    return jsonify(result), status_code
+
+
+# --- API Route: Remove Player from Allowlist ---
+@server_install_config_bp.route(
+    "/api/server/<string:server_name>/allowlist/player/<string:player_name>",
+    methods=["DELETE"],
+)
+@csrf.exempt  # Exempt API endpoint from CSRF protection
+@auth_required  # Requires session OR JWT authentication
+def remove_allowlist_player_api_route(
+    server_name: str, player_name: str
+) -> Tuple[Response, int]:
+    """
+    API endpoint to remove a specific player from a server's allowlist.json file.
+
+    Player name matching is case-insensitive.
+
+    Args:
+        server_name: The name of the server (from URL path).
+        player_name: The name of the player to remove (from URL path).
+
+    Returns:
+        JSON response indicating the outcome:
+        - 200 OK: {"status": "success", "message": "Player '...' removed successfully..."}
+        - 200 OK: {"status": "success", "message": "Player '...' not found in the allowlist..."}
+        - 400 Bad Request: Invalid input (e.g., empty server or player name).
+        - 404 Not Found: Server directory not found.
+        - 500 Internal Server Error: File operation failed (read/write allowlist.json).
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Allowlist player removal requested for player '{player_name}' on server '{server_name}' by user '{identity}'."
+    )
+
+    # --- Input Validation ---
+    # Basic validation (non-empty names) is handled by the API function raising MissingArgumentError.
+    # No request body is expected for this DELETE request.
+
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal server error
+
+    try:
+        base_dir = (
+            get_base_dir()
+        )  # May raise FileOperationError if BASE_DIR setting is missing
+
+        # Call the API function to remove the player
+        logger.debug(
+            f"Calling API handler: api_server.remove_player_from_allowlist for server '{server_name}', player '{player_name}'"
+        )
+        # Assuming your API module is imported as `api_server`
+        result = server_install_config.remove_player_from_allowlist(
+            server_name=server_name, player_name=player_name, base_dir=base_dir
+        )
+        logger.debug(
+            f"API Remove Allowlist Player '{server_name}/{player_name}': Handler response: {result}"
+        )
+
+        # Check the result dictionary returned by the API function
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = (
+                200  # 200 OK even if player wasn't found, as the state is achieved
+            )
+            # The message from the API function differentiates between removed and not found
+            logger.info(f"API: {result.get('message')}")
+        else:
+            # The API function itself returned an error status dictionary
+            status_code = 500  # Assume server error if API layer signals error
+            error_msg = (
+                result.get("message", "Unknown allowlist removal error.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(
+                f"API Remove Allowlist Player '{server_name}/{player_name}' failed: {error_msg}"
+            )
+            # Ensure the response follows the standard error format
+            result = {"status": "error", "message": error_msg}
+
+    except MissingArgumentError as e:
+        # Catch invalid/missing server_name or player_name from API function
+        logger.warning(
+            f"API Remove Allowlist Player '{server_name}/{player_name}': Invalid input: {e}",
+            exc_info=False,
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except DirectoryError as e:
+        # Catch server directory not found error
+        logger.error(
+            f"API Remove Allowlist Player '{server_name}/{player_name}': Server directory error: {e}",
+            exc_info=True,
+        )
+        status_code = 404  # Resource (server) not found
+        result = {
+            "status": "error",
+            "message": f"Server directory not found or inaccessible: {e}",
+        }
+    except FileOperationError as e:
+        # Catch errors related to file operations (reading/writing allowlist.json, missing BASE_DIR)
+        logger.error(
+            f"API Remove Allowlist Player '{server_name}/{player_name}': File operation error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"File operation error during allowlist update: {e}",
+        }
+    except Exception as e:
+        # Catch any unexpected errors during API operation
+        logger.error(
+            f"API Remove Allowlist Player '{server_name}/{player_name}': Unexpected error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Unexpected error during player removal: {e}",
+        }
+
     return jsonify(result), status_code
 
 

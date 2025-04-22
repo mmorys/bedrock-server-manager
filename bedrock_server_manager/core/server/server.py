@@ -1497,6 +1497,95 @@ def add_players_to_allowlist(
         raise FileOperationError(f"Unexpected error updating allowlist: {e}") from e
 
 
+def remove_player_from_allowlist(server_dir: str, player_name: str) -> bool:
+    """
+    Removes a player from the server's allowlist.json file based on their name.
+
+    The comparison is case-insensitive.
+
+    Args:
+        server_dir: The full path to the server's installation directory.
+        player_name: The name of the player to remove (case-insensitive).
+
+    Returns:
+        True if the player was found and removed, False otherwise.
+
+    Raises:
+        MissingArgumentError: If `server_dir` or `player_name` is empty.
+        DirectoryError: If `server_dir` does not exist or is not a directory.
+        FileOperationError: If reading or writing `allowlist.json` fails.
+    """
+    if not server_dir:
+        raise MissingArgumentError("Server directory cannot be empty.")
+    if not player_name:
+        raise MissingArgumentError("Player name cannot be empty.")
+    if not os.path.isdir(server_dir):
+        raise DirectoryError(f"Server directory not found: {server_dir}")
+
+    allowlist_file = os.path.join(server_dir, "allowlist.json")
+    player_name_lower = player_name.lower()  # For case-insensitive comparison
+    logger.info(
+        f"Attempting to remove player '{player_name}' from allowlist: {allowlist_file}"
+    )
+
+    try:
+        # Load existing players using the same robust logic
+        existing_players = configure_allowlist(server_dir)
+        original_count = len(existing_players)
+
+        # Filter out the player to be removed
+        updated_players = [
+            player_dict
+            for player_dict in existing_players
+            if not (
+                isinstance(player_dict, dict)
+                and player_dict.get("name", "").lower() == player_name_lower
+            )
+        ]
+
+        # Check if any player was actually removed
+        if len(updated_players) < original_count:
+            logger.debug(
+                f"Player '{player_name}' found. Writing updated allowlist with {len(updated_players)} players."
+            )
+            # Write the updated list back to the file
+            try:
+                with open(allowlist_file, "w", encoding="utf-8") as f:
+                    # Use indent for readability, matching common practice
+                    json.dump(updated_players, f, indent=4, sort_keys=True)
+                logger.info(
+                    f"Successfully removed player '{player_name}' from allowlist.json."
+                )
+                return True  # Indicate player was removed
+            except OSError as e:
+                logger.error(
+                    f"Failed to write updated allowlist file '{allowlist_file}' after removing player: {e}",
+                    exc_info=True,
+                )
+                raise FileOperationError(
+                    f"Failed to write updated allowlist file: {allowlist_file}"
+                ) from e
+        else:
+            # Player name was not found in the list
+            logger.warning(
+                f"Player '{player_name}' not found in allowlist '{allowlist_file}'. No changes made."
+            )
+            return False  # Indicate player was not found
+
+    except (DirectoryError, FileOperationError) as e:
+        # Catch errors from configure_allowlist reading or potential DirectoryError re-check
+        logger.error(f"Failed to process allowlist for removal: {e}", exc_info=True)
+        raise  # Re-raise the specific error
+    except Exception as e:
+        # Catch unexpected errors during the process
+        logger.error(
+            f"Unexpected error removing player from allowlist: {e}", exc_info=True
+        )
+        raise FileOperationError(
+            f"Unexpected error removing player from allowlist: {e}"
+        ) from e
+
+
 def configure_permissions(
     server_dir: str, xuid: str, player_name: Optional[str], permission: str
 ) -> None:
@@ -2042,7 +2131,7 @@ def no_update_needed(
             f"Unexpected error during update check for server '{server_name}': {e}",
             exc_info=True,
         )
-        return False  # Assume update needed on unexpected error
+        return False
 
 
 def delete_server_data(

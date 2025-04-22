@@ -32,7 +32,7 @@ except ImportError:
 
 
 # Local imports
-from bedrock_server_manager.api import server as server_api
+from bedrock_server_manager.api import server as server_api, server_install_config
 from bedrock_server_manager.api import server_install_config as config_api
 from bedrock_server_manager.api import player as player_api
 from bedrock_server_manager.api import utils as utils_api
@@ -224,6 +224,131 @@ def configure_allowlist(server_name: str, base_dir: Optional[str] = None) -> Non
             f"CLI: Unexpected error configuring allowlist for '{server_name}': {e}",
             exc_info=True,
         )
+
+
+def remove_allowlist_players(server_name: str, players_to_remove: List[str]) -> None:
+    """
+    CLI handler function to remove players from a specific server's allowlist.json.
+
+    Iterates through the list of player names, calls the API function for each,
+    and prints status messages to the console.
+
+    Args:
+        server_name: The name of the server whose allowlist should be modified.
+        players_to_remove: A list of player names (case-insensitive) to remove.
+
+    # Errors from the API call (e.g., DirectoryNotFound, FileOperationError)
+    # are caught individually per player and printed.
+    """
+    if not server_name:
+        print(f"{_ERROR_PREFIX}Server name must be provided.")
+        logger.error("CLI: remove_players called without server_name.")
+        return
+    if not players_to_remove:
+        print(f"{_ERROR_PREFIX}At least one player name must be provided.")
+        logger.error("CLI: remove_players called without players_to_remove.")
+        return
+
+    logger.info(
+        f"CLI: Attempting to remove {len(players_to_remove)} players from allowlist for server '{server_name}'."
+    )
+    logger.debug(f"Players to remove: {players_to_remove}")
+    print(
+        f"{_INFO_PREFIX}Attempting to remove players from allowlist for server '{server_name}'..."
+    )
+
+    success_count = 0
+    not_found_count = 0
+    error_count = 0
+
+    for player_name in players_to_remove:
+        if not player_name or not player_name.strip():
+            print(f"{_WARN_PREFIX}Skipping empty player name.")
+            continue
+
+        player_name = player_name.strip()  # Ensure no leading/trailing whitespace
+        logger.debug(f"Processing removal for player: '{player_name}'")
+        try:
+            # Call the API function for each player
+            logger.debug(
+                f"Calling API: api_server.remove_player_from_allowlist for player '{player_name}'"
+            )
+            response: Dict[str, Any] = (
+                server_install_config.remove_player_from_allowlist(
+                    server_name=server_name,
+                    player_name=player_name,
+                    # base_dir is handled by the API function's default resolution
+                )
+            )
+            logger.debug(f"API response for removing '{player_name}': {response}")
+
+            # --- User Interaction: Print Result ---
+            if response.get("status") == "success":
+                message = response.get("message", f"Processed player '{player_name}'.")
+                # Check the message content to differentiate removed vs not found
+                if "removed successfully" in message.lower():
+                    print(f"{_OK_PREFIX}{message}")
+                    success_count += 1
+                elif "not found" in message.lower():
+                    print(
+                        f"{_WARN_PREFIX}{message}"
+                    )  # Use warning prefix for "not found"
+                    not_found_count += 1
+                else:
+                    # Generic success? Should ideally be one of the above
+                    print(f"{_OK_PREFIX}{message}")
+                    success_count += 1  # Count as success if status is success
+            else:
+                # API function returned an error status
+                message = response.get(
+                    "message", f"Unknown error removing player '{player_name}'."
+                )
+                print(f"{_ERROR_PREFIX}{message}")
+                logger.error(f"CLI: Failed to remove player '{player_name}': {message}")
+                error_count += 1
+            # --- End User Interaction ---
+
+        except (MissingArgumentError, InvalidServerNameError) as e:
+            # Catch input validation errors (should be caught earlier, but good practice)
+            print(f"{_ERROR_PREFIX}Input Error removing '{player_name}': {e}")
+            logger.error(
+                f"CLI: Invalid input for remove_player_from_allowlist ('{player_name}'): {e}",
+                exc_info=True,
+            )
+            error_count += 1
+        except DirectoryError as e:
+            # Catch server not found error
+            print(f"{_ERROR_PREFIX}Server Error removing '{player_name}': {e}")
+            logger.error(
+                f"CLI: Server directory error removing player '{player_name}': {e}",
+                exc_info=True,
+            )
+            error_count += 1
+            # Maybe stop processing if server dir is bad? For now, continue per player.
+        except FileOperationError as e:
+            # Catch file access errors
+            print(f"{_ERROR_PREFIX}File Error removing '{player_name}': {e}")
+            logger.error(
+                f"CLI: File operation error removing player '{player_name}': {e}",
+                exc_info=True,
+            )
+            error_count += 1
+        except Exception as e:
+            # Catch unexpected errors during the API call
+            print(
+                f"{_ERROR_PREFIX}An unexpected error occurred while removing '{player_name}': {e}"
+            )
+            logger.error(
+                f"CLI: Unexpected error removing player '{player_name}': {e}",
+                exc_info=True,
+            )
+            error_count += 1
+
+    # --- Final Summary ---
+    print(f"{_INFO_PREFIX}Allowlist removal process finished.")
+    print(f"  Successfully removed: {success_count}")
+    print(f"  Not found: {not_found_count}")
+    print(f"  Errors: {error_count}")
 
 
 def select_player_for_permission(

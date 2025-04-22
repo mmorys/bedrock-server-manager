@@ -4,6 +4,7 @@
   - [Authentication](#authentication-1)
     - [`POST /api/login` - API Login](#post-apilogin---api-login)
   - [Server Information](#server-information)
+    - [`GET /api/servers` - Get All Servers](#get-apiserverserver_nameworld_name---get-world-name)
     - [`GET /api/server/{server_name}/world_name` - Get World Name](#get-apiserverserver_nameworld_name---get-world-name)
     - [`GET /api/server/{server_name}/running_status` - Get Running Status](#get-apiserverserver_namerunning_status---get-running-status)
     - [`GET /api/server/{server_name}/config_status` - Get Config Status](#get-apiserverserver_nameconfig_status---get-config-status)
@@ -18,7 +19,6 @@
     - [`POST /api/server/{server_name}/update` - Update Server](#post-apiserverserver_nameupdate---update-server)
     - [`DELETE /api/server/{server_name}/delete` - Delete Server](#delete-apiserverserver_namedelete---delete-server)
   - [Backup \& Restore](#backup--restore)
-    - [`POST /api/server/{server_name}/export_world` - Export World](#post-apiserverserver_nameexport_world---export-world)
     - [`POST /api/server/{server_name}/backups/prune` - Prune Server Backups](#post-apiserverserver_namebackupsprune---prune-server-backups)
     - [`POST /api/server/{server_name}/backup/action` - Trigger Backup](#post-apiserverserver_namebackupaction---trigger-backup)
     - [`POST /api/server/{server_name}/restore/action` - Trigger Restore](#post-apiserverserver_namerestoreaction---trigger-restore)
@@ -1821,128 +1821,6 @@ Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/ser
 
 ## Backup & Restore
 
-### `POST /api/server/{server_name}/export_world` - Export World
-
-Triggers an export of the server's currently configured world (based on `level-name` in `server.properties`) into a `.mcworld` archive file. The resulting file is saved in a server-specific subdirectory within the globally configured `BACKUP_DIR` (e.g., `<BACKUP_DIR>/<server_name>/<world_name>_export_<timestamp>.mcworld`).
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The unique name of the server instance whose world should be exported.
-
-#### Request Body
-
-None. *(Currently, the export destination is determined by server configuration, not request parameters.)*
-
-#### Success Response (`200 OK`)
-
-Returned when the world is successfully found, archived, and saved.
-
-```json
-{
-    "status": "success",
-    "export_file": "/path/to/configured/backups/MyServer/Bedrock_level_export_20240115_103000.mcworld",
-    "message": "World exported successfully."
-}
-```
-*   **`status`**: Always "success".
-*   **`export_file`**: The full, absolute path to the newly created `.mcworld` archive file.
-*   **`message`**: Confirmation message.
-
-#### Error Responses
-
-*   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from the `InvalidServerNameError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Server name cannot be empty."
-        }
-        ```
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid (handled by `@auth_required` decorator).
-        ```json
-        {
-            "error": "Unauthorized",
-            "message": "Authentication required."
-        }
-        ```
-        *(Or a more specific message for invalid tokens)*
-
-*   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or point to invalid/inaccessible locations (`FileOperationError`).
-        ```json
-        {
-            "status": "error",
-            "message": "FileOperationError: BACKUP_DIR setting missing."
-        }
-        ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: Base directory '/invalid/path' not found or accessible."
-        }
-        ```
-    *   If the server's `server.properties` file cannot be found or read, or the `level-name` property is missing within it (error propagated from `get_world_name`).
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to get world name: File not found: /path/to/servers/MyServer/server.properties"
-        }
-        ```
-    *   If the determined world directory (e.g., `<BASE_DIR>/<server_name>/worlds/<world_name>`) does not exist or is not a directory (`DirectoryError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to export world: World directory 'Bedrock level' not found at expected location: /path/to/servers/MyServer/worlds/Bedrock level"
-        }
-        ```
-    *   If there are file system errors during the archive creation or saving process (e.g., insufficient disk space, permission denied, `shutil.make_archive` failure) (`BackupWorldError`, `FileOperationError`, `OSError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to export world: Failed to create world backup archive: [Errno 28] No space left on device"
-        }
-        ```
-        *or*
-         ```json
-        {
-            "status": "error",
-            "message": "Failed to export world: Cannot create target directory '/path/to/backups/MyServer': [Errno 13] Permission denied"
-        }
-        ```
-    *   If an unexpected error occurs during any stage of the process.
-        ```json
-        {
-            "status": "error",
-            "message": "Unexpected error exporting world."
-        }
-        ```
-        *(Note: This is the generic message from the route handler's final catch. Errors caught deeper might have slightly more specific "Unexpected error..." messages.)*
-
-#### `curl` Example (Bash)
-
-```bash
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/export_world
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/export_world" -Headers $headers
-```
-
----
-
 ### `POST /api/server/{server_name}/backups/prune` - Prune Server Backups
 
 Deletes older backups for a specific server from its subdirectory within the configured `BACKUP_DIR` (e.g., `<BACKUP_DIR>/<server_name>`). It prunes world backups (`*.mcworld`), server properties backups (`server_backup_*.properties`), and other JSON configuration backups (`*_backup_*.json`) separately, keeping a specified number of the newest files (by modification time) for *each* type.
@@ -3319,6 +3197,126 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
 $body = @{ players = @('AdminUser', 'VIP_Player'); ignoresPlayerLimit = $false } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/add" -Headers $headers -Body $body
+```
+
+---
+
+### `DELETE /api/server/{server_name}/allowlist/player/{player_name}` - Remove Player from Allowlist
+
+Removes a specific player from the `allowlist.json` file for the specified server instance. The player name matching is case-insensitive.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance.
+*   `**player_name**` (*string*, required): The name of the player to remove from the allowlist (case-insensitive).
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returned when the operation completes. The message indicates whether the player was found and removed, or if the player was not found on the list.
+
+*   *Player found and removed:*
+    ```json
+    {
+        "status": "success",
+        "message": "Player '<player_name>' removed successfully from allowlist for server '<server_name>'."
+    }
+    ```
+*   *Player not found:*
+    ```json
+    {
+        "status": "success",
+        "message": "Player '<player_name>' not found in the allowlist for server '<server_name}'. No changes made."
+    }
+    ```
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If `server_name` or `player_name` path parameters are missing or empty (`MissingArgumentError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid input: Player name cannot be empty."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid input: Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "error": "Unauthorized",
+            "message": "Authentication required."
+        }
+        ```
+
+*   **`404 Not Found`**:
+    *   If the specified server's directory cannot be found (`DirectoryError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Server directory not found or inaccessible: Server directory not found: C:\\path\\to\\servers\\NonExistentServer"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If essential configuration like `BASE_DIR` is missing (`FileOperationError` during `get_base_dir`).
+        ```json
+        {
+            "status": "error",
+            "message": "File operation error during allowlist update: BASE_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If reading or writing the `allowlist.json` file fails due to permissions, disk errors, or invalid JSON content (`FileOperationError` from core).
+        ```json
+        {
+            "status": "error",
+            "message": "File operation error during allowlist update: Failed to write updated allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
+        }
+        ```
+        *or*
+         ```json
+        {
+            "status": "error",
+            "message": "File operation error during allowlist update: Invalid JSON in allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
+        }
+        ```
+    *   If an unexpected error occurs during the process.
+        ```json
+        {
+            "status": "error",
+            "message": "Unexpected error during player removal: <original error message>"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>" -Headers $headers
 ```
 
 ---
