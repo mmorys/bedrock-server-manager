@@ -144,7 +144,7 @@ def export_world(
     Args:
         server_name: The name of the server whose world to export.
         base_dir: Optional. Base directory for server installations. Uses config default if None.
-        export_dir: Optional. Directory to save the exported file. Uses BACKUP_DIR default if None.
+        export_dir: Optional. Directory to save the exported file. Uses CONTENT_DIR default if None.
 
     Raises:
         InvalidServerNameError: If `server_name` is empty.
@@ -155,6 +155,13 @@ def export_world(
 
     logger.debug(f"CLI: Requesting world export for server '{server_name}'.")
     print(f"{_INFO_PREFIX}Attempting to export world for server '{server_name}'...")
+
+    if not export_dir:
+        content_dir = settings.get("CONTENT_DIR")
+        export_dir = os.path.join(content_dir, "worlds")
+        if not export_dir:
+            raise FileOperationError("CONTENT_DIR setting is missing.")
+        logger.debug(f"Using default CONTENT_DIR for export: {export_dir}")
 
     try:
         # Call the API function
