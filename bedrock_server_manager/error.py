@@ -83,6 +83,12 @@ class SendCommandError(BedrockManagerError):
     pass
 
 
+class BlockedCommandError(ValueError):
+    """Raised when an attempt is made to send a command blocked by configuration."""
+
+    pass
+
+
 class AttachConsoleError(BedrockManagerError):
     pass
 

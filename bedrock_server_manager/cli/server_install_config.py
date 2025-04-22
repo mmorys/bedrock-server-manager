@@ -55,7 +55,7 @@ from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,
     FileOperationError,
-    DirectoryError
+    DirectoryError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
