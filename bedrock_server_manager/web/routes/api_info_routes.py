@@ -412,16 +412,12 @@ def get_servers_list_api():
 
         # The function returns a dict with 'status' and 'servers' or 'message'
         status_code = 200 if result.get("status") == "success" else 500
-        logger.debug(
-            f"Returning status {status_code} for /api/servers: {result}"
-        )
+        logger.debug(f"Returning status {status_code} for /api/servers: {result}")
         return jsonify(result), status_code
 
     except Exception as e:
         # Catch any unexpected errors during the function call itself
-        logger.error(
-            f"Unexpected error in /api/servers endpoint: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error in /api/servers endpoint: {e}", exc_info=True)
         return (
             jsonify(
                 {
