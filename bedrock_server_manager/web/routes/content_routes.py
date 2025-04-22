@@ -271,7 +271,9 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500  # Default to internal server error
 
     try:
-        base_dir = get_base_dir()  # May raise FileOperationError if BASE_DIR setting is missing
+        base_dir = (
+            get_base_dir()
+        )  # May raise FileOperationError if BASE_DIR setting is missing
 
         # --- Determine Export Directory ---
         # This route overrides the API function's default (BACKUP_DIR)
@@ -288,7 +290,9 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
         try:
             os.makedirs(api_export_dir, exist_ok=True)
         except OSError as e:
-            raise FileOperationError(f"Cannot create export directory '{api_export_dir}': {e}") from e
+            raise FileOperationError(
+                f"Cannot create export directory '{api_export_dir}': {e}"
+            ) from e
 
         # --- Call the world export API function ---
         logger.debug(
@@ -297,7 +301,7 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
         result = world_api.export_world(
             server_name=server_name,
             base_dir=base_dir,
-            export_dir=api_export_dir # Explicitly pass the calculated export directory
+            export_dir=api_export_dir,  # Explicitly pass the calculated export directory
         )
         logger.debug(f"API Export World '{server_name}': Handler response: {result}")
 
@@ -307,35 +311,49 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
             filename = os.path.basename(export_file_path)
             success_msg = f"World for server '{server_name}' exported successfully as '{filename}'."
             logger.info(f"API: {success_msg}")
-            result["message"] = success_msg # Update message for better user feedback in response
+            result["message"] = (
+                success_msg  # Update message for better user feedback in response
+            )
         else:
             # Handler indicated failure (e.g., couldn't find world name)
-            status_code = 500 # Assume server-side issue if API layer returns error status
+            status_code = (
+                500  # Assume server-side issue if API layer returns error status
+            )
             error_msg = (
                 result.get("message", "Unknown world export error.")
                 if isinstance(result, dict)
                 else "Handler returned unexpected response."
             )
             logger.error(f"API Export World '{server_name}' failed: {error_msg}")
-            result = {"status": "error", "message": error_msg} # Ensure standard error format
+            result = {
+                "status": "error",
+                "message": error_msg,
+            }  # Ensure standard error format
 
     except InvalidServerNameError as e:
-         # Catch invalid server name specifically for a 400 response
-         logger.warning(f"API Export World '{server_name}': Invalid input: {e}", exc_info=False)
-         status_code = 400
-         result = {"status": "error", "message": f"Invalid server name provided: {e}"}
+        # Catch invalid server name specifically for a 400 response
+        logger.warning(
+            f"API Export World '{server_name}': Invalid input: {e}", exc_info=False
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid server name provided: {e}"}
     except FileOperationError as e:
         # Catch errors related to file operations, including missing settings (BASE_DIR, CONTENT_DIR)
         # or inability to create the export directory.
         logger.error(
-            f"API Export World '{server_name}': Configuration or File system error: {e}", exc_info=True
+            f"API Export World '{server_name}': Configuration or File system error: {e}",
+            exc_info=True,
         )
         status_code = 500
-        result = {"status": "error", "message": f"Configuration or file system error: {e}"}
+        result = {
+            "status": "error",
+            "message": f"Configuration or file system error: {e}",
+        }
     except (DirectoryError, BackupWorldError) as e:
         # Catch specific, expected errors from the core export process
         logger.error(
-            f"API Export World '{server_name}': Error during export process: {e}", exc_info=True
+            f"API Export World '{server_name}': Error during export process: {e}",
+            exc_info=True,
         )
         status_code = 500
         result = {"status": "error", "message": f"World export process error: {e}"}
