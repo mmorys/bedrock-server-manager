@@ -67,6 +67,48 @@ function triggerWorldInstall(buttonElement, serverName, worldFilePath) {
 
 
 /**
+ * Initiates the world export process by sending an API request.
+ * Assumes 'sendServerActionRequest' is globally available.
+ *
+ * @param {HTMLElement} buttonElement - The button element that was clicked.
+ * @param {string} serverName - The name of the server whose world should be exported.
+ */
+async function triggerWorldExport(buttonElement, serverName) {
+    const functionName = 'triggerWorldExport';
+    console.log(`${functionName}: Triggered for server '${serverName}'`);
+
+    // Confirm export if desired, though it's not destructive like import
+    // if (!confirm(`Export the current world for server '${serverName}'?`)) {
+    //     console.log(`${functionName}: User cancelled export.`);
+    //     showStatusMessage("World export cancelled.", "info");
+    //     return;
+    // }
+
+    console.log(`${functionName}: Sending API request to export world.`);
+    // Call the generic request handler
+    // Export endpoint doesn't require a request body (body = null)
+    const result = await sendServerActionRequest(
+        serverName,
+        'world/export', // Relative API path for world export
+        'POST',
+        null,           // No request body needed
+        buttonElement
+    );
+
+    // Handle specific responses
+    if (result && result.status === 'success') {
+        console.log(`${functionName}: World export reported success. Exported file: ${result.export_file}`);
+        showStatusMessage(result.message + " Refreshing list...", 'success');
+        setTimeout(() => { window.location.reload(); }, 2000); // Example: Refresh after 2s
+    } else if (result === false) {
+        console.error(`${functionName}: World export failed (Network/HTTP error or application error reported).`);
+    } else {
+        console.warn(`${functionName}: World export completed with status: ${result?.status || 'unknown'}`);
+    }
+}
+
+
+/**
  * Handles the user clicking an 'Install Addon' button.
  * Prompts for confirmation and then calls the API endpoint to install the
  * specified addon file (.mcaddon or .mcpack).

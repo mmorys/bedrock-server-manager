@@ -38,6 +38,7 @@ from bedrock_server_manager.error import (
     InvalidInputError,
     AddonExtractError,
     InvalidAddonPackTypeError,
+    BackupWorldError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -231,6 +232,122 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
         result = {
             "status": "error",
             "message": f"Unexpected error during world installation: {e}",
+        }
+
+    return jsonify(result), status_code
+
+
+# --- API Route: Export World ---
+@content_bp.route("/api/server/<string:server_name>/world/export", methods=["POST"])
+@csrf.exempt  # Exempt API endpoint from CSRF protection (using JWT or session auth)
+@auth_required  # Requires session OR JWT authentication
+def export_world_api_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to export the current world of a specified server to a .mcworld file.
+
+    By default, the exported file is saved to the 'worlds' subdirectory
+    within the configured CONTENT_DIR.
+
+    Args:
+        server_name: The name of the server whose world should be exported (from URL path).
+
+    Returns:
+        JSON response indicating success or failure of the world export:
+        - 200 OK: {"status": "success", "message": "World '...' exported successfully as '...'.", "export_file": "full/path/to/export.mcworld"}
+        - 400 Bad Request: Invalid server name provided.
+        - 500 Internal Server Error: World export process failed (e.g., world not found, disk error, CONTENT_DIR missing).
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: World export requested for server '{server_name}' by user '{identity}'."
+    )
+
+    # --- Input Validation ---
+    # Server name validity is checked within the api_world.export_world function.
+    # No request body is expected for this action.
+
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal server error
+
+    try:
+        base_dir = get_base_dir()  # May raise FileOperationError if BASE_DIR setting is missing
+
+        # --- Determine Export Directory ---
+        # This route overrides the API function's default (BACKUP_DIR)
+        # and uses CONTENT_DIR/worlds as the target directory.
+        content_dir = settings.get("CONTENT_DIR")
+        if not content_dir:
+            raise FileOperationError("Required setting 'CONTENT_DIR' is missing.")
+
+        # Define the export directory based on CONTENT_DIR
+        api_export_dir = os.path.join(content_dir, "worlds")
+        logger.debug(f"API Route: Using export directory: {api_export_dir}")
+        # Ensure the target directory exists before calling the API function
+        # (The core function also does this, but doing it here provides clearer errors if CONTENT_DIR is bad)
+        try:
+            os.makedirs(api_export_dir, exist_ok=True)
+        except OSError as e:
+            raise FileOperationError(f"Cannot create export directory '{api_export_dir}': {e}") from e
+
+        # --- Call the world export API function ---
+        logger.debug(
+            f"Calling API handler: api_world.export_world for '{server_name}' with explicit export_dir='{api_export_dir}'"
+        )
+        result = world_api.export_world(
+            server_name=server_name,
+            base_dir=base_dir,
+            export_dir=api_export_dir # Explicitly pass the calculated export directory
+        )
+        logger.debug(f"API Export World '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            export_file_path = result.get("export_file", "Unknown Export File")
+            filename = os.path.basename(export_file_path)
+            success_msg = f"World for server '{server_name}' exported successfully as '{filename}'."
+            logger.info(f"API: {success_msg}")
+            result["message"] = success_msg # Update message for better user feedback in response
+        else:
+            # Handler indicated failure (e.g., couldn't find world name)
+            status_code = 500 # Assume server-side issue if API layer returns error status
+            error_msg = (
+                result.get("message", "Unknown world export error.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Export World '{server_name}' failed: {error_msg}")
+            result = {"status": "error", "message": error_msg} # Ensure standard error format
+
+    except InvalidServerNameError as e:
+         # Catch invalid server name specifically for a 400 response
+         logger.warning(f"API Export World '{server_name}': Invalid input: {e}", exc_info=False)
+         status_code = 400
+         result = {"status": "error", "message": f"Invalid server name provided: {e}"}
+    except FileOperationError as e:
+        # Catch errors related to file operations, including missing settings (BASE_DIR, CONTENT_DIR)
+        # or inability to create the export directory.
+        logger.error(
+            f"API Export World '{server_name}': Configuration or File system error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"Configuration or file system error: {e}"}
+    except (DirectoryError, BackupWorldError) as e:
+        # Catch specific, expected errors from the core export process
+        logger.error(
+            f"API Export World '{server_name}': Error during export process: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"World export process error: {e}"}
+    except Exception as e:
+        # Catch any unexpected errors
+        logger.error(
+            f"API Export World '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Unexpected error during world export: {e}",
         }
 
     return jsonify(result), status_code

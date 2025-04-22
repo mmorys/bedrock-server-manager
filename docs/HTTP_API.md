@@ -2532,6 +2532,123 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ## World & Addon Management
 
+### `POST /api/server/{server_name}/world/export` - Export World
+
+Exports the currently active world directory associated with the specified server instance into a `.mcworld` archive file. The resulting file is saved within the `worlds` subdirectory of the configured `CONTENT_DIR`, making it available for installation on other servers managed by this application.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance whose world should be exported.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returned when the world export process completes successfully and the `.mcworld` file is created in the target directory (`<CONTENT_DIR>/worlds/`).
+
+```json
+{
+    "status": "success",
+    "message": "World for server '<server_name>' exported successfully as '<export_filename.mcworld>'.",
+    "export_file": "/full/path/to/content/worlds/<export_filename.mcworld>"
+}
+```
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is considered invalid (e.g., empty) (`InvalidServerNameError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid server name provided: Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "error": "Unauthorized",
+            "message": "Authentication required."
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid (`FileOperationError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration or file system error: Required setting 'CONTENT_DIR' is missing."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration or file system error: BASE_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If the system fails to create the target export directory (`<CONTENT_DIR>/worlds/`) due to permissions or other OS issues (`FileOperationError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration or file system error: Cannot create export directory '/path/to/content/worlds': [Errno 13] Permission denied"
+        }
+        ```
+    *   If the API fails to determine the current world name for the server (e.g., `server.properties` read error, returned as error status by `api_world.export_world`).
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to export world: Could not read world name from properties file: /path/to/server/server.properties"
+        }
+        ```
+    *   If the determined world directory does not exist or is not accessible (`DirectoryError`).
+        ```json
+        {
+            "status": "error",
+            "message": "World export process error: World directory 'MyWorldName' not found at expected location: /path/to/server/worlds/MyWorldName"
+        }
+        ```
+    *   If creating the `.mcworld` ZIP archive fails due to disk space, permissions, or other `shutil` issues (`BackupWorldError`).
+        ```json
+        {
+            "status": "error",
+            "message": "World export process error: Failed to create world backup archive: [Errno 28] No space left on device"
+        }
+        ```
+    *   If an unexpected error occurs during the export process.
+        ```json
+        {
+            "status": "error",
+            "message": "Unexpected error during world export: <original error message>"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/world/export
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world/export" -Headers $headers
+```
+
+---
+
 ### `POST /api/server/{server_name}/world/install` - Install World
 
 Installs a world from a `.mcworld` file into the specified server, replacing the existing world files. The `.mcworld` file must already exist within the configured `content/worlds` directory (defined by the `CONTENT_DIR` setting). **Warning:** This overwrites the server's current world defined by `level-name` in `server.properties`. It is recommended to stop the server before performing this action (the API handles this by default).

@@ -760,6 +760,21 @@
     <h2 id="world-addon-h2">World & Addon Management</h2>
 
     <div class="api-endpoint">
+        <h3 id="post-api-server-world-export"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/export</code></h3>
+        <p>Exports the server's current world to a <code class="endpoint-path">.mcworld</code> file in the <code class="endpoint-path">content/worlds</code> directory.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <!-- No Request Body for this endpoint -->
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+            "status": "success",
+            "message": "World for server '...' exported successfully as '....mcworld'.",
+            "export_file": "/full/path/to/content/worlds/....mcworld"
+        }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
         <h3 id="post-api-server-world-install"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/install</code></h3>
         <p><strong>Overwrites current world</strong> to install <code class="endpoint-path">.mcworld</code> from <code class="endpoint-path">content/worlds</code> dir.</p>
         <h4>Authentication:</h4> <p>Required.</p>
