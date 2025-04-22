@@ -184,6 +184,7 @@ def manage_server(base_dir: str, config_dir: str) -> None:
             print(
                 f"\n{Fore.MAGENTA}{app_name} - Manage Existing Server{Style.RESET_ALL}\n"
             )
+            print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
                 base_dir, config_dir
             )  # Display server list/status
@@ -306,6 +307,7 @@ def install_content(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}\n")
+            print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers
 
             # --- User Interaction: Print Menu Options ---
@@ -394,6 +396,7 @@ def advanced_menu(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(f"\n{Fore.MAGENTA}{app_name} - Advanced Options{Style.RESET_ALL}\n")
+            print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)
 
             # --- User Interaction: Print Menu Options ---
@@ -540,6 +543,7 @@ def backup_restore_menu(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(f"\n{Fore.MAGENTA}{app_name} - Backup / Restore{Style.RESET_ALL}\n")
+            print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers
 
             # --- User Interaction: Print Menu Options ---
