@@ -1,4 +1,5 @@
-![icon](https://github.com/DMedina559/bedrock-server-manager/blob/main/bedrock_server_manager/web/static/image/icon/favicon.svg)
+<img src="https://github.com/DMedina559/bedrock-server-manager/blob/fixes-changes/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="ICON" width="200" height="200">
+
 
 - [Bedrock Server Manager](#bedrock-server-manager)
   - [Features](#features)
