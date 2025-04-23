@@ -1,3 +1,5 @@
+![icon](https://github.com/DMedina559/bedrock-server-manager/blob/main/bedrock_server_manager/web/static/image/icon/favicon.svg)
+
 - [Bedrock Server Manager](#bedrock-server-manager)
   - [Features](#features)
   - [Prerequisites](#prerequisites)
