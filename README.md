@@ -1,4 +1,6 @@
-<img src="https://github.com/DMedina559/bedrock-server-manager/blob/fixes-changes/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="ICON" width="200" height="200">
+<div style="text-align: center;">
+    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="ICON" width="200" height="200">
+</div>
 
 
 - [Bedrock Server Manager](#bedrock-server-manager)
@@ -104,6 +106,10 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 ## Usage
 
+<div style="text-align: left;">
+    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/images/cli_menu.png" alt="CLI Menu" width="300" height="200">
+</div>
+
 For a complete list of commands, see [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CLI_COMMANDS.md)
 
 ### Run the app:
@@ -140,6 +146,10 @@ bedrock-server-manager start-web-server --host 0.0.0.0 "::" --mode direct
 
 ## Install Content:
 
+<div style="text-align: left;">
+    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/images/cli_install_content.png" alt="Install Worlds" width="300" height="200">
+</div>
+
 Easily import addons and worlds into your servers. The app will look in the configured `CONTENT_DIR` directories for addon files.
 
 Place .mcworld files in `CONTENT_DIR/worlds` or .mcpack/.mcaddon files in `CONTENT_DIR/addons`
@@ -155,6 +165,10 @@ bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON
 ```
 
 ## Web Server:
+
+<div style="text-align: left;">
+    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/images/main_index.png" alt="CLI Menu" width="300" height="200">
+</div>
 
 Bedrock Server Manager 3.1.0 includes a Web server you can run to easily manage your bedrock servers in your web browser, and is also mobile friendly!
 
