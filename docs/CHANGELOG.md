@@ -239,3 +239,12 @@ The switch to python allows cross platform support, standardized processes, and 
     - Only includes basic api info, full detailed docs can be found in the docs folder of the repository
 2. Added /api/servers endpoint
     - Returns a list of all servers and their status
+
+### 3.2.0
+1. Added export world to web GUI
+    - Refactored export world endpoint
+    - export-world on web and cli now export to the content folder
+2. Added remove player from allowlist to web and cli
+    - Added remove-allowlist-player command
+3. Added a blacklist for commands such as stop or allowlist off
+4. Added more splash text

@@ -183,6 +183,26 @@
         <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
     </p>
 
+    {# --- Version 3.2.0 --- #}
+    <h2>Version 3.2.0</h2>
+    <ol>
+        <li>
+            Added export world to web GUI
+            <ul>
+                <li>Refactored export world endpoint</li>
+                <li>export-world on web and cli now export to the content folder</li>
+            </ul>
+        </li>
+        <li>
+            Added remove player from allowlist to web and cli
+            <ul>
+                <li>Added <code>remove-allowlist-player</code> command</li>
+            </ul>
+        </li>
+        <li>Added a blacklist for commands such as stop or allowlist off</li>
+        <li>Added more splash text</li>
+    </ol>
+
     {# --- Version 3.1.4 --- #}
     <h2>Version 3.1.4</h2>
     <ol>
