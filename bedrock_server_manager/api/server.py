@@ -17,6 +17,7 @@ import time
 # Local imports
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import (
     base as system_base,
@@ -34,6 +35,7 @@ from bedrock_server_manager.error import (
     ServerStopError,
     InvalidInputError,
     DirectoryError,
+    BlockedCommandError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -549,6 +551,7 @@ def send_command(
 ) -> Dict[str, str]:
     """
     Sends a command to a running Bedrock server instance.
+    Certain commands defined in the `API_COMMAND_BLACKLIST` setting may be blocked.
 
     Args:
         server_name: The name of the target server.
@@ -556,60 +559,98 @@ def send_command(
         base_dir: Optional. Base directory for server installations. Uses config default if None.
 
     Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
+        A dictionary: `{"status": "success", "message": ...}`.
+        (Errors are now raised as exceptions).
 
     Raises:
         MissingArgumentError: If `server_name` or `command` is empty.
         InvalidServerNameError: If `server_name` is invalid.
+        BlockedCommandError: If the command is forbidden by the blacklist configuration.
         FileOperationError: If `base_dir` cannot be determined.
+        ServerNotFoundError: If the server executable is missing.
+        ServerNotRunningError: If the target server process isn't running or reachable.
+        SendCommandError: If sending the command via the OS mechanism fails.
+        CommandNotFoundError: If required OS commands (e.g., screen) are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if not command:
         raise MissingArgumentError("Command cannot be empty.")
 
-    logger.info(f"Attempting to send command to server '{server_name}': '{command}'")
+    command_clean = command.strip()
+    if not command_clean:
+        raise MissingArgumentError(
+            "Command cannot be empty after stripping whitespace."
+        )
+
+    logger.info(
+        f"Attempting to send command to server '{server_name}': '{command_clean}'"
+    )
+
+    # --- Blacklist Check ---
+    blacklist = API_COMMAND_BLACKLIST
+    if not isinstance(blacklist, list):
+        logger.warning(f"Configuration key '{blacklist}' is not a list")
+        raise InvalidInputError(f"Configuration key '{blacklist}' is not a list")
+
+    # Normalize command for checking (lowercase, strip leading '/')
+    command_check = command_clean.lower()
+    if command_check.startswith("/"):
+        command_check = command_check[1:]
+
+    for blocked_cmd_prefix in blacklist:
+        if isinstance(blocked_cmd_prefix, str) and command_check.startswith(
+            blocked_cmd_prefix.lower()
+        ):
+            error_msg = f"Command '{command_clean}' is blocked by configuration (matches rule: '{blocked_cmd_prefix}')."
+            logger.warning(
+                f"Blocked command attempt for server '{server_name}': {error_msg}"
+            )
+            # Raise the specific exception instead of returning an error dict
+            raise BlockedCommandError(error_msg)
+    # --- End Blacklist Check ---
+
     try:
-        effective_base_dir = get_base_dir(
-            base_dir
-        )  # Needed indirectly by BedrockServer init if path not given
+        effective_base_dir = get_base_dir(base_dir)
 
         # Create instance (raises ServerNotFoundError if executable missing)
-        # Pass only server_name, let the class determine paths
         bedrock_server = server_base.BedrockServer(server_name)
+
         # Send command (raises various errors on failure)
-        bedrock_server.send_command(command)
-        logger.info(f"Command '{command}' sent successfully to server '{server_name}'.")
+        bedrock_server.send_command(command_clean)  # Send the original stripped command
+
+        logger.info(
+            f"Command '{command_clean}' sent successfully to server '{server_name}'."
+        )
         return {
             "status": "success",
-            "message": f"Command '{command}' sent successfully.",
+            "message": f"Command '{command_clean}' sent successfully.",
         }
 
+    # Re-raise specific exceptions caught from BedrockServer or setup
+    # The calling route handler will now need to catch these.
     except (
         ServerNotFoundError,
         ServerNotRunningError,
         SendCommandError,
         CommandNotFoundError,
         MissingArgumentError,
+        FileOperationError,
+        InvalidServerNameError,
     ) as e:
-        # Catch specific, known errors from BedrockServer.send_command or init
         logger.error(
             f"Failed to send command to server '{server_name}': {e}", exc_info=True
         )
-        return {"status": "error", "message": f"Failed to send command: {e}"}
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing sending command to '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Configuration error: {e}"}
+        raise  # Re-raise the original exception
+
     except Exception as e:
-        # Catch unexpected errors
+        # Catch unexpected errors and wrap them potentially
         logger.error(
             f"Unexpected error sending command to server '{server_name}': {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Unexpected error sending command: {e}"}
+        # Re-raise as a generic error or a specific internal error type if you have one
+        raise RuntimeError(f"Unexpected error sending command: {e}") from e
 
 
 def delete_server_data(

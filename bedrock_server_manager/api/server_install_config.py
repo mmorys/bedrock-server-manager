@@ -197,6 +197,83 @@ def configure_allowlist(
         }
 
 
+def remove_player_from_allowlist(
+    server_name: str, player_name: str, base_dir: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Removes a specific player from the allowlist of a given server.
+
+    Args:
+        server_name: The name of the server.
+        player_name: The name of the player to remove (case-insensitive).
+        base_dir: Optional. The base directory for server installations. Uses config default if None.
+
+    Returns:
+        A dictionary indicating the outcome:
+        - {"status": "success", "message": "Player '...' removed successfully."}
+        - {"status": "success", "message": "Player '...' not found in allowlist."} (Note: success status)
+        - {"status": "error", "message": str} on failure (e.g., file access error).
+
+    Raises:
+        MissingArgumentError: If `server_name` or `player_name` is empty.
+        FileOperationError: If `base_dir` cannot be determined.
+        DirectoryError: If the server directory doesn't exist.
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not player_name:
+        raise MissingArgumentError("Player name cannot be empty.")
+
+    logger.info(
+        f"Attempting to remove player '{player_name}' from allowlist for server '{server_name}'."
+    )
+
+    try:
+        effective_base_dir = get_base_dir(base_dir)
+        server_dir = os.path.join(effective_base_dir, server_name)
+
+        # Ensure server directory exists before proceeding
+        if not os.path.isdir(server_dir):
+            raise DirectoryError(f"Server directory not found: {server_dir}")
+
+        # Call the core function to perform the removal
+        was_removed = server_base.remove_player_from_allowlist(server_dir, player_name)
+
+        if was_removed:
+            message = f"Player '{player_name}' removed successfully from allowlist for server '{server_name}'."
+            logger.info(message)
+            return {"status": "success", "message": message}
+        else:
+            # Player wasn't found - this is not necessarily a server error,
+            # so return success status but indicate not found.
+            message = f"Player '{player_name}' not found in the allowlist for server '{server_name}'. No changes made."
+            logger.warning(f"API Allowlist Remove: {message}")  # Log as warning
+            return {"status": "success", "message": message}
+
+    except (FileOperationError, DirectoryError, MissingArgumentError) as e:
+        # Catch specific errors from setup or core function
+        logger.error(
+            f"Failed to remove player '{player_name}' from allowlist for server '{server_name}': {e}",
+            exc_info=True,
+        )
+        # Re-raise these specific exceptions to be handled by the route's error handlers
+        # Or return an error dict if this API function is the final layer before the route
+        return {
+            "status": "error",
+            "message": f"Failed to process allowlist removal: {e}",
+        }
+    except Exception as e:
+        # Catch any unexpected errors
+        logger.error(
+            f"Unexpected error removing player '{player_name}' for server '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error removing player from allowlist: {e}",
+        }
+
+
 def configure_player_permission(
     server_name: str,
     xuid: str,

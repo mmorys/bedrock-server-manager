@@ -82,6 +82,14 @@ SPLASH_TEXTS_OPENSOURCE = [
     "Open Source Power!",
     "MIT Licenced.",
     "Star the Github Project!",
+    "Fork it, Fix it, Contribute it!",
+    "Join the Open Source Revolution!",
+    "Open Source, Open Possibilities!",
+    "Open Source, Open Community!",
+    "Open Source, Open Mind!",
+    "Written in Python!",
+    "Pythonic Power!",
+    "Built with Python!",
 ]
 
 # --- Miscellaneous ---

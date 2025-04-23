@@ -202,40 +202,6 @@ def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), status_code
 
 
-@api_info_bp.route("/api/server/<string:server_name>/export_world", methods=["POST"])
-@csrf.exempt
-@auth_required
-def export_world_api_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to trigger exporting the server's world to a .mcworld file."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Request to export world for server '{server_name}' by user '{identity}'."
-    )
-    result = {}
-    status_code = 500
-    try:
-        # Optional: Allow specifying export_dir via request body? For now, uses default.
-        # data = request.get_json(silent=True) or {}
-        # export_dir = data.get('export_dir')
-        result = api_world.export_world(
-            server_name
-        )  # API handles base_dir and default export_dir
-        status_code = 200 if result.get("status") == "success" else 500
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API Export World '{server_name}': Unexpected error: {e}", exc_info=True
-        )
-        result = {"status": "error", "message": "Unexpected error exporting world."}
-    return jsonify(result), status_code
-
-
 # --- Global Action Endpoints ---
 
 
@@ -412,16 +378,12 @@ def get_servers_list_api():
 
         # The function returns a dict with 'status' and 'servers' or 'message'
         status_code = 200 if result.get("status") == "success" else 500
-        logger.debug(
-            f"Returning status {status_code} for /api/servers: {result}"
-        )
+        logger.debug(f"Returning status {status_code} for /api/servers: {result}")
         return jsonify(result), status_code
 
     except Exception as e:
         # Catch any unexpected errors during the function call itself
-        logger.error(
-            f"Unexpected error in /api/servers endpoint: {e}", exc_info=True
-        )
+        logger.error(f"Unexpected error in /api/servers endpoint: {e}", exc_info=True)
         return (
             jsonify(
                 {

@@ -276,6 +276,19 @@ def main() -> None:
         )
         add_server_arg(allowlist_parser)
 
+        remove_allowlist_parser = subparsers.add_parser(
+            "remove-allowlist-player",
+            help="Remove players from a specific server's allowlist.json",
+        )
+        add_server_arg(remove_allowlist_parser)
+        remove_allowlist_parser.add_argument(
+            "-p",
+            "--players",
+            help="One or more player names to remove (case-insensitive)",
+            nargs="+",  # Requires at least one player name
+            required=True,
+        )
+
         # configure-permissions
         permissions_parser = subparsers.add_parser(
             "configure-permissions",
@@ -677,6 +690,9 @@ def main() -> None:
             ),
             "configure-allowlist": lambda args: cli_server_install_config.configure_allowlist(
                 args.server, base_dir
+            ),
+            "remove-allowlist-player": lambda args: cli_server_install_config.remove_allowlist_players(
+                args.server, args.players
             ),
             "configure-permissions": lambda args: cli_server_install_config.select_player_for_permission(
                 args.server, base_dir, config_dir

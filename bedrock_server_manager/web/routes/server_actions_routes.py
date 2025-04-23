@@ -30,6 +30,7 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     ServerNotFoundError,
     DirectoryError,
+    BlockedCommandError,
 )
 
 # Initialize logger
@@ -352,7 +353,12 @@ def send_command_route(server_name: str) -> Tuple[Response, int]:
                     f"API Send Command failed for server '{server_name}': {error_msg}"
                 )
             result = {"status": "error", "message": error_msg}
-
+    except BlockedCommandError as e:
+        logger.warning(
+            f"API Send Command '{server_name}': Blocked command: {e}", exc_info=False
+        )
+        status_code = 403  # Forbidden
+        result = {"status": "error", "message": str(e)}
     except (MissingArgumentError, InvalidServerNameError) as e:
         logger.warning(
             f"API Send Command '{server_name}': Input error: {e}", exc_info=True
