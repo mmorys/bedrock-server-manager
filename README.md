@@ -167,7 +167,7 @@ bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON
 ## Web Server:
 
 <div style="text-align: left;">
-    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/images/main_index.png" alt="CLI Menu" width="300" height="200">
+    <img src="https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/images/main_index.png" alt="Main Index" width="300" height="200">
 </div>
 
 Bedrock Server Manager 3.1.0 includes a Web server you can run to easily manage your bedrock servers in your web browser, and is also mobile friendly!
