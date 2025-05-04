@@ -39,3 +39,6 @@ The server manager looks for a file named `world_icon.jpeg` inside each world's 
 **Default Behavior:**
 
 If a `world_icon.jpeg` file is not found within a specific world's directory, the default Bedrock Server Manager icon will be displayed for that world in the server list.
+
+## Home Assistant Integration:
+If you use home assistant check out the [bedrock-server-manager integration](https://github.com/DMedina559/bsm-home-assistant-integration)
