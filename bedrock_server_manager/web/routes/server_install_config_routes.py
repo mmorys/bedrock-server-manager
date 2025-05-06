@@ -522,6 +522,85 @@ def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), status_code
 
 
+@server_install_config_bp.route(
+    "/api/servers/<string:server_name>/read_properties", methods=["GET"]
+)
+@csrf.exempt
+@auth_required
+def get_server_properties_route(server_name: str):
+    """
+    API endpoint to retrieve the parsed `server.properties` for a specific server.
+
+    The `base_dir` for the server can optionally be specified via a query parameter.
+
+    Args:
+        server_name (str): The name of the server, passed in the URL path.
+
+    Query Parameters:
+        base_dir (str, optional): Overrides the default base directory for server installations.
+
+    Returns:
+        JSON response containing the server properties or an error message.
+        - 200 OK: {"status": "success", "properties": Dict[str, str]}
+        - 400 Bad Request: {"status": "error", "message": "Invalid server name..."}
+                           (If server_name format is invalid)
+        - 404 Not Found: {"status": "error", "message": "server.properties file not found..."}
+                         (If the properties file for the server does not exist)
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+                                     (If there's a configuration issue or an unexpected error
+                                      reading or parsing the properties file)
+    """
+    logger.debug(f"API request received for GET /api/servers/{server_name}/properties")
+    try:
+        # Check for optional base_dir query parameter
+        base_dir_override = request.args.get("base_dir")
+        logger.debug(f"Optional base_dir from query: {base_dir_override}")
+
+        # Call the API layer function
+        result = server_api.read_server_properties(
+            server_name=server_name, base_dir=base_dir_override
+        )
+
+        status_code = 200 if result.get("status") == "success" else 500
+        if result.get("status") == "error":
+            if "not found" in result.get("message", "").lower():
+                status_code = 404
+            # Potentially other specific error message checks could map to other 4xx codes
+
+        logger.debug(
+            f"Returning status {status_code} for /api/servers/{server_name}/properties: {result}"
+        )
+        return jsonify(result), status_code
+
+    except InvalidServerNameError as e:
+        logger.warning(
+            f"Invalid server name provided for /api/servers/{server_name}/properties: {e}"
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": str(e),
+                }
+            ),
+            400,
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error in /api/servers/{server_name}/properties endpoint: {e}",
+            exc_info=True,
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "An unexpected error occurred while retrieving server properties.",
+                }
+            ),
+            500,
+        )
+
+
 # --- Route: Configure Allowlist Page ---
 @server_install_config_bp.route(
     "/server/<string:server_name>/configure_allowlist", methods=["GET"]

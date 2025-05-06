@@ -917,6 +917,24 @@
         </div>
 
         <div class="api-endpoint">
+            <h3 id="get-api-server-properties"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/servers/{server_name}/read_properties</code></h3>
+            <p>Retrieves the parsed content of a server's <code>server.properties</code> file.</p>
+            <p>Path Parameter: <code>server_name</code> (string, required).</p>
+            <h4>Authentication:</h4> <p>Required.</p>
+            <h4>Success Response (`200 OK`):</h4>
+            <pre><code class="api-code-block">{
+    "status": "success",
+    "properties": {
+        "level-name": "Bedrock level",
+        "gamemode": "survival",
+        "difficulty": "normal"
+        // ... and other properties
+    }
+}</code></pre>
+            <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+        </div>
+
+        <div class="api-endpoint">
             <h3 id="post-api-server-service"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/service</code></h3>
             <p>Configures OS-specific service settings (Linux: systemd; Windows: config flag).</p>
             <h4>Authentication:</h4> <p>Required.</p>

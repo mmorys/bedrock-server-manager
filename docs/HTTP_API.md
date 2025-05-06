@@ -318,7 +318,7 @@ Returns the operating system type and application version.
             "message": "An unexpected error occurred while retrieving system information."
         }
         ```
-    *   If an unexpected error occurs within the Flask route handler (`get_system_info_api`) itself (less likely for this simple endpoint, but possible).
+    *   If an unexpected error occurs within the Flask route handler (`get_system_info_api`) itself.
         ```json
         {
             "status": "error",
@@ -3686,6 +3686,124 @@ $body = @{ 'max-players' = '12'; 'allow-list' = 'true' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/properties" -Headers $headers -Body $body
 ```
 
+---
+
+### `GET /api/servers/<server_name>/read_properties` - Get Server Properties
+
+Retrieves the parsed `server.properties` file content for a specified Bedrock server instance. This allows inspection of the server's configuration settings.
+
+The endpoint attempts to locate and read the `server.properties` file within the server's directory. 
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   **`server_name`** (*string*, **required**): The unique name of the server instance whose `server.properties` file should be read. This corresponds to the server's directory name.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a dictionary of all key-value pairs found in the server's `server.properties` file.
+
+*   **Example:**
+    ```json
+    {
+        "status": "success",
+        "properties": {
+            "server-name": "My Bedrock Server",
+            "gamemode": "survival",
+            "difficulty": "normal",
+            "allow-cheats": "false",
+            "max-players": "10",
+            "online-mode": "true",
+            "level-name": "Bedrock level",
+            "level-seed": "",
+            "default-player-permission-level": "member",
+            "texturepack-required": "false"
+            // ... and other properties
+        }
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success" for a 200 response.
+*   **`properties`**: (*object*): A dictionary where keys are the property names from `server.properties` and values are their corresponding string values. Comments and empty lines from the original file are ignored. Malformed lines might be skipped with a warning in the server logs.
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is invalid (e.g., empty).
+        ```json
+        {
+            "status": "error",
+            "message": "Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        { "error": "Unauthorized", "message": "Authentication required." }
+        ```
+
+*   **`404 Not Found`**:
+    *   If the `server.properties` file cannot be found for the specified `server_name` at the determined path.
+        ```json
+        {
+            "status": "error",
+            "message": "server.properties file not found at: /path/to/your/servers/the_server_name/server.properties"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., `BASE_DIR` not set and no `base_dir` query param provided).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
+        }
+        ```
+    *   If an OS-level error occurs while trying to read the file (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to read server.properties: [Errno 13] Permission denied: '/path/to/server.properties'"
+        }
+        ```
+    *   If an unexpected error occurs during file parsing or within the route handler.
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred while retrieving server properties."
+        }
+        ```
+        *or a more specific message like:*
+        ```json
+        {
+            "status": "error",
+            "message": "Unexpected error reading properties: [specific error details]"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+        http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties" -Headers $headers
+```
 ---
 
 ### `POST /api/server/{server_name}/service` - Configure OS Service Settings
