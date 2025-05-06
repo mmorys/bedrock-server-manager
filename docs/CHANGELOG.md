@@ -248,3 +248,8 @@ The switch to python allows cross platform support, standardized processes, and 
     - Added remove-allowlist-player command
 3. Added a blacklist for commands such as stop or allowlist off
 4. Added more splash text
+
+### 3.2.1
+1. Added /api/info route
+2. Added /api/server/{server_name}/read_properties route
+3. Stop server before export world
