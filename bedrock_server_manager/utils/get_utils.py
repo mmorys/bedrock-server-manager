@@ -6,6 +6,7 @@ data into templates.
 """
 
 import os
+import platform
 import logging
 import random
 from typing import Optional
@@ -16,6 +17,7 @@ from flask import url_for, current_app
 # Local imports
 from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
 from bedrock_server_manager.config.settings import settings, __version__
+from bedrock_server_manager.error import SystemError
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -199,3 +201,26 @@ def _get_app_version() -> str:
         app_veersion = default_app_version  # Fallback on unexpected errors
 
     return app_version
+
+
+def get_operating_system_type() -> str:
+    """
+    Retrieves the operating system type.
+
+    Returns:
+        A string representing the OS type (e.g., "Linux", "Windows", "Darwin").
+
+    Raises:
+        CoreSystemError: If the OS type cannot be determined (highly unlikely).
+    """
+    try:
+        os_type = platform.system()
+        if not os_type:
+            # This case is extremely rare with platform.system()
+            raise SystemError("Could not determine operating system type.")
+        logger.debug(f"Core: Determined OS Type: {os_type}")
+        return os_type
+    except Exception as e:
+        logger.error(f"Core: Error getting OS type: {e}", exc_info=True)
+        # Re-raise as a custom error or handle differently if preferred
+        raise SystemError(f"Failed to get OS type: {e}")

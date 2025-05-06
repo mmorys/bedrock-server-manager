@@ -4,6 +4,7 @@ Flask Blueprint defining API endpoints for retrieving server/system information
 and triggering global actions like scans or pruning. Secured via JWT.
 """
 
+from email import utils
 import logging
 from typing import Tuple
 
@@ -389,6 +390,44 @@ def get_servers_list_api():
                 {
                     "status": "error",
                     "message": "An unexpected error occurred retrieving the server list.",
+                }
+            ),
+            500,
+        )
+
+
+@api_info_bp.route("/api/info", methods=["GET"])
+def get_system_info_api():
+    """
+    API Endpoint to retrieve OS type and application version.
+    Calls the internal api.system_api.get_system_and_app_info function.
+    """
+    logger.debug("API Route: Request received for GET /api/info")
+    try:
+        result = utils_api.get_system_and_app_info()
+
+        status_code = 200 if result.get("status") == "success" else 500
+        if (
+            result.get("status") == "error"
+            and "unauthorized" in result.get("message", "").lower()
+        ):
+            status_code = 401  # Or 403 depending on your auth logic
+
+        logger.debug(
+            f"API Route: Returning status {status_code} for /api/info: {result}"
+        )
+        return jsonify(result), status_code
+
+    except Exception as e:
+        # Catch any unexpected errors during the API layer call itself
+        logger.error(
+            f"API Route: Unexpected error in /api/info endpoint: {e}", exc_info=True
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "An unexpected server error occurred.",
                 }
             ),
             500,

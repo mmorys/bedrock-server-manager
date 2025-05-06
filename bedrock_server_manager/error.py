@@ -5,6 +5,12 @@ class BedrockManagerError(Exception):
     pass
 
 
+class SystemError(Exception):
+    """Custom exception for core system utility errors."""
+
+    pass
+
+
 class MissingArgumentError(BedrockManagerError):
     """Raised when a required argument is missing."""
 
