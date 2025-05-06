@@ -253,3 +253,6 @@ The switch to python allows cross platform support, standardized processes, and 
 1. Added /api/info route
 2. Added /api/server/{server_name}/read_properties route
 3. Stop server before export world
+
+### 3.2.2
+1. Fixed wrong module for read server properties route
