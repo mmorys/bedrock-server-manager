@@ -94,7 +94,10 @@ def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str
 
 
 def export_world(
-    server_name: str, base_dir: Optional[str] = None, export_dir: Optional[str] = None
+    server_name: str,
+    base_dir: Optional[str] = None,
+    export_dir: Optional[str] = None,
+    stop_start_server: Optional[bool] = True,
 ) -> Dict[str, Any]:
     """
     Exports the server's currently configured world to a .mcworld archive file.
@@ -107,6 +110,7 @@ def export_world(
         base_dir: Optional. Base directory for server installations. Uses config default if None.
         export_dir: Optional. Directory to save the exported .mcworld file.
                     Defaults to the configured BACKUP_DIR setting if None.
+        stop_start_server: If True, stop server before export and restart after if it was running.
 
     Returns:
         A dictionary indicating the outcome:
@@ -123,6 +127,7 @@ def export_world(
         raise InvalidServerNameError("Server name cannot be empty.")
 
     logger.info(f"Initiating world export for server '{server_name}'...")
+
     try:
         effective_base_dir = get_base_dir(base_dir)
 
@@ -163,6 +168,39 @@ def export_world(
         export_filename = f"{world_name}_export_{timestamp}.mcworld"
         export_file_path = os.path.join(effective_export_dir, export_filename)
 
+        was_running = False
+        # --- Server Stop ---
+        if stop_start_server:
+            try:
+                logger.debug(
+                    f"Checking running status for '{server_name}' before world export..."
+                )
+                if system_base.is_server_running(server_name, effective_base_dir):
+                    was_running = True
+                    logger.info(
+                        f"Server '{server_name}' is running. Stopping for world export..."
+                    )
+                    stop_result = stop_server(
+                        server_name, effective_base_dir
+                    )  # API func returns dict
+                    if stop_result.get("status") == "error":
+                        logger.error(
+                            f"Failed to stop server '{server_name}' for export: {stop_result.get('message')}"
+                        )
+                        return stop_result
+                    logger.info(f"Server '{server_name}' stopped.")
+                else:
+                    logger.debug(f"Server '{server_name}' is not running.")
+            except Exception as e:
+                logger.error(
+                    f"Error stopping server '{server_name}' for world export: {e}",
+                    exc_info=True,
+                )
+                return {
+                    "status": "error",
+                    "message": f"Failed to stop server for export: {e}",
+                }
+
         logger.info(
             f"Exporting world '{world_name}' from '{world_path}' to '{export_file_path}'..."
         )
@@ -171,6 +209,31 @@ def export_world(
         core_world.export_world(
             world_path, export_file_path
         )  # Raises BackupWorldError, DirectoryError, FileOperationError
+
+        # --- Server Restart ---
+        restart_error_dict = None
+        if stop_start_server and was_running:
+            logger.info(f"Restarting server '{server_name}' after world export...")
+            try:
+                start_result = start_server(
+                    server_name, effective_base_dir
+                )  # API func returns dict
+                if start_result.get("status") == "error":
+                    logger.error(
+                        f"Failed to restart server '{server_name}' after import: {start_result.get('message')}"
+                    )
+                    restart_error_dict = start_result
+                else:
+                    logger.info(f"Server '{server_name}' restart initiated.")
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error restarting server '{server_name}' after import: {e}",
+                    exc_info=True,
+                )
+                restart_error_dict = {
+                    "status": "error",
+                    "message": f"Unexpected error restarting server: {e}",
+                }
 
         logger.info(
             f"World for server '{server_name}' exported successfully to '{export_file_path}'."
