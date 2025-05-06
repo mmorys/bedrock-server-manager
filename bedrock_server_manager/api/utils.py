@@ -28,9 +28,11 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     DirectoryError,
     ResourceMonitorError,
+    SystemError,
 )
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.utils import get_utils
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -561,4 +563,42 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
         return {
             "status": "error",
             "message": f"An unexpected error occurred attaching to screen: {e}",
+        }
+
+
+def get_system_and_app_info() -> Dict[str, Any]:
+    """
+    Retrieves system information (OS type) and application version.
+
+    Orchestrates calls to core utility functions and formats the response.
+
+    Returns:
+        A dictionary with "status", "message" (on error), or "data" (on success).
+        The "data" dictionary contains "os_type" and "app_version".
+    """
+    logger.debug("API: Request to get system and app info.")
+    try:
+        os_type = get_utils.get_operating_system_type()
+        app_version = get_utils._get_app_version()
+
+        data = {
+            "os_type": os_type,
+            "app_version": app_version,
+        }
+        logger.info(f"API: Successfully retrieved system and app info: {data}")
+        return {"status": "success", "data": data}
+
+    except SystemError as e:
+        logger.error(
+            f"API: Core error while getting system/app info: {e}", exc_info=True
+        )
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        # Catch any other unexpected errors during orchestration
+        logger.error(
+            f"API: Unexpected error getting system/app info: {e}", exc_info=True
+        )
+        return {
+            "status": "error",
+            "message": "An unexpected error occurred while retrieving system information.",
         }

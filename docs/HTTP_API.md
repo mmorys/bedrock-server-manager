@@ -240,6 +240,106 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/login
 
 ---
 
+## Application Information
+
+### `GET /api/info` - Get System and Application Information
+
+Retrieves basic system information, specifically the operating system type, and the current version of the Bedrock Server Manager application.
+
+This does NOT require authentication 
+
+#### Authentication
+
+None.
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns the operating system type and application version.
+
+*   **Standard Success:**
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "os_type": "Linux",
+            "app_version": "3.2.1"
+        }
+    }
+    ```
+    *or for Windows:*
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "os_type": "Windows",
+            "app_version": "3.2.1"
+        }
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success" for a 200 response.
+*   **`data`**: (*object*) Contains the system and application information.
+    *   **`os_type`** (*string*): The operating system type as reported by the system (e.g., "Linux", "Windows", "Darwin"). Retrieved via `platform.system()`.
+    *   **`app_version`** (*string*): The current version of the Bedrock Server Manager application (e.g., "1.2.3"). Retrieved from the package's `__version__` attribute.
+
+#### Error Responses
+
+*   **`500 Internal Server Error`**:
+    *   If there's an issue retrieving the OS type or application version from the core layer (e.g., `__version__` attribute is missing). The message comes from `CoreSystemError` caught within `get_system_and_app_info`.
+        ```json
+        {
+            "status": "error",
+            "message": "Application version attribute (__version__) not found."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Could not determine operating system type."
+        }
+        ```
+    *   If an unexpected error occurs during the API layer's orchestration logic within `get_system_and_app_info`.
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred while retrieving system information."
+        }
+        ```
+    *   If an unexpected error occurs within the Flask route handler (`get_system_info_api`) itself (less likely for this simple endpoint, but possible).
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/info
+```
+
+#### PowerShell Example
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/info"
+```
+___
+
 ## Server Information
 
 ### `GET /api/servers` - Get All Servers List and Status
