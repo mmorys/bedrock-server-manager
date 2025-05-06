@@ -395,6 +395,7 @@ def get_servers_list_api():
             500,
         )
 
+
 @api_info_bp.route("/api/info", methods=["GET"])
 def get_system_info_api():
     """
@@ -406,15 +407,22 @@ def get_system_info_api():
         result = utils_api.get_system_and_app_info()
 
         status_code = 200 if result.get("status") == "success" else 500
-        if result.get("status") == "error" and "unauthorized" in result.get("message", "").lower():
-            status_code = 401 # Or 403 depending on your auth logic
+        if (
+            result.get("status") == "error"
+            and "unauthorized" in result.get("message", "").lower()
+        ):
+            status_code = 401  # Or 403 depending on your auth logic
 
-        logger.debug(f"API Route: Returning status {status_code} for /api/info: {result}")
+        logger.debug(
+            f"API Route: Returning status {status_code} for /api/info: {result}"
+        )
         return jsonify(result), status_code
 
     except Exception as e:
         # Catch any unexpected errors during the API layer call itself
-        logger.error(f"API Route: Unexpected error in /api/info endpoint: {e}", exc_info=True)
+        logger.error(
+            f"API Route: Unexpected error in /api/info endpoint: {e}", exc_info=True
+        )
         return (
             jsonify(
                 {
