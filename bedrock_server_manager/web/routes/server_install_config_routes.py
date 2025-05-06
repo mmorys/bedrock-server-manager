@@ -557,7 +557,7 @@ def get_server_properties_route(server_name: str):
         logger.debug(f"Optional base_dir from query: {base_dir_override}")
 
         # Call the API layer function
-        result = server_api.read_server_properties(
+        result = server_install_config.read_server_properties(
             server_name=server_name, base_dir=base_dir_override
         )
 
