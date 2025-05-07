@@ -6,6 +6,7 @@ and triggering global actions like scans or pruning. Secured via JWT.
 
 from email import utils
 import logging
+import os
 from typing import Tuple
 
 # Third-party imports
@@ -14,6 +15,7 @@ from flask import Blueprint, jsonify, Response, request
 # Local imports
 from bedrock_server_manager.api import info as info_api
 from bedrock_server_manager.api import player as player_api
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api import backup_restore as backup_restore_api
 from bedrock_server_manager.api import world as api_world
 from bedrock_server_manager.api import utils as utils_api
@@ -241,62 +243,172 @@ def scan_players_api_route() -> Tuple[Response, int]:
 @auth_required
 def prune_downloads_api_route() -> Tuple[Response, int]:
     """
-    API endpoint to prune old downloaded server archives (.zip).
-    Requires 'directory' and optional 'keep' in JSON body.
+    API endpoint to prune old downloaded archives (e.g., .zip files) from a specified directory.
+
+    Expects JSON body with 'directory' (a path relative to the configured download directory)
+    and optional 'keep' (number of newest files to retain, must be non-negative).
+
+    JSON Request Body Example:
+        {"directory": "stable", "keep": 5}
+        (Where "stable" is relative to the DOWNLOAD_DIR setting)
+
+    Returns:
+        JSON response indicating success or failure of the pruning operation:
+        - 200 OK: {"status": "success", "message": "...", "files_deleted": N, "files_kept": M}
+        - 400 Bad Request: Invalid JSON, missing/invalid 'directory' or 'keep'.
+        - 404 Not Found: If the specified relative cache directory does not resolve to an existing directory.
+        - 500 Internal Server Error: Pruning process failed or critical configuration issues.
     """
     identity = get_current_identity() or "Unknown"
     logger.info(f"API: Request to prune downloads by user '{identity}'.")
 
     data = request.get_json(silent=True)
     if not data or not isinstance(data, dict):
+        logger.warning("API Prune Downloads: Invalid/missing JSON request body.")
         return (
             jsonify(status="error", message="Invalid or missing JSON request body."),
             400,
         )
 
-    download_dir = data.get("directory")
-    keep_count = data.get("keep")
+    # Expecting path relative to a base download cache directory
+    relative_dir_name = data.get("directory")
+    keep_count_input = data.get(
+        "keep"
+    )  # Can be None, int, or string representation of int
+    keep_count: int | None = None  # Processed value
 
-    logger.debug(f"API Prune Downloads: Dir='{download_dir}', Keep='{keep_count}'")
+    logger.debug(f"API Prune Downloads: Received data: {data}")
 
-    if not download_dir:
-        return (
-            jsonify(
-                status="error",
-                message="Missing required 'directory' field in request body.",
-            ),
-            400,
-        )
-    if keep_count is not None:
+    if (
+        not relative_dir_name
+        or not isinstance(relative_dir_name, str)
+        or not relative_dir_name.strip()
+    ):
+        msg = "Missing or invalid 'directory' field. Expected a non-empty relative path string."
+        logger.warning(f"API Prune Downloads: {msg}")
+        return jsonify(status="error", message=msg), 400
+
+    if keep_count_input is not None:
         try:
-            keep_count = int(keep_count)  # Validate type early
+            keep_count = int(keep_count_input)
+            if keep_count < 0:
+                # This ValueError will be caught by the generic (ValueError, InvalidInputError) handler
+                raise ValueError("Keep count cannot be negative.")
         except (ValueError, TypeError):
-            return (
-                jsonify(
-                    status="error", message="Invalid 'keep' value. Must be an integer."
-                ),
-                400,
+            msg = "Invalid 'keep' value. Must be a non-negative integer."
+            logger.warning(f"API Prune Downloads: {msg} (Value: '{keep_count_input}')")
+            return jsonify(status="error", message=msg), 400
+
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal server error
+    try:
+        download_cache_base_dir = settings.get("DOWNLOAD_DIR")
+        if not download_cache_base_dir:
+            # This will be caught by the FileOperationError handler below
+            raise FileOperationError(
+                "DOWNLOAD_DIR setting is missing or empty in configuration."
             )
 
-    result = {}
-    status_code = 500
-    try:
-        # Call the new misc API function
-        result = misc_api.prune_download_cache(download_dir, keep_count)
-        status_code = (
-            200
-            if result.get("status") == "success"
-            else 500 if result.get("status") == "error" else 500
+        # Construct the full path from the base and the relative directory name
+        full_download_dir_path = os.path.normpath(
+            os.path.join(download_cache_base_dir, relative_dir_name)
         )
-    except (MissingArgumentError, ValueError, DirectoryError, FileOperationError) as e:
-        status_code = 400 if isinstance(e, (MissingArgumentError, ValueError)) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
+
+        logger.debug(
+            f"API Prune Downloads: Relative Dir='{relative_dir_name}', Keep='{keep_count}'. "
+            f"Attempting to prune target: '{full_download_dir_path}'. "
+            f"Allowed Base: '{download_cache_base_dir}'."
+        )
+
+        # Security Check: Ensure the target directory is within the allowed base cache directory
+        # os.path.abspath is used to resolve any '..' and ensure a true comparison
+        if not os.path.abspath(full_download_dir_path).startswith(
+            os.path.abspath(download_cache_base_dir)
+        ):
+            msg = "Invalid directory path: Path is outside the allowed download cache base directory."
+            logger.error(
+                f"API Prune Downloads: Security violation - {msg} "
+                f"Attempted Relative: '{relative_dir_name}', "
+                f"Resolved Full: '{full_download_dir_path}'"
+            )
+            return jsonify(status="error", message=msg), 400
+
+        # Check if the resolved path exists and is a directory
+        if not os.path.isdir(full_download_dir_path):
+            msg = (
+                f"Specified download cache directory not found or is not a directory: "
+                f"{full_download_dir_path} (from relative: '{relative_dir_name}')"
+            )
+            logger.warning(f"API Prune Downloads: {msg}")
+            return (
+                jsonify(status="error", message="Target cache directory not found."),
+                404,  # Not Found for the target resource (directory)
+            )
+
+        # Call the misc API function with the full, validated path
+        result = misc_api.prune_download_cache(full_download_dir_path, keep_count)
+        logger.debug(f"API Prune Downloads: Handler response from misc_api: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            # Use handler's message if provided, otherwise create a generic one
+            success_msg = result.get("message")
+            if not success_msg:
+                success_msg = f"Pruning operation for '{relative_dir_name}' completed successfully."
+                result["message"] = success_msg  # Add to result if not present
+            logger.info(f"API Prune Downloads: {success_msg}")
+        else:
+            status_code = (
+                500  # Treat handler errors as internal server errors by default
+            )
+            error_msg = (
+                result.get("message", "Unknown error during prune operation.")
+                if isinstance(result, dict)
+                else "Handler returned an unexpected response format."
+            )
+            logger.error(
+                f"API Prune Downloads for '{relative_dir_name}' failed: {error_msg}"
+            )
+            # Ensure the result dictionary has a consistent error structure
+            result = {"status": "error", "message": error_msg}
+
+    except (
+        MissingArgumentError,
+        InvalidInputError,
+        ValueError,
+    ) as e:  # Catches invalid keep_count or other input issues
+        logger.warning(f"API Prune Downloads: Input error: {e}", exc_info=True)
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid input: {e}"}
+    except DirectoryError as e:
+        # This might be raised by misc_api for issues like permissions after os.path.isdir passed.
+        logger.warning(
+            f"API Prune Downloads: Directory operation error: {e}", exc_info=True
+        )
+        status_code = 500  # More likely a server-side issue if os.path.isdir passed
+        result = {"status": "error", "message": f"Directory operation error: {e}"}
+    except (
+        FileOperationError
+    ) as e:  # Catches DOWNLOAD_DIR config errors or other fs issues
         logger.error(
-            f"API Prune Downloads: Unexpected error for dir '{download_dir}': {e}",
+            f"API Prune Downloads: Configuration or File system error: {e}",
             exc_info=True,
         )
-        result = {"status": "error", "message": "Unexpected error pruning downloads."}
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Server configuration or file system error: {e}",
+        }
+    except Exception as e:
+        logger.error(
+            f"API Prune Downloads: Unexpected error for relative_dir '{relative_dir_name}': {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": "An unexpected error occurred during the pruning process.",
+        }
 
     return jsonify(result), status_code
 
