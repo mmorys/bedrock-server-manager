@@ -378,7 +378,6 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
             logger.error(f"API Restore '{server_name}': {msg}")
             return jsonify(status="error", message=msg), 500
 
-
         logger.debug(f"API Restore '{server_name}': Handler response: {result}")
 
         if isinstance(result, dict) and result.get("status") == "success":
@@ -438,6 +437,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
         }
 
     return jsonify(result), status_code
+
 
 # --- Route: Select Backup for Restore Page ---
 @backup_restore_bp.route(
