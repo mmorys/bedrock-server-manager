@@ -515,22 +515,6 @@
     }</code></pre>
         <p><em>(Error responses like <code class="http-status">500 Internal Server Error</code> can occur if an internal issue arises.)</em></p>
     </div>
-    <div class="api-endpoint">
-        <h3 id="get-api-all-players"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/players</code></h3>
-        <p>Retrieves a list of all known players from the central <code>players.json</code> file.</p>
-        <h4>Authentication:</h4> <p>Required.</p>
-        <h4>Success Response (`200 OK`):</h4>
-        <pre><code class="api-code-block">{
-    "status": "success",
-    "players": [
-        { "name": "PlayerOne", "xuid": "2535414141111111" },
-        { "name": "AnotherPlayer", "xuid": "2535414141222222" }
-        // ...
-    ]
-    // "message" field may be present if players.json was not found
-}</code></pre>
-        <p><em>(If <code>players.json</code> is missing or empty, <code class="param-name">players</code> will be an empty list. Error responses like <code class="http-status">401 Unauthorized</code> or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
-    </div>
 </div> {# Closing section-application-information, was missing a /div before #}
 
 {# --- Server Information Section --- #}
@@ -848,7 +832,38 @@
         <h4>Success Response (`200 OK`):</h4>
         <pre><code class="api-code-block">{ "status": "success", "players_found": true|false, "message": "Player scan completed..." }</code></pre>
     </div>
-
+    <div class="api-endpoint">
+        <h3 id="post-api-add-players"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/players/add</code></h3>
+        <p>Adds or updates players in the global <code>players.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "players": [ "PlayerName1:XUID1", "PlayerName2:XUID2", /* ... */ ]
+}</code></pre>
+        <p>Each player string must be in <code>"PlayerName:PlayerXUID"</code> format.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Players added successfully."
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, <code class="http-status">415 Unsupported Media Type</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-all-players"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/players/get</code></h3>
+        <p>Retrieves a list of all known players from the central <code>players.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "players": [
+        { "name": "PlayerOne", "xuid": "2535414141111111" },
+        { "name": "AnotherPlayer", "xuid": "2535414141222222" }
+        // ...
+    ]
+    // "message" field may be present if players.json was not found
+}</code></pre>
+        <p><em>(If <code>players.json</code> is missing or empty, <code class="param-name">players</code> will be an empty list. Error responses like <code class="http-status">401 Unauthorized</code> or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
     <div class="api-endpoint">
         <h3 id="get-api-server-allowlist"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/allowlist</code></h3>
         <p>Gets content of server's <code class="endpoint-path">allowlist.json</code>.</p>
@@ -862,7 +877,6 @@
     "message": "Successfully retrieved X players from allowlist."
 }</code></pre>
     </div>
-
     <div class="api-endpoint">
         <h3 id="post-api-server-allowlist-add"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/allowlist/add</code></h3>
         <p>Adds players to <code class="endpoint-path">allowlist.json</code> (does not remove existing).</p>

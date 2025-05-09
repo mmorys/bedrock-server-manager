@@ -547,7 +547,7 @@ def get_system_info_api():
         )
 
 
-@api_info_bp.route("/api/players", methods=["GET"])
+@api_info_bp.route("/api/players/get", methods=["GET"])
 @csrf.exempt
 @auth_required
 def get_all_players_api_route() -> Tuple[Response, int]:
@@ -603,7 +603,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
     return jsonify(result_dict), status_code
 
 
-@api_info_bp.route("/api/add_players", methods=["POST"])
+@api_info_bp.route("/api/players/add", methods=["POST"])
 @csrf.exempt
 @auth_required
 def add_players_api_route() -> Tuple[Response, int]:

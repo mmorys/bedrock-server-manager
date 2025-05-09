@@ -340,145 +340,6 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/info"
 ```
 ___
 
-### `GET /api/players` - Get All Known Players
-
-Retrieves a list of all known players recorded in the application's central `players.json` file. This file is typically located in the main configuration directory of the Bedrock Server Manager.
-
-This endpoint is used to get a global list of players that have been registered or detected by the manager across all servers, if such a central tracking mechanism is in place.
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Path Parameters
-
-None.
-
-#### Query Parameters
-
-None.
-
-#### Request Body
-
-None.
-
-#### Success Response (`200 OK`)
-
-Returns a list of all known players.
-
-*   **Players Found:**
-    ```json
-    {
-        "status": "success",
-        "players": [
-            {
-                "name": "PlayerOne",
-                "xuid": "2535414141111111",
-                "notes": "Main admin"
-            },
-            {
-                "name": "AnotherPlayer",
-                "xuid": "2535414141222222"
-            }
-            // ... more players
-        ]
-    }
-    ```
-*   **No Players File or Empty File:**
-    If the `players.json` file does not exist or is empty, the endpoint still returns a `200 OK` with an empty `players` list and an informational `message`.
-    ```json
-    {
-        "status": "success",
-        "players": [],
-        "message": "Player file not found."
-    }
-    ```
-    *or if empty:*
-    ```json
-    {
-        "status": "success",
-        "players": []
-    }
-    ```
-
-*   **`status`**: (*string*) Always "success" for a 200 response.
-*   **`players`**: (*list*): A list of player objects. Each object's structure depends on what's stored in `players.json` (e.g., `name`, `xuid`, custom fields).
-*   **`message`** (*string*, optional): Included if the `players.json` file was not found, providing context.
-
-#### Error Responses
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid.
-        ```json
-        {
-            "status": "error",
-            "message": "Unauthorized"
-        }
-        ```
-        *(Note: The exact message might vary based on your auth implementation.)*
-
-*   **`500 Internal Server Error`**:
-    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined).
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: Base configuration directory is not set or available."
-        }
-        ```
-    *   If the `players.json` file has an invalid JSON format or a structure that cannot be parsed correctly (e.g., not an object with a "players" list).
-        ```json
-        {
-            "status": "error",
-            "message": "Invalid format in 'players.json'. Expected JSON object with a 'players' list."
-        }
-        ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "Invalid JSON in players.json: Expecting value: line 1 column 1 (char 0)"
-        }
-        ```
-    *   If an OS-level error occurs while trying to read the `players.json` file (e.g., permission denied).
-        ```json
-        {
-            "status": "error",
-            "message": "Could not read players file: [Errno 13] Permission denied: '/path/to/config/players.json'"
-        }
-        ```
-    *   If an unexpected critical error occurs within the Flask route handler or the API function.
-        ```json
-        {
-            "status": "error",
-            "message": "A critical unexpected server error occurred while fetching players."
-        }
-        ```
-        *or a more general unexpected error from the API layer:*
-        ```json
-        {
-            "status": "error",
-            "message": "An unexpected error occurred: [specific error details]"
-        }
-        ```
-
-#### `curl` Example (Bash)
-
-```bash
-curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/players
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/players" -Headers $headers
-```
-
----
-
 ## Server Information
 
 ### `GET /api/servers` - Get All Servers List and Status
@@ -3364,6 +3225,320 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/playe
 ```
 
 ---
+
+### `POST /api/players/add` - Add Players to Global List
+
+Adds one or more players to the central `players.json` file, which stores a global list of known players (name and XUID). If a player with the same XUID already exists, their information (e.g., name) will be updated. New players are added.
+
+The `players.json` file is typically located in the main configuration directory of the Bedrock Server Manager.
+
+This endpoint requires authentication and expects a JSON payload.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body (JSON)
+
+*   **`players`** (*list* of *string*, **required**): A list of player strings. Each string must be in the format `"PlayerName:PlayerXUID"`.
+    *   Example: `["Steve:2535460987654321", "Alex:2535461234567890"]`
+
+*   **Example Payload:**
+    ```json
+    {
+        "players": [
+            "PlayerOne:2530000000000001",
+            "AnotherPlayer:2530000000000002",
+            "YetAnother:2530000000000003"
+        ]
+    }
+    ```
+
+#### Success Response (`200 OK`)
+
+Indicates that the players were successfully processed and saved/updated in `players.json`.
+
+*   **Example:**
+    ```json
+    {
+        "status": "success",
+        "message": "Players added successfully."
+    }
+    ```
+    *(Note: The message might reflect the number of players added/updated in a more advanced implementation, but the current API function returns a generic success message.)*
+
+*   **`status`**: (*string*) Always "success".
+*   **`message`**: (*string*) A confirmation message.
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `players` field is missing from the JSON body, is not a list, or the list is empty.
+        ```json
+        {
+            "status": "error",
+            "message": "'players' field is required and must be a list."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Player list cannot be empty."
+        }
+        ```
+    *   If any player string in the `players` list is not in the valid `"PlayerName:PlayerXUID"` format, or if name/XUID are empty.
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Invalid player data format in argument: 'PlayerOneXUIDWoops'. Expected 'name:xuid'."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Invalid player data in argument: 'PlayerOne:'. Name and XUID cannot be empty."
+        }
+        ```
+    *   If the request JSON body is empty or malformed.
+        ```json
+        {
+            "status": "error",
+            "message": "Request JSON body is empty or malformed."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+        *(Note: The exact message might vary based on your auth implementation.)*
+
+*   **`415 Unsupported Media Type`**:
+    *   If the request `Content-Type` is not `application/json`.
+        ```json
+        {
+            "status": "error",
+            "message": "Request body must be JSON."
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined for saving `players.json`).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration or file system error: Base configuration directory is not set or available."
+        }
+        ```
+        *or from the API layer if it catches a FileOperationError during save:*
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"
+        }
+        ```
+    *   If an OS-level error occurs while trying to create directories or write the `players.json` file (e.g., permission denied, disk full).
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while adding players."
+        }
+        ```
+        *or a more general unexpected error from the API layer:*
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred: [specific error details]"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "players": [
+             "NewPlayer1:1234567890123456",
+             "AnotherNew:9876543210987654"
+           ]
+         }' \
+     http://<your-manager-host>:<port>/api/players/add
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{
+    Authorization = 'Bearer YOUR_JWT_TOKEN'
+    "Content-Type" = "application/json"
+}
+$body = @{
+    players = @(
+        "NewPlayer1:1234567890123456",
+        "AnotherNew:9876543210987654"
+    )
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/players/add" -Headers $headers -Body $body
+```
+
+---
+
+### `GET /api/players/get` - Get All Known Players
+
+Retrieves a list of all known players recorded in the application's central `players.json` file. This file is typically located in the main configuration directory of the Bedrock Server Manager.
+
+This endpoint is used to get a global list of players that have been registered or detected by the manager across all servers, if such a central tracking mechanism is in place.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of all known players.
+
+*   **Players Found:**
+    ```json
+    {
+        "status": "success",
+        "players": [
+            {
+                "name": "PlayerOne",
+                "xuid": "2535414141111111",
+                "notes": "Main admin"
+            },
+            {
+                "name": "AnotherPlayer",
+                "xuid": "2535414141222222"
+            }
+            // ... more players
+        ]
+    }
+    ```
+*   **No Players File or Empty File:**
+    If the `players.json` file does not exist or is empty, the endpoint still returns a `200 OK` with an empty `players` list and an informational `message`.
+    ```json
+    {
+        "status": "success",
+        "players": [],
+        "message": "Player file not found."
+    }
+    ```
+    *or if empty:*
+    ```json
+    {
+        "status": "success",
+        "players": []
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success" for a 200 response.
+*   **`players`**: (*list*): A list of player objects. Each object's structure depends on what's stored in `players.json` (e.g., `name`, `xuid`, custom fields).
+*   **`message`** (*string*, optional): Included if the `players.json` file was not found, providing context.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+        *(Note: The exact message might vary based on your auth implementation.)*
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration error: Base configuration directory is not set or available."
+        }
+        ```
+    *   If the `players.json` file has an invalid JSON format or a structure that cannot be parsed correctly (e.g., not an object with a "players" list).
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid format in 'players.json'. Expected JSON object with a 'players' list."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid JSON in players.json: Expecting value: line 1 column 1 (char 0)"
+        }
+        ```
+    *   If an OS-level error occurs while trying to read the `players.json` file (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Could not read players file: [Errno 13] Permission denied: '/path/to/config/players.json'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API function.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while fetching players."
+        }
+        ```
+        *or a more general unexpected error from the API layer:*
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred: [specific error details]"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/players/get
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/players/get" -Headers $headers
+```
+
+---
+
 
 ### `GET /api/server/{server_name}/allowlist` - Get Allowlist
 
