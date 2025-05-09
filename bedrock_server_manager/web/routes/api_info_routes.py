@@ -603,7 +603,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
     return jsonify(result_dict), status_code
 
 
-@api_info_bp.route("/api/players", methods=["POST"])
+@api_info_bp.route("/api/add_players", methods=["POST"])
 @csrf.exempt
 @auth_required
 def add_players_api_route() -> Tuple[Response, int]:
