@@ -7,7 +7,7 @@ and triggering global actions like scans or pruning. Secured via JWT.
 from email import utils
 import logging
 import os
-from typing import Tuple
+from typing import Tuple, Dict, Any
 
 # Third-party imports
 from flask import Blueprint, jsonify, Response, request
@@ -31,6 +31,7 @@ from bedrock_server_manager.error import (
     FileOperationError,
     ValueError,
     DirectoryError,
+    InvalidInputError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -544,3 +545,59 @@ def get_system_info_api():
             ),
             500,
         )
+
+
+@api_info_bp.route("/api/players", methods=["GET"])
+@csrf.exempt
+@auth_required
+def get_all_players_api_route() -> Tuple[Response, int]:
+    """
+    API endpoint to retrieve the list of all known players.
+
+    This endpoint reads player data from a central `players.json` file located
+    in the application's main configuration directory.
+
+    Returns:
+        JSON response containing the list of players or an error message.
+        - 200 OK on success:
+            - {"status": "success", "players": List[Dict[str, str]]}
+            - If players.json is not found or empty, "players" will be an empty list,
+              and a "message" field might provide context.
+        - 500 Internal Server Error: If there's an issue reading the file,
+          parsing its content, or a configuration problem.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(f"API: Request to retrieve all players by user '{identity}'.")
+
+    status_code = 500  # Default to internal server error
+    try:
+        # Call your existing function. It's designed to return a dict with status.
+        result_dict = player_api.get_players_from_json()
+
+        if result_dict.get("status") == "success":
+            status_code = 200
+            # The 'message' for "file not found" is already in result_dict by get_players_from_json
+            logger.debug(
+                f"API Get All Players: Successfully retrieved {len(result_dict.get('players', []))} players. "
+                f"Message: {result_dict.get('message', 'N/A')}"
+            )
+        else:  # status == "error"
+            status_code = 500  # Errors from the function are treated as server errors
+            logger.warning(
+                f"API Get All Players: Handler returned error: {result_dict.get('message')}"
+            )
+
+    except Exception as e:
+        # This catch block is for truly unexpected errors *within the API route itself*
+        # or if get_players_from_json were to raise an unhandled exception (which it aims not to).
+        logger.error(
+            f"API Get All Players: Unexpected critical error in route: {e}",
+            exc_info=True,
+        )
+        result_dict = {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while fetching players.",
+        }
+        status_code = 500
+
+    return jsonify(result_dict), status_code
