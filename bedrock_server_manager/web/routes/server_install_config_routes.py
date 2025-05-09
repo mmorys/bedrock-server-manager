@@ -523,7 +523,7 @@ def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @server_install_config_bp.route(
-    "/api/servers/<string:server_name>/read_properties", methods=["GET"]
+    "/api/server/<string:server_name>/read_properties", methods=["GET"]
 )
 @csrf.exempt
 @auth_required
@@ -536,8 +536,6 @@ def get_server_properties_route(server_name: str):
     Args:
         server_name (str): The name of the server, passed in the URL path.
 
-    Query Parameters:
-        base_dir (str, optional): Overrides the default base directory for server installations.
 
     Returns:
         JSON response containing the server properties or an error message.
@@ -552,14 +550,9 @@ def get_server_properties_route(server_name: str):
     """
     logger.debug(f"API request received for GET /api/servers/{server_name}/properties")
     try:
-        # Check for optional base_dir query parameter
-        base_dir_override = request.args.get("base_dir")
-        logger.debug(f"Optional base_dir from query: {base_dir_override}")
 
         # Call the API layer function
-        result = server_install_config.read_server_properties(
-            server_name=server_name, base_dir=base_dir_override
-        )
+        result = server_install_config.read_server_properties(server_name=server_name)
 
         status_code = 200 if result.get("status") == "success" else 500
         if result.get("status") == "error":
@@ -1318,6 +1311,66 @@ def configure_permissions_api_route(server_name: str) -> Tuple[Response, int]:
         result = {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
     return jsonify(result), status_code
+
+
+@server_install_config_bp.route(
+    "/api/server/<string:server_name>/permissions_data", methods=["GET"]
+)
+@csrf.exempt
+@auth_required
+def get_server_permissions_data_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to retrieve player permission levels for a specific server.
+
+    Reads the server's permissions.json and optionally enriches XUIDs with
+    names from the global players.json.
+
+    Args:
+        server_name (str): The name of the server, passed in the URL path.
+
+    Returns:
+        JSON response:
+        - 200 OK: {"status": "success", "data": {"permissions": List[Dict]}, "message": "Optional info"}
+                  Each dict in "permissions" is e.g., {"xuid": "...", "name": "...", "permission_level": "..."}
+        - 400 Bad Request: {"status": "error", "message": "Server name cannot be empty."}
+        - 404 Not Found: {"status": "error", "message": "Server directory not found..."}
+        - 500 Internal Server Error: {"status": "error", "message": "Error description"}
+    """
+    logger.info(f"API: Request for server permissions data for server '{server_name}'.")
+    status_code = 500
+    try:
+
+        result_dict = server_install_config.get_server_permissions_data(
+            server_name=server_name,
+        )
+
+        if result_dict.get("status") == "success":
+            status_code = 200
+        else:  # status == "error"
+            msg_lower = result_dict.get("message", "").lower()
+            if "server name cannot be empty" in msg_lower:
+                status_code = 400
+            elif "server directory not found" in msg_lower:
+                status_code = 404
+            else:
+                status_code = 500
+
+        return jsonify(result_dict), status_code
+
+    except Exception as e:
+        logger.error(
+            f"API Server Permissions Data: Unexpected critical error in route for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "A critical unexpected server error occurred.",
+                }
+            ),
+            500,
+        )
 
 
 # --- Route: Configure Service Page ---

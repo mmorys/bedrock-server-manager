@@ -601,3 +601,111 @@ def get_all_players_api_route() -> Tuple[Response, int]:
         status_code = 500
 
     return jsonify(result_dict), status_code
+
+
+@api_info_bp.route("/api/players", methods=["POST"])
+@csrf.exempt
+@auth_required
+def add_players_api_route() -> Tuple[Response, int]:
+    """
+    API endpoint to add one or more players to the central `players.json` file.
+
+    Expects a JSON payload with a "players" key, which is a list of strings.
+    Each string should be in the format "PlayerName:PlayerXUID".
+
+    Args:
+        None directly from URL. Player data is expected in the JSON request body.
+
+    Request Body (JSON):
+        {
+            "players": ["PlayerOne:XUID1", "PlayerTwo:XUID2", ...]
+        }
+
+    Returns:
+        JSON response indicating success or failure.
+        - 200 OK (or 201 Created): {"status": "success", "message": "Players added successfully."}
+        - 400 Bad Request: {"status": "error", "message": "Error description..."}
+                           (e.g., missing 'players' field, invalid player format, empty list)
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+                                     (e.g., file system error, config directory issue, unexpected error)
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(f"API: Request to add players by user '{identity}'.")
+
+    status_code = 500  # Default to internal server error
+    result_dict: Dict[str, str]
+
+    if not request.is_json:
+        logger.warning("API Add Players: Request is not JSON.")
+        result_dict = {"status": "error", "message": "Request body must be JSON."}
+        return jsonify(result_dict), 415  # Unsupported Media Type
+
+    try:
+        data = request.get_json()
+        if data is None:  # Handles empty JSON body {}
+            logger.warning("API Add Players: Request JSON body is empty or malformed.")
+            result_dict = {
+                "status": "error",
+                "message": "Request JSON body is empty or malformed.",
+            }
+            return jsonify(result_dict), 400
+
+        players_list = data.get("players")
+
+        if not isinstance(players_list, list):
+            logger.warning("API Add Players: 'players' field is missing or not a list.")
+            result_dict = {
+                "status": "error",
+                "message": "'players' field is required and must be a list.",
+            }
+            return jsonify(result_dict), 400
+
+        # Call the API layer function
+        # It raises TypeError, MissingArgumentError, FileOperationError directly
+        # It returns dict for InvalidInputError, other FileOperationError, Exception
+        result_dict = player_api.add_players(players=players_list)
+
+        if result_dict.get("status") == "success":
+            status_code = 200  # Or 201 Created if you prefer for new resources
+            logger.info(
+                f"API Add Players: Successfully processed add players request. Message: {result_dict.get('message')}"
+            )
+        else:  # status == "error" from add_players internal try-except
+
+            msg_lower = result_dict.get("message", "").lower()
+            if "invalid" in msg_lower or "format" in msg_lower:
+                status_code = 400
+            else:
+                status_code = 500  # Default for other errors like file ops
+            logger.warning(
+                f"API Add Players: Handler returned error: {result_dict.get('message')}"
+            )
+
+    except (TypeError, MissingArgumentError) as e:
+        logger.warning(f"API Add Players: Client error: {e}")
+        result_dict = {"status": "error", "message": str(e)}
+        status_code = 400  # Bad Request
+    except (
+        FileOperationError
+    ) as e:  # If add_players raises it for config_dir not being determinable
+        logger.error(
+            f"API Add Players: Configuration/File operation error: {e}", exc_info=True
+        )
+        result_dict = {
+            "status": "error",
+            "message": f"Configuration or file system error: {e}",
+        }
+        status_code = 500
+
+    except Exception as e:
+        # For truly unexpected errors *within the API route itself*
+        logger.error(
+            f"API Add Players: Unexpected critical error in route: {e}", exc_info=True
+        )
+        result_dict = {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while adding players.",
+        }
+        status_code = 500
+
+    return jsonify(result_dict), status_code

@@ -1211,6 +1211,149 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ---
 
+### `GET /api/server/<server_name>/permissions_data` - Get Server Player Permissions
+
+Retrieves the list of players and their permission levels as defined in the specified server's `permissions.json` file. Optionally, player XUIDs are enriched with names found in the global `players.json` file (if available).
+
+This endpoint is primarily used to fetch the current permission state for a server, suitable for display or management in a UI.
+
+This endpoint is exempt from CSRF protection (if token-based auth is used) and requires authentication.
+
+#### Authentication
+
+Required (e.g., JWT via `Authorization: Bearer <token>` header).
+
+#### Path Parameters
+
+*   **`server_name`** (*string*, **required**): The unique name of the server instance.
+
+#### Query Parameters
+
+*   **`base_dir`** (*string*, optional): Overrides the default base directory where the specified server's installation is located.
+*   **`config_dir`** (*string*, optional): Overrides the default main application configuration directory. This is used if you want to enable the lookup of player names from a global `players.json` located there.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of players with their permission levels on this server.
+
+*   **Example (with names enriched):**
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "permissions": [
+                {
+                    "xuid": "2530000000000001",
+                    "name": "AdminPlayer",
+                    "permission_level": "operator"
+                },
+                {
+                    "xuid": "2530000000000002",
+                    "name": "ModeratorBob",
+                    "permission_level": "member"
+                },
+                {
+                    "xuid": "2530000000000003",
+                    "name": "Unknown (XUID: 2530000000000003)", // Name not in global players.json
+                    "permission_level": "visitor"
+                }
+            ]
+        },
+        "message": "Successfully retrieved server permissions. Warnings: Could not load global player list: Player file not found." // Optional, if non-critical issues occurred during name lookup
+    }
+    ```
+*   **Example (server's `permissions.json` not found or empty):**
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "permissions": []
+        },
+        "message": "Server permissions file not found." // Or null if file was empty
+    }
+    ```
+
+*   **`status`**: (*string*) "success".
+*   **`data`**: (*object*) Contains the permission data.
+    *   **`permissions`** (*list*): A list of player permission objects. Each object contains:
+        *   `xuid` (*string*): The player's XUID.
+        *   `name` (*string*): The player's name (from global `players.json` if found, otherwise a placeholder).
+        *   `permission_level` (*string*): The permission level assigned to the player on this server (e.g., "member", "operator", "visitor").
+*   **`message`** (*string*, optional): Provides context, such as if the server's `permissions.json` was not found, or if there were warnings during optional name enrichment.
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is invalid (e.g., empty).
+        ```json
+        {
+            "status": "error",
+            "message": "Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`**:
+    *   If the specified `server_name` does not correspond to an existing server directory.
+        ```json
+        {
+            "status": "error",
+            "message": "Server directory not found: /path/to/servers/non_existent_server"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., essential base directories cannot be determined for the server).
+        ```json
+        {
+            "status": "error",
+            "message": "Base directory for servers (BASE_DIR) is not configured."
+        }
+        ```
+    *   If critical errors occur while reading or parsing the server's `permissions.json` file (e.g., file unreadable, invalid JSON format).
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to process server permissions file: [specific error from JSON parsing or file read]"
+        }
+        ```
+    *   If an unexpected error occurs within the API logic or route handler.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+Replace `<server_name>` with the actual server name.
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data"
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data" -Headers $headers
+```
+---
+
 ## Server Actions
 
 ### `POST /api/server/{server_name}/start` - Start Server
@@ -3827,7 +3970,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `GET /api/servers/<server_name>/read_properties` - Get Server Properties
+### `GET /api/server/<server_name>/read_properties` - Get Server Properties
 
 Retrieves the parsed `server.properties` file content for a specified Bedrock server instance. This allows inspection of the server's configuration settings.
 
@@ -3934,14 +4077,14 @@ Returns a dictionary of all key-value pairs found in the server's `server.proper
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-        http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties
+        http://<your-manager-host>:<port>/api/server/<server_name>/read_properties
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/read_properties" -Headers $headers
 ```
 ---
 
