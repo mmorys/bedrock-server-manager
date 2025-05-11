@@ -159,7 +159,7 @@ def start_web_server(
             )  # This should now work
 
             creation_flags = 0
-            start_new_session = False 
+            start_new_session = False
             if platform.system() == "Windows":
                 creation_flags = subprocess.CREATE_NO_WINDOW
             elif platform.system() == "Linux":

@@ -2736,6 +2736,227 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ## World & Addon Management
 
+### `GET /api/content/worlds` - List Available World Files
+
+Lists available world **filenames (basenames only)** found in the application's configured content directory, specifically within the `worlds` subdirectory (e.g., `CONTENT_DIR/worlds`). This endpoint typically looks for files with the `.mcworld` extension.
+
+The list of filenames is sorted alphabetically.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of world filenames (basenames).
+
+*   **Files Found:**
+    ```json
+    {
+        "status": "success",
+        "files": [
+            "MyAwesomeWorld.mcworld",
+            "AnotherAdventure.mcworld",
+            "TestWorldBackup.mcworld"
+        ]
+    }
+    ```
+*   **No Files Found:**
+    If no `.mcworld` files are found in the `CONTENT_DIR/worlds` directory.
+    ```json
+    {
+        "status": "success",
+        "files": [],
+        "message": "No matching files found."
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`files`**: (*list* of *string*): A list of world filenames (basenames). The list will be empty if no matching files are found.
+*   **`message`** (*string*, optional): Included if no files were found.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/worlds` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+        ```json
+        {
+            "status": "error",
+            "message": "Content directory not found or is not a directory: /path/to/content/dir/worlds"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+        ```json
+        {
+            "status": "error",
+            "message": "CONTENT_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/worlds'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/content/worlds
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/content/worlds" -Headers $headers
+```
+---
+
+### `GET /api/content/addons` - List Available Addon Files
+
+Lists available addon **filenames (basenames only)** found in the application's configured content directory, specifically within the `addons` subdirectory (e.g., `CONTENT_DIR/addons`). This endpoint typically looks for files with extensions like `.mcpack` or `.mcaddon`.
+
+The list of filenames is sorted alphabetically.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of addon filenames (basenames).
+
+*   **Files Found:**
+    ```json
+    {
+        "status": "success",
+        "files": [
+            "AwesomeBehaviorPack.mcpack",
+            "CoolResourcePack.mcaddon"
+        ]
+    }
+    ```
+*   **No Files Found:**
+    If no files matching the addon extensions are found in the `CONTENT_DIR/addons` directory.
+    ```json
+    {
+        "status": "success",
+        "files": [],
+        "message": "No matching files found."
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`files`**: (*list* of *string*): A list of addon filenames (basenames). The list will be empty if no matching files are found.
+*   **`message`** (*string*, optional): Included if no files were found.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/addons` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+        ```json
+        {
+            "status": "error",
+            "message": "Content directory not found or is not a directory: /path/to/content/dir/addons"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+        ```json
+        {
+            "status": "error",
+            "message": "CONTENT_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/addons'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/content/addons
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/content/addons" -Headers $headers
+```
+---
+
 ### `POST /api/server/{server_name}/world/export` - Export World
 
 Exports the currently active world directory associated with the specified server instance into a `.mcworld` archive file. The resulting file is saved within the `worlds` subdirectory of the configured `CONTENT_DIR`, making it available for installation on other servers managed by this application.

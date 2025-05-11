@@ -52,6 +52,130 @@ content_bp = Blueprint(
 )
 
 
+# -- List content files --
+
+
+@content_bp.route("/api/content/worlds", methods=["GET"])
+@csrf.exempt
+@auth_required
+def list_worlds_route() -> Tuple[Response, int]:
+    """
+    API endpoint to list available world content files (basenames only).
+    Looks in CONTENT_DIR/worlds for .mcworld files.
+
+    Returns:
+        JSON response with list of world file basenames or an error.
+        - 200 OK: {"status": "success", "files": List[str]} (basenames)
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+    """
+    logger.info("API Route: Request to list world content files.")
+    status_code = 500
+    response_dict: Dict[str, Any]
+
+    try:
+        api_result = utils_api.list_world_content_files()
+
+        if api_result.get("status") == "success":
+            status_code = 200
+            full_paths = api_result.get("files", [])
+            basenames = [os.path.basename(p) for p in full_paths]
+            response_dict = {
+                "status": "success",
+                "files": basenames,
+                "message": api_result.get(
+                    "message"
+                ),  # Pass through message like "No matching files found"
+            }
+            # Remove message if files were found and message was only for no files
+            if basenames and response_dict.get("message") == "No matching files found.":
+                response_dict.pop("message")
+
+            logger.info(f"API Route: Listed {len(basenames)} world file basenames.")
+        else:  # Error from API layer
+            response_dict = api_result
+            # Determine status code based on error (e.g., CONTENT_DIR missing vs. dir not found)
+            if "CONTENT_DIR setting is missing" in response_dict.get("message", ""):
+                status_code = 500  # Configuration error
+            elif "Content directory not found" in response_dict.get("message", ""):
+                # This case is handled by list_content_files returning an error,
+                # if worlds_dir doesn't exist.
+                status_code = 404  # Or 500 if considered a server setup issue
+            else:
+                status_code = 500  # Generic server error
+            logger.warning(
+                f"API Route: Error listing worlds: {response_dict.get('message')}"
+            )
+
+    except Exception as e:  # Catch truly unexpected errors in the route itself
+        logger.error(
+            f"API Route: Unexpected critical error listing worlds: {e}", exc_info=True
+        )
+        response_dict = {
+            "status": "error",
+            "message": "A critical server error occurred.",
+        }
+        status_code = 500
+
+    return jsonify(response_dict), status_code
+
+
+@content_bp.route("/api/content/addons", methods=["GET"])
+@csrf.exempt
+@auth_required
+def list_addons_route() -> Tuple[Response, int]:
+    """
+    API endpoint to list available addon content files (basenames only).
+    Looks in CONTENT_DIR/addons for .mcpack, .mcaddon.
+
+    Returns:
+        JSON response with list of addon file basenames or an error.
+        - 200 OK: {"status": "success", "files": List[str]} (basenames)
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+    """
+    logger.info("API Route: Request to list addon content files.")
+    status_code = 500
+    response_dict: Dict[str, Any]
+
+    try:
+        api_result = utils_api.list_addon_content_files()
+
+        if api_result.get("status") == "success":
+            status_code = 200
+            full_paths = api_result.get("files", [])
+            basenames = [os.path.basename(p) for p in full_paths]
+            response_dict = {
+                "status": "success",
+                "files": basenames,
+                "message": api_result.get("message"),
+            }
+            if basenames and response_dict.get("message") == "No matching files found.":
+                response_dict.pop("message")
+            logger.info(f"API Route: Listed {len(basenames)} addon file basenames.")
+        else:  # Error from API layer
+            response_dict = api_result
+            if "CONTENT_DIR setting is missing" in response_dict.get("message", ""):
+                status_code = 500
+            elif "Content directory not found" in response_dict.get("message", ""):
+                status_code = 404  # Or 500
+            else:
+                status_code = 500
+            logger.warning(
+                f"API Route: Error listing addons: {response_dict.get('message')}"
+            )
+
+    except Exception as e:
+        logger.error(
+            f"API Route: Unexpected critical error listing addons: {e}", exc_info=True
+        )
+        response_dict = {
+            "status": "error",
+            "message": "A critical server error occurred.",
+        }
+        status_code = 500
+
+    return jsonify(response_dict), status_code
+
+
 # --- Route: Install World Selection Page ---
 @content_bp.route("/server/<string:server_name>/install_world")
 @login_required  # Requires web session

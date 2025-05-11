@@ -797,6 +797,39 @@
     <h2 id="world-addon-h2">World & Addon Management</h2>
 
     <div class="api-endpoint">
+        <h3 id="get-api-list-content-worlds"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/content/worlds</code></h3>
+        <p>Lists available world **filenames (basenames only)** from <code>CONTENT_DIR/worlds</code> (typically <code>.mcworld</code> files).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "files": [
+        "MyWorld.mcworld",
+        "AnotherWorld.mcworld"
+        // ... (empty list if no files)
+    ],
+    "message": "No matching files found." // Optional: if files list is empty
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-list-content-addons"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/content/addons</code></h3>
+        <p>Lists available addon **filenames (basenames only)** from <code>CONTENT_DIR/addons</code> (e.g., <code>.mcpack</code>, <code>.mcaddon</code>, <code>.zip</code> files).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "files": [
+        "MyBehaviorPack.mcpack",
+        "CoolTextures.mcaddon"
+        // ... (empty list if no files)
+    ],
+    "message": "No matching files found." // Optional: if files list is empty
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
         <h3 id="post-api-server-world-export"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/export</code></h3>
         <p>Exports the server's current world to a <code class="endpoint-path">.mcworld</code> file in the <code class="endpoint-path">content/worlds</code> directory.</p>
         <h4>Authentication:</h4> <p>Required.</p>
