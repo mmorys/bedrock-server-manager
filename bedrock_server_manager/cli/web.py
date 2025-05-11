@@ -8,7 +8,7 @@ Uses print() for user feedback.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 
 # Third-party imports
 try:
@@ -43,15 +43,15 @@ logger = logging.getLogger("bedrock_server_manager")
 
 
 def start_web_server(
-    host: Optional[str] = None, debug: bool = False, mode: str = "direct"
+    host: Optional[Union[str, List[str]]] = None,
+    debug: bool = False,
+    mode: str = "direct",
 ) -> None:
     """
     CLI handler function to start the application's web server.
-
     Calls the corresponding API function based on the specified mode.
-
     Args:
-        host: Optional. The host address to bind to. Defaults to None (all interfaces).
+        host: Optional. The host address or list of addresses to bind to.
         debug: If True, run in Flask's debug mode.
         mode: Startup mode: "direct" (blocking) or "detached" (background).
     """
@@ -59,27 +59,24 @@ def start_web_server(
         f"CLI: Requesting to start web server. Host='{host}', Debug={debug}, Mode='{mode}'"
     )
 
-    # --- User Interaction: Initial Message ---
     print(f"{_INFO_PREFIX}Attempting to start web server in '{mode}' mode...")
     if mode == "direct":
         print(f"{_INFO_PREFIX}Server will run in this terminal. Press Ctrl+C to stop.")
-    # --- End User Interaction ---
 
     try:
-        # Call the API function
         logger.debug(
             f"Calling API: web_api.start_web_server (Host='{host}', Debug={debug}, Mode='{mode}')"
         )
+        # The `host` argument passed here is now Optional[Union[str, List[str]]],
+        # matching the updated signature of web_api.start_web_server
         response: Dict[str, Any] = web_api.start_web_server(host, debug, mode)
         logger.debug(f"API response from start_web_server: {response}")
 
-        # --- User Interaction: Print Result ---
         if response.get("status") == "error":
             message = response.get("message", "Unknown error starting web server.")
             print(f"{_ERROR_PREFIX}{message}")
             logger.error(f"CLI: Start web server failed: {message}")
         else:
-            # Success message depends on mode
             if mode == "detached":
                 pid = response.get("pid")
                 message = response.get(
@@ -90,18 +87,18 @@ def start_web_server(
                 logger.debug(
                     f"CLI: Detached web server started successfully (PID: {pid})."
                 )
-            else:
-                logger.debug("CLI: Web server started in direct (blocking) mode.")
-                pass  # Let the run_web_server function block
-
-        # --- End User Interaction ---
+            else:  # direct mode
+                # Message for direct mode shutdown is handled by web_api.start_web_server
+                # or user sees server output directly.
+                logger.info(
+                    "CLI: Web server (direct mode) has started and is blocking. It will log its own shutdown or user will Ctrl+C."
+                )
+                pass
 
     except (ValueError, FileOperationError) as e:
-        # Catch input/config errors raised directly by API func
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(f"CLI: Failed to call start web server API: {e}", exc_info=True)
     except Exception as e:
-        # Catch unexpected errors during API call
         print(
             f"{_ERROR_PREFIX}An unexpected error occurred while starting the web server: {e}"
         )
