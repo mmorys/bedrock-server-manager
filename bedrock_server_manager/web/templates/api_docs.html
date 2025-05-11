@@ -770,12 +770,12 @@
         <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
         <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
         <ul>
-            <li><pre><code class="api-code-block">{"restore_type": "world", "backup_file": "/full/path/to/backup.mcworld"}</code></pre></li>
-            <li><pre><code class="api-code-block">{"restore_type": "config", "backup_file": "/full/path/to/config_backup.json"}</code></pre></li>
+            <li><pre><code class="api-code-block">{"restore_type": "world", "backup_file": "backup.mcworld"}</code></pre></li>
+            <li><pre><code class="api-code-block">{"restore_type": "config", "backup_file": "config_backup.json"}</code></pre></li>
         </ul>
         <ul>
             <li><code class="param-name">restore_type</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: `"world"` or `"config"`.</li>
-            <li><code class="param-name">backup_file</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Full path (must be within `BACKUP_DIR`).</li>
+            <li><code class="param-name">backup_file</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Relative path to the backup file inside `BACKUP_DIR`/{server_name}.</li>
         </ul>
         <h4>Success Response (`200 OK`):</h4>
         <pre><code class="api-code-block">{"status": "success", "message": "Restoration from '...' (type: ...) completed successfully."}</code></pre>

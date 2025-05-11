@@ -2500,20 +2500,20 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 ```json
 {
     "restore_type": "world",
-    "backup_file": "/full/path/to/backups/MyServer/backup_file.mcworld"
+    "backup_file": "backup_file.mcworld"
 }
 ```
 *or*
 ```json
 {
     "restore_type": "config",
-    "backup_file": "/full/path/to/backups/MyServer/server_backup_....properties"
+    "backup_file": "server_backup_....properties"
 }
 ```
 
 *   **Fields:**
     *   `restore_type` (*string*, required): Type of restore. Must be `"world"` or `"config"`. Case-insensitive.
-    *   `backup_file` (*string*, required): The full, absolute path to the backup file to restore from. This path *must* reside within the configured `BACKUP_DIR` hierarchy.
+    *   `backup_file` (*string*, required): The relative path to the backup file to restore *inside* the configured `BACKUP_DIR`/{server_name}.
 
 #### Success Response (`200 OK`)
 
@@ -2632,7 +2632,7 @@ Returned when the restore operation completes successfully.
 
 ```bash
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d '{"restore_type": "world", "backup_file": "/full/path/to/backups/MyServer/world_backup_xyz.mcworld"}' \
+     -d '{"restore_type": "world", "backup_file": "world_backup_xyz.mcworld"}' \
      http://<your-manager-host>:<port>/api/server/<server_name>/restore/action
 ```
 
@@ -2640,7 +2640,7 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$body = @{ restore_type = 'config'; backup_file = 'C:\full\path\to\backups\MyServer\server_backup_abc.properties' } | ConvertTo-Json
+$body = @{ restore_type = 'config'; backup_file = 'server_backup_abc.properties' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/restore/action" -Headers $headers -Body $body
 ```
 
