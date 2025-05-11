@@ -726,6 +726,23 @@
     </div>
 
     <div class="api-endpoint">
+        <h3 id="get-api-list-server-backup-filenames"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/<server_name>/backups/<backup_type></code></h3>
+        <p>Lists available backup **filenames (basenames only)** for a server and backup type ("world" or "config").</p>
+        <p>Path Parameters: <code>server_name</code> (required), <code>backup_type</code> (required: "world" or "config").</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "backups": [
+        "backup_file1.mcworld",
+        "backup_file2.mcworld"
+        // ... (empty list if no backups)
+    ]
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
         <h3 id="post-api-server-backup-action"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/backup/action</code></h3>
         <p>Triggers a backup (world, config file, or all).</p>
         <h4>Authentication:</h4> <p>Required.</p>

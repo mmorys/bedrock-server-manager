@@ -1171,7 +1171,7 @@ Returns a list of players with their permission levels on this server.
         ```json
         {
             "status": "error",
-            "message": "Server directory not found: /path/to/servers/non_existent_server"
+            "message": "Server directory not found: /path/to/server/non_existent_server"
         }
         ```
 
@@ -2212,6 +2212,90 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 ```
 
 ---
+
+### `GET /api/server/<server_name>/list_backups/<backup_type>` - List Server Backup Filenames
+
+Lists available backup **filenames (basenames only)** for a specified server and a given backup type ("world" or "config"). Backups are typically stored in a configured central backup directory, organized by server name.
+
+The list of backup filenames is sorted by modification time (of the original files), with the newest backups appearing first.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   **`server_name`** (*string*, **required**): The unique name of the server instance for which to list backups.
+*   **`backup_type`** (*string*, **required**): The type of backups to list. Must be either `"world"` (for `.mcworld` archives) or `"config"` (for configuration file backups like `.json` or `.properties`).
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of **basenames** of the backup files found.
+
+*   **Backups Found:**
+    ```json
+    {
+        "status": "success",
+        "backups": [
+            "world_backup_20231027103000.mcworld",
+            "world_backup_20231026150000.mcworld"
+        ]
+    }
+    ```
+    *or for config backups:*
+    ```json
+    {
+        "status": "success",
+        "backups": [
+            "permissions_backup_20231027090000.json",
+            "server_backup_20231027080000.properties"
+        ]
+    }
+    ```
+*   **No Backups Found / Server Backup Directory Missing:**
+    If no backup files of the specified type exist for the server, or if the server's specific backup sub-directory doesn't exist, an empty list is returned.
+    ```json
+    {
+        "status": "success",
+        "backups": []
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`backups`**: (*list* of *string*): A list of **backup filenames (basenames)**. The list will be empty if no matching backups are found.
+
+#### Error Responses
+*(Error responses remain the same as before, as the error conditions haven't changed)*
+*   **`400 Bad Request`**: ...
+*   **`401 Unauthorized`**: ...
+*   **`500 Internal Server Error`**: ...
+
+#### `curl` Example (Bash)
+*(Curl examples remain the same, the response content changes)*
+*   List world backups for `myserver`:
+    ```bash
+    curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://<your-manager-host>:<port>/api/server/myserver/list_backups/world
+    ```
+
+#### PowerShell Example
+*(PowerShell examples remain the same, the response content changes)*
+*   List world backups for `myserver`:
+    ```powershell
+    $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+    Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/myserver/list_backups/world" -Headers $headers
+    ```
+___
 
 ### `POST /api/server/{server_name}/backup/action` - Trigger Backup
 

@@ -73,6 +73,89 @@ def backup_menu_route(server_name: str) -> Response:
     )
 
 
+@backup_restore_bp.route(
+    "/api/server/<string:server_name>/list_backups/<string:backup_type>",
+    methods=["GET"],
+)
+@csrf.exempt
+@auth_required
+def list_server_backups_route(
+    server_name: str, backup_type: str
+) -> Tuple[Response, int]:
+    """
+    API endpoint to list available backup files (basenames only) for a specific server and type.
+
+    Args:
+        server_name (str): The name of the server, passed in the URL path.
+        backup_type (str): The type of backups to list ("world" or "config"),
+                           passed in the URL path.
+
+    Returns:
+        JSON response containing the list of backup file basenames or an error message.
+        - 200 OK: {"status": "success", "backups": List[str]} (basenames)
+        - 400 Bad Request: {"status": "error", "message": "Error description..."}
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Request to list '{backup_type}' backups for server '{server_name}' by user '{identity}'."
+    )
+
+    status_code = 500
+    result_dict: Dict[str, Any]
+
+    try:
+        api_result = (
+            backup_restore_api.list_backup_files(  # Call API module, gets full paths
+                server_name=server_name, backup_type=backup_type
+            )
+        )
+
+        if api_result.get("status") == "success":
+            status_code = 200
+            full_paths = api_result.get("backups", [])
+            basenames = [os.path.basename(p) for p in full_paths]
+            result_dict = {  # Reconstruct the result_dict for jsonify
+                "status": "success",
+                "backups": basenames,  # Use basenames here
+            }
+            logger.info(
+                f"API List Backups: Successfully listed {len(basenames)} backup basenames for '{server_name}' ({backup_type})."
+            )
+        else:
+            status_code = 500
+            result_dict = api_result  # Pass through the error dictionary
+            logger.warning(
+                f"API List Backups: Handler for '{server_name}' ({backup_type}) returned error: {result_dict.get('message')}"
+            )
+
+    except (MissingArgumentError, InvalidInputError) as e:
+        logger.warning(
+            f"API List Backups: Client input error for '{server_name}' ({backup_type}): {e}"
+        )
+        result_dict = {"status": "error", "message": str(e)}
+        status_code = 400
+    except FileOperationError as e:
+        logger.error(
+            f"API List Backups: Configuration/File operation error for '{server_name}' ({backup_type}): {e}",
+            exc_info=True,
+        )
+        result_dict = {"status": "error", "message": f"Configuration error: {e}"}
+        status_code = 500
+    except Exception as e:
+        logger.error(
+            f"API List Backups: Unexpected critical error in route for '{server_name}' ({backup_type}): {e}",
+            exc_info=True,
+        )
+        result_dict = {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while listing backups.",
+        }
+        status_code = 500
+
+    return jsonify(result_dict), status_code
+
+
 # --- Route: Backup Config Selection Page ---
 @backup_restore_bp.route("/server/<string:server_name>/backup/config", methods=["GET"])
 @login_required  # Requires web session
