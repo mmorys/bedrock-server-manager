@@ -73,6 +73,89 @@ def backup_menu_route(server_name: str) -> Response:
     )
 
 
+@backup_restore_bp.route(
+    "/api/server/<string:server_name>/backups/list/<string:backup_type>",
+    methods=["GET"],
+)
+@csrf.exempt
+@auth_required
+def list_server_backups_route(
+    server_name: str, backup_type: str
+) -> Tuple[Response, int]:
+    """
+    API endpoint to list available backup files (basenames only) for a specific server and type.
+
+    Args:
+        server_name (str): The name of the server, passed in the URL path.
+        backup_type (str): The type of backups to list ("world" or "config"),
+                           passed in the URL path.
+
+    Returns:
+        JSON response containing the list of backup file basenames or an error message.
+        - 200 OK: {"status": "success", "backups": List[str]} (basenames)
+        - 400 Bad Request: {"status": "error", "message": "Error description..."}
+        - 500 Internal Server Error: {"status": "error", "message": "..."}
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Request to list '{backup_type}' backups for server '{server_name}' by user '{identity}'."
+    )
+
+    status_code = 500
+    result_dict: Dict[str, Any]
+
+    try:
+        api_result = (
+            backup_restore_api.list_backup_files(  # Call API module, gets full paths
+                server_name=server_name, backup_type=backup_type
+            )
+        )
+
+        if api_result.get("status") == "success":
+            status_code = 200
+            full_paths = api_result.get("backups", [])
+            basenames = [os.path.basename(p) for p in full_paths]
+            result_dict = {  # Reconstruct the result_dict for jsonify
+                "status": "success",
+                "backups": basenames,  # Use basenames here
+            }
+            logger.info(
+                f"API List Backups: Successfully listed {len(basenames)} backup basenames for '{server_name}' ({backup_type})."
+            )
+        else:
+            status_code = 500
+            result_dict = api_result  # Pass through the error dictionary
+            logger.warning(
+                f"API List Backups: Handler for '{server_name}' ({backup_type}) returned error: {result_dict.get('message')}"
+            )
+
+    except (MissingArgumentError, InvalidInputError) as e:
+        logger.warning(
+            f"API List Backups: Client input error for '{server_name}' ({backup_type}): {e}"
+        )
+        result_dict = {"status": "error", "message": str(e)}
+        status_code = 400
+    except FileOperationError as e:
+        logger.error(
+            f"API List Backups: Configuration/File operation error for '{server_name}' ({backup_type}): {e}",
+            exc_info=True,
+        )
+        result_dict = {"status": "error", "message": f"Configuration error: {e}"}
+        status_code = 500
+    except Exception as e:
+        logger.error(
+            f"API List Backups: Unexpected critical error in route for '{server_name}' ({backup_type}): {e}",
+            exc_info=True,
+        )
+        result_dict = {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while listing backups.",
+        }
+        status_code = 500
+
+    return jsonify(result_dict), status_code
+
+
 # --- Route: Backup Config Selection Page ---
 @backup_restore_bp.route("/server/<string:server_name>/backup/config", methods=["GET"])
 @login_required  # Requires web session
@@ -254,14 +337,16 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
     """
     API endpoint to trigger a server restoration from a specified backup file.
 
-    Expects JSON body with backup file path and restore type.
+    Expects JSON body with 'backup_file' key containing the path to the backup file
+    (relative to the configured BACKUP_DIR) and 'restore_type'.
     Performs validation to ensure the backup file path is within the configured BACKUP_DIR.
 
     Args:
         server_name: The name of the server passed in the URL.
 
     JSON Request Body Example:
-        {"restore_type": "world", "backup_file": "/path/to/bedrock-server-manager/data/backups/MyServer/world_backup_xyz.mcworld"}
+        {"restore_type": "world", "backup_file": "MyServerName/world_backup_xyz.mcworld"}
+        (Where "world_backup_xyz.mcworld" is relative to BACKUP_DIR)
 
     Returns:
         JSON response indicating success or failure, with appropriate HTTP status code.
@@ -286,7 +371,8 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
 
     logger.debug(f"API Restore '{server_name}': Received data: {data}")
     restore_type = data.get("restore_type", "").lower()
-    backup_file_path = data.get("backup_file")  # Expect full path from client selection
+    # Expecting *relative* path from client selection
+    relative_backup_file_path = data.get("backup_file")
 
     valid_types = ["world", "config"]
     if restore_type not in valid_types:
@@ -294,72 +380,98 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
         logger.warning(f"API Restore '{server_name}': {msg}")
         return jsonify(status="error", message=msg), 400
 
-    if not backup_file_path or not isinstance(backup_file_path, str):
-        msg = "Missing or invalid 'backup_file' path (string) in request."
+    if not relative_backup_file_path or not isinstance(relative_backup_file_path, str):
+        msg = "Missing or invalid 'backup_file' in request. Expected relative path to backup file."
         logger.warning(f"API Restore '{server_name}': {msg}")
         return jsonify(status="error", message=msg), 400
 
-    # --- Path Validation ---
+    # --- Path Construction and Validation ---
     result: Dict[str, Any] = {}
     status_code = 500
     try:
         backup_base_dir = settings.get("BACKUP_DIR")
         if not backup_base_dir:
+            # This will be caught by the FileOperationError handler below
             raise FileOperationError(
                 "BACKUP_DIR setting is missing or empty in configuration."
             )
 
-        abs_backup_dir = os.path.abspath(backup_base_dir)
-        abs_backup_file_path = os.path.abspath(backup_file_path)
+        # Construct the full path from the base backup directory and the relative path
+        full_backup_file_path = os.path.normpath(
+            os.path.join(backup_base_dir, server_name, relative_backup_file_path)
+        )
 
         logger.debug(
-            f"Validating backup file path: File='{abs_backup_file_path}', Allowed Base='{abs_backup_dir}'"
+            f"API Restore '{server_name}': Validating backup file. "
+            f"Relative: '{relative_backup_file_path}', "
+            f"Full: '{full_backup_file_path}', "
+            f"Allowed Base: '{backup_base_dir}'"
         )
 
         # Security Check: Ensure the requested file is within the allowed backup directory
-        if not abs_backup_file_path.startswith(abs_backup_dir):
+        # os.path.abspath is used to resolve any '..' and ensure a true comparison
+        if not os.path.abspath(full_backup_file_path).startswith(
+            os.path.abspath(backup_base_dir)
+        ):
             msg = "Invalid backup file path: Path is outside the allowed backup directory."
             logger.error(
-                f"API Restore '{server_name}': Security violation - {msg} Attempted Path: {abs_backup_file_path}"
+                f"API Restore '{server_name}': Security violation - {msg} "
+                f"Attempted relative path: '{relative_backup_file_path}', "
+                f"Resolved full path: '{full_backup_file_path}'"
             )
             return jsonify(status="error", message=msg), 400  # Bad Request
 
         # Check if file exists
-        if not os.path.isfile(abs_backup_file_path):
-            msg = f"Backup file not found at specified path: {abs_backup_file_path}"
+        if not os.path.isfile(full_backup_file_path):
+            msg = (
+                f"Backup file not found at specified path: {full_backup_file_path} "
+                f"(from relative: {relative_backup_file_path})"
+            )
             logger.warning(f"API Restore '{server_name}': {msg}")
             return (
                 jsonify(status="error", message="Backup file not found."),
                 404,
             )  # Not Found
 
-        logger.debug("Backup file path validation successful.")
+        logger.debug(
+            f"API Restore '{server_name}': Backup file path validation successful for '{full_backup_file_path}'."
+        )
 
         # --- Call API Handler ---
         base_dir = get_base_dir()  # Base dir for server installations
 
         if restore_type == "world":
             logger.debug(
-                f"Calling API handler: backup_restore_api.restore_world for '{server_name}', file '{abs_backup_file_path}'"
+                f"Calling API handler: backup_restore_api.restore_world for '{server_name}', file '{full_backup_file_path}'"
             )
             result = backup_restore_api.restore_world(
-                server_name, abs_backup_file_path, base_dir
+                server_name, full_backup_file_path, base_dir
             )
         elif restore_type == "config":
             logger.debug(
-                f"Calling API handler: backup_restore_api.restore_config_file for '{server_name}', file '{abs_backup_file_path}'"
+                f"Calling API handler: backup_restore_api.restore_config_file for '{server_name}', file '{full_backup_file_path}'"
             )
             result = backup_restore_api.restore_config_file(
-                server_name, abs_backup_file_path, base_dir
+                server_name, full_backup_file_path, base_dir
             )
+        else:
+            # This case should have been caught earlier by valid_types check,
+            # but as a safeguard:
+            msg = f"Internal error: Unknown restore_type '{restore_type}' made it past validation."
+            logger.error(f"API Restore '{server_name}': {msg}")
+            return jsonify(status="error", message=msg), 500
 
         logger.debug(f"API Restore '{server_name}': Handler response: {result}")
 
         if isinstance(result, dict) and result.get("status") == "success":
             status_code = 200
-            success_msg = f"Restoration from '{os.path.basename(backup_file_path)}' (type: {restore_type}) completed successfully."
+            # Use basename of the relative path for a user-friendly filename in the message
+            success_msg = (
+                f"Restoration from '{os.path.basename(relative_backup_file_path)}' "
+                f"(type: {restore_type}) completed successfully."
+            )
             logger.info(f"API Restore '{server_name}': {success_msg}")
-            result["message"] = success_msg  # Ensure message is set
+            result["message"] = success_msg  # Ensure message is set/updated
         else:
             status_code = 500  # Treat handler errors as internal server errors
             error_msg = (
@@ -370,12 +482,14 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
             logger.error(
                 f"API Restore '{server_name}' (type: {restore_type}) failed: {error_msg}"
             )
-            result = {"status": "error", "message": error_msg}  # Ensure error status
+            # Ensure result has status and message for consistent error response
+            result = {"status": "error", "message": error_msg}
 
     except FileNotFoundError as e:
-        # Should be caught by isfile check, but handle defensively
+        # This might be caught if the file disappears between os.path.isfile and actual use,
+        # or if an internal operation within the API handler raises it.
         logger.warning(
-            f"API Restore '{server_name}': Backup file disappeared during check?: {e}",
+            f"API Restore '{server_name}': File not found during operation: {e}",
             exc_info=True,
         )
         status_code = 404
@@ -386,7 +500,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
         result = {"status": "error", "message": f"Invalid input or configuration: {e}"}
     except (
         FileOperationError
-    ) as e:  # Catch base_dir/backup_dir config errors or other file ops
+    ) as e:  # Catches BACKUP_DIR issues or other file ops errors
         logger.error(
             f"API Restore '{server_name}': Configuration/File error: {e}", exc_info=True
         )

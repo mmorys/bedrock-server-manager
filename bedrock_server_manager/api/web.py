@@ -5,7 +5,7 @@ import logging
 import subprocess
 import platform
 import signal
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List, Union
 
 try:
     import psutil
@@ -37,7 +37,9 @@ def _get_web_pid_file_path() -> Optional[str]:
 
 
 def start_web_server(
-    host: Optional[str] = None, debug: bool = False, mode: str = "direct"
+    host: Optional[Union[str, List[str]]] = None,  # MODIFIED: Allow List[str]
+    debug: bool = False,
+    mode: str = "direct",
 ) -> Dict[str, Any]:
     """
     Starts the Flask/Waitress web server.
@@ -47,12 +49,12 @@ def start_web_server(
     - 'detached': Starts the server as a new background process and saves its PID to a file.
 
     Args:
-        host: Optional host address.
+        host: Optional host address or list of host addresses.
         debug: If True, run in Flask's debug mode.
         mode: "direct" (default) or "detached".
 
     Returns:
-        Dict indicating outcome (see previous refinements).
+        Dict indicating outcome.
 
     Raises:
         ValueError: If mode is invalid.
@@ -68,6 +70,7 @@ def start_web_server(
     if mode == "direct":
         logger.info("API: Running web server directly (blocking process)...")
         try:
+            # Assuming run_web_server is now correctly hinted and handles Optional[Union[str, List[str]]]
             run_web_server(host, debug)  # This blocks
             logger.info("API: Web server (direct mode) stopped.")
             return {"status": "success", "message": "Web server shut down."}
@@ -88,15 +91,12 @@ def start_web_server(
         logger.info("API: Starting web server in detached mode (background process)...")
         pid_file_path: Optional[str] = None
         try:
-            # --- Get PID File Path ---
             pid_file_path = _get_web_pid_file_path()
             if not pid_file_path:
-                # Error logged by helper
                 raise FileOperationError(
                     "Cannot start detached server: unable to determine PID file path."
                 )
 
-            # --- Check if PID File Exists and Process is Running ---
             if os.path.exists(pid_file_path):
                 try:
                     with open(pid_file_path, "r") as f:
@@ -104,7 +104,6 @@ def start_web_server(
                         if existing_pid_str:
                             existing_pid = int(existing_pid_str)
                             if PSUTIL_AVAILABLE and psutil.pid_exists(existing_pid):
-                                # Check if the existing process matches our command if possible? Complex.
                                 logger.warning(
                                     f"Detached web server might already be running (PID {existing_pid} found in '{pid_file_path}'). Aborting start."
                                 )
@@ -116,33 +115,48 @@ def start_web_server(
                                 logger.warning(
                                     f"Stale PID file found ('{pid_file_path}' with PID {existing_pid}). Overwriting."
                                 )
-                                # Proceed to overwrite stale file
                 except (ValueError, OSError) as read_err:
                     logger.warning(
                         f"Could not read or validate existing PID file '{pid_file_path}': {read_err}. Proceeding to overwrite."
                     )
-                except ImportError:  # psutil might not be installed
+                except ImportError:
                     logger.warning(
                         "psutil not available. Cannot verify if existing PID is running. Checking for PID file only."
                     )
-                    # If PID file exists but we can't check psutil, maybe don't start? Or let user handle? Let's proceed but warn heavily.
                     logger.warning(
                         f"PID file '{pid_file_path}' exists, but process status cannot be verified without psutil. If the server is already running, starting another may cause issues."
                     )
 
-            # --- Prepare and Start Process ---
-            if not EXPATH or not os.path.exists(EXPATH):
+            if not EXPATH or not os.path.exists(
+                EXPATH
+            ):  # Ensure EXPATH is a valid path to your script/executable
                 raise FileOperationError(
                     f"Main application executable/script not found at EXPATH: {EXPATH}"
                 )
 
             command = [str(EXPATH), "start-web-server", "--mode", "direct"]
             if host:
-                command.extend(["--host", host])
+                if isinstance(host, list):
+                    if host:  # Ensure the list is not empty
+                        command.append("--host")  # Add the --host flag
+                        # Extend with each host string from the list
+                        # argparse with nargs='+' on the other side will re-assemble this into a list
+                        command.extend(
+                            [str(h) for h in host if h]
+                        )  # Ensure all elements are strings
+                elif isinstance(host, str):
+                    command.extend(["--host", str(host)])  # Ensure host is a string
+                else:
+                    # Should not happen if type hints are respected, but defensive
+                    logger.warning(
+                        f"Unexpected type for host: {type(host)}. Ignoring host parameter for detached command."
+                    )
             if debug:
                 command.append("--debug")
 
-            logger.info(f"Executing detached command: {' '.join(command)}")
+            logger.info(
+                f"Executing detached command: {' '.join(command)}"
+            )  # This should now work
 
             creation_flags = 0
             start_new_session = False
@@ -158,9 +172,9 @@ def start_web_server(
                 stderr=subprocess.DEVNULL,
                 creationflags=creation_flags,
                 start_new_session=start_new_session,
+                close_fds=True,
             )
 
-            # --- Save PID to file ---
             pid = process.pid
             logger.info(
                 f"API: Successfully started detached web server process with PID: {pid}"
@@ -171,12 +185,10 @@ def start_web_server(
                     f.write(str(pid))
                 logger.info(f"Saved web server PID to '{pid_file_path}'.")
             except OSError as e:
-                # Log error but don't necessarily fail the *start* if PID file write fails
                 logger.error(
                     f"Failed to write PID {pid} to file '{pid_file_path}': {e}. Server started but stopping via API may fail.",
                     exc_info=True,
                 )
-                # Return success but include a warning in the message?
                 return {
                     "status": "success",
                     "pid": pid,
@@ -189,14 +201,14 @@ def start_web_server(
                 "message": f"Web server started in detached mode (PID: {pid}).",
             }
 
-        except FileNotFoundError:
+        except FileNotFoundError:  # This can happen if EXPATH is wrong
             error_msg = f"Executable or script not found at path: {EXPATH}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return {"status": "error", "message": error_msg}
-        except FileOperationError as e:  # Catch EXPATH or config dir errors
+        except FileOperationError as e:
             logger.error(f"API: Cannot start detached server: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
-        except OSError as e:
+        except OSError as e:  # subprocess.Popen can raise OSError
             logger.error(
                 f"API: OS error starting detached web server process: {e}",
                 exc_info=True,

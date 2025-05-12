@@ -14,7 +14,7 @@ import logging
 import ipaddress
 import datetime
 import secrets
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Union
 
 # Third-party imports
 from flask import (
@@ -218,28 +218,24 @@ def create_app() -> Flask:
     return app
 
 
-def run_web_server(host: Optional[str] = None, debug: bool = False) -> None:
+def run_web_server(
+    host: Optional[Union[str, List[str]]] = None, debug: bool = False
+) -> None:
     """
     Starts the Flask web server using Waitress (production) or Flask dev server (debug).
-
-    Checks for required authentication credentials before starting. Determines listening
-    addresses based on the `host` parameter (dual-stack IPv4/IPv6 if host is None).
-
     Args:
-        host: The host address to bind to.
+        host: The host address or list of addresses to bind to.
               - None (default): Bind to '127.0.0.1' (IPv4) and '::1' (IPv6).
-              - Specific IP (v4 or v6): Bind only to that IP.
-              - Hostname: Bind to the address(es) the hostname resolves to.
-        debug: If True, run using Flask's built-in development server (auto-reload, debugger).
+              - Specific IP (v4 or v6) or list of IPs: Bind only to those IPs.
+              - Hostname or list of hostnames: Bind to the address(es) they resolve to.
+        debug: If True, run using Flask's built-in development server.
                If False (default), run using Waitress production WSGI server.
-
     Raises:
         RuntimeError: If required authentication environment variables are not set.
         FileOperationError: If required settings (PORT) are missing.
     """
-    app = create_app()  # Create the configured Flask app
+    app = create_app()
 
-    # --- Critical Prerequisite Check: Authentication Credentials ---
     username_env = f"{env_name}_USERNAME"
     password_env = f"{env_name}_PASSWORD"
     if not app.config.get(username_env) or not app.config.get(password_env):
@@ -248,102 +244,114 @@ def run_web_server(host: Optional[str] = None, debug: bool = False) -> None:
             f"('{username_env}', '{password_env}') are not set."
         )
         logger.critical(error_msg)
-        # Raise RuntimeError
         raise RuntimeError(error_msg)
 
-    # --- Get Port ---
     port_setting_key = f"WEB_PORT"
-    port = settings.get(port_setting_key, 11325)
+    port_val = settings.get(port_setting_key, 11325)
     try:
-        port = int(port)
+        port = int(port_val)
         if not (0 < port < 65536):
             raise ValueError("Port out of range")
     except (ValueError, TypeError):
         logger.error(
-            f"Invalid port number configured in setting '{port_setting_key}': {port}. Using default 11325."
+            f"Invalid port number configured in setting '{port_setting_key}': {port_val}. Using default 11325."
         )
         port = 11325
     logger.info(f"Web server configured to run on port: {port}")
 
-    # --- Determine Listening Addresses ---
     listen_addresses = []
     host_info = ""
+    current_host_list: Optional[List[str]] = None
 
-    # Check if host list was provided and is not empty
-    if host and isinstance(host, list) and len(host) > 0:
-        host_info = f"specified address(es): {', '.join(host)}"
-        for h in host:
-            # Format each host correctly (add brackets for IPv6)
-            try:
-                ip = ipaddress.ip_address(h)
-                if isinstance(ip, ipaddress.IPv6Address):
-                    listen_addresses.append(f"[{h}]:{port}")
-                else:
-                    listen_addresses.append(f"{h}:{port}")
-            except ValueError:
-                # Assume hostname
-                listen_addresses.append(f"{h}:{port}")
-        logger.info(f"Binding to {host_info} -> {listen_addresses}")
-    else:
-        # Default: Listen on local host only IPv4 and IPv6 interfaces
+    if isinstance(host, str):
+        current_host_list = [host]
+    elif isinstance(host, list):
+        current_host_list = host
+    # If host is None, current_host_list remains None
+
+    if current_host_list and len(current_host_list) > 0:
+        # Ensure all elements are strings for join and processing
+        str_host_list = [str(h) for h in current_host_list if h]
+        if not str_host_list:  # If all hosts were None or empty strings
+            listen_addresses = [f"127.0.0.1:{port}", f"[::1]:{port}"]
+            host_info = "default local host only (invalid hosts provided)"
+            logger.warning(
+                f"No valid hosts provided in list: {current_host_list}. {host_info}"
+            )
+        else:
+            host_info = f"specified address(es): {', '.join(str_host_list)}"
+            for h_item in str_host_list:
+                try:
+                    ip = ipaddress.ip_address(h_item)
+                    if isinstance(ip, ipaddress.IPv6Address):
+                        listen_addresses.append(f"[{h_item}]:{port}")
+                    else:
+                        listen_addresses.append(f"{h_item}:{port}")
+                except ValueError:
+                    listen_addresses.append(f"{h_item}:{port}")  # Assume hostname
+            logger.info(f"Binding to {host_info} -> {listen_addresses}")
+    else:  # host was None or an empty list
         listen_addresses = [f"127.0.0.1:{port}", f"[::1]:{port}"]
         host_info = "local host only interfaces (IPv4 and IPv6 dual-stack)"
         logger.info(f"Binding to {host_info} -> {listen_addresses}")
 
-    # --- Start Server (Debug vs. Production) ---
     server_mode = (
         "DEBUG (Flask Development Server)" if debug else "PRODUCTION (Waitress)"
     )
     logger.info(f"Starting web server in {server_mode} mode...")
 
     if debug:
-        # Flask's development server
         logger.warning(
             "Running in DEBUG mode with Flask development server. NOT suitable for production."
         )
+        debug_host_to_run: Optional[str] = None  # Use a different variable name
 
-        debug_host = None
-        if host is None:
-            # If user didn't specify --host, default Flask debug to listen on standard IPv4 loopback
-            debug_host = "127.0.0.1"
+        if current_host_list and len(current_host_list) > 0:
+            first_host = (
+                str(current_host_list[0]).split(":")[0].strip("[]")
+            )  # Ensure it's a string
+            debug_host_to_run = first_host
+            if len(current_host_list) > 1:
+                logger.warning(
+                    f"Debug mode: Multiple hosts specified {current_host_list}, binding only to the first: {debug_host_to_run}"
+                )
+        else:  # host was None or empty list
+            debug_host_to_run = "127.0.0.1"
             logger.warning(
                 "Debug mode: No host specified, binding only to IPv4 loopback (127.0.0.1). Use --host '::' for all IPv6+IPv4 or --host '::1' for IPv6 loopback."
             )
-        elif isinstance(host, list):
-            # Extract host part, removing brackets if present
-            debug_host = host[0].split(":")[0].strip("[]")
-            logger.warning(
-                f"Debug mode: Multiple hosts specified, binding only to the first: {debug_host}"
-            )
-        else:  # A single host string was provided
-            # Extract host part, removing brackets if present
-            debug_host = host.split(":")[0].strip("[]")
 
         logger.info(
-            f"Attempting to start Flask development server on host='{debug_host}', port={port}..."
+            f"Attempting to start Flask development server on host='{debug_host_to_run}', port={port}..."
         )
         try:
-            # Pass the determined host to app.run
-            app.run(host=debug_host, port=port, debug=True)
+            app.run(host=debug_host_to_run, port=port, debug=True)
         except OSError as e:
             logger.critical(
-                f"Failed to start Flask development server on {debug_host}:{port}. Error: {e}",
+                f"Failed to start Flask development server on {debug_host_to_run}:{port}. Error: {e}",
                 exc_info=True,
             )
-            # Common errors: Address already in use, Permission denied (for low ports), Invalid address format
-            sys.exit(1)  # Exit if debug server fails to start
-        except Exception as e:  # Catch other unexpected errors
+            sys.exit(1)
+        except Exception as e:
             logger.critical(
                 f"Unexpected error starting Flask development server: {e}",
                 exc_info=True,
             )
             sys.exit(1)
-    else:
-        # Production server (Waitress)
+    else:  # Production (Waitress)
         if not WAITRESS_AVAILABLE:
-            raise ImportError("Waitress package not found.")
+            # This should ideally be caught by web_api.start_web_server if mode is direct
+            # but good to have a check here too.
+            logger.error("Waitress package not found. Cannot start production server.")
+            raise ImportError(
+                "Waitress package not found. Please install it to run in production mode."
+            )
 
-        listen_string = " ".join(listen_addresses)  # Join the list for Waitress
+        if not listen_addresses:  # Should not happen if logic above is correct
+            logger.error("No listen addresses determined for Waitress. Aborting.")
+            raise ValueError("Cannot start Waitress: No listen addresses configured.")
+
+        listen_string = " ".join(listen_addresses)
         logger.info(
             f"Starting Waitress production server. Listening on: {listen_string}"
         )

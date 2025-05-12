@@ -1072,6 +1072,149 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ---
 
+### `GET /api/server/<server_name>/permissions_data` - Get Server Player Permissions
+
+Retrieves the list of players and their permission levels as defined in the specified server's `permissions.json` file. Optionally, player XUIDs are enriched with names found in the global `players.json` file (if available).
+
+This endpoint is primarily used to fetch the current permission state for a server, suitable for display or management in a UI.
+
+This endpoint is exempt from CSRF protection (if token-based auth is used) and requires authentication.
+
+#### Authentication
+
+Required (e.g., JWT via `Authorization: Bearer <token>` header).
+
+#### Path Parameters
+
+*   **`server_name`** (*string*, **required**): The unique name of the server instance.
+
+#### Query Parameters
+
+*   **`base_dir`** (*string*, optional): Overrides the default base directory where the specified server's installation is located.
+*   **`config_dir`** (*string*, optional): Overrides the default main application configuration directory. This is used if you want to enable the lookup of player names from a global `players.json` located there.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of players with their permission levels on this server.
+
+*   **Example (with names enriched):**
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "permissions": [
+                {
+                    "xuid": "2530000000000001",
+                    "name": "AdminPlayer",
+                    "permission_level": "operator"
+                },
+                {
+                    "xuid": "2530000000000002",
+                    "name": "ModeratorBob",
+                    "permission_level": "member"
+                },
+                {
+                    "xuid": "2530000000000003",
+                    "name": "Unknown (XUID: 2530000000000003)", // Name not in global players.json
+                    "permission_level": "visitor"
+                }
+            ]
+        },
+        "message": "Successfully retrieved server permissions. Warnings: Could not load global player list: Player file not found." // Optional, if non-critical issues occurred during name lookup
+    }
+    ```
+*   **Example (server's `permissions.json` not found or empty):**
+    ```json
+    {
+        "status": "success",
+        "data": {
+            "permissions": []
+        },
+        "message": "Server permissions file not found." // Or null if file was empty
+    }
+    ```
+
+*   **`status`**: (*string*) "success".
+*   **`data`**: (*object*) Contains the permission data.
+    *   **`permissions`** (*list*): A list of player permission objects. Each object contains:
+        *   `xuid` (*string*): The player's XUID.
+        *   `name` (*string*): The player's name (from global `players.json` if found, otherwise a placeholder).
+        *   `permission_level` (*string*): The permission level assigned to the player on this server (e.g., "member", "operator", "visitor").
+*   **`message`** (*string*, optional): Provides context, such as if the server's `permissions.json` was not found, or if there were warnings during optional name enrichment.
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is invalid (e.g., empty).
+        ```json
+        {
+            "status": "error",
+            "message": "Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`**:
+    *   If the specified `server_name` does not correspond to an existing server directory.
+        ```json
+        {
+            "status": "error",
+            "message": "Server directory not found: /path/to/server/non_existent_server"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., essential base directories cannot be determined for the server).
+        ```json
+        {
+            "status": "error",
+            "message": "Base directory for servers (BASE_DIR) is not configured."
+        }
+        ```
+    *   If critical errors occur while reading or parsing the server's `permissions.json` file (e.g., file unreadable, invalid JSON format).
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to process server permissions file: [specific error from JSON parsing or file read]"
+        }
+        ```
+    *   If an unexpected error occurs within the API logic or route handler.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+Replace `<server_name>` with the actual server name.
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data"
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data" -Headers $headers
+```
+---
+
 ## Server Actions
 
 ### `POST /api/server/{server_name}/start` - Start Server
@@ -2070,6 +2213,90 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
+### `GET /api/server/<server_name>/backups/list/<backup_type>` - List Server Backup Filenames
+
+Lists available backup **filenames (basenames only)** for a specified server and a given backup type ("world" or "config"). Backups are typically stored in a configured central backup directory, organized by server name.
+
+The list of backup filenames is sorted by modification time (of the original files), with the newest backups appearing first.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   **`server_name`** (*string*, **required**): The unique name of the server instance for which to list backups.
+*   **`backup_type`** (*string*, **required**): The type of backups to list. Must be either `"world"` (for `.mcworld` archives) or `"config"` (for configuration file backups like `.json` or `.properties`).
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of **basenames** of the backup files found.
+
+*   **Backups Found:**
+    ```json
+    {
+        "status": "success",
+        "backups": [
+            "world_backup_20231027103000.mcworld",
+            "world_backup_20231026150000.mcworld"
+        ]
+    }
+    ```
+    *or for config backups:*
+    ```json
+    {
+        "status": "success",
+        "backups": [
+            "permissions_backup_20231027090000.json",
+            "server_backup_20231027080000.properties"
+        ]
+    }
+    ```
+*   **No Backups Found / Server Backup Directory Missing:**
+    If no backup files of the specified type exist for the server, or if the server's specific backup sub-directory doesn't exist, an empty list is returned.
+    ```json
+    {
+        "status": "success",
+        "backups": []
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`backups`**: (*list* of *string*): A list of **backup filenames (basenames)**. The list will be empty if no matching backups are found.
+
+#### Error Responses
+*(Error responses remain the same as before, as the error conditions haven't changed)*
+*   **`400 Bad Request`**: ...
+*   **`401 Unauthorized`**: ...
+*   **`500 Internal Server Error`**: ...
+
+#### `curl` Example (Bash)
+*(Curl examples remain the same, the response content changes)*
+*   List world backups for `myserver`:
+    ```bash
+    curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+         http://<your-manager-host>:<port>/api/server/myserver/backups/list/world
+    ```
+
+#### PowerShell Example
+*(PowerShell examples remain the same, the response content changes)*
+*   List world backups for `myserver`:
+    ```powershell
+    $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+    Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/myserver/backups/list/world" -Headers $headers
+    ```
+___
+
 ### `POST /api/server/{server_name}/backup/action` - Trigger Backup
 
 Triggers a backup operation (world, specific config file, or all) for the specified server. Backup files are created in a server-specific subdirectory within the globally configured `BACKUP_DIR`. Optionally stops/starts the server if it's running (default behavior, controlled by API layer).
@@ -2273,20 +2500,20 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 ```json
 {
     "restore_type": "world",
-    "backup_file": "/full/path/to/backups/MyServer/backup_file.mcworld"
+    "backup_file": "backup_file.mcworld"
 }
 ```
 *or*
 ```json
 {
     "restore_type": "config",
-    "backup_file": "/full/path/to/backups/MyServer/server_backup_....properties"
+    "backup_file": "server_backup_....properties"
 }
 ```
 
 *   **Fields:**
     *   `restore_type` (*string*, required): Type of restore. Must be `"world"` or `"config"`. Case-insensitive.
-    *   `backup_file` (*string*, required): The full, absolute path to the backup file to restore from. This path *must* reside within the configured `BACKUP_DIR` hierarchy.
+    *   `backup_file` (*string*, required): The relative path to the backup file to restore *inside* the configured `BACKUP_DIR`/{server_name}.
 
 #### Success Response (`200 OK`)
 
@@ -2405,7 +2632,7 @@ Returned when the restore operation completes successfully.
 
 ```bash
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d '{"restore_type": "world", "backup_file": "/full/path/to/backups/MyServer/world_backup_xyz.mcworld"}' \
+     -d '{"restore_type": "world", "backup_file": "world_backup_xyz.mcworld"}' \
      http://<your-manager-host>:<port>/api/server/<server_name>/restore/action
 ```
 
@@ -2413,7 +2640,7 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$body = @{ restore_type = 'config'; backup_file = 'C:\full\path\to\backups\MyServer\server_backup_abc.properties' } | ConvertTo-Json
+$body = @{ restore_type = 'config'; backup_file = 'server_backup_abc.properties' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/restore/action" -Headers $headers -Body $body
 ```
 
@@ -2508,6 +2735,227 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 ---
 
 ## World & Addon Management
+
+### `GET /api/content/worlds` - List Available World Files
+
+Lists available world **filenames (basenames only)** found in the application's configured content directory, specifically within the `worlds` subdirectory (e.g., `CONTENT_DIR/worlds`). This endpoint typically looks for files with the `.mcworld` extension.
+
+The list of filenames is sorted alphabetically.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of world filenames (basenames).
+
+*   **Files Found:**
+    ```json
+    {
+        "status": "success",
+        "files": [
+            "MyAwesomeWorld.mcworld",
+            "AnotherAdventure.mcworld",
+            "TestWorldBackup.mcworld"
+        ]
+    }
+    ```
+*   **No Files Found:**
+    If no `.mcworld` files are found in the `CONTENT_DIR/worlds` directory.
+    ```json
+    {
+        "status": "success",
+        "files": [],
+        "message": "No matching files found."
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`files`**: (*list* of *string*): A list of world filenames (basenames). The list will be empty if no matching files are found.
+*   **`message`** (*string*, optional): Included if no files were found.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/worlds` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+        ```json
+        {
+            "status": "error",
+            "message": "Content directory not found or is not a directory: /path/to/content/dir/worlds"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+        ```json
+        {
+            "status": "error",
+            "message": "CONTENT_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/worlds'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/content/worlds
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/content/worlds" -Headers $headers
+```
+---
+
+### `GET /api/content/addons` - List Available Addon Files
+
+Lists available addon **filenames (basenames only)** found in the application's configured content directory, specifically within the `addons` subdirectory (e.g., `CONTENT_DIR/addons`). This endpoint typically looks for files with extensions like `.mcpack` or `.mcaddon`.
+
+The list of filenames is sorted alphabetically.
+
+This endpoint is exempt from CSRF protection and requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of addon filenames (basenames).
+
+*   **Files Found:**
+    ```json
+    {
+        "status": "success",
+        "files": [
+            "AwesomeBehaviorPack.mcpack",
+            "CoolResourcePack.mcaddon"
+        ]
+    }
+    ```
+*   **No Files Found:**
+    If no files matching the addon extensions are found in the `CONTENT_DIR/addons` directory.
+    ```json
+    {
+        "status": "success",
+        "files": [],
+        "message": "No matching files found."
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success".
+*   **`files`**: (*list* of *string*): A list of addon filenames (basenames). The list will be empty if no matching files are found.
+*   **`message`** (*string*, optional): Included if no files were found.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/addons` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+        ```json
+        {
+            "status": "error",
+            "message": "Content directory not found or is not a directory: /path/to/content/dir/addons"
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+        ```json
+        {
+            "status": "error",
+            "message": "CONTENT_DIR setting is missing or empty in configuration."
+        }
+        ```
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/addons'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical server error occurred."
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/content/addons
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/content/addons" -Headers $headers
+```
+---
 
 ### `POST /api/server/{server_name}/world/export` - Export World
 
@@ -3082,6 +3530,320 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/playe
 ```
 
 ---
+
+### `POST /api/players/add` - Add Players to Global List
+
+Adds one or more players to the central `players.json` file, which stores a global list of known players (name and XUID). If a player with the same XUID already exists, their information (e.g., name) will be updated. New players are added.
+
+The `players.json` file is typically located in the main configuration directory of the Bedrock Server Manager.
+
+This endpoint requires authentication and expects a JSON payload.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body (JSON)
+
+*   **`players`** (*list* of *string*, **required**): A list of player strings. Each string must be in the format `"PlayerName:PlayerXUID"`.
+    *   Example: `["Steve:2535460987654321", "Alex:2535461234567890"]`
+
+*   **Example Payload:**
+    ```json
+    {
+        "players": [
+            "PlayerOne:2530000000000001",
+            "AnotherPlayer:2530000000000002",
+            "YetAnother:2530000000000003"
+        ]
+    }
+    ```
+
+#### Success Response (`200 OK`)
+
+Indicates that the players were successfully processed and saved/updated in `players.json`.
+
+*   **Example:**
+    ```json
+    {
+        "status": "success",
+        "message": "Players added successfully."
+    }
+    ```
+    *(Note: The message might reflect the number of players added/updated in a more advanced implementation, but the current API function returns a generic success message.)*
+
+*   **`status`**: (*string*) Always "success".
+*   **`message`**: (*string*) A confirmation message.
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `players` field is missing from the JSON body, is not a list, or the list is empty.
+        ```json
+        {
+            "status": "error",
+            "message": "'players' field is required and must be a list."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Player list cannot be empty."
+        }
+        ```
+    *   If any player string in the `players` list is not in the valid `"PlayerName:PlayerXUID"` format, or if name/XUID are empty.
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Invalid player data format in argument: 'PlayerOneXUIDWoops'. Expected 'name:xuid'."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Invalid player data in argument: 'PlayerOne:'. Name and XUID cannot be empty."
+        }
+        ```
+    *   If the request JSON body is empty or malformed.
+        ```json
+        {
+            "status": "error",
+            "message": "Request JSON body is empty or malformed."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+        *(Note: The exact message might vary based on your auth implementation.)*
+
+*   **`415 Unsupported Media Type`**:
+    *   If the request `Content-Type` is not `application/json`.
+        ```json
+        {
+            "status": "error",
+            "message": "Request body must be JSON."
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined for saving `players.json`).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration or file system error: Base configuration directory is not set or available."
+        }
+        ```
+        *or from the API layer if it catches a FileOperationError during save:*
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to add players: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"
+        }
+        ```
+    *   If an OS-level error occurs while trying to create directories or write the `players.json` file (e.g., permission denied, disk full).
+    *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while adding players."
+        }
+        ```
+        *or a more general unexpected error from the API layer:*
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred: [specific error details]"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "players": [
+             "NewPlayer1:1234567890123456",
+             "AnotherNew:9876543210987654"
+           ]
+         }' \
+     http://<your-manager-host>:<port>/api/players/add
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{
+    Authorization = 'Bearer YOUR_JWT_TOKEN'
+    "Content-Type" = "application/json"
+}
+$body = @{
+    players = @(
+        "NewPlayer1:1234567890123456",
+        "AnotherNew:9876543210987654"
+    )
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/players/add" -Headers $headers -Body $body
+```
+
+---
+
+### `GET /api/players/get` - Get All Known Players
+
+Retrieves a list of all known players recorded in the application's central `players.json` file. This file is typically located in the main configuration directory of the Bedrock Server Manager.
+
+This endpoint is used to get a global list of players that have been registered or detected by the manager across all servers, if such a central tracking mechanism is in place.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+None.
+
+#### Query Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returns a list of all known players.
+
+*   **Players Found:**
+    ```json
+    {
+        "status": "success",
+        "players": [
+            {
+                "name": "PlayerOne",
+                "xuid": "2535414141111111",
+                "notes": "Main admin"
+            },
+            {
+                "name": "AnotherPlayer",
+                "xuid": "2535414141222222"
+            }
+            // ... more players
+        ]
+    }
+    ```
+*   **No Players File or Empty File:**
+    If the `players.json` file does not exist or is empty, the endpoint still returns a `200 OK` with an empty `players` list and an informational `message`.
+    ```json
+    {
+        "status": "success",
+        "players": [],
+        "message": "Player file not found."
+    }
+    ```
+    *or if empty:*
+    ```json
+    {
+        "status": "success",
+        "players": []
+    }
+    ```
+
+*   **`status`**: (*string*) Always "success" for a 200 response.
+*   **`players`**: (*list*): A list of player objects. Each object's structure depends on what's stored in `players.json` (e.g., `name`, `xuid`, custom fields).
+*   **`message`** (*string*, optional): Included if the `players.json` file was not found, providing context.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "status": "error",
+            "message": "Unauthorized"
+        }
+        ```
+        *(Note: The exact message might vary based on your auth implementation.)*
+
+*   **`500 Internal Server Error`**:
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined).
+        ```json
+        {
+            "status": "error",
+            "message": "Configuration error: Base configuration directory is not set or available."
+        }
+        ```
+    *   If the `players.json` file has an invalid JSON format or a structure that cannot be parsed correctly (e.g., not an object with a "players" list).
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid format in 'players.json'. Expected JSON object with a 'players' list."
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid JSON in players.json: Expecting value: line 1 column 1 (char 0)"
+        }
+        ```
+    *   If an OS-level error occurs while trying to read the `players.json` file (e.g., permission denied).
+        ```json
+        {
+            "status": "error",
+            "message": "Could not read players file: [Errno 13] Permission denied: '/path/to/config/players.json'"
+        }
+        ```
+    *   If an unexpected critical error occurs within the Flask route handler or the API function.
+        ```json
+        {
+            "status": "error",
+            "message": "A critical unexpected server error occurred while fetching players."
+        }
+        ```
+        *or a more general unexpected error from the API layer:*
+        ```json
+        {
+            "status": "error",
+            "message": "An unexpected error occurred: [specific error details]"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/players/get
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/players/get" -Headers $headers
+```
+
+---
+
 
 ### `GET /api/server/{server_name}/allowlist` - Get Allowlist
 
@@ -3688,7 +4450,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `GET /api/servers/<server_name>/read_properties` - Get Server Properties
+### `GET /api/server/<server_name>/read_properties` - Get Server Properties
 
 Retrieves the parsed `server.properties` file content for a specified Bedrock server instance. This allows inspection of the server's configuration settings.
 
@@ -3795,14 +4557,14 @@ Returns a dictionary of all key-value pairs found in the server's `server.proper
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-        http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties
+        http://<your-manager-host>:<port>/api/server/<server_name>/read_properties
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/servers/<server_name>/read_properties" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/read_properties" -Headers $headers
 ```
 ---
 

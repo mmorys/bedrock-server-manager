@@ -8,14 +8,17 @@ functions and returning structured dictionary responses indicating success or fa
 """
 
 import os
+import json
 import logging
 import re
 from typing import Dict, List, Optional, Any
 
 # Local imports
 from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.api.server import write_server_config, send_command
+from bedrock_server_manager.api import player as player_api
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server as server_base
 from bedrock_server_manager.api.utils import validate_server_name_format
@@ -351,6 +354,186 @@ def configure_player_permission(
             "status": "error",
             "message": f"Unexpected error configuring permission: {e}",
         }
+
+
+def get_server_permissions_data(
+    server_name: str,
+    base_dir_override: Optional[str] = None,
+    config_dir_override: Optional[str] = None,  # For players.json lookup
+) -> Dict[str, Any]:
+    """
+    Retrieves player permission data for a specific server from its permissions.json.
+    Optionally enriches this data with player names from the global players.json.
+
+    Args:
+        server_name: The name of the server.
+
+    Returns:
+        A dictionary:
+        - {"status": "success", "data": {"permissions": List[Dict]}}
+          where each dict in "permissions" is e.g.,
+          {"xuid": "...", "name": "...", "permission_level": "..."}
+        - {"status": "error", "message": str} on failure.
+    """
+    if not server_name:
+        return {"status": "error", "message": "Server name cannot be empty."}
+
+    logger.info(f"API: Getting server permissions data for server '{server_name}'.")
+    server_permissions_list_for_ui: List[Dict[str, Any]] = []
+    error_messages = []
+    player_name_map: Dict[str, str] = {}  # {xuid: name} from global players.json
+
+    try:
+        effective_server_base_dir = get_base_dir(base_dir_override)
+        server_instance_dir = os.path.join(effective_server_base_dir, server_name)
+
+        if not os.path.isdir(server_instance_dir):
+            raise InvalidServerNameError(
+                f"Server directory not found: {server_instance_dir}"
+            )
+
+        # 1. Optionally load global player names for enrichment
+        try:
+            effective_app_config_dir = (
+                config_dir_override
+                if config_dir_override is not None
+                else getattr(settings, "_config_dir", None)
+            )
+            if effective_app_config_dir:  # Only attempt if config_dir is available
+                players_response = player_api.get_players_from_json(
+                    config_dir=effective_app_config_dir
+                )
+                if players_response.get("status") == "success":
+                    global_players = players_response.get("players", [])
+                    for p_data in global_players:
+                        if p_data.get("xuid") and p_data.get("name"):
+                            player_name_map[str(p_data["xuid"])] = str(p_data["name"])
+                    logger.debug(
+                        f"API Layer: Loaded {len(player_name_map)} names from global players.json."
+                    )
+                else:
+                    msg = f"Could not load global player list for name enrichment: {players_response.get('message')}"
+                    logger.warning(msg)
+                    error_messages.append(msg)  # Non-critical for core functionality
+            else:
+                logger.debug(
+                    "API Layer: App config directory not set, skipping global player name lookup."
+                )
+        except Exception as e_players:  # Catch errors during player name lookup
+            msg = f"Error loading global player names: {e_players}"
+            logger.warning(msg, exc_info=True)
+            error_messages.append(msg)
+
+        # 2. Read the server's permissions.json
+        permissions_file_path = os.path.join(server_instance_dir, "permissions.json")
+        logger.debug(
+            f"API Layer: Reading server permissions file: {permissions_file_path}"
+        )
+
+        if not os.path.isfile(permissions_file_path):
+            logger.info(
+                f"API Layer: Server permissions file not found at '{permissions_file_path}'. No permissions to list."
+            )
+            # This is not an error if the goal is just to see what's there; an empty list is valid.
+            # If the file MUST exist, this would be an error.
+            return {
+                "status": "success",
+                "data": {"permissions": []},
+                "message": (
+                    "Server permissions file not found." if error_messages else None
+                ),  # Add if other warnings
+            }
+
+        try:
+            with open(permissions_file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                if not content.strip():
+                    logger.info(
+                        f"API Layer: Server permissions file '{permissions_file_path}' is empty."
+                    )
+                    # Return success, empty list
+                    return {
+                        "status": "success",
+                        "data": {"permissions": []},
+                        "message": (
+                            "; ".join(error_messages) if error_messages else None
+                        ),
+                    }
+
+                permissions_from_file = json.loads(content)
+                if not isinstance(permissions_from_file, list):
+                    raise ValueError(
+                        "Permissions file does not contain a list as expected."
+                    )
+
+                for entry in permissions_from_file:
+                    if (
+                        isinstance(entry, dict)
+                        and "xuid" in entry
+                        and "permission" in entry
+                    ):
+                        xuid_str = str(entry["xuid"])
+                        name = player_name_map.get(
+                            xuid_str, f"Unknown (XUID: {xuid_str})"
+                        )
+                        server_permissions_list_for_ui.append(
+                            {
+                                "xuid": xuid_str,
+                                "name": name,
+                                "permission_level": str(entry["permission"]),
+                            }
+                        )
+                    else:
+                        logger.warning(
+                            f"API Layer: Skipping malformed entry in '{permissions_file_path}': {entry}"
+                        )
+                logger.debug(
+                    f"API Layer: Processed {len(server_permissions_list_for_ui)} entries from '{permissions_file_path}'."
+                )
+
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            # These are critical errors for reading this server's permissions
+            logger.error(
+                f"API Layer: Failed to read or parse server permissions file '{permissions_file_path}': {e}",
+                exc_info=True,
+            )
+            return {
+                "status": "error",
+                "message": f"Failed to process server permissions file: {e}",
+            }
+
+        # Sort final list for display
+        server_permissions_list_for_ui.sort(key=lambda p: p.get("name", "").lower())
+
+        response_data = {"permissions": server_permissions_list_for_ui}
+        final_message = (
+            "; ".join(error_messages)
+            if error_messages
+            else "Successfully retrieved server permissions."
+        )
+
+        return {
+            "status": "success",
+            "data": response_data,
+            "message": (
+                final_message
+                if error_messages or not server_permissions_list_for_ui
+                else None
+            ),
+        }
+
+    except (FileOperationError, InvalidServerNameError) as e:
+        logger.error(
+            f"API Layer: Error getting server permissions data for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(
+            f"API Layer: Unexpected error getting server permissions for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
 def read_server_properties(

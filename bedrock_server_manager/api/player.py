@@ -311,7 +311,6 @@ def get_players_from_json(config_dir: Optional[str] = None) -> Dict[str, Any]:
                 and isinstance(players_data["players"], list)
             ):
                 player_list = players_data["players"]
-                # Optional: Further validate each item in the list?
                 logger.debug(
                     f"Successfully loaded {len(player_list)} players from 'players.json'."
                 )

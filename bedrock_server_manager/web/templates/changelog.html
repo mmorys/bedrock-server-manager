@@ -183,6 +183,61 @@
         <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
     </p>
 
+    {# --- Version 3.2.3 --- #}
+    <h2>Version 3.2.3</h2>
+    <ol>
+        <li>
+            Added /api/server/{server_name}/backups/list/{type} route
+            <ul>
+                <li>List all backups of one type for a server</li>
+            </ul>
+        </li>
+        <li>
+            Added /api/content/worlds route
+            <ul>
+                <li>List all worlds in the content folder</li>
+            </ul>
+        </li>
+        <li>
+            Added /api/content/addons route
+            <ul>
+                <li>List all addons in the content folder</li>
+            </ul>
+        </li>
+        <li>
+            Added /api/players/get route
+            <ul>
+                <li>List all players in the global players.json file</li>
+            </ul>
+        </li>
+        <li>
+            Added /api/players/add route
+            <ul>
+                <li>Add players to the global players.json file</li>
+            </ul>
+        </li>
+        <li>
+            Added /api/server/{server_name}/permissions_data
+            <ul>
+                <li>List all players in the server permissions file</li>
+            </ul>
+        </li>
+        <li>
+            File path for backups in http restore api must now be relative to the servers backup folder
+        </li>
+        <li>
+            Folder path for download prune in http prune api must now be relative to the download folder
+        </li>
+        <li>
+            /api/servers/{server_name}/ routes are now /api/server/{server_name}
+            <ul>
+                <li>Only the read properties route should be affected</li>
+            </ul>
+        </li>
+        <li>Fixed passing host arument to web server</li>
+
+    </ol>
+
     {# --- Version 3.2.2 --- #}
     <h2>Version 3.2.2</h2>
     <ol>

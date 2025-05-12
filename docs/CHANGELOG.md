@@ -256,3 +256,22 @@ The switch to python allows cross platform support, standardized processes, and 
 
 ### 3.2.2
 1. Fixed wrong module for read server properties route
+
+### 3.2.3
+1. Added /api/server/{server_name}/backups/list/{type} route
+   - List all backups of one type for a server
+2. Added /api/content/worlds route
+   - List all worlds in the content folder
+3. Added /api/content/addons route
+   - List all addons in the content folder
+4. Added /api/players/get route
+   - List all players in the global players.json file
+5. Added /api/players/add route
+   - Add players to the global players.json file
+6. Added /api/server/{server_name}/permissions_data
+   - List all players in the server permissions file
+7. File path for backups in http restore api must now be relative to the servers backup folder
+8. Folder path for download prune in http prune api must now be relative to the download folder
+9. /api/servers/{server_name}/ routes are now /api/server/{server_name}
+   - Only the read properties route should be affected
+10. Fixed passing host arument to web server

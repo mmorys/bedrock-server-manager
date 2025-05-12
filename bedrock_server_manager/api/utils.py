@@ -466,6 +466,66 @@ def list_content_files(content_dir: str, extensions: List[str]) -> Dict[str, Any
         return {"status": "error", "message": f"Unexpected error listing files: {e}"}
 
 
+def list_world_content_files() -> Dict[str, Any]:
+    """
+    Lists available world files (e.g., .mcworld) from the configured CONTENT_DIR/worlds.
+    Orchestrates the call to list_content_files with specific parameters.
+
+    Returns:
+        A dictionary with "status" and "files" (list of full paths) or "message".
+    """
+    logger.info("API: Listing world content files.")
+    try:
+        base_content_dir = settings.get("CONTENT_DIR")
+        if not base_content_dir:
+            raise FileOperationError(
+                "CONTENT_DIR setting is missing or empty in configuration."
+            )
+
+        worlds_dir = os.path.join(base_content_dir, "worlds")
+        world_extensions = ["mcworld"]
+
+        # Call the core/utility function
+        return list_content_files(content_dir=worlds_dir, extensions=world_extensions)
+
+    except (FileOperationError, MissingArgumentError, TypeError) as e:
+        logger.error(f"API Error listing world content: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(f"API Unexpected error listing world content: {e}", exc_info=True)
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+
+def list_addon_content_files() -> Dict[str, Any]:
+    """
+    Lists available addon files (e.g., .mcpack, .mcaddon) from the configured CONTENT_DIR/addons.
+    Orchestrates the call to list_content_files with specific parameters.
+
+    Returns:
+        A dictionary with "status" and "files" (list of full paths) or "message".
+    """
+    logger.info("API: Listing addon content files.")
+    try:
+        base_content_dir = settings.get("CONTENT_DIR")
+        if not base_content_dir:
+            raise FileOperationError(
+                "CONTENT_DIR setting is missing or empty in configuration."
+            )
+
+        addons_dir = os.path.join(base_content_dir, "addons")
+        addon_extensions = ["mcpack", "mcaddon"]
+
+        # Call the core/utility function
+        return list_content_files(content_dir=addons_dir, extensions=addon_extensions)
+
+    except (FileOperationError, MissingArgumentError, TypeError) as e:
+        logger.error(f"API Error listing addon content: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(f"API Unexpected error listing addon content: {e}", exc_info=True)
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:
     """
     Attempts to attach the current terminal to the screen session of a running Bedrock server.
