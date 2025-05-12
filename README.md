@@ -1,7 +1,7 @@
+
 <div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="ICON" width="200" height="200">
-</div>
-
+</div> 
 
 - [Bedrock Server Manager](#bedrock-server-manager)
   - [Features](#features)
@@ -31,7 +31,12 @@
 * [HTTP API DOCS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
 * [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/EXTRAS.md)
 
-# Bedrock Server Manager
+# Bedrock Server Manager 
+
+<img alt="PyPI - Version" src="https://img.shields.io/pypi/v/bedrock-server-manager?link=https%3A%2F%2Fpypi.org%2Fproject%2Fbedrock-server-manager%2F">
+<img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/bedrock-server-manager">
+<img alt="License" src="https://img.shields.io/github/license/dmedina559/bedrock-server-manager">
+
 
 Bedrock Server Manager is a comprehensive python package designed for installing, managing, and maintaining Minecraft Bedrock Dedicated Servers with ease, and is Linux/Windows compatable.
 
