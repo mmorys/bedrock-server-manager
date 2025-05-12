@@ -2213,7 +2213,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `GET /api/server/<server_name>/list_backups/<backup_type>` - List Server Backup Filenames
+### `GET /api/server/<server_name>/backups/list/<backup_type>` - List Server Backup Filenames
 
 Lists available backup **filenames (basenames only)** for a specified server and a given backup type ("world" or "config"). Backups are typically stored in a configured central backup directory, organized by server name.
 
@@ -2285,7 +2285,7 @@ Returns a list of **basenames** of the backup files found.
 *   List world backups for `myserver`:
     ```bash
     curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-         http://<your-manager-host>:<port>/api/server/myserver/list_backups/world
+         http://<your-manager-host>:<port>/api/server/myserver/backups/list/world
     ```
 
 #### PowerShell Example
@@ -2293,7 +2293,7 @@ Returns a list of **basenames** of the backup files found.
 *   List world backups for `myserver`:
     ```powershell
     $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-    Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/myserver/list_backups/world" -Headers $headers
+    Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/myserver/backups/list/world" -Headers $headers
     ```
 ___
 
