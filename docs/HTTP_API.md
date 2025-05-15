@@ -4728,11 +4728,11 @@ None.
 
 ```json
 {
-    "directory": "/path/to/your/download/cache",
+    "directory": "preview",
     "keep": 5
 }
 ```
-*   **`directory`** (*string*, required): The absolute path to the specific directory containing the download files (e.g., `.zip` files) to be pruned.
+*   **`directory`** (*string*, required): The relative path to the specific directory containing the download files (e.g., `.zip` files) to be pruned.
 *   **`keep`** (*integer*, optional): The number of the most recent files (by modification date) to retain. If omitted, the value from the `DOWNLOAD_KEEP` setting in the Bedrock Server Manager configuration will be used (defaulting to 3 if the setting is missing or invalid).
 
 #### Success Response (`200 OK`)
@@ -4742,7 +4742,7 @@ Indicates that the pruning process completed successfully (even if no files were
 ```json
 {
     "status": "success",
-    "message": "Download cache pruned successfully for '/path/to/your/download/cache'."
+    "message": "Download cache pruned successfully for '/path/to/your/downloads'."
 }
 ```
 *(Note: The success message does not currently detail the number of files deleted or kept.)*
@@ -4837,7 +4837,7 @@ Indicates that the pruning process completed successfully (even if no files were
 
 ```bash
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d '{"directory": "/opt/bedrock-server-manager/.downloads/stable", "keep": 3}' \
+     -d '{"directory": "preview", "keep": 3}' \
      http://<your-manager-host>:<port>/api/downloads/prune
 ```
 
@@ -4845,7 +4845,7 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$body = @{ directory = 'C:\bedrock-server-manager\.downloads\stable'; keep = 3 } | ConvertTo-Json
+$body = @{ directory = 'stable'; keep = 3 } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/downloads/prune" -Headers $headers -Body $body
 ```
 
