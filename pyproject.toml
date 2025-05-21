@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "bedrock-server-manager"
 version = "3.2.3"
 authors = [
-  { name="ZVortex11325", email="zvortex11325-github@outlook.com" },
+  { name="DMedina559", email="dmedina559-github@outlook.com" },
 ]
 description = "A manager for Minecraft Bedrock Dedicated Servers"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
