@@ -1,4 +1,8 @@
-﻿- [Bedrock Server Manager - HTTP API Documentation](#bedrock-server-manager---http-api-documentation)
+﻿<div style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
+</div>
+
+- [Bedrock Server Manager - HTTP API Documentation](#bedrock-server-manager---http-api-documentation)
   - [Introduction](#introduction)
   - [Global Server Validation (Request Pre-Processing)](#global-server-validation-request-pre-processing)
   - [Authentication](#authentication)
