@@ -765,7 +765,7 @@ def main() -> None:
                 )  # Call interactive menu otherwise
             ),
             "restart-server": lambda args: cli_server.restart_server(
-                args.server, base_dir, args.send_message
+                args.server, base_dir
             ),
             "attach-console": lambda args: cli_utils.attach_console(args.server),
             "delete-server": lambda args: cli_server.delete_server(
