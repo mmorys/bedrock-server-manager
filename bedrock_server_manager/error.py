@@ -173,6 +173,42 @@ class FileNotFoundError(BedrockManagerError):
     pass
 
 
+class WebServerCoreError(Exception):
+    """Base exception for core web server management errors."""
+
+    pass
+
+
+class PIDFileError(WebServerCoreError):
+    """Errors related to PID file operations (read, write, content)."""
+
+    pass
+
+
+class ProcessManagementError(WebServerCoreError):
+    """Errors related to OS-level process operations (start, stop, query)."""
+
+    pass
+
+
+class ProcessVerificationError(WebServerCoreError):
+    """Error when a process PID does not match the expected server signature."""
+
+    pass
+
+
+class ExecutableNotFoundError(WebServerCoreError):
+    """Error when the specified executable (EXPATH) for the server cannot be found."""
+
+    pass
+
+
+class ConfigurationError(WebServerCoreError):
+    """Error related to missing or invalid configuration needed by core functions."""
+
+    pass
+
+
 # Linux-specific
 class SystemdReloadError(BedrockManagerError):
     pass
