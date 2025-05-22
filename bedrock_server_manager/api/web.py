@@ -229,9 +229,35 @@ def start_web_server(
 def stop_web_server() -> Dict[str, str]:
     """
     Attempts to stop the detached web server process using its stored PID file.
-    # ... (rest of docstring) ...
+
+    This function locates the web server's Process ID (PID) from a PID file.
+    It then verifies that the running process with this PID is the correct
+    web server by inspecting its command line arguments. This verification
+    checks if the process was launched by the expected Python executable and
+    if it includes a specific server startup argument (e.g., 'start-web-server').
+
+    If the process is confirmed as the target server, a graceful termination
+    (SIGTERM or equivalent) is attempted. If the process does not terminate
+    within a timeout period, it is forcefully killed (SIGKILL or equivalent).
+    The PID file is automatically removed upon successful termination or if it
+    is found to be stale (e.g., PID not running, empty, or points to an
+    unrelated process).
+
+    Returns:
+        Dict[str, str]: Dictionary indicating the outcome of the stop attempt.
+                        It contains a "status" key ('success' or 'error')
+                        and a "message" key with a descriptive string.
+
+    Raises:
+        None: This function is designed to catch internal exceptions and report
+              outcomes through the returned dictionary. Prerequisites, such as
+              the 'psutil' package availability or PID file path configuration,
+              are checked internally, and failures are reported in the
+              returned dictionary's status and message.
     """
+
     function_name = "stop_web_server"
+    EXPECTED_SERVER_ARGUMENT = "start-web-server"
     logger.info(f"API: Request received to stop the detached web server process.")
 
     if not PSUTIL_AVAILABLE:
@@ -260,6 +286,20 @@ def stop_web_server() -> Dict[str, str]:
                     logger.warning(
                         f"{function_name}: PID file '{pid_file_path}' is empty."
                     )
+                    # Treat empty PID file as if server is not running, but clean up the file.
+                    try:
+                        os.remove(pid_file_path)
+                        logger.info(
+                            f"{function_name}: Removed empty PID file '{pid_file_path}'."
+                        )
+                    except OSError as e:
+                        logger.warning(
+                            f"{function_name}: Could not remove empty PID file '{pid_file_path}': {e}"
+                        )
+                    return {
+                        "status": "success",  # Or "error" depending on desired strictness
+                        "message": "Web server not running (PID file was empty, now removed).",
+                    }
         else:
             logger.info(
                 f"{function_name}: PID file '{pid_file_path}' not found. Assuming server is not running."
@@ -275,9 +315,10 @@ def stop_web_server() -> Dict[str, str]:
             exc_info=True,
         )
         try:
-            os.remove(pid_file_path)
+            os.remove(pid_file_path)  # Corrupt file, remove it
+            logger.info(f"{function_name}: Removed corrupt PID file '{pid_file_path}'.")
         except OSError:
-            pass
+            pass  # Best effort
         return {"status": "error", "message": "Invalid PID file content. File removed."}
     except OSError as e:
         logger.error(
@@ -285,14 +326,20 @@ def stop_web_server() -> Dict[str, str]:
             exc_info=True,
         )
         return {"status": "error", "message": f"Error reading PID file: {e}"}
-    except Exception as e:
+    except Exception as e:  # Catch-all for unexpected issues during PID read
         logger.error(
             f"{function_name}: Unexpected error reading PID file: {e}", exc_info=True
         )
         return {"status": "error", "message": f"Unexpected error reading PID file: {e}"}
 
-    if pid is None:
-        return {"status": "error", "message": "Could not retrieve PID from file."}
+    if pid is None:  # Should have been handled by empty file case, but as a safeguard
+        logger.error(
+            f"{function_name}: Could not retrieve PID from file '{pid_file_path}' (file was likely empty or became empty)."
+        )
+        return {
+            "status": "error",
+            "message": "Could not retrieve PID from file (file was empty).",
+        }
 
     # --- Stop Process using PID ---
     try:
@@ -302,18 +349,132 @@ def stop_web_server() -> Dict[str, str]:
                 f"{function_name}: Process with PID {pid} from file does not exist (stale PID file?). Cleaning up."
             )
             try:
-                os.remove(pid_file_path)
+                if os.path.exists(pid_file_path):  # Check existence before removing
+                    os.remove(pid_file_path)
+                    logger.info(
+                        f"{function_name}: Removed stale PID file '{pid_file_path}'."
+                    )
             except OSError:
-                pass
+                pass  # Best effort
             return {
                 "status": "success",
                 "message": f"Web server process (PID {pid}) not found. Removed stale PID file.",
             }
 
         process = psutil.Process(pid)
+
+        # --- !!! NEW VERIFICATION STEP !!! ---
+        cmdline: Optional[List[str]] = None
+        proc_name: Optional[str] = None
+        try:
+            cmdline = process.cmdline()
+            proc_name = process.name()
+        except psutil.AccessDenied:
+            logger.error(
+                f"{function_name}: Access denied when trying to get command line for PID {pid} (Name: {process.name() if not proc_name else proc_name}). Cannot verify process identity."
+            )
+            return {
+                "status": "error",
+                "message": f"Access denied for PID {pid}, cannot verify it's the web server.",
+            }
+        except psutil.ZombieProcess:
+            logger.warning(
+                f"{function_name}: Process PID {pid} is a zombie. Assuming stopped or stopping."
+            )
+            try:  # Clean up PID file for zombie process
+                if os.path.exists(pid_file_path):
+                    os.remove(pid_file_path)
+            except OSError:
+                pass
+            return {
+                "status": "success",
+                "message": f"Web server process (PID {pid}) is a zombie. PID file removed.",
+            }
+        # Catch other psutil errors if cmdline() or name() fail for other reasons
+        except psutil.Error as e_psutil:
+            logger.error(
+                f"{function_name}: Error getting process info for PID {pid}: {e_psutil}. Cannot verify identity."
+            )
+            return {
+                "status": "error",
+                "message": f"Error getting info for PID {pid}: {e_psutil}. Cannot verify.",
+            }
+
+        if (
+            not cmdline
+        ):  # cmdline() can return empty list for some system processes or if permissions are weird
+            logger.warning(
+                f"{function_name}: Process PID {pid} (Name: {proc_name}) has an empty command line. Cannot verify. Assuming stale PID."
+            )
+            try:  # Clean up stale PID file
+                if os.path.exists(pid_file_path):
+                    os.remove(pid_file_path)
+            except OSError:
+                pass
+            return {
+                "status": "error",
+                "message": f"Process PID {pid} (Name: {proc_name}) has empty command line. Removed potentially stale PID file.",
+            }
+
+        # EXPATH is the current executable.
+        expected_executable_path = EXPATH
+
+        # Check 1: Does the executable match?
+        # We use os.path.samefile for a robust check (handles symlinks, different path representations)
+        # Fallback to basename comparison if samefile fails (e.g., one path is relative, or permissions)
+        executable_matches = False
+        try:
+            # Resolve both paths to their canonical form before comparing
+            # This handles symlinks and relative paths better.
+            actual_proc_exe_resolved = os.path.realpath(cmdline[0])
+            expected_exe_resolved = os.path.realpath(expected_executable_path)
+            if actual_proc_exe_resolved == expected_exe_resolved:
+                executable_matches = True
+        except (
+            OSError,
+            FileNotFoundError,
+            IndexError,
+        ):  # IndexError if cmdline is empty (already checked)
+            # Fallback to basename comparison if realpath or samefile fails
+            if os.path.basename(cmdline[0]) == os.path.basename(
+                expected_executable_path
+            ):
+                executable_matches = True
+
+        # Check 2: Does the command line contain the expected server argument?
+        argument_present = (
+            EXPECTED_SERVER_ARGUMENT in cmdline[1:]
+        )  # Check in arguments, not the executable path itself
+
+        if not (executable_matches and argument_present):
+            mismatched_msg = (
+                f"{function_name}: PID {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) "
+                f"does not appear to be the correct web server process. "
+                f"Expected executable like '{expected_executable_path}' and argument '{EXPECTED_SERVER_ARGUMENT}'. "
+                "Not stopping this process to prevent killing an unrelated one."
+            )
+            logger.error(mismatched_msg)
+            # The PID file is pointing to a wrong process or is stale. Remove it.
+            try:
+                if os.path.exists(pid_file_path):
+                    os.remove(pid_file_path)
+                    logger.info(
+                        f"{function_name}: Removed stale PID file '{pid_file_path}' as it pointed to an unrelated process."
+                    )
+            except OSError as rm_err:
+                logger.warning(
+                    f"{function_name}: Could not remove stale PID file '{pid_file_path}': {rm_err}"
+                )
+            return {
+                "status": "error",
+                "message": f"PID {pid} is not the expected web server (Cmd: {' '.join(cmdline)[:100]}...). PID file removed as stale.",
+            }
+
         logger.info(
-            f"{function_name}: Found process {pid}. Name: {process.name()}, Cmdline: {' '.join(process.cmdline())}"
+            f"{function_name}: Process {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) "
+            f"confirmed as target web server."
         )
+        # --- END VERIFICATION STEP ---
 
         logger.info(
             f"{function_name}: Attempting graceful termination (terminate/SIGTERM) for PID {pid}..."
@@ -321,21 +482,24 @@ def stop_web_server() -> Dict[str, str]:
         process.terminate()
 
         try:
-            process.wait(timeout=5)
+            process.wait(timeout=5)  # Increased timeout slightly
             logger.info(f"{function_name}: Process {pid} terminated gracefully.")
         except psutil.TimeoutExpired:
             logger.warning(
-                f"Process {pid} did not terminate gracefully. Attempting kill (SIGKILL)..."
+                f"{function_name}: Process {pid} did not terminate gracefully within 5s. Attempting kill (SIGKILL)..."
             )
             process.kill()
-            process.wait(timeout=2)
-            logger.info(f"Process {pid} forcefully killed.")
+            process.wait(timeout=2)  # Wait for kill confirmation
+            logger.info(f"{function_name}: Process {pid} forcefully killed.")
+        # psutil.NoSuchProcess can also be raised by wait() if already gone
 
         # Clean up PID file on successful termination (graceful or kill)
         try:
             if os.path.exists(pid_file_path):  # Check again before removing
                 os.remove(pid_file_path)
-                logger.debug(f"Removed PID file '{pid_file_path}'.")
+                logger.debug(
+                    f"{function_name}: Removed PID file '{pid_file_path}' after successful stop."
+                )
         except OSError as rm_err:
             logger.warning(
                 f"Could not remove PID file '{pid_file_path}' after stop: {rm_err}"
@@ -348,27 +512,30 @@ def stop_web_server() -> Dict[str, str]:
 
     except psutil.NoSuchProcess:
         logger.warning(
-            f"Process with PID {pid} disappeared during stop attempt. Assuming stopped."
+            f"{function_name}: Process with PID {pid} disappeared during stop attempt or was already gone. Assuming stopped."
         )
         try:
             if os.path.exists(pid_file_path):
                 os.remove(pid_file_path)
+                logger.info(
+                    f"{function_name}: Removed PID file for already stopped process PID {pid}."
+                )
         except OSError:
-            pass
+            pass  # Best effort
         return {
             "status": "success",
-            "message": f"Web server process (PID: {pid}) already stopped.",
+            "message": f"Web server process (PID: {pid}) already stopped or disappeared. PID file removed.",
         }
-    except psutil.AccessDenied:
+    except psutil.AccessDenied:  # Could happen during terminate/kill too
         error_msg = f"Permission denied trying to terminate process with PID {pid}."
-        logger.error(f"{error_msg}")
+        logger.error(f"{function_name}: {error_msg}")
         return {"status": "error", "message": error_msg}
-    except Exception as e:
+    except Exception as e:  # Catch-all for unexpected issues during process stop
         logger.error(
-            f"Unexpected error stopping process PID {pid}: {e}",
+            f"{function_name}: Unexpected error stopping process PID {pid}: {e}",
             exc_info=True,
         )
         return {
             "status": "error",
-            "message": f"Unexpected error stopping web server: {e}",
+            "message": f"Unexpected error stopping web server (PID: {pid}): {e}",
         }
