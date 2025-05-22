@@ -34,11 +34,11 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
+from ..core.system import task_scheduler as core_task
 from bedrock_server_manager.config.settings import (
     settings,
 )
 from bedrock_server_manager.config.settings import EXPATH, app_name
-from bedrock_server_manager.core.system.linux import _parse_cron_line
 
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -495,7 +495,7 @@ def modify_cron_job(server_name: str) -> None:
         # --- End User Interaction ---
 
         # Extract command part (it cannot be modified here, only schedule)
-        parsed_old_job = _parse_cron_line(
+        parsed_old_job = core_task._parse_cron_line(
             job_to_modify
         )  # Use local helper for consistency
         if not parsed_old_job:

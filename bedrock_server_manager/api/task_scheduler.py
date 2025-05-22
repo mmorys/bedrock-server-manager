@@ -16,8 +16,10 @@ import platform
 from typing import Dict, List, Optional, Any
 
 # Local imports
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.error import (
+from ..config.settings import settings
+from ..utils.general import get_timestamp
+from ..core.system import task_scheduler as core_task
+from ..error import (
     InvalidCronJobError,
     MissingArgumentError,
     InvalidInputError,
@@ -26,11 +28,6 @@ from bedrock_server_manager.error import (
     ScheduleError,
     TaskError,
     InvalidServerNameError,
-)
-from bedrock_server_manager.utils.general import get_timestamp
-from bedrock_server_manager.core.system import (
-    linux as system_linux,
-    windows as system_windows,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -66,7 +63,7 @@ def get_server_cron_jobs(server_name: str) -> Dict[str, Any]:
     logger.debug(f"Retrieving cron jobs for server '{server_name}'...")
     try:
         # Call core function
-        cron_jobs_list = system_linux.get_server_cron_jobs(server_name)
+        cron_jobs_list = core_task.get_server_cron_jobs(server_name)
         logger.debug(
             f"Found {len(cron_jobs_list)} cron job(s) for server '{server_name}'."
         )
@@ -109,7 +106,7 @@ def get_cron_jobs_table(cron_jobs: List[str]) -> Dict[str, Any]:
     logger.debug(f"Formatting {len(cron_jobs)} cron job string(s) for table display...")
     try:
         # Call core function
-        table_data = system_linux.get_cron_jobs_table(cron_jobs)
+        table_data = core_task.get_cron_jobs_table(cron_jobs)
         logger.debug(f"Successfully formatted {len(table_data)} cron jobs.")
         return {"status": "success", "table_data": table_data}
     except (
@@ -147,7 +144,7 @@ def add_cron_job(cron_job_string: str) -> Dict[str, str]:
     logger.info(f"Attempting to add cron job: '{cron_job_string}'")
     try:
         # Call core function
-        system_linux._add_cron_job(cron_job_string.strip())
+        core_task._add_cron_job(cron_job_string.strip())
         logger.info(f"Successfully added cron job: '{cron_job_string}'")
         return {"status": "success", "message": "Cron job added successfully."}
     except (CommandNotFoundError, ScheduleError) as e:
@@ -205,7 +202,7 @@ def modify_cron_job(
 
     try:
         # Call core function
-        system_linux._modify_cron_job(old_cron_strip, new_cron_strip)
+        core_task._modify_cron_job(old_cron_strip, new_cron_strip)
         logger.info("Successfully modified cron job.")
         return {"status": "success", "message": "Cron job modified successfully."}
     except (CommandNotFoundError, ScheduleError) as e:
@@ -248,7 +245,7 @@ def delete_cron_job(cron_job_string: str) -> Dict[str, str]:
 
     try:
         # Call core function (handles job not found gracefully)
-        system_linux._delete_cron_job(cron_strip)
+        core_task._delete_cron_job(cron_strip)
         logger.info(
             f"Deletion attempt completed for cron job: '{cron_strip}' (job may not have existed)."
         )
@@ -287,7 +284,7 @@ def validate_cron_input(value: str, min_val: int, max_val: int) -> Dict[str, str
     )
     try:
         # Call core validation function (raises InvalidCronJobError)
-        system_linux.validate_cron_input(value, min_val, max_val)
+        core_task.validate_cron_input(value, min_val, max_val)
         logger.debug(f"Cron input '{value}' is valid for range [{min_val}-{max_val}].")
         return {"status": "success"}
     except InvalidCronJobError as e:
@@ -322,7 +319,7 @@ def convert_to_readable_schedule(
         f"Converting cron fields to readable schedule: M={minute} H={hour} DoM={day_of_month} M={month} DoW={day_of_week}"
     )
     try:
-        readable_schedule = system_linux.convert_to_readable_schedule(
+        readable_schedule = core_task.convert_to_readable_schedule(
             minute, hour, day_of_month, month, day_of_week
         )
         logger.debug(f"Converted schedule: '{readable_schedule}'")
@@ -382,7 +379,7 @@ def get_server_task_names(
             )
 
         # Call core function
-        task_name_list = system_windows.get_server_task_names(
+        task_name_list = core_task.get_server_task_names(
             server_name, effective_config_dir
         )
         logger.info(
@@ -432,7 +429,7 @@ def get_windows_task_info(task_names: List[str]) -> Dict[str, Any]:
     logger.debug(f"Getting detailed info for Windows tasks: {task_names}")
     try:
         # Call core function
-        task_info_list = system_windows.get_windows_task_info(task_names)
+        task_info_list = core_task.get_windows_task_info(task_names)
         logger.info(f"Retrieved info for {len(task_info_list)} Windows task(s).")
         return {"status": "success", "task_info": task_info_list}
     except (CommandNotFoundError, TaskError) as e:  # Catch expected errors
@@ -504,7 +501,7 @@ def create_windows_task(
             )
 
         # Call core functions to create XML and import it
-        xml_file_path = system_windows.create_windows_task_xml(
+        xml_file_path = core_task.create_windows_task_xml(
             server_name,
             command,
             command_args,
@@ -512,7 +509,7 @@ def create_windows_task(
             effective_config_dir,
             triggers,
         )
-        system_windows.import_task_xml(xml_file_path, task_name)
+        core_task.import_task_xml(xml_file_path, task_name)
 
         logger.info(
             f"Successfully created and imported Windows task '{task_name}'. XML saved at: {xml_file_path}"
@@ -565,7 +562,7 @@ def get_windows_task_details(task_file_path: str) -> Dict[str, Any]:
 
     try:
         # Call the new XML parsing function from core
-        result = system_windows._parse_task_xml_file(task_file_path)
+        result = core_task._parse_task_xml_file(task_file_path)
 
         if result.get("status") == "success":
             logger.debug(
@@ -670,7 +667,7 @@ def modify_windows_task(
 
         # 1. Delete the old task first (core function handles "not found" gracefully)
         logger.debug(f"Step 1: Deleting old task '{old_task_name}' (if it exists)...")
-        system_windows.delete_task(
+        core_task.delete_task(
             old_task_name
         )  # Raises TaskError on actual deletion failure
 
@@ -814,7 +811,7 @@ def delete_windows_task(task_name: str, task_file_path: str) -> Dict[str, str]:
     delete_errors = []
     # 1. Delete the scheduled task
     try:
-        system_windows.delete_task(
+        core_task.delete_task(
             task_name
         )  # Core function handles "not found" gracefully
         logger.info(
@@ -880,7 +877,7 @@ def get_day_element_name(day_input: Any) -> Dict[str, str]:
     """
     logger.debug(f"API call: Getting day element name for input '{day_input}'")
     try:
-        day_name = system_windows._get_day_element_name(
+        day_name = core_task._get_day_element_name(
             day_input
         )  # Raises InvalidInputError
         logger.debug(f"Mapped day input '{day_input}' to XML element name '{day_name}'")
@@ -909,7 +906,7 @@ def get_month_element_name(month_input: Any) -> Dict[str, str]:
 
     logger.debug(f"API call: Getting month element name for input '{month_input}'")
     try:
-        month_name = system_windows._get_month_element_name(
+        month_name = core_task._get_month_element_name(
             month_input
         )  # Raises InvalidInputError
         logger.debug(
