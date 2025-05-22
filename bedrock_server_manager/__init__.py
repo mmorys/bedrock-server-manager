@@ -14,12 +14,12 @@ import logging
 # --- Initialize Settings and Logger ---
 try:
 
-    from bedrock_server_manager.config.settings import (
+    from .config.settings import (
         settings,
         app_name,
         __version__,
     )
-    from bedrock_server_manager.logging import setup_logging, log_separator
+    from .logging import setup_logging, log_separator
 
     # Configure logging based on settings
     try:
@@ -64,27 +64,27 @@ except Exception as e:
 
 # --- Import other modules ---
 try:
-    from bedrock_server_manager.api import (
+    from .api import (
         utils as api_utils,
         server_install_config as api_server_install_config,
     )
-    from bedrock_server_manager.error import FileOperationError
-    from bedrock_server_manager.core.download import downloader
-    from bedrock_server_manager.utils.general import (
+    from .error import FileOperationError
+    from .core import downloader
+    from .utils.general import (
         startup_checks,
         _INFO_PREFIX,
         _OK_PREFIX,
         _WARN_PREFIX,
         _ERROR_PREFIX,
     )
-    from bedrock_server_manager.core.server import (
+    from .core.server import (
         server as server_base,
     )
-    from bedrock_server_manager.core.system import base as system_base
-    from bedrock_server_manager.core.system import (
+    from .core.system import base as system_base
+    from .core.system import (
         linux as system_linux,
     )
-    from bedrock_server_manager.cli import (
+    from .cli import (
         main_menus,
         utils as cli_utils,
         server_install_config as cli_server_install_config,
@@ -119,7 +119,7 @@ def run_cleanup(args: argparse.Namespace) -> None:
     logger.info("CLI: Running cleanup operations...")
     # Import cleanup module only when needed
     try:
-        from bedrock_server_manager.utils import cleanup
+        from .utils import cleanup
     except ImportError as e:
         logger.error(f"Cleanup module not found: {e}", exc_info=True)
         print(f"{_ERROR_PREFIX}Cleanup module failed to import.")
@@ -808,7 +808,7 @@ def main() -> None:
             ),
             "prune-old-downloads": lambda args: downloader.prune_old_downloads(
                 args.download_dir, args.keep
-            ),  # Call core directly
+            ),
             "manage-script-config": lambda args: (
                 print(settings.get(args.key))
                 if args.operation == "read"

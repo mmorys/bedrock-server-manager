@@ -14,7 +14,7 @@ import re
 from typing import Dict, List, Optional, Any
 
 # Local imports
-from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.core import downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.api.server import write_server_config, send_command

@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Optional
 
 # Local imports
-from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.core import downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import (
     FileOperationError,

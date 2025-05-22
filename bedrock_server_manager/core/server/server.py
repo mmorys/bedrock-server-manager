@@ -41,7 +41,7 @@ from bedrock_server_manager.core.system import (
     linux as system_linux,
     windows as system_windows,
 )
-from bedrock_server_manager.core.download import downloader
+from bedrock_server_manager.core import downloader
 from bedrock_server_manager.core.server import backup
 
 if platform.system() == "Windows":
@@ -53,7 +53,6 @@ if platform.system() == "Windows":
         WINDOWS_IMPORTS_AVAILABLE = True
     except ImportError:
         WINDOWS_IMPORTS_AVAILABLE = False
-        # Log warning handled within the relevant function if needed
 else:
     WINDOWS_IMPORTS_AVAILABLE = False
 
@@ -108,6 +107,13 @@ class BedrockServer:
                 "BASE_DIR setting is missing or empty in configuration."
             )
         self.server_dir = os.path.join(base_dir, self.server_name)
+
+        config_dir = settings._config_dir
+        if not config_dir:
+            raise FileOperationError(
+                "CONFIG_DIR setting is missing or empty in configuration."
+            )
+        self.server_config_dir = os.path.join(config_dir, self.server_name)
 
         if server_path:
             self.server_path = server_path
@@ -286,7 +292,7 @@ class BedrockServer:
                 )
             pass
 
-            pipe_name = rf"\\.\pipe\BedrockServer{self.server_name}"
+            pipe_name = rf"\\.\pipe\BedrockServerPipe_{self.server_name}"
             handle = win32file.INVALID_HANDLE_VALUE
 
             try:
@@ -464,7 +470,7 @@ class BedrockServer:
             try:
                 # This function should return the Popen object or raise ServerStartError
                 self.process = system_windows._windows_start_server(
-                    self.server_name, self.server_dir
+                    self.server_name, self.server_dir, self.server_config_dir
                 )
                 start_successful_method = "windows_process"
                 logger.info(
@@ -611,7 +617,9 @@ class BedrockServer:
                     )
 
         elif os_name == "Windows":
-            system_windows._windows_stop_server(self.server_name, self.server_dir)
+            system_windows._windows_stop_server(
+                self.server_name, self.server_dir, self.server_config_dir
+            )
         else:
             logger.error(
                 f"Stopping server is not supported on this operating system: {os_name}"
