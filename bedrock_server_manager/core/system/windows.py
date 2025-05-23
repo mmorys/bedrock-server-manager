@@ -52,9 +52,7 @@ logger = logging.getLogger("bedrock_server_manager")
 # --- Constants ---
 XML_NAMESPACE = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 BEDROCK_EXECUTABLE_NAME = "bedrock_server.exe"
-PIPE_NAME_TEMPLATE = (
-    r"\\.\pipe\BedrockServerPipe_{server_name}"
-)
+PIPE_NAME_TEMPLATE = r"\\.\pipe\BedrockServerPipe_{server_name}"
 
 # Global dictionary to keep track of running server processes and their control objects
 managed_bedrock_servers: Dict[str, Dict[str, Any]] = {}
@@ -114,26 +112,38 @@ def _handle_individual_pipe_client(
                 )
                 break
 
-            if hr == 0: # ReadFile success
-                command_str = data_read.decode('utf-8').strip() # Decode received bytes to string
-                if not command_str: 
-                    logger.info(f"PIPE_CLIENT_HANDLER: Received empty data from {client_info}. Assuming client disconnected gracefully.")
+            if hr == 0:  # ReadFile success
+                command_str = data_read.decode(
+                    "utf-8"
+                ).strip()  # Decode received bytes to string
+                if not command_str:
+                    logger.info(
+                        f"PIPE_CLIENT_HANDLER: Received empty data from {client_info}. Assuming client disconnected gracefully."
+                    )
                     break
 
-                logger.info(f"PIPE_CLIENT_HANDLER: Received command string from {client_info}: '{command_str}'")
+                logger.info(
+                    f"PIPE_CLIENT_HANDLER: Received command string from {client_info}: '{command_str}'"
+                )
                 try:
                     if bedrock_process.stdin and not bedrock_process.stdin.closed:
                         # Encode the string command to bytes (e.g., UTF-8) before writing
-                        command_bytes = (command_str + "\n").encode('utf-8')
+                        command_bytes = (command_str + "\n").encode("utf-8")
                         bedrock_process.stdin.write(command_bytes)
                         bedrock_process.stdin.flush()
-                        logger.debug(f"PIPE_CLIENT_HANDLER: Command '{command_str}' (as bytes) written to stdin of server '{server_name_for_log}'.")
+                        logger.debug(
+                            f"PIPE_CLIENT_HANDLER: Command '{command_str}' (as bytes) written to stdin of server '{server_name_for_log}'."
+                        )
                     else:
-                        logger.warning(f"PIPE_CLIENT_HANDLER: Stdin for server '{server_name_for_log}' is closed. Cannot send. Closing {client_info}.")
+                        logger.warning(
+                            f"PIPE_CLIENT_HANDLER: Stdin for server '{server_name_for_log}' is closed. Cannot send. Closing {client_info}."
+                        )
                         break
-                except (OSError, ValueError) as e_write: 
-                    logger.error(f"PIPE_CLIENT_HANDLER: Error writing command to Bedrock stdin for '{server_name_for_log}': {e_write}. Closing {client_info}.")
-                    break 
+                except (OSError, ValueError) as e_write:
+                    logger.error(
+                        f"PIPE_CLIENT_HANDLER: Error writing command to Bedrock stdin for '{server_name_for_log}': {e_write}. Closing {client_info}."
+                    )
+                    break
             elif hr == 109:  # ERROR_BROKEN_PIPE specific to ReadFile
                 logger.info(
                     f"PIPE_CLIENT_HANDLER: ReadFile indicated broken pipe (error 109) for {client_info}. Client disconnected."

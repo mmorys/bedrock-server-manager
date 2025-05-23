@@ -811,9 +811,7 @@ def delete_windows_task(task_name: str, task_file_path: str) -> Dict[str, str]:
     delete_errors = []
     # 1. Delete the scheduled task
     try:
-        core_task.delete_task(
-            task_name
-        )  # Core function handles "not found" gracefully
+        core_task.delete_task(task_name)  # Core function handles "not found" gracefully
         logger.info(
             f"Task '{task_name}' deleted successfully from Task Scheduler (or was already removed)."
         )

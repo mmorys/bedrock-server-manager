@@ -23,7 +23,7 @@ from bedrock_server_manager.core.server import (
 )
 from bedrock_server_manager.core.system import (
     base as core_system,
-) 
+)
 from bedrock_server_manager.core import utils as core_utils
 
 from bedrock_server_manager.utils import get_utils

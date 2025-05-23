@@ -811,8 +811,6 @@ def _delete_cron_job(cron_string: str) -> None:
         )
         raise ScheduleError(f"Unexpected error deleting cron job: {e}") from e
 
-
-
     # --- Windows Task Scheduler Functions ---
 
 
