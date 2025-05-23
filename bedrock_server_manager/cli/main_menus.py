@@ -380,7 +380,6 @@ def install_content(base_dir: str, config_dir: str) -> None:
                 f"An error occurred in the install content menu loop: {e}",
                 exc_info=True,
             )
-            input("Press Enter to continue...")
 
 
 def advanced_menu(base_dir: str, config_dir: str) -> None:
