@@ -1,7 +1,7 @@
 ---
 name: Issue template
 about: Report Bug template
-title: ''
+title: "[BUG] Your bug"
 labels: bug
 assignees: ''
 
