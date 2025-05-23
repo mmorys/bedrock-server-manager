@@ -16,10 +16,10 @@ import platform
 from typing import Dict, List, Optional, Any
 
 # Local imports
-from ..config.settings import settings
-from ..utils.general import get_timestamp
-from ..core.system import task_scheduler as core_task
-from ..error import (
+from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.utils.general import get_timestamp
+from bedrock_server_manager.core.system import task_scheduler as core_task
+from bedrock_server_manager.error import (
     InvalidCronJobError,
     MissingArgumentError,
     InvalidInputError,

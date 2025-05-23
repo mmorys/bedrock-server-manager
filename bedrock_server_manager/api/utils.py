@@ -4,11 +4,11 @@ import logging
 from typing import Dict, List, Optional, Any
 
 # Local imports from API/App layer
-from ..config.settings import settings
-from ..utils.general import (
+from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.utils.general import (
     get_base_dir,
 )
-from ..error import (
+from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
     ServerNotFoundError,
@@ -18,18 +18,18 @@ from ..error import (
     ResourceMonitorError,
     SystemError,
 )
-from ..core.server import (
+from bedrock_server_manager.core.server import (
     server as core_server,
 )
-from ..core.system import (
+from bedrock_server_manager.core.system import (
     base as core_system,
 ) 
-from ..core import utils as core_utils
+from bedrock_server_manager.core import utils as core_utils
 
-from ..utils import get_utils
+from bedrock_server_manager.utils import get_utils
 
 
-logger = logging.getLogger("bedrock_server_manager.api.utils")
+logger = logging.getLogger("bedrock_server_manager")
 
 
 def validate_server_exist(

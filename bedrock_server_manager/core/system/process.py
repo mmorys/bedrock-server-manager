@@ -21,7 +21,7 @@ from ...error import (
     ConfigurationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager.core.process")
+logger = logging.getLogger("bedrock_server_manager")
 
 
 def get_pid_file_path(config_dir: str, pid_filename: str) -> str:

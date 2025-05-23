@@ -14,8 +14,8 @@ from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.web.app import run_web_server
 
 # Core imports
-from ..core import web as core_web_ops
-from ..core.system import process as core_process_ops
+from bedrock_server_manager.core import web as core_web_ops
+from bedrock_server_manager.core.system import process as core_process_ops
 from bedrock_server_manager.error import (
     ConfigurationError,
     ExecutableNotFoundError,
@@ -25,7 +25,7 @@ from bedrock_server_manager.error import (
     WebServerCoreError,
 )
 
-logger = logging.getLogger("bedrock_server_manager.api.web")
+logger = logging.getLogger("bedrock_server_manager")
 
 
 def start_web_server(

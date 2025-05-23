@@ -15,8 +15,8 @@ import re
 
 
 # Local imports
-from ...config.settings import EXPATH
-from ...error import (
+from bedrock_server_manager.config.settings import EXPATH
+from bedrock_server_manager.error import (
     CommandNotFoundError,
     SystemdReloadError,
     ServiceError,

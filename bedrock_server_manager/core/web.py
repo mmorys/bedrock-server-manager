@@ -5,10 +5,10 @@ import sys  # To get sys.executable as the default EXPATH
 from typing import Optional, List
 
 # Import generic process utilities
-from .system import process as core_process
+from bedrock_server_manager.core.system import process as core_process
 
 # Import specific errors
-from ..error import (
+from bedrock_server_manager.error import (
     ConfigurationError,
     ExecutableNotFoundError,
     ProcessManagementError,
@@ -16,7 +16,7 @@ from ..error import (
     ProcessVerificationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager.core.web")
+logger = logging.getLogger("bedrock_server_manager")
 
 
 # --- Web Server Specific Constants ---

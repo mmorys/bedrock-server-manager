@@ -9,7 +9,7 @@ import subprocess
 import shutil
 from typing import List, Tuple, Optional
 
-logger = logging.getLogger("bedrock_server_manager.core.utils")
+logger = logging.getLogger("bedrock_server_manager")
 
 
 # --- Server Name Validation ---

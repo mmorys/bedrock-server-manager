@@ -34,7 +34,7 @@ except ImportError:
     pywintypes = None
 
 # Local imports
-from . import process as core_process
+from bedrock_server_manager.core.system import process as core_process
 from ...error import (
     MissingArgumentError,
     ServerStartError,
@@ -47,7 +47,7 @@ from ...error import (
     MissingPackagesError,
 )
 
-logger = logging.getLogger("bedrock_server_manager.core.system.windows")
+logger = logging.getLogger("bedrock_server_manager")
 
 # --- Constants ---
 XML_NAMESPACE = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
