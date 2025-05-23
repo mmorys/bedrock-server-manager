@@ -244,10 +244,8 @@ def install_worlds(
         logger.debug(f"Using world content directory: {effective_content_dir}")
 
         # API call to list available .mcworld files
-        logger.debug("Calling API: api_utils.list_content_files for worlds")
-        list_response = api_utils.list_content_files(
-            effective_content_dir, ["mcworld"]
-        )  # Returns dict
+        logger.debug("Calling API: api_utils.list_world_content_files for worlds")
+        list_response = api_utils.list_world_content_files()
         logger.debug(f"API list_content_files response: {list_response}")
 
         if list_response.get("status") == "error":
