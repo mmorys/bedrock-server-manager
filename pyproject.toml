@@ -43,7 +43,7 @@ Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["bedrock_server_manager*"]
 
 [project.scripts]
