@@ -1,18 +1,11 @@
 ---
-name: Request a Feature
+name: "✨ Request a Feature"
 about: Suggest an idea for this project
-title: "[Feature] Your feature"
+title: "[FEATURE] To the point description of the feature"
 labels: enhancement
 assignees: ''
 
 ---
-
----
-name: "✨ Feature Request"
-about: Suggest an idea or enhancement for Bedrock Server Manager
-title: "[FEATURE] Brief description of the feature"
-labels: enhancement, needs-triage
-assignees: ''
 
 ---
 

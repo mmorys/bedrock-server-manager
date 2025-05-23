@@ -1,18 +1,11 @@
 ---
-name: Report a Bug
+name: "\U0001F41B Report a Bug"
 about: Report an issue in this project
-title: "[BUG] Your bug"
+title: "[BUG] [OS_HERE] Quick to the point description of the bug"
 labels: bug
 assignees: ''
 
 ---
-
----
-name: "🐛 Bug Report"
-about: Create a report to help improve Bedrock Server Manager
-title: "[BUG] [OS_HERE] Quick to the point description of the bug"
-labels: bug, needs-triage
-assignees: ''
 
 ---
 ### **IMPORTANT: Before Submitting**
