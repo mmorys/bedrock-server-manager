@@ -201,10 +201,10 @@ def start_server(
                     )
 
                 launcher_pid_dir = os.path.join(
-                    app_config_dir, server_name, "launcher_pids"
+                    app_config_dir, server_name
                 )
                 os.makedirs(launcher_pid_dir, exist_ok=True)
-                launcher_pid_filename = f"{server_name}_launcher.pid"
+                launcher_pid_filename = f"bedrock_{server_name}.pid"
                 launcher_pid_file_path = os.path.join(
                     launcher_pid_dir, launcher_pid_filename
                 )
