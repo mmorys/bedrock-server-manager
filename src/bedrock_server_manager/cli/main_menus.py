@@ -92,10 +92,7 @@ def main_menu(base_dir: str, config_dir: Optional[str] = None) -> None:
             print("  1) Install New Server")
             print("  2) Manage Existing Server")
             print("  3) Install Content")
-            print(
-                "  4) Send Command to Server"
-                + (" (Linux Only)" if platform.system() != "Linux" else "")
-            )
+            print("  4) Send Command to Server")
             print("  5) Advanced")
             print("  6) Exit")
             prompt_range = "[1-6]"
