@@ -99,9 +99,7 @@ def _get_server_details(
         )
     server_dir = os.path.join(base_dir, server_name)
 
-    config_dir_base = (
-        settings._config_dir
-    )
+    config_dir_base = settings._config_dir
     if not config_dir_base:
         raise FileOperationError(
             "Internal _config_dir setting is missing or empty. Ensure settings are loaded."
@@ -508,6 +506,43 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
                 raise CommandNotFoundError(
                     "screen", message="'screen' command not found. Cannot start server."
                 )
+                attempts = 0
+                max_attempts = settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
+                sleep_interval = 2
+
+                logger.info(
+                    f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' to start..."
+                )
+                while attempts < max_attempts:
+                    if check_if_server_is_running(server_name):
+                        manage_server_config(
+                            server_name,
+                            "status",
+                            "write",
+                            "RUNNING",
+                            config_dir=details["config_dir_base"],
+                        )
+                        logger.info(f"Server '{server_name}' started successfully.")
+                        return
+                    logger.debug(
+                        f"Waiting for server '{server_name}' to start... (Check {attempts + 1}/{max_attempts})"
+                    )
+                    time.sleep(sleep_interval)
+                    attempts += 1
+
+                manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "ERROR",
+                    config_dir=details["config_dir_base"],
+                )
+                logger.error(
+                    f"Server '{server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
+                )
+                raise ServerStartError(
+                    f"Server '{server_name}' failed to start within the timeout."
+                )
 
     elif os_name == "Windows":
         logger.debug("Attempting to start server via Windows process creation.")
@@ -541,40 +576,6 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
             config_dir=details["config_dir_base"],
         )
         raise ServerStartError(f"Unsupported operating system: {os_name}")
-
-    attempts = 0
-    max_attempts = settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
-    sleep_interval = 2
-
-    logger.info(
-        f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' to start..."
-    )
-    while attempts < max_attempts:
-        if check_if_server_is_running(server_name):
-            manage_server_config(
-                server_name,
-                "status",
-                "write",
-                "RUNNING",
-                config_dir=details["config_dir_base"],
-            )
-            logger.info(f"Server '{server_name}' started successfully.")
-            return
-        logger.debug(
-            f"Waiting for server '{server_name}' to start... (Check {attempts + 1}/{max_attempts})"
-        )
-        time.sleep(sleep_interval)
-        attempts += 1
-
-    manage_server_config(
-        server_name, "status", "write", "ERROR", config_dir=details["config_dir_base"]
-    )
-    logger.error(
-        f"Server '{server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
-    )
-    raise ServerStartError(
-        f"Server '{server_name}' failed to start within the timeout."
-    )
 
 
 def stop_server(server_name: str, server_path_override: Optional[str] = None) -> None:

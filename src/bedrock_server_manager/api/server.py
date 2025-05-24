@@ -16,7 +16,7 @@ import time
 
 # Local imports
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import (
     server as server_base,
@@ -24,6 +24,7 @@ from bedrock_server_manager.core.server import (
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
+    process as system_process,
 )
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -115,75 +116,180 @@ def write_server_config(
         }
 
 
-def start_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, str]:
+def start_server(
+    server_name: str,
+    base_dir: Optional[str] = None,
+    mode: str = "direct",  # "direct" or "detached"
+) -> Dict[str, Any]:  # Return type includes PID for detached mode
     """
-    Starts the specified Bedrock server using the core server functions.
+    Starts the specified Bedrock server.
 
     Args:
         server_name: The name of the server to start.
         base_dir: Optional. The base directory for server installations. Uses config default if None.
+        mode: "direct" to start server synchronously in the current process's context (or as managed by OS service).
+              "detached" to launch the server as a new background process (useful for Windows user-level starts).
 
     Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
+        A dictionary: `{"status": "success", "message": ..., "pid": Optional[int]}` or
+                      `{"status": "error", "message": ...}`.
+                      "pid" is included for "detached" mode success, representing the PID of the launcher process.
     Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined or essential settings are missing.
+        MissingArgumentError, InvalidServerNameError, FileOperationError, InvalidInputError
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
+    if mode not in ["direct", "detached"]:
+        raise InvalidInputError(
+            f"Invalid start mode '{mode}'. Must be 'direct' or 'detached'."
+        )
 
-    logger.info(f"Attempting to start server '{server_name}'...")
+    logger.info(f"API: Attempting to start server '{server_name}' in '{mode}' mode...")
+
     try:
-        effective_base_dir = get_base_dir(
-            base_dir
-        )  # Used for initial check_if_server_is_running
+        effective_base_dir = get_base_dir(base_dir)  # Used for pre-check
 
-        # Check if already running before attempting to start
-        # Note: server_base.start_server also has this check, but checking here
-        # can provide a slightly different API response path.
+        # Pre-check if already running (core start_server also checks, but API can give specific feedback)
         if server_base.check_if_server_is_running(server_name):
             logger.warning(
-                f"Server '{server_name}' is already running. Start request ignored."
+                f"API: Server '{server_name}' is already running. Start request (mode: {mode}) ignored."
             )
             return {
                 "status": "error",
                 "message": f"Server '{server_name}' is already running.",
             }
 
-        # Call the standalone start function from core.server.server
-        server_base.start_server(server_name)
-        logger.info(f"Server '{server_name}' started successfully.")
+        if mode == "direct":
+            logger.debug(
+                f"API: Calling core server_base.start_server for '{server_name}' (direct mode)."
+            )
+            server_base.start_server(
+                server_name
+            )  # No server_path_override here, let core handle defaults
+            logger.info(
+                f"API: Direct start for server '{server_name}' completed successfully."
+            )
+            return {
+                "status": "success",
+                "message": f"Server '{server_name}' (direct mode) started successfully.",
+            }
+
+        elif mode == "detached":
+            if platform.system() == "Windows":
+
+                cli_command_parts = [
+                    EXPATH,
+                    "start-server",
+                    "--server",
+                    server_name,
+                    "--mode",
+                    "direct",
+                ]
+
+                cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
+
+                logger.info(
+                    f"API: Preparing to launch detached starter for '{server_name}' with command: {' '.join(cli_command_str_list)}"
+                )
+
+                # PID file for the LAUNCHER process, not the bedrock_server.exe itself.
+                # The bedrock_server.exe PID file is handled by _windows_start_server.
+                app_config_dir = settings._config_dir
+                if not app_config_dir:
+                    raise FileOperationError(
+                        "Application configuration directory (_config_dir) not set in settings for detached start."
+                    )
+
+                launcher_pid_dir = os.path.join(
+                    app_config_dir, server_name, "launcher_pids"
+                )
+                os.makedirs(launcher_pid_dir, exist_ok=True)
+                launcher_pid_filename = f"{server_name}_launcher.pid"
+                launcher_pid_file_path = os.path.join(
+                    launcher_pid_dir, launcher_pid_filename
+                )
+
+                try:
+                    launcher_pid = system_process.launch_detached_process(
+                        cli_command_str_list, launcher_pid_file_path
+                    )
+                    logger.info(
+                        f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
+                    )
+                    # The actual server start confirmation now happens within that detached process's timeout.
+                    # This API call returns quickly. Subsequent status checks are needed.
+                    return {
+                        "status": "success",
+                        "message": f"Server '{server_name}' start initiated in detached mode (Launcher PID: {launcher_pid}). Check status for confirmation.",
+                        "pid": launcher_pid,
+                    }
+                except (
+                    system_process.ExecutableNotFoundError,
+                    system_process.ProcessManagementError,
+                    system_process.PIDFileError,
+                ) as e_proc:
+                    logger.error(
+                        f"API: Failed to launch detached starter for '{server_name}': {e_proc}",
+                        exc_info=True,
+                    )
+                    return {
+                        "status": "error",
+                        "message": f"Failed to launch detached server starter: {e_proc}",
+                    }
+
+            elif platform.system() == "Linux":
+                logger.debug(
+                    f"API: On Linux, 'detached' mode for server start relies on systemd/screen via core.start_server."
+                )
+                server_base.start_server(server_name)
+                logger.info(
+                    f"API: Linux server '{server_name}' start (via systemd/screen) initiated successfully."
+                )
+                return {
+                    "status": "success",
+                    "message": f"Server '{server_name}' (Linux detached via core) start initiated.",
+                }
+
+            else:  # Other OS
+                return {
+                    "status": "error",
+                    "message": f"Detached mode not currently implemented for OS: {platform.system()}",
+                }
+
+        # Should not be reached due to mode validation earlier
         return {
-            "status": "success",
-            "message": f"Server '{server_name}' started successfully.",
+            "status": "error",
+            "message": "Internal error: Invalid mode fell through.",
         }
 
-    # Catch specific, expected exceptions from server_base.start_server or setup
+    # Catch exceptions from server_base.start_server (for direct mode or Linux detached)
     except (
         ServerNotFoundError,
         ServerStartError,
         CommandNotFoundError,
         MissingArgumentError,
-    ) as e:  # Added MissingArgumentError
-        logger.error(f"Failed to start server '{server_name}': {e}", exc_info=True)
+    ) as e:
+        logger.error(
+            f"API: Failed to start server '{server_name}' (mode: {mode}): {e}",
+            exc_info=True,
+        )
         return {
             "status": "error",
             "message": f"Failed to start server '{server_name}': {e}",
         }
-    except (
-        FileOperationError
-    ) as e:  # Catch error from get_base_dir or core if settings are missing
+    except FileOperationError as e:
         logger.error(
-            f"Configuration error preventing server start for '{server_name}': {e}",
+            f"API: Configuration or FileOperation error for server '{server_name}' (mode: {mode}): {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Configuration error: {e}"}
+        return {
+            "status": "error",
+            "message": f"Configuration or file operation error: {e}",
+        }
     except Exception as e:
-        # Catch unexpected errors
         logger.error(
-            f"Unexpected error starting server '{server_name}': {e}", exc_info=True
+            f"API: Unexpected error starting server '{server_name}' (mode: {mode}): {e}",
+            exc_info=True,
         )
         return {
             "status": "error",

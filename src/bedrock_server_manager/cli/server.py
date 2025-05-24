@@ -59,7 +59,9 @@ from bedrock_server_manager.utils.general import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def start_server(server_name: str, base_dir: Optional[str] = None) -> None:
+def start_server(
+    server_name: str, base_dir: Optional[str] = None, mode: str = "direct"
+) -> None:
     """
     CLI handler function to start a specific Bedrock server instance.
 
@@ -81,7 +83,7 @@ def start_server(server_name: str, base_dir: Optional[str] = None) -> None:
     try:
         # Call the API function
         logger.debug(f"Calling API: server_api.start_server for '{server_name}'")
-        response: Dict[str, Any] = server_api.start_server(server_name, base_dir)
+        response: Dict[str, Any] = server_api.start_server(server_name, base_dir, mode)
         logger.debug(f"API response from start_server: {response}")
 
         # --- User Interaction: Print Result ---
