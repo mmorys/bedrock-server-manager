@@ -60,7 +60,7 @@ else:
 logger = logging.getLogger("bedrock_server_manager")
 
 
-# --- Helper function to replace BedrockServer.__init__ logic ---
+# --- Helper function ---
 def _get_server_details(
     server_name: str, server_path_override: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -101,7 +101,7 @@ def _get_server_details(
 
     config_dir_base = (
         settings._config_dir
-    )  # Assumes this exists and is set via settings.load()
+    )
     if not config_dir_base:
         raise FileOperationError(
             "Internal _config_dir setting is missing or empty. Ensure settings are loaded."
