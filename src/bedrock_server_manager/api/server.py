@@ -200,9 +200,7 @@ def start_server(
                         "Application configuration directory (_config_dir) not set in settings for detached start."
                     )
 
-                launcher_pid_dir = os.path.join(
-                    app_config_dir, server_name
-                )
+                launcher_pid_dir = os.path.join(app_config_dir, server_name)
                 os.makedirs(launcher_pid_dir, exist_ok=True)
                 launcher_pid_filename = f"bedrock_{server_name}.pid"
                 launcher_pid_file_path = os.path.join(

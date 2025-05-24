@@ -378,7 +378,10 @@ def restore_config_file(
             raise FileNotFoundError(f"Backup file not found: {backup_file_path}")
 
         with _server_stop_start_manager(
-            server_name, effective_base_dir, stop_start_server, restart_on_success_only=True
+            server_name,
+            effective_base_dir,
+            stop_start_server,
+            restart_on_success_only=True,
         ):
             restored_file = core_backup.restore_config_file_data(
                 backup_file_path, server_install_dir
@@ -426,7 +429,10 @@ def restore_all(
         # Core restore_all_server_data checks BACKUP_DIR
 
         with _server_stop_start_manager(
-            server_name, effective_base_dir, stop_start_server, restart_on_success_only=True
+            server_name,
+            effective_base_dir,
+            stop_start_server,
+            restart_on_success_only=True,
         ):
             results = core_backup.restore_all_server_data(
                 server_name, effective_base_dir
