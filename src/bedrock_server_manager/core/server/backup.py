@@ -195,9 +195,7 @@ def backup_world_data(world_path: str, backup_dir: str, world_name: str) -> str:
     logger.info(f"Creating world backup file: '{backup_filename}' in '{backup_dir}'...")
 
     try:
-        core_world.export_world(
-            world_path, backup_file_path
-        )
+        core_world.export_world(world_path, backup_file_path)
         logger.info(f"World backup created successfully: {backup_file_path}")
         return backup_file_path
     except (AddonExtractError, FileOperationError) as e:
@@ -299,21 +297,31 @@ def backup_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optiona
                           Other config backup failures are reported in the return dict.
     """
     if not server_name:
-        raise MissingArgumentError("Server name cannot be empty for backup_all_server_data.")
+        raise MissingArgumentError(
+            "Server name cannot be empty for backup_all_server_data."
+        )
     if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty for backup_all_server_data.")
+        raise MissingArgumentError(
+            "Base directory cannot be empty for backup_all_server_data."
+        )
 
     backup_base_dir = settings.get("BACKUP_DIR")
     if not backup_base_dir:
-        raise FileOperationError("BACKUP_DIR setting is missing or empty in configuration.")
+        raise FileOperationError(
+            "BACKUP_DIR setting is missing or empty in configuration."
+        )
     server_backup_dir = os.path.join(backup_base_dir, server_name)
 
     try:
         os.makedirs(server_backup_dir, exist_ok=True)
     except OSError as e:
-        raise FileOperationError(f"Cannot create server backup directory '{server_backup_dir}': {e}") from e
+        raise FileOperationError(
+            f"Cannot create server backup directory '{server_backup_dir}': {e}"
+        ) from e
 
-    logger.info(f"Starting full backup process for server: '{server_name}' into '{server_backup_dir}'")
+    logger.info(
+        f"Starting full backup process for server: '{server_name}' into '{server_backup_dir}'"
+    )
     backup_results: Dict[str, Optional[str]] = {}
 
     # 1. Backup World
@@ -321,10 +329,14 @@ def backup_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optiona
         logger.info("Backing up server world...")
         world_name = core_server_utils.get_world_name(server_name, base_dir)
         world_path = os.path.join(base_dir, server_name, "worlds", world_name)
-        backup_results["world"] = backup_world_data(world_path, server_backup_dir, world_name)
+        backup_results["world"] = backup_world_data(
+            world_path, server_backup_dir, world_name
+        )
         logger.info("World backup completed.")
-    except Exception as e: # Catching broader exceptions here for the component
-        logger.error(f"World backup failed for server '{server_name}': {e}", exc_info=True)
+    except Exception as e:  # Catching broader exceptions here for the component
+        logger.error(
+            f"World backup failed for server '{server_name}': {e}", exc_info=True
+        )
         backup_results["world"] = None
         # Depending on desired atomicity, you might choose to raise BackupWorldError here
         # and halt, or continue with configs. Current approach: continue.
@@ -350,12 +362,19 @@ def backup_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optiona
             logger.warning(
                 f"Config file '{config_file_name}' not found for server '{server_name}'. Skipping backup for this file."
             )
-            backup_results[config_file_name] = None # Explicitly mark as not backed up / skipped
+            backup_results[config_file_name] = (
+                None  # Explicitly mark as not backed up / skipped
+            )
 
-    if all(value is None for value in backup_results.values() if value is not None): # if all attempted backups failed
-        if backup_results.get("world") is None and "world" in backup_results: # Check if world backup was attempted and failed
-             raise BackupWorldError(f"Core world backup failed for '{server_name}' and no other components succeeded.")
-
+    if all(
+        value is None for value in backup_results.values() if value is not None
+    ):  # if all attempted backups failed
+        if (
+            backup_results.get("world") is None and "world" in backup_results
+        ):  # Check if world backup was attempted and failed
+            raise BackupWorldError(
+                f"Core world backup failed for '{server_name}' and no other components succeeded."
+            )
 
     return backup_results
 
@@ -389,8 +408,8 @@ def restore_config_file_data(backup_file_path: str, server_dir: str) -> str:
 
     if not os.path.exists(backup_file_path):
         raise FileNotFoundError(f"Backup file not found: '{backup_file_path}'")
-    if not os.path.isdir(server_dir): # server_dir must exist for restore
-        os.makedirs(server_dir, exist_ok=True) # Create if not exists
+    if not os.path.isdir(server_dir):  # server_dir must exist for restore
+        os.makedirs(server_dir, exist_ok=True)  # Create if not exists
         # raise FileOperationError(
         #     f"Target server directory does not exist or is not a directory: '{server_dir}'"
         # )
@@ -423,7 +442,9 @@ def restore_config_file_data(backup_file_path: str, server_dir: str) -> str:
         ) from e
 
 
-def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optional[str]]:
+def restore_all_server_data(
+    server_name: str, base_dir: str
+) -> Dict[str, Optional[str]]:
     """
     Restores a server to its latest backed-up state (world and config files).
     Returns a dictionary of restored components and their original paths, or None if failed.
@@ -443,10 +464,13 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
         RestoreError: If any critical restore operation fails.
     """
     if not server_name:
-        raise MissingArgumentError("Server name cannot be empty for restore_all_server_data.")
+        raise MissingArgumentError(
+            "Server name cannot be empty for restore_all_server_data."
+        )
     if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty for restore_all_server_data.")
-
+        raise MissingArgumentError(
+            "Base directory cannot be empty for restore_all_server_data."
+        )
 
     backup_base_dir = settings.get("BACKUP_DIR")
     if not backup_base_dir:
@@ -463,9 +487,9 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
         logger.warning(
             f"No backup directory found for server '{server_name}' at '{server_backup_dir}'. Cannot restore."
         )
-        return {} # Return empty if no backup dir
+        return {}  # Return empty if no backup dir
 
-    os.makedirs(server_install_dir, exist_ok=True) # Ensure server install dir exists
+    os.makedirs(server_install_dir, exist_ok=True)  # Ensure server install dir exists
 
     restore_results: Dict[str, Optional[str]] = {}
     failures = []
@@ -483,7 +507,9 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
             imported_world_name = core_world.import_world(
                 server_name, latest_world_backup, base_dir
             )
-            restore_results["world"] = os.path.join(server_install_dir, "worlds", imported_world_name)
+            restore_results["world"] = os.path.join(
+                server_install_dir, "worlds", imported_world_name
+            )
         else:
             logger.info("No .mcworld backup files found. Skipping world restore.")
             restore_results["world"] = None
@@ -494,9 +520,8 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
         failures.append(f"World ({type(e).__name__})")
         restore_results["world"] = None
 
-
     # 2. Restore Config Files (Latest of each type)
-    config_file_map = { # maps original name to backup prefix
+    config_file_map = {  # maps original name to backup prefix
         "server.properties": "server_backup_",
         "allowlist.json": "allowlist_backup_",
         "permissions.json": "permissions_backup_",
@@ -514,8 +539,12 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
             # e.g. world_backup_....json should not match permissions_backup_....json
             # This regex is basic, might need refinement for complex prefixes
             valid_config_backups = [
-                b_path for b_path in config_backups
-                if re.match(f"^{re.escape(name_part)}_backup_\\d{{8}}_\\d{{6}}{re.escape(ext_part)}$", os.path.basename(b_path))
+                b_path
+                for b_path in config_backups
+                if re.match(
+                    f"^{re.escape(name_part)}_backup_\\d{{8}}_\\d{{6}}{re.escape(ext_part)}$",
+                    os.path.basename(b_path),
+                )
             ]
 
             if valid_config_backups:
@@ -539,7 +568,6 @@ def restore_all_server_data(server_name: str, base_dir: str) -> Dict[str, Option
             )
             failures.append(f"{original_filename} ({type(e).__name__})")
             restore_results[original_filename] = None
-
 
     if failures:
         error_summary = ", ".join(failures)

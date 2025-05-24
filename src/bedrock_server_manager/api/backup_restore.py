@@ -35,6 +35,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger("bedrock_server_manager")
 
+
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     """
     Lists available backup files for a specific server and type.
@@ -60,7 +61,9 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
 
     backup_base_dir = settings.get("BACKUP_DIR")
     if not backup_base_dir:
-        raise FileOperationError("BACKUP_DIR setting is missing or empty in configuration.")
+        raise FileOperationError(
+            "BACKUP_DIR setting is missing or empty in configuration."
+        )
 
     server_backup_dir = os.path.join(backup_base_dir, server_name)
     backup_type_norm = backup_type.lower()
@@ -69,13 +72,17 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     )
 
     if not os.path.isdir(server_backup_dir):
-        logger.warning(f"Backup directory not found: '{server_backup_dir}'. Returning empty list.")
+        logger.warning(
+            f"Backup directory not found: '{server_backup_dir}'. Returning empty list."
+        )
         return {"status": "success", "backups": []}
 
     try:
         backup_files: List[str] = []
         if backup_type_norm == "world":
-            pattern = os.path.join(server_backup_dir, "*.mcworld") # Matches any .mcworld
+            pattern = os.path.join(
+                server_backup_dir, "*.mcworld"
+            )  # Matches any .mcworld
             backup_files = glob.glob(pattern)
         elif backup_type_norm == "config":
             # Generic pattern for config files (name_backup_timestamp.ext)
@@ -85,18 +92,25 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
             backup_files.extend(glob.glob(json_pattern))
             backup_files.extend(glob.glob(props_pattern))
         else:
-            raise InvalidInputError(f"Invalid backup type: '{backup_type}'. Must be 'world' or 'config'.")
+            raise InvalidInputError(
+                f"Invalid backup type: '{backup_type}'. Must be 'world' or 'config'."
+            )
 
         backup_files.sort(key=os.path.getmtime, reverse=True)
         return {"status": "success", "backups": backup_files}
 
-    except InvalidInputError: # Re-raise this specific error
+    except InvalidInputError:  # Re-raise this specific error
         raise
     except OSError as e:
-        logger.error(f"Error accessing backup directory '{server_backup_dir}': {e}", exc_info=True)
+        logger.error(
+            f"Error accessing backup directory '{server_backup_dir}': {e}",
+            exc_info=True,
+        )
         return {"status": "error", "message": f"Error listing backups: {e}"}
     except Exception as e:
-        logger.error(f"Unexpected error listing backups for '{server_name}': {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error listing backups for '{server_name}': {e}", exc_info=True
+        )
         return {"status": "error", "message": f"Unexpected error listing backups: {e}"}
 
 
@@ -108,7 +122,9 @@ def backup_world(
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-    logger.info(f"API: Initiating world backup for server '{server_name}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating world backup for server '{server_name}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
@@ -118,35 +134,55 @@ def backup_world(
         server_backup_dir = os.path.join(backup_base_dir, server_name)
         os.makedirs(server_backup_dir, exist_ok=True)
 
-        world_name_res = api_get_world_name(server_name, effective_base_dir) # Use API that returns dict
+        world_name_res = api_get_world_name(
+            server_name, effective_base_dir
+        )  # Use API that returns dict
         if world_name_res.get("status") == "error":
-            return world_name_res # Propagate error
+            return world_name_res  # Propagate error
         world_name = world_name_res["world_name"]
         world_path = os.path.join(effective_base_dir, server_name, "worlds", world_name)
 
         if not os.path.isdir(world_path):
             raise DirectoryError(f"World directory does not exist: {world_path}")
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
-            backup_file = core_backup.backup_world_data(world_path, server_backup_dir, world_name)
-        
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
+            backup_file = core_backup.backup_world_data(
+                world_path, server_backup_dir, world_name
+            )
+
         return {
             "status": "success",
             "message": f"World backup '{os.path.basename(backup_file)}' created successfully for server '{server_name}'.",
         }
-    except (MissingArgumentError, FileOperationError, DirectoryError, AddonExtractError, BackupWorldError) as e:
-        logger.error(f"API: World backup failed for '{server_name}': {e}", exc_info=True)
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        DirectoryError,
+        AddonExtractError,
+        BackupWorldError,
+    ) as e:
+        logger.error(
+            f"API: World backup failed for '{server_name}': {e}", exc_info=True
+        )
         return {"status": "error", "message": f"World backup failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during world backup for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during world backup: {e}"}
+        logger.error(
+            f"API: Unexpected error during world backup for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during world backup: {e}",
+        }
 
 
 def backup_config_file(
     server_name: str,
-    file_to_backup: str, # Relative path from server dir
+    file_to_backup: str,  # Relative path from server dir
     base_dir: Optional[str] = None,
-    stop_start_server: bool = True, # Usually False for single config
+    stop_start_server: bool = True,  # Usually False for single config
 ) -> Dict[str, str]:
     """
     Creates a backup of a specific configuration file from the server directory.
@@ -155,9 +191,11 @@ def backup_config_file(
         raise MissingArgumentError("Server name cannot be empty.")
     if not file_to_backup:
         raise MissingArgumentError("File to backup cannot be empty.")
-    
+
     filename_base = os.path.basename(file_to_backup)
-    logger.info(f"API: Initiating config file backup for '{filename_base}' on server '{server_name}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating config file backup for '{filename_base}' on server '{server_name}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
@@ -171,19 +209,32 @@ def backup_config_file(
         if not os.path.isfile(full_file_path):
             raise FileNotFoundError(f"Configuration file not found: {full_file_path}")
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
-            backup_file = core_backup.backup_single_config_file(full_file_path, server_backup_dir)
-        
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
+            backup_file = core_backup.backup_single_config_file(
+                full_file_path, server_backup_dir
+            )
+
         return {
             "status": "success",
             "message": f"Config file '{filename_base}' backed up as '{os.path.basename(backup_file)}' successfully.",
         }
     except (MissingArgumentError, FileOperationError, FileNotFoundError) as e:
-        logger.error(f"API: Config file backup failed for '{filename_base}' on '{server_name}': {e}", exc_info=True)
+        logger.error(
+            f"API: Config file backup failed for '{filename_base}' on '{server_name}': {e}",
+            exc_info=True,
+        )
         return {"status": "error", "message": f"Config file backup failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during config file backup for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during config file backup: {e}"}
+        logger.error(
+            f"API: Unexpected error during config file backup for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during config file backup: {e}",
+        }
 
 
 def backup_all(
@@ -194,33 +245,49 @@ def backup_all(
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-    logger.info(f"API: Initiating full backup for server '{server_name}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating full backup for server '{server_name}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
         # Core backup_all_server_data checks BACKUP_DIR setting
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
-            results = core_backup.backup_all_server_data(server_name, effective_base_dir)
-        
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
+            results = core_backup.backup_all_server_data(
+                server_name, effective_base_dir
+            )
+
         failed_components = [comp for comp, path in results.items() if path is None]
         if failed_components:
             return {
-                "status": "error", # Or "partial_success" if you want to distinguish
+                "status": "error",  # Or "partial_success" if you want to distinguish
                 "message": f"Full backup for '{server_name}' completed with errors. Failed components: {', '.join(failed_components)}.",
-                "details": results
+                "details": results,
             }
         return {
             "status": "success",
             "message": f"Full backup completed successfully for server '{server_name}'.",
-            "details": results
+            "details": results,
         }
-    except (MissingArgumentError, FileOperationError, BackupWorldError) as e: # BackupWorldError from core
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        BackupWorldError,
+    ) as e:  # BackupWorldError from core
         logger.error(f"API: Full backup failed for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Full backup failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during full backup for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during full backup: {e}"}
+        logger.error(
+            f"API: Unexpected error during full backup for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during full backup: {e}",
+        }
 
 
 def restore_world(
@@ -236,37 +303,57 @@ def restore_world(
         raise MissingArgumentError("Server name cannot be empty.")
     if not backup_file_path:
         raise MissingArgumentError("Backup file path cannot be empty.")
-    
+
     backup_filename = os.path.basename(backup_file_path)
-    logger.info(f"API: Initiating world restore for '{server_name}' from '{backup_filename}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating world restore for '{server_name}' from '{backup_filename}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
         if not os.path.isfile(backup_file_path):
             raise FileNotFoundError(f"Backup file not found: {backup_file_path}")
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
             # core_world.import_world handles the actual restoration.
             # It might need the server_name and base_dir to determine target paths correctly.
             core_world.import_world(server_name, backup_file_path, effective_base_dir)
-        
+
         return {
             "status": "success",
             "message": f"World restore from '{backup_filename}' completed successfully for server '{server_name}'.",
         }
-    except (MissingArgumentError, FileOperationError, FileNotFoundError, DirectoryError, AddonExtractError, RestoreError, InvalidServerNameError) as e:
-        logger.error(f"API: World restore failed for '{server_name}': {e}", exc_info=True)
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        FileNotFoundError,
+        DirectoryError,
+        AddonExtractError,
+        RestoreError,
+        InvalidServerNameError,
+    ) as e:
+        logger.error(
+            f"API: World restore failed for '{server_name}': {e}", exc_info=True
+        )
         return {"status": "error", "message": f"World restore failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during world restore for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during world restore: {e}"}
+        logger.error(
+            f"API: Unexpected error during world restore for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during world restore: {e}",
+        }
 
 
 def restore_config_file(
     server_name: str,
     backup_file_path: str,
     base_dir: Optional[str] = None,
-    stop_start_server: bool = True, # Usually False for single config
+    stop_start_server: bool = True,  # Usually False for single config
 ) -> Dict[str, str]:
     """
     Restores a specific configuration file for a server from a backup copy.
@@ -277,28 +364,49 @@ def restore_config_file(
         raise MissingArgumentError("Backup file path cannot be empty.")
 
     backup_filename = os.path.basename(backup_file_path)
-    logger.info(f"API: Initiating config file restore for '{server_name}' from '{backup_filename}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating config file restore for '{server_name}' from '{backup_filename}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
-        server_install_dir = os.path.join(effective_base_dir, server_name) # Target for restore
-        
+        server_install_dir = os.path.join(
+            effective_base_dir, server_name
+        )  # Target for restore
+
         if not os.path.isfile(backup_file_path):
             raise FileNotFoundError(f"Backup file not found: {backup_file_path}")
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
-            restored_file = core_backup.restore_config_file_data(backup_file_path, server_install_dir)
-        
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
+            restored_file = core_backup.restore_config_file_data(
+                backup_file_path, server_install_dir
+            )
+
         return {
             "status": "success",
             "message": f"Config file '{os.path.basename(restored_file)}' restored successfully from '{backup_filename}'.",
         }
-    except (MissingArgumentError, FileOperationError, FileNotFoundError, InvalidInputError) as e:
-        logger.error(f"API: Config file restore failed for '{server_name}': {e}", exc_info=True)
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        FileNotFoundError,
+        InvalidInputError,
+    ) as e:
+        logger.error(
+            f"API: Config file restore failed for '{server_name}': {e}", exc_info=True
+        )
         return {"status": "error", "message": f"Config file restore failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during config file restore for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during config file restore: {e}"}
+        logger.error(
+            f"API: Unexpected error during config file restore for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during config file restore: {e}",
+        }
 
 
 def restore_all(
@@ -309,39 +417,55 @@ def restore_all(
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-    logger.info(f"API: Initiating restore_all for server '{server_name}'. Stop/Start: {stop_start_server}")
+    logger.info(
+        f"API: Initiating restore_all for server '{server_name}'. Stop/Start: {stop_start_server}"
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
         # Core restore_all_server_data checks BACKUP_DIR
 
-        with _server_stop_start_manager(server_name, effective_base_dir, stop_start_server):
-            results = core_backup.restore_all_server_data(server_name, effective_base_dir)
+        with _server_stop_start_manager(
+            server_name, effective_base_dir, stop_start_server
+        ):
+            results = core_backup.restore_all_server_data(
+                server_name, effective_base_dir
+            )
 
-        if not results: # If core returned empty, means no backup dir
-             return {
-                "status": "success", # Or "info"
-                "message": f"No backups found for server '{server_name}'. Nothing restored."
+        if not results:  # If core returned empty, means no backup dir
+            return {
+                "status": "success",  # Or "info"
+                "message": f"No backups found for server '{server_name}'. Nothing restored.",
             }
 
         failed_components = [comp for comp, path in results.items() if path is None]
         if failed_components:
-             return {
+            return {
                 "status": "error",
                 "message": f"Restore_all for '{server_name}' completed with errors. Failed components: {', '.join(failed_components)}.",
-                "details": results
+                "details": results,
             }
         return {
             "status": "success",
             "message": f"Restore_all completed successfully for server '{server_name}'.",
-            "details": results
+            "details": results,
         }
-    except (MissingArgumentError, FileOperationError, RestoreError) as e: # RestoreError from core
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        RestoreError,
+    ) as e:  # RestoreError from core
         logger.error(f"API: Restore_all failed for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Restore_all failed: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during restore_all for '{server_name}': {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error during restore_all: {e}"}
+        logger.error(
+            f"API: Unexpected error during restore_all for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error during restore_all: {e}",
+        }
 
 
 def prune_old_backups(
@@ -355,7 +479,7 @@ def prune_old_backups(
     logger.info(f"API: Initiating pruning of old backups for server '{server_name}'.")
 
     try:
-        effective_base_dir = get_base_dir(base_dir) # Needed for world name for prefix
+        effective_base_dir = get_base_dir(base_dir)  # Needed for world name for prefix
         backup_base_dir = settings.get("BACKUP_DIR")
         if not backup_base_dir:
             raise FileOperationError("BACKUP_DIR setting missing.")
@@ -366,18 +490,27 @@ def prune_old_backups(
             keep_setting = settings.get("BACKUP_KEEP", 3)
             try:
                 effective_backup_keep = int(keep_setting)
-                if effective_backup_keep < 0: raise ValueError()
+                if effective_backup_keep < 0:
+                    raise ValueError()
             except (ValueError, TypeError):
-                raise ValueError(f"Invalid BACKUP_KEEP setting: '{keep_setting}'. Must be non-negative integer.")
+                raise ValueError(
+                    f"Invalid BACKUP_KEEP setting: '{keep_setting}'. Must be non-negative integer."
+                )
         else:
             try:
                 effective_backup_keep = int(backup_keep)
-                if effective_backup_keep < 0: raise ValueError()
+                if effective_backup_keep < 0:
+                    raise ValueError()
             except (ValueError, TypeError):
-                raise ValueError(f"Invalid backup_keep parameter: '{backup_keep}'. Must be non-negative integer.")
+                raise ValueError(
+                    f"Invalid backup_keep parameter: '{backup_keep}'. Must be non-negative integer."
+                )
 
         if not os.path.isdir(server_backup_dir):
-            return {"status": "success", "message": "No backup directory found, nothing to prune."}
+            return {
+                "status": "success",
+                "message": "No backup directory found, nothing to prune.",
+            }
 
         pruning_errors = []
 
@@ -389,15 +522,19 @@ def prune_old_backups(
                 world_name_prefix = f"{world_name_res['world_name']}_backup_"
         except Exception as e:
             logger.warning(f"Could not determine world name for prefixing prune: {e}")
-        
+
         try:
-            core_backup.prune_old_backups(server_backup_dir, effective_backup_keep, world_name_prefix, "mcworld")
+            core_backup.prune_old_backups(
+                server_backup_dir, effective_backup_keep, world_name_prefix, "mcworld"
+            )
         except Exception as e:
             pruning_errors.append(f"World backups ({type(e).__name__})")
-            logger.error(f"Error pruning world backups for '{server_name}': {e}", exc_info=True)
+            logger.error(
+                f"Error pruning world backups for '{server_name}': {e}", exc_info=True
+            )
 
         # 2. Config Backups (properties and json)
-        config_file_types = { # prefix: extension
+        config_file_types = {  # prefix: extension
             "server_backup_": "properties",
             "allowlist_backup_": "json",
             "permissions_backup_": "json",
@@ -405,11 +542,18 @@ def prune_old_backups(
         }
         for prefix, ext in config_file_types.items():
             try:
-                core_backup.prune_old_backups(server_backup_dir, effective_backup_keep, prefix, ext)
+                core_backup.prune_old_backups(
+                    server_backup_dir, effective_backup_keep, prefix, ext
+                )
             except Exception as e:
-                pruning_errors.append(f"Config backups ({prefix}*.{ext}) ({type(e).__name__})")
-                logger.error(f"Error pruning {prefix}*.{ext} for '{server_name}': {e}", exc_info=True)
-        
+                pruning_errors.append(
+                    f"Config backups ({prefix}*.{ext}) ({type(e).__name__})"
+                )
+                logger.error(
+                    f"Error pruning {prefix}*.{ext} for '{server_name}': {e}",
+                    exc_info=True,
+                )
+
         # Generic JSON catch-all (if needed, be careful with prefixes)
         # try:
         #     core_backup.prune_old_backups(server_backup_dir, effective_backup_keep, file_prefix="", file_extension="json")
@@ -417,13 +561,29 @@ def prune_old_backups(
         #     pruning_errors.append(f"Generic JSON backups ({type(e).__name__})")
 
         if pruning_errors:
-            return {"status": "error", "message": f"Pruning completed with errors: {'; '.join(pruning_errors)}"}
-        
-        return {"status": "success", "message": f"Backup pruning completed for server '{server_name}'."}
+            return {
+                "status": "error",
+                "message": f"Pruning completed with errors: {'; '.join(pruning_errors)}",
+            }
 
-    except (MissingArgumentError, ValueError, FileOperationError, InvalidInputError) as e:
-        logger.error(f"API: Cannot prune backups for '{server_name}': {e}", exc_info=True)
+        return {
+            "status": "success",
+            "message": f"Backup pruning completed for server '{server_name}'.",
+        }
+
+    except (
+        MissingArgumentError,
+        ValueError,
+        FileOperationError,
+        InvalidInputError,
+    ) as e:
+        logger.error(
+            f"API: Cannot prune backups for '{server_name}': {e}", exc_info=True
+        )
         return {"status": "error", "message": f"Pruning setup error: {e}"}
     except Exception as e:
-        logger.error(f"API: Unexpected error during backup pruning for '{server_name}': {e}", exc_info=True)
+        logger.error(
+            f"API: Unexpected error during backup pruning for '{server_name}': {e}",
+            exc_info=True,
+        )
         return {"status": "error", "message": f"Unexpected error during pruning: {e}"}
