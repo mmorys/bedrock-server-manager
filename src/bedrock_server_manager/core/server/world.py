@@ -233,7 +233,7 @@ def export_world(world_dir_path: str, target_mcworld_path: str) -> None:
         raise BackupWorldError(f"Unexpected error exporting world: {e}") from e
 
 
-def import_world(server_name: str, mcworld_backup_path: str, base_dir: str) -> None:
+def import_world(server_name: str, mcworld_backup_path: str, base_dir: str) -> str:
     """
     Imports (restores) a world from a .mcworld backup file into a server's world directory.
 
@@ -320,3 +320,5 @@ def import_world(server_name: str, mcworld_backup_path: str, base_dir: str) -> N
         raise RestoreError(
             f"Unexpected error during world import for '{server_name}': {e}"
         ) from e
+
+    return world_name
