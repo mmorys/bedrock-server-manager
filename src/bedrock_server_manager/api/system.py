@@ -13,7 +13,7 @@ import platform
 from typing import Dict, Optional, Any
 
 # Local imports
-from bedrock_server_manager.api.server_install_config import write_server_config
+from bedrock_server_manager.api.server import write_server_config
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
