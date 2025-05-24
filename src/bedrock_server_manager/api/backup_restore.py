@@ -19,9 +19,7 @@ from bedrock_server_manager.core.server import world as core_world
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api.world import get_world_name as api_get_world_name
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.api.server import start_server as api_start_server
-from bedrock_server_manager.api.server import stop_server as api_stop_server
+from bedrock_server_manager.api.utils import _server_stop_start_manager
 from bedrock_server_manager.error import (
     MissingArgumentError,
     InvalidInputError,
@@ -36,59 +34,6 @@ from bedrock_server_manager.error import (
 )
 
 logger = logging.getLogger("bedrock_server_manager")
-
-
-@contextmanager
-def _server_stop_start_manager(server_name: str, base_dir: str, stop_start_flag: bool):
-    """
-    Context manager to handle stopping a server before an operation and
-    restarting it afterward if it was running.
-    """
-    was_running = False
-    error_during_operation = False
-    if not stop_start_flag:
-        yield
-        return
-
-    try:
-        logger.debug(f"Checking running status for '{server_name}' for stop/start manager...")
-        if system_base.is_server_running(server_name, base_dir):
-            was_running = True
-            logger.info(f"Server '{server_name}' is running. Stopping for operation...")
-            stop_result = api_stop_server(server_name, base_dir)
-            if stop_result.get("status") == "error":
-                # If stop fails, we cannot safely proceed with the main operation.
-                # Raise an exception that the caller API function can catch.
-                raise FileOperationError(f"Failed to stop server '{server_name}': {stop_result.get('message')}")
-            logger.info(f"Server '{server_name}' stopped for operation.")
-        else:
-            logger.debug(f"Server '{server_name}' is not running. No stop needed.")
-        
-        yield # This is where the main backup/restore operation will run
-
-    except Exception:
-        error_during_operation = True # Mark that the main operation failed
-        raise # Re-raise the exception from the main operation
-    finally:
-        if stop_start_flag and was_running:
-            if error_during_operation:
-                logger.warning(
-                    f"Attempting to restart server '{server_name}' even though the main operation failed."
-                )
-            else:
-                logger.info(f"Restarting server '{server_name}' after operation...")
-            
-            start_result = api_start_server(server_name, base_dir)
-            if start_result.get("status") == "error":
-                # Log this error, but don't overwrite an existing error from the main operation
-                logger.error(
-                    f"Failed to restart server '{server_name}' after operation: {start_result.get('message')}"
-                )
-                if not error_during_operation: # If main op was fine, this becomes the primary error
-                    raise FileOperationError(f"Operation successful, but failed to restart server: {start_result.get('message')}")
-            else:
-                logger.info(f"Server '{server_name}' restart initiated after operation.")
-
 
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     """

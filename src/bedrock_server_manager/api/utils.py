@@ -2,9 +2,14 @@
 import os
 import logging
 from typing import Dict, List, Optional, Any
+from contextlib import contextmanager
 
 # Local imports from API/App layer
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.server import server as core_server_base
+from bedrock_server_manager.api.server import start_server as api_start_server # For context manager
+from bedrock_server_manager.api.server import stop_server as api_stop_server   # For context manager
 from bedrock_server_manager.utils.general import (
     get_base_dir,
 )
@@ -444,3 +449,50 @@ def get_system_and_app_info() -> Dict[str, Any]:
             f"API.get_system_and_app_info: Unexpected error: {e}", exc_info=True
         )
         return {"status": "error", "message": "An unexpected error occurred."}
+
+
+@contextmanager
+def _server_stop_start_manager(server_name: str, base_dir: str, stop_start_flag: bool):
+    """
+    Context manager to handle stopping a server before an operation and
+    restarting it afterward if it was running.
+    """
+    was_running = False
+    error_during_operation = False
+    if not stop_start_flag:
+        yield
+        return
+
+    try:
+        logger.debug(f"Context Mgr: Checking status for '{server_name}' (Stop/Start: {stop_start_flag})")
+        # Use core_server_base.check_if_server_is_running for direct check
+        if core_server_base.check_if_server_is_running(server_name): # Pass base_dir if check_if_server_is_running needs it
+            was_running = True
+            logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
+            # Use API stop function as it returns dict and handles layers
+            stop_result = api_stop_server(server_name, base_dir)
+            if stop_result.get("status") == "error":
+                raise FileOperationError(f"Context Mgr: Failed to stop server '{server_name}': {stop_result.get('message')}")
+            logger.info(f"Context Mgr: Server '{server_name}' stopped.")
+        else:
+            logger.debug(f"Context Mgr: Server '{server_name}' is not running.")
+        
+        yield
+
+    except Exception:
+        error_during_operation = True
+        raise
+    finally:
+        if stop_start_flag and was_running:
+            if error_during_operation:
+                logger.warning(f"Context Mgr: Attempting to restart '{server_name}' despite operation error.")
+            else:
+                logger.info(f"Context Mgr: Restarting server '{server_name}'...")
+            
+            start_result = api_start_server(server_name, base_dir)
+            if start_result.get("status") == "error":
+                logger.error(f"Context Mgr: Failed to restart '{server_name}': {start_result.get('message')}")
+                if not error_during_operation:
+                    raise FileOperationError(f"Operation successful, but failed to restart server: {start_result.get('message')}")
+            else:
+                logger.info(f"Context Mgr: Server '{server_name}' restart initiated.")
