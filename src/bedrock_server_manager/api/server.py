@@ -577,7 +577,7 @@ def restart_server(
                 f"Server '{server_name}' was not running. Attempting to start..."
             )
             # Just call start_server API function (which itself calls core start_server)
-            start_result = start_server(server_name, effective_base_dir)
+            start_result = start_server(server_name, effective_base_dir, "detached")
             if start_result.get("status") == "success":
                 start_result["message"] = (
                     f"Server '{server_name}' was not running and was started."
@@ -639,7 +639,7 @@ def restart_server(
             # --- Start Server ---
             logger.debug(f"Starting server '{server_name}' after stop...")
             start_result = start_server(
-                server_name, effective_base_dir
+                server_name, effective_base_dir, "detached"
             )  # Calls API start_server
             if start_result.get("status") == "error":
                 logger.error(

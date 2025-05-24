@@ -67,7 +67,9 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
     try:
         # Call the start server API function
         # base_dir resolution handled within the api function
-        result = server_api.start_server(server_name)  # Returns dict
+        result = server_api.start_server(
+            server_name=server_name, mode="detached"
+        )  # Returns dict
         logger.debug(f"API Start Server '{server_name}': Handler response: {result}")
 
         # Determine HTTP status based on the handler's response

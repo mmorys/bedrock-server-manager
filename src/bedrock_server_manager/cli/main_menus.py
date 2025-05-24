@@ -231,7 +231,7 @@ def manage_server(base_dir: str, config_dir: str) -> None:
             elif choice == "2":
                 logger.debug(f"User selected 'Start Server' for '{server_name}'.")
                 # Call start handler
-                cli_server.start_server(server_name, base_dir)
+                cli_server.start_server(server_name, base_dir, "detached")
             elif choice == "3":
                 logger.debug(f"User selected 'Stop Server' for '{server_name}'.")
                 # Call stop handler

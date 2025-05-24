@@ -546,7 +546,15 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
 
     elif os_name == "Windows":
         logger.debug("Attempting to start server via Windows process creation.")
+
         try:
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "RUNNING",
+                config_dir=details["config_dir_base"],
+            )
             _ = system_windows._windows_start_server(  # Popen object not stored/used further here
                 server_name, details["server_dir"], details["server_config_dir"]
             )
@@ -2007,200 +2015,70 @@ def _write_version_config(
         ) from e
 
 
-def install_server(
-    server_name: str,
-    base_dir: str,
-    target_version: str,
-    zip_file_path: str,
-    server_dir: str,
-    is_update: bool,
-) -> None:
+def setup_server_files(zip_file_path: str, server_dir: str, is_update: bool) -> None:
     """
-    Installs or updates the Bedrock server files and configuration.
-
-    Handles stopping/starting, backup/restore during updates, file extraction,
-    permissions setting, and version recording.
+    CORE: Extracts server files from a ZIP archive into the server directory
+    and sets appropriate file permissions. This is a focused part of the
+    installation/update process.
 
     Args:
-        server_name: The name of the server.
-        base_dir: The base directory containing server installations.
-        target_version: The version string being installed/updated (used for logging/config).
-        zip_file_path: The full path to the downloaded server ZIP file.
-        server_dir: The full path to the target server installation directory.
-        is_update: True if performing an update on an existing server, False for a fresh install.
+        zip_file_path: Path to the downloaded server ZIP file.
+        server_dir: The target directory for the server installation.
+        is_update: True if this is an update (preserves some files), False for fresh install.
 
     Raises:
-        MissingArgumentError: If required arguments are empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If settings (DOWNLOAD_KEEP) are missing, backup/restore fails,
-                            or setting permissions/writing version config fails.
-        DirectoryError: If server directory is invalid.
-        InstallUpdateError: Wraps failures during critical steps like backup, extraction, restore.
+        InstallUpdateError: If extraction or permission setting fails.
+        MissingArgumentError, FileNotFoundError, DownloadExtractError, FileOperationError: from downloader.
     """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty.")
-    if not target_version:
-        raise MissingArgumentError("Target version cannot be empty.")
-    if not zip_file_path:
-        raise MissingArgumentError("ZIP file path cannot be empty.")
-    if not server_dir:
-        raise MissingArgumentError("Server directory cannot be empty.")
-
-    action = "Updating" if is_update else "Installing"
-    logger.info(f"{action} server '{server_name}' to version '{target_version}'...")
-    logger.debug(f"Source ZIP: {zip_file_path}, Target Dir: {server_dir}")
-
-    # 1. Stop server if it's an update and the server is running
-    was_running = False
-    if is_update:
-        try:
-            # This function stops the server if running and returns True if it was running
-            was_running = stop_server_if_running(
-                server_name, base_dir
-            )  # Updated to use standalone
-        except (
-            ServerNotFoundError,
-            InvalidServerNameError,
-            ServerStopError,
-            CommandNotFoundError,
-            SendCommandError,
-        ) as e:
-            # Abort the update if stopping fails, as extraction might fail otherwise.
-            logger.error(
-                f"Failed to stop server '{server_name}' before update: {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Failed to stop server '{server_name}' before update."
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error stopping server '{server_name}' before update: {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Unexpected error stopping server '{server_name}' before update."
-            ) from e
-
-    # 3. Backup server if it's an update
-    if is_update:
-        logger.info(f"Performing backup of server '{server_name}' before update...")
-        try:
-            backup.backup_all(server_name, base_dir)
-            logger.info("Pre-update backup completed successfully.")
-        except (BackupWorldError, FileOperationError, MissingArgumentError) as e:
-            logger.error(
-                f"Backup failed before update for server '{server_name}': {e}. Aborting update.",
-                exc_info=True,
-            )
-            # If backup fails, don't proceed with update
-            raise InstallUpdateError(
-                f"Backup failed before update for '{server_name}'."
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error during pre-update backup for '{server_name}': {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Unexpected error during pre-update backup for '{server_name}'."
-            ) from e
-
-    # 4. Extract server files
-    logger.debug(
-        f"Extracting server files from '{os.path.basename(zip_file_path)}' to '{server_dir}'..."
+    logger.info(
+        f"CORE: Setting up server files in '{server_dir}' from '{os.path.basename(zip_file_path)}'. Update: {is_update}"
     )
+
+    # 1. Extract server files (using the function from the downloader module)
     try:
+        # This function resides in core.downloader and handles the actual extraction logic,
+        # including preserving files during an update.
         downloader.extract_server_files_from_zip(zip_file_path, server_dir, is_update)
-        logger.info("Server file extraction completed successfully.")
+        logger.info("CORE: Server file extraction completed successfully.")
     except (
         DownloadExtractError,
         FileOperationError,
         MissingArgumentError,
-        FileNotFoundError,  # Though zip_file_path should be checked by caller usually
+        FileNotFoundError,
     ) as e:
         logger.error(
-            f"Failed to extract server files for '{server_name}': {e}", exc_info=True
+            f"CORE: Failed to extract server files into '{server_dir}': {e}",
+            exc_info=True,
         )
-        # If extraction fails, the installation/update cannot proceed.
+        # Wrap in InstallUpdateError to signify failure at this stage of installation
         raise InstallUpdateError(
-            f"Failed to extract server files for '{server_name}'."
+            f"Extraction phase failed for server setup in '{server_dir}'."
         ) from e
     except Exception as e:
         logger.error(
-            f"Unexpected error during server file extraction for '{server_name}': {e}",
+            f"CORE: Unexpected error during server file extraction into '{server_dir}': {e}",
             exc_info=True,
         )
         raise InstallUpdateError(
-            f"Unexpected error during server file extraction for '{server_name}'."
+            f"Unexpected error during extraction phase in '{server_dir}'."
         ) from e
 
-    # 5. Set permissions (especially important on Linux)
-    logger.debug(f"Setting permissions for server directory: {server_dir}")
+    # 2. Set permissions (especially important on Linux)
+    logger.debug(f"CORE: Setting permissions for server directory: {server_dir}")
     try:
         system_base.set_server_folder_permissions(server_dir)
-        logger.debug("Server folder permissions set successfully.")
+        logger.debug("CORE: Server folder permissions set successfully.")
     except Exception as e:
-        # Log warning, but don't necessarily fail the whole install if permissions fail
+        # Log warning, but don't necessarily fail the whole install if permissions fail.
+        # However, for consistency, an InstallUpdateError could be raised if permissions are critical.
         logger.warning(
-            f"Failed to set server folder permissions for '{server_dir}': {e}. Manual adjustment might be needed.",
+            f"CORE: Failed to set server folder permissions for '{server_dir}': {e}. "
+            "Manual adjustment might be needed.",
             exc_info=True,
         )
-
-    # 6. Write installed version to config
-    logger.debug(
-        f"Writing installed version '{target_version}' to config for server '{server_name}'."
-    )
-    try:
-        # _config_dir for _write_version_config will be fetched from settings by manage_server_config
-        _write_version_config(server_name, target_version)
-        manage_server_config(
-            server_name, "status", "write", "STOPPED"
-        )  # Set status to STOPPED after install/update
-        logger.debug("Successfully wrote version and updated status in config.")
-    except (
-        FileOperationError,
-        InvalidServerNameError,
-        InvalidInputError,
-    ) as e:  # InvalidInputError from _write_version_config
-        # If writing config fails, the server might work but manager won't know version/status.
-        logger.error(
-            f"Failed to write version/status to config file for '{server_name}': {e}. Installation complete but metadata missing.",
-            exc_info=True,
-        )
-        raise FileOperationError(  # Re-raise as FileOperationError for consistency with original intent
-            f"Failed to write version/status config for '{server_name}'."
-        ) from e
-
-    # 8. Restart server if it was running before the update
-    if was_running:
-        logger.info(
-            f"Attempting to restart server '{server_name}' as it was running before update..."
-        )
-        try:
-            start_server_if_was_running(
-                server_name, base_dir, was_running
-            )  # Updated to use standalone
-            logger.info(f"Server '{server_name}' restart initiated.")
-        except (
-            ServerStartError,
-            CommandNotFoundError,
-            ServerNotFoundError,
-        ) as e:  # ServerNotFoundError from _get_server_details
-            # Log error but installation itself was successful
-            logger.error(
-                f"Installation/update complete, but failed to automatically restart server '{server_name}': {e}. Please start it manually.",
-                exc_info=True,
-            )
-        except Exception as e:
-            logger.error(
-                f"Installation/update complete, but unexpected error occurred during automatic restart of server '{server_name}': {e}. Please start it manually.",
-                exc_info=True,
-            )
-
-    logger.info(f"Server '{server_name}' {action.lower()} process completed.")
+        # Optionally raise:
+        # raise InstallUpdateError(f"Failed to set permissions for '{server_dir}'.") from e
+    logger.info(f"CORE: Server file setup completed for '{server_dir}'.")
 
 
 def no_update_needed(
