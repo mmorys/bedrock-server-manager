@@ -3,7 +3,7 @@
 Provides API-level functions for managing Bedrock server instances.
 
 This acts as an interface layer, orchestrating calls to core server management
-functions (`server_base`, `system_linux`, etc.) and returning structured
+functions (from core.server.server, core.system, etc.) and returning structured
 dictionary responses indicating success or failure, suitable for use by web routes
 or other higher-level application logic.
 """
@@ -18,7 +18,9 @@ import time
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
-from bedrock_server_manager.core.server import server as server_base
+from bedrock_server_manager.core.server import (
+    server as server_base,
+)  # Alias for core server functions
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
@@ -90,7 +92,12 @@ def write_server_config(
             "status": "success",
             "message": f"Configuration key '{key}' updated successfully.",
         }
-    except (FileOperationError, InvalidInputError, InvalidServerNameError) as e:
+    except (
+        FileOperationError,
+        InvalidInputError,
+        InvalidServerNameError,
+        MissingArgumentError,
+    ) as e:  # Added MissingArgumentError
         # Catch specific known errors from the core function
         logger.error(
             f"Failed to write server config for '{server_name}': {e}", exc_info=True
@@ -110,7 +117,7 @@ def write_server_config(
 
 def start_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, str]:
     """
-    Starts the specified Bedrock server using the BedrockServer class.
+    Starts the specified Bedrock server using the core server functions.
 
     Args:
         server_name: The name of the server to start.
@@ -122,17 +129,21 @@ def start_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, 
     Raises:
         MissingArgumentError: If `server_name` is empty.
         InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
+        FileOperationError: If `base_dir` cannot be determined or essential settings are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     logger.info(f"Attempting to start server '{server_name}'...")
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        effective_base_dir = get_base_dir(
+            base_dir
+        )  # Used for initial check_if_server_is_running
 
-        # Check if already running before creating BedrockServer instance
-        if system_base.is_server_running(server_name, effective_base_dir):
+        # Check if already running before attempting to start
+        # Note: server_base.start_server also has this check, but checking here
+        # can provide a slightly different API response path.
+        if server_base.check_if_server_is_running(server_name):
             logger.warning(
                 f"Server '{server_name}' is already running. Start request ignored."
             )
@@ -141,25 +152,29 @@ def start_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, 
                 "message": f"Server '{server_name}' is already running.",
             }
 
-        # Create instance (raises ServerNotFoundError if executable missing)
-        # Pass only server_name, let the class determine paths
-        bedrock_server = server_base.BedrockServer(server_name)
-        # Call start method (raises ServerStartError, CommandNotFoundError)
-        bedrock_server.start()
+        # Call the standalone start function from core.server.server
+        server_base.start_server(server_name)
         logger.info(f"Server '{server_name}' started successfully.")
         return {
             "status": "success",
             "message": f"Server '{server_name}' started successfully.",
         }
 
-    # Catch specific, expected exceptions from BedrockServer init/start
-    except (ServerNotFoundError, ServerStartError, CommandNotFoundError) as e:
+    # Catch specific, expected exceptions from server_base.start_server or setup
+    except (
+        ServerNotFoundError,
+        ServerStartError,
+        CommandNotFoundError,
+        MissingArgumentError,
+    ) as e:  # Added MissingArgumentError
         logger.error(f"Failed to start server '{server_name}': {e}", exc_info=True)
         return {
             "status": "error",
             "message": f"Failed to start server '{server_name}': {e}",
         }
-    except FileOperationError as e:  # Catch error from get_base_dir
+    except (
+        FileOperationError
+    ) as e:  # Catch error from get_base_dir or core if settings are missing
         logger.error(
             f"Configuration error preventing server start for '{server_name}': {e}",
             exc_info=True,
@@ -181,6 +196,7 @@ def systemd_start_server(
 ) -> Dict[str, str]:
     """
     Starts the Bedrock server using the Linux-specific screen method (typically via systemd).
+    This function remains largely the same as it calls os-specific core functions directly.
 
     Args:
         server_name: The name of the server to start.
@@ -209,6 +225,7 @@ def systemd_start_server(
         effective_base_dir = get_base_dir(base_dir)
 
         # Check if already running
+        # system_base.is_server_running is still a valid check here
         if system_base.is_server_running(server_name, effective_base_dir):
             logger.warning(
                 f"Server '{server_name}' is already running (systemd start check)."
@@ -220,7 +237,9 @@ def systemd_start_server(
 
         # Call the Linux-specific start function
         server_dir = os.path.join(effective_base_dir, server_name)
-        system_linux._systemd_start_server(server_name, server_dir)
+        system_linux._systemd_start_server(
+            server_name, server_dir
+        )  # This is an OS-specific core function
         logger.info(
             f"Server '{server_name}' started successfully via systemd/screen method."
         )
@@ -257,7 +276,7 @@ def systemd_start_server(
 
 def stop_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, str]:
     """
-    Stops the specified Bedrock server using the BedrockServer class.
+    Stops the specified Bedrock server using the core server functions.
 
     Args:
         server_name: The name of the server to stop.
@@ -269,30 +288,29 @@ def stop_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, s
     Raises:
         MissingArgumentError: If `server_name` is empty.
         InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
+        FileOperationError: If `base_dir` cannot be determined or essential settings missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     logger.info(f"Attempting to stop server '{server_name}'...")
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        effective_base_dir = get_base_dir(
+            base_dir
+        )  # Used for initial check_if_server_is_running
 
-        # Check if not running before creating instance
-        if not system_base.is_server_running(server_name, effective_base_dir):
+        # Check if not running before attempting to stop
+        if not server_base.check_if_server_is_running(server_name):
             logger.warning(
                 f"Server '{server_name}' is not running. Stop request ignored."
             )
-            # Return success as the desired state (stopped) is achieved
             return {
-                "status": "success",
+                "status": "success",  # Desired state (stopped) is achieved
                 "message": f"Server '{server_name}' was already stopped.",
             }
 
-        # Create instance (raises ServerNotFoundError if executable missing but server IS running)
-        bedrock_server = server_base.BedrockServer(server_name)
-        # Call stop method (raises ServerStopError, SendCommandError, CommandNotFoundError)
-        bedrock_server.stop()
+        # Call the standalone stop function from core.server.server
+        server_base.stop_server(server_name)
         logger.info(f"Server '{server_name}' stopped successfully.")
         return {
             "status": "success",
@@ -300,23 +318,22 @@ def stop_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, s
         }
 
     except (
-        ServerNotFoundError,
+        ServerNotFoundError,  # This can be raised by stop_server if executable is gone but process was seen
         ServerStopError,
         SendCommandError,
         CommandNotFoundError,
+        MissingArgumentError,  # from stop_server if server_name is somehow empty (should be caught above)
     ) as e:
         logger.error(f"Failed to stop server '{server_name}': {e}", exc_info=True)
-        # If ServerNotFoundError happens here, it means process is running but exe is gone - report specific error
-        if isinstance(e, ServerNotFoundError):
-            return {
-                "status": "error",
-                "message": f"Server '{server_name}' process found but executable missing. Stop failed.",
-            }
+        # ServerNotFoundError case needs explicit handling for message if desired.
+        # server_base.stop_server itself will raise ServerNotFoundError if _get_server_details fails.
         return {
             "status": "error",
             "message": f"Failed to stop server '{server_name}': {e}",
         }
-    except FileOperationError as e:  # Catch error from get_base_dir
+    except (
+        FileOperationError
+    ) as e:  # Catch error from get_base_dir or core if settings are missing
         logger.error(
             f"Configuration error preventing server stop for '{server_name}': {e}",
             exc_info=True,
@@ -337,6 +354,7 @@ def systemd_stop_server(
 ) -> Dict[str, str]:
     """
     Stops the Bedrock server using the Linux-specific screen method (typically via systemd).
+    This function remains largely the same as it calls os-specific core functions directly.
 
     Args:
         server_name: The name of the server to stop.
@@ -376,7 +394,9 @@ def systemd_stop_server(
 
         # Call the Linux-specific stop function
         server_dir = os.path.join(effective_base_dir, server_name)
-        system_linux._systemd_stop_server(server_name, server_dir)
+        system_linux._systemd_stop_server(
+            server_name, server_dir
+        )  # This is an OS-specific core function
         logger.info(
             f"Server '{server_name}' stop command sent successfully via systemd/screen method."
         )
@@ -432,7 +452,7 @@ def restart_server(
     Raises:
         MissingArgumentError: If `server_name` is empty.
         InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
+        FileOperationError: If `base_dir` cannot be determined or essential settings are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -441,17 +461,17 @@ def restart_server(
         f"Initiating restart for server '{server_name}'. Send message: {send_message}"
     )
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        effective_base_dir = get_base_dir(base_dir)  # Used for initial check
 
-        is_running = system_base.is_server_running(server_name, effective_base_dir)
+        # Use core check_if_server_is_running
+        is_running = server_base.check_if_server_is_running(server_name)
 
         if not is_running:
             logger.info(
                 f"Server '{server_name}' was not running. Attempting to start..."
             )
-            # Just call start_server API function
+            # Just call start_server API function (which itself calls core start_server)
             start_result = start_server(server_name, effective_base_dir)
-            # Adjust message slightly for restart context
             if start_result.get("status") == "success":
                 start_result["message"] = (
                     f"Server '{server_name}' was not running and was started."
@@ -468,10 +488,9 @@ def restart_server(
                     f"Attempting to send restart warning message to server '{server_name}'."
                 )
                 try:
-                    # Create instance just to send command
-                    bedrock_server = server_base.BedrockServer(server_name)
-                    bedrock_server.send_command(
-                        "say Server restarting in 10 seconds..."
+                    # Use core standalone send_server_command
+                    server_base.send_server_command(
+                        server_name, "say Server restarting in 10 seconds..."
                     )
                     logger.info(
                         f"Sent restart warning to server '{server_name}'. Waiting 10s..."
@@ -480,15 +499,15 @@ def restart_server(
                 except (
                     ServerNotFoundError,
                     SendCommandError,
-                    ServerNotRunningError,
+                    ServerNotRunningError,  # Should not happen if is_running was true, but possible race
                     CommandNotFoundError,
+                    MissingArgumentError,  # from send_server_command
                 ) as msg_err:
-                    # Log warning but don't fail the whole restart if message send fails
                     logger.warning(
                         f"Could not send restart warning message to server '{server_name}': {msg_err}. Proceeding with restart.",
                         exc_info=True,
                     )
-                except Exception as msg_err:
+                except Exception as msg_err:  # Catch other unexpected errors
                     logger.warning(
                         f"Unexpected error sending restart warning message to server '{server_name}': {msg_err}. Proceeding with restart.",
                         exc_info=True,
@@ -496,49 +515,50 @@ def restart_server(
 
             # --- Stop Server ---
             logger.debug(f"Stopping server '{server_name}' for restart...")
-            stop_result = stop_server(server_name, effective_base_dir)
+            stop_result = stop_server(
+                server_name, effective_base_dir
+            )  # Calls API stop_server
             if stop_result.get("status") == "error":
                 logger.error(
                     f"Restart failed: Could not stop server '{server_name}'. Error: {stop_result.get('message')}"
                 )
-                # Append context to the error message
                 stop_result["message"] = (
                     f"Restart failed during stop phase: {stop_result.get('message')}"
                 )
                 return stop_result
 
-            # Optional delay between stop and start
             logger.debug("Waiting briefly before restarting...")
-            time.sleep(3)  # Short delay
+            time.sleep(3)
 
             # --- Start Server ---
             logger.debug(f"Starting server '{server_name}' after stop...")
-            start_result = start_server(server_name, effective_base_dir)
+            start_result = start_server(
+                server_name, effective_base_dir
+            )  # Calls API start_server
             if start_result.get("status") == "error":
                 logger.error(
                     f"Restart failed: Could not start server '{server_name}' after stopping. Error: {start_result.get('message')}"
                 )
-                # Append context to the error message
                 start_result["message"] = (
                     f"Restart failed during start phase: {start_result.get('message')}"
                 )
                 return start_result
 
-            # If start was successful
             logger.info(f"Server '{server_name}' restarted successfully.")
             return {
                 "status": "success",
                 "message": f"Server '{server_name}' restarted successfully.",
             }
 
-    except FileOperationError as e:  # Catch error from get_base_dir
+    except (
+        FileOperationError
+    ) as e:  # Catch error from get_base_dir or core functions if settings missing
         logger.error(
             f"Configuration error preventing server restart for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Configuration error: {e}"}
     except Exception as e:
-        # Catch unexpected errors during the restart orchestration
         logger.error(
             f"Unexpected error during restart process for server '{server_name}': {e}",
             exc_info=True,
@@ -547,16 +567,20 @@ def restart_server(
 
 
 def send_command(
-    server_name: str, command: str, base_dir: Optional[str] = None
+    server_name: str,
+    command: str,
+    base_dir: Optional[
+        str
+    ] = None,  # base_dir not directly used by core send_server_command
 ) -> Dict[str, str]:
     """
-    Sends a command to a running Bedrock server instance.
+    Sends a command to a running Bedrock server instance using core functions.
     Certain commands defined in the `API_COMMAND_BLACKLIST` setting may be blocked.
 
     Args:
         server_name: The name of the target server.
         command: The command string to send to the server console.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
+        base_dir: Optional. Base directory for server installations. (Not directly used by core send_server_command but kept for API consistency if needed elsewhere).
 
     Returns:
         A dictionary: `{"status": "success", "message": ...}`.
@@ -566,8 +590,8 @@ def send_command(
         MissingArgumentError: If `server_name` or `command` is empty.
         InvalidServerNameError: If `server_name` is invalid.
         BlockedCommandError: If the command is forbidden by the blacklist configuration.
-        FileOperationError: If `base_dir` cannot be determined.
-        ServerNotFoundError: If the server executable is missing.
+        FileOperationError: If `base_dir` cannot be determined (if used) or essential settings missing for core.
+        ServerNotFoundError: If the server executable is missing (checked by core).
         ServerNotRunningError: If the target server process isn't running or reachable.
         SendCommandError: If sending the command via the OS mechanism fails.
         CommandNotFoundError: If required OS commands (e.g., screen) are missing.
@@ -588,12 +612,15 @@ def send_command(
     )
 
     # --- Blacklist Check ---
-    blacklist = API_COMMAND_BLACKLIST
+    blacklist = API_COMMAND_BLACKLIST  # This is from settings
+    # Ensure API_COMMAND_BLACKLIST is actually loaded in settings
+    # For safety, could default to an empty list if not found, or raise specific config error.
     if not isinstance(blacklist, list):
-        logger.warning(f"Configuration key '{blacklist}' is not a list")
-        raise InvalidInputError(f"Configuration key '{blacklist}' is not a list")
+        logger.warning(
+            f"API_COMMAND_BLACKLIST setting is not a list or not found. Defaulting to empty list for safety."
+        )
+        blacklist = []  # Or raise ConfigurationError
 
-    # Normalize command for checking (lowercase, strip leading '/')
     command_check = command_clean.lower()
     if command_check.startswith("/"):
         command_check = command_check[1:]
@@ -606,18 +633,14 @@ def send_command(
             logger.warning(
                 f"Blocked command attempt for server '{server_name}': {error_msg}"
             )
-            # Raise the specific exception instead of returning an error dict
             raise BlockedCommandError(error_msg)
     # --- End Blacklist Check ---
 
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        # effective_base_dir = get_base_dir(base_dir) # Not strictly needed if send_server_command handles its paths
 
-        # Create instance (raises ServerNotFoundError if executable missing)
-        bedrock_server = server_base.BedrockServer(server_name)
-
-        # Send command (raises various errors on failure)
-        bedrock_server.send_command(command_clean)  # Send the original stripped command
+        # Call the standalone send_server_command from core.server.server
+        server_base.send_server_command(server_name, command_clean)
 
         logger.info(
             f"Command '{command_clean}' sent successfully to server '{server_name}'."
@@ -627,36 +650,33 @@ def send_command(
             "message": f"Command '{command_clean}' sent successfully.",
         }
 
-    # Re-raise specific exceptions caught from BedrockServer or setup
-    # The calling route handler will now need to catch these.
     except (
         ServerNotFoundError,
         ServerNotRunningError,
         SendCommandError,
         CommandNotFoundError,
-        MissingArgumentError,
-        FileOperationError,
-        InvalidServerNameError,
+        MissingArgumentError,  # From send_server_command if args are empty
+        FileOperationError,  # From send_server_command if settings are missing
+        InvalidServerNameError,  # From send_server_command
     ) as e:
         logger.error(
             f"Failed to send command to server '{server_name}': {e}", exc_info=True
         )
-        raise  # Re-raise the original exception
+        raise  # Re-raise the original exception to be handled by route
 
     except Exception as e:
-        # Catch unexpected errors and wrap them potentially
         logger.error(
             f"Unexpected error sending command to server '{server_name}': {e}",
             exc_info=True,
         )
-        # Re-raise as a generic error or a specific internal error type if you have one
+        # Re-raise as a generic error or a specific internal error type
         raise RuntimeError(f"Unexpected error sending command: {e}") from e
 
 
 def delete_server_data(
     server_name: str,
     base_dir: Optional[str] = None,
-    config_dir: Optional[str] = None,
+    config_dir: Optional[str] = None,  # config_dir passed to core delete_server_data
     stop_if_running: bool = True,
 ) -> Dict[str, str]:
     """
@@ -676,7 +696,7 @@ def delete_server_data(
     Raises:
         MissingArgumentError: If `server_name` is empty.
         InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If essential settings (BASE_DIR, BACKUP_DIR) are missing.
+        FileOperationError: If essential settings (BASE_DIR, BACKUP_DIR, _config_dir for core) are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -686,9 +706,11 @@ def delete_server_data(
     )
     try:
         effective_base_dir = get_base_dir(base_dir)
-        # Ensure backup dir setting exists for core delete function
+        # Ensure backup dir setting exists for core delete function (core already checks _config_dir)
         if not settings.get("BACKUP_DIR"):
-            raise FileOperationError("BACKUP_DIR setting missing.")
+            raise FileOperationError(
+                "BACKUP_DIR setting missing in application configuration."
+            )
 
         # --- Stop Server (Optional) ---
         if stop_if_running:
@@ -696,15 +718,14 @@ def delete_server_data(
                 f"Checking if server '{server_name}' needs to be stopped before deletion..."
             )
             try:
-                if system_base.is_server_running(server_name, effective_base_dir):
+                # Use core check_if_server_is_running
+                if server_base.check_if_server_is_running(server_name):
                     logger.info(
                         f"Server '{server_name}' is running. Stopping before deletion..."
                     )
-                    stop_result = stop_server(
-                        server_name, effective_base_dir
-                    )  # Call API stop function
+                    # Call API stop_server function (which calls core stop_server)
+                    stop_result = stop_server(server_name, effective_base_dir)
                     if stop_result.get("status") == "error":
-                        # If stop fails, abort deletion to prevent data issues with running server
                         error_msg = f"Failed to stop server '{server_name}' before deletion: {stop_result.get('message')}. Deletion aborted."
                         logger.error(error_msg)
                         return {"status": "error", "message": error_msg}
@@ -713,18 +734,19 @@ def delete_server_data(
                     logger.debug(
                         f"Server '{server_name}' is not running. No stop needed."
                     )
-            except Exception as e:
-                # Catch unexpected errors during stop check/attempt
+            except (
+                Exception
+            ) as e:  # Catch unexpected errors during the stop check/attempt
                 error_msg = f"Error occurred while stopping server '{server_name}' before deletion: {e}. Deletion aborted."
                 logger.error(error_msg, exc_info=True)
                 return {"status": "error", "message": error_msg}
 
         # --- Core Deletion Operation ---
         logger.debug(f"Proceeding with deletion of data for server '{server_name}'...")
-        # Call core delete function
+        # Call core delete function, passing effective_base_dir and optional config_dir
         server_base.delete_server_data(
-            server_name, effective_base_dir, config_dir
-        )  # Raises DirectoryError on failure
+            server_name, effective_base_dir, config_dir=config_dir
+        )
         logger.info(f"Successfully deleted data for server '{server_name}'.")
         return {
             "status": "success",
@@ -732,19 +754,19 @@ def delete_server_data(
         }
 
     except (DirectoryError, InvalidServerNameError) as e:
-        # Catch specific errors known to be raised by core delete_server_data
         logger.error(
             f"Failed to delete server data for '{server_name}': {e}", exc_info=True
         )
         return {"status": "error", "message": f"Failed to delete server data: {e}"}
-    except FileOperationError as e:  # Catch config/base_dir errors
+    except (
+        FileOperationError
+    ) as e:  # Catches config/base_dir errors from get_base_dir or core
         logger.error(
             f"Configuration error preventing server deletion for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Configuration error: {e}"}
     except Exception as e:
-        # Catch unexpected errors
         logger.error(
             f"Unexpected error deleting server data for '{server_name}': {e}",
             exc_info=True,
