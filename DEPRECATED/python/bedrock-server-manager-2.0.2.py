@@ -11,7 +11,7 @@
 # requests
 # psutil
 
-from datetime import timedelta, datetime 
+from datetime import timedelta, datetime
 from colorama import Fore, Style, init
 import xml.etree.ElementTree as ET
 import sys
@@ -30,8 +30,9 @@ import stat
 import psutil
 import socket
 import tempfile
-#import shlex
-#import calendar
+
+# import shlex
+# import calendar
 
 if sys.version_info < (3, 10):
     sys.exit("This script requires Python 3.10 or later.")
@@ -41,15 +42,17 @@ init(autoreset=True)
 # Constants
 script_dir = os.path.dirname(os.path.realpath(__file__))
 script_direct = os.path.join(script_dir, "bedrock-server-manager.py")
-config_dir = os.path.join(script_dir, ".config")  
-content_dir = os.path.join(script_dir, "content")  
+config_dir = os.path.join(script_dir, ".config")
+content_dir = os.path.join(script_dir, "content")
 LOG_DIR = os.path.join(script_dir, ".logs")
 LOG_TIMESTAMP = datetime.now().strftime("%Y%m%d")
 SCRIPT_LOG = os.path.join(LOG_DIR, f"log_{LOG_TIMESTAMP}.log")
 
+
 def get_timestamp():
     """Returns the current timestamp in YYYYMMDD_HHMMSS format."""
     return datetime.now().strftime("%Y%m%d_%H%M%S")
+
 
 def log_to_file(message):
     """Logs a message to the script's log file."""
@@ -58,29 +61,35 @@ def log_to_file(message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_file.write(f"{timestamp} {message}\n")
 
+
 def msg_info(message):
     """Prints an info message with a cyan [INFO] tag and logs it."""
     print(Fore.CYAN + "[INFO] " + Style.RESET_ALL + message, file=sys.stderr)
     log_to_file(f"[INFO] {message}")
+
 
 def msg_ok(message):
     """Prints an OK message with a green [OK] tag and logs it."""
     print(Fore.GREEN + "[OK] " + Style.RESET_ALL + message, file=sys.stderr)
     log_to_file(f"[OK] {message}")
 
+
 def msg_warn(message):
     """Prints a warning message with a yellow [WARN] tag and logs it."""
     print(Fore.YELLOW + "[WARN] " + Style.RESET_ALL + message, file=sys.stderr)
     log_to_file(f"[WARN] {message}")
+
 
 def msg_error(message):
     """Prints an error message with a red [ERROR] tag and logs it."""
     print(Fore.RED + "[ERROR] " + Style.RESET_ALL + message, file=sys.stderr)
     log_to_file(f"[ERROR] {message}")
 
+
 def msg_debug(message):
     """Logs a debug message (does not print to console)."""
     log_to_file(f"[DEBUG] {message}")
+
 
 def manage_log_files(log_dir=LOG_DIR, max_files=10, max_size_mb=15):
     """Manages log files in the specified directory.
@@ -99,21 +108,29 @@ def manage_log_files(log_dir=LOG_DIR, max_files=10, max_size_mb=15):
         os.makedirs(log_dir, exist_ok=True)
     except OSError as e:
         handle_error(16, action)  # Failed to create directory
-        return 16 #Return error code
+        return 16  # Return error code
 
     msg_debug(f"Managing log files in: {log_dir}")
 
     try:
-        log_files = sorted(glob.glob(os.path.join(log_dir, "log_*.log")), key=os.path.getmtime, reverse=True)
+        log_files = sorted(
+            glob.glob(os.path.join(log_dir, "log_*.log")),
+            key=os.path.getmtime,
+            reverse=True,
+        )
     except OSError:
-        msg_warn(f"Failed to list log files in {log_dir}. Log management may be incomplete.")
-        log_files = [] # set to empty to prevent errors later.
+        msg_warn(
+            f"Failed to list log files in {log_dir}. Log management may be incomplete."
+        )
+        log_files = []  # set to empty to prevent errors later.
 
     num_log_files = len(log_files)
 
     # --- Count-Based Cleanup ---
     if num_log_files > max_files:
-        msg_debug(f"Performing log file count-based cleanup (keeping last {max_files})...")
+        msg_debug(
+            f"Performing log file count-based cleanup (keeping last {max_files})..."
+        )
         for log_file in log_files[max_files:]:  # Iterate over files to be deleted
             try:
                 os.remove(log_file)
@@ -121,36 +138,50 @@ def manage_log_files(log_dir=LOG_DIR, max_files=10, max_size_mb=15):
                 msg_warn(f"Failed to delete old log file: {log_file}")
         msg_debug(f"Old log files deleted, keeping last {max_files}.")
     else:
-        msg_debug(f"Log file count is within limit ({num_log_files} files, max {max_files}). Skipping count-based cleanup.")
+        msg_debug(
+            f"Log file count is within limit ({num_log_files} files, max {max_files}). Skipping count-based cleanup."
+        )
 
     # --- Size-Based Cleanup ---
     try:
-        total_size_bytes = sum(os.path.getsize(f) for f in log_files[:max_files]) # get size of the remaining files
+        total_size_bytes = sum(
+            os.path.getsize(f) for f in log_files[:max_files]
+        )  # get size of the remaining files
         total_size_mb_actual = total_size_bytes / 1048576
     except OSError:
         msg_warn("Failed to get the total size of the log directory.")
-        total_size_mb_actual = 0 # set to prevent errors
+        total_size_mb_actual = 0  # set to prevent errors
 
     if total_size_mb_actual > max_size_mb:
-        msg_warn(f"Log directory size exceeds limit ({total_size_mb_actual:.2f} MB > {max_size_mb} MB). Reducing size...")
+        msg_warn(
+            f"Log directory size exceeds limit ({total_size_mb_actual:.2f} MB > {max_size_mb} MB). Reducing size..."
+        )
 
         for log_file in log_files[max_files:]:  # Re-check files, including newly added
             try:
                 os.remove(log_file)
-                total_size_bytes = sum(os.path.getsize(f) for f in glob.glob(os.path.join(log_dir, "log_*.log"))) #Recalculate file size
+                total_size_bytes = sum(
+                    os.path.getsize(f)
+                    for f in glob.glob(os.path.join(log_dir, "log_*.log"))
+                )  # Recalculate file size
                 total_size_mb_actual = total_size_bytes / 1048576
                 if total_size_mb_actual <= max_size_mb:
-                  break
+                    break
             except OSError:
                 msg_warn(f"Failed to delete log file: {log_file}")
-                break # stop trying to delete files
+                break  # stop trying to delete files
 
-        msg_debug(f"Log directory size reduced to {total_size_mb_actual:.2f} MB (limit: {max_size_mb} MB).")
+        msg_debug(
+            f"Log directory size reduced to {total_size_mb_actual:.2f} MB (limit: {max_size_mb} MB)."
+        )
     else:
-        msg_debug(f"Log directory size is within limit ({total_size_mb_actual:.2f} MB, max {max_size_mb} MB). Skipping size-based cleanup.")
+        msg_debug(
+            f"Log directory size is within limit ({total_size_mb_actual:.2f} MB, max {max_size_mb} MB). Skipping size-based cleanup."
+        )
 
     msg_debug("Log file management completed.")
     return 0
+
 
 def handle_error(exit_code=1, action=""):
     """Handles errors based on the provided exit code and action.
@@ -163,25 +194,25 @@ def handle_error(exit_code=1, action=""):
     msg_error(f"Error code: {exit_code}")
 
     error_messages = {
-        1:   "Unknown Error.",
-        2:   "Missing Required Argument.",
-        4:   "Missing Required Packages.",
-        5:   "Invalid Input.",
-        6:   "Server Not Found.",
-        8:   "Server Not Running.",
-        9:   "Failed to Install/Update Server.",
-        10:  "Failed to Start/Stop Server.",
-        11:  "Failed to Configure Server Properties.",
-        12:  "Failed to Create Service.",
-        13:  "Failed to Enable/Disable Service.",
-        14:  "Failed to Read/Write Configuration File.",
-        15:  "Failed to Download or Extract Files.",
-        16:  "Failed to Create or Remove Directories.",
-        17:  "Failed to Send Command to Server.",
-        18:  "Failed to Attach to Server Console.",
-        20:  "Failed to Backup World.",
-        21:  "Failed to Delete Server.",
-        22:  "Failed to Schedule Task.",
+        1: "Unknown Error.",
+        2: "Missing Required Argument.",
+        4: "Missing Required Packages.",
+        5: "Invalid Input.",
+        6: "Server Not Found.",
+        8: "Server Not Running.",
+        9: "Failed to Install/Update Server.",
+        10: "Failed to Start/Stop Server.",
+        11: "Failed to Configure Server Properties.",
+        12: "Failed to Create Service.",
+        13: "Failed to Enable/Disable Service.",
+        14: "Failed to Read/Write Configuration File.",
+        15: "Failed to Download or Extract Files.",
+        16: "Failed to Create or Remove Directories.",
+        17: "Failed to Send Command to Server.",
+        18: "Failed to Attach to Server Console.",
+        20: "Failed to Backup World.",
+        21: "Failed to Delete Server.",
+        22: "Failed to Schedule Task.",
         23: "Failed to Monitor Server Resource Usage.",
         24: "Internet Connectivity Test Failed.",
         25: "Invalid Server Name.",
@@ -189,19 +220,16 @@ def handle_error(exit_code=1, action=""):
         27: "Invalid Addon Pack Type.",
         30: "File Operation Failed.",
         32: "Failed to Backup Config File.",
-
         # Linux-specific Errors
         41: "Failed to Reload systemd Daemon.",
         42: "systemctl Command Not Found.",
         45: "screen Command Not Found.",
         46: "pgrep Command Not Found",
         47: "Failed to set folder permissions",
-
         # Windows-specific Errors
         50: "Failed to Start Server Executable.",
         51: "Failed to Stop Server Process.",
         55: "Failed to set folder permissions",
-
         255: "User Exited.",
     }
 
@@ -215,9 +243,12 @@ def handle_error(exit_code=1, action=""):
         msg_error(message)
         print(str(exit_code))
     else:
-        print(str(exit_code)) # added to print the exit code even if theres no error message
-        
+        print(
+            str(exit_code)
+        )  # added to print the exit code even if theres no error message
+
     return exit_code
+
 
 def setup_prerequisites():
     """Checks for required command-line tools (Linux-specific)."""
@@ -235,30 +266,46 @@ def setup_prerequisites():
             msg_debug("All required packages are already installed.")
             return 0
 
-        msg_error(f"The following required packages are missing: {', '.join(missing_packages)}")
+        msg_error(
+            f"The following required packages are missing: {', '.join(missing_packages)}"
+        )
 
-        distro = platform.freedesktop_os_release()['ID_LIKE']
-        if 'debian' in distro or 'ubuntu' in distro:
+        distro = platform.freedesktop_os_release()["ID_LIKE"]
+        if "debian" in distro or "ubuntu" in distro:
             msg_info("To install missing packages on Debian/Ubuntu, run:")
             msg_info("  sudo apt-get update")
             msg_info("  sudo apt-get install -y " + " ".join(missing_packages))
-        elif 'rhel' in distro or 'fedora' in distro or 'centos' in distro:
-            msg_info("To install missing packages on Fedora/RHEL/CentOS, run: sudo dnf install -y " + " ".join(missing_packages))
-        elif 'arch' in distro:
-            msg_info("To install missing packages on Arch Linux, run: sudo pacman -S --noconfirm " + " ".join(missing_packages))
-        elif 'suse' in distro:
-            msg_info("To install missing packages on openSUSE/SLES, run: sudo zypper install -y " + " ".join(missing_packages))
+        elif "rhel" in distro or "fedora" in distro or "centos" in distro:
+            msg_info(
+                "To install missing packages on Fedora/RHEL/CentOS, run: sudo dnf install -y "
+                + " ".join(missing_packages)
+            )
+        elif "arch" in distro:
+            msg_info(
+                "To install missing packages on Arch Linux, run: sudo pacman -S --noconfirm "
+                + " ".join(missing_packages)
+            )
+        elif "suse" in distro:
+            msg_info(
+                "To install missing packages on openSUSE/SLES, run: sudo zypper install -y "
+                + " ".join(missing_packages)
+            )
         else:
-            msg_warn("Unsupported Linux distribution. Please install the missing packages manually.")
+            msg_warn(
+                "Unsupported Linux distribution. Please install the missing packages manually."
+            )
 
         return handle_error(4, action)
 
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
-        return 0 
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
+        return 0
     else:
         msg_warn("Unsupported operating system.")
         return 0
+
 
 def check_internet_connectivity(host="8.8.8.8", port=53, timeout=3):
     """Checks for internet connectivity by attempting a socket connection.
@@ -273,7 +320,9 @@ def check_internet_connectivity(host="8.8.8.8", port=53, timeout=3):
         int: 0 if connectivity is OK, an error code otherwise.
     """
     action = "check internet connectivity"
-    msg_debug(f"Checking internet connectivity to {host}:{port} with timeout {timeout}s")
+    msg_debug(
+        f"Checking internet connectivity to {host}:{port} with timeout {timeout}s"
+    )
     try:
         # Attempt a socket connection.
         socket.setdefaulttimeout(timeout)
@@ -286,6 +335,7 @@ def check_internet_connectivity(host="8.8.8.8", port=53, timeout=3):
     except Exception as e:
         msg_error(f"An unexpected error occurred: {e}")
         return handle_error(24, action)
+
 
 def update_script(script_path=__file__):
     """Downloads an updated version of the script from GitHub.
@@ -318,11 +368,14 @@ def update_script(script_path=__file__):
         msg_error(f"Failed to download updated script: {e}")
         return handle_error(15, action)
 
+
 def write_config_if_not_exists(config_dir=None):
     """Writes a default configuration file if it doesn't exist or is invalid."""
 
     if config_dir is None:
-      config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config") # Set default.
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )  # Set default.
     config_file = os.path.join(config_dir, "script_config.json")
     required_keys = ("BASE_DIR", "BACKUP_KEEP", "DOWNLOAD_KEEP")
     config_valid = True
@@ -341,24 +394,29 @@ def write_config_if_not_exists(config_dir=None):
 
             for req_key in required_keys:
                 if req_key not in config_data:
-                    msg_warn(f"Warning: Required key '{req_key}' is missing from config. Recreating config with defaults.")
+                    msg_warn(
+                        f"Warning: Required key '{req_key}' is missing from config. Recreating config with defaults."
+                    )
                     config_valid = False
                     break
         except json.JSONDecodeError:
-            msg_warn("Warning: Configuration file is not valid JSON. Recreating config with defaults.")
-            try: #Attempt to remove
+            msg_warn(
+                "Warning: Configuration file is not valid JSON. Recreating config with defaults."
+            )
+            try:  # Attempt to remove
                 os.remove(config_file)
             except OSError as e:
-                msg_warn(f"Failed to remove invalid config file. This may cause issues: {e}")
+                msg_warn(
+                    f"Failed to remove invalid config file. This may cause issues: {e}"
+                )
                 return handle_error(16, action)  # Return error.
             config_valid = False
         except OSError as e:
             msg_error(f"Failed to read config file {e}")
-            return handle_error(14, action) #Failed to read/write
+            return handle_error(14, action)  # Failed to read/write
 
         if config_valid:
             msg_debug("Configuration file is valid and contains all required keys.")
-
 
     if not config_valid:
         msg_debug("Writing default configuration...")
@@ -366,7 +424,9 @@ def write_config_if_not_exists(config_dir=None):
             os.makedirs(config_dir, exist_ok=True)  # Ensure directory exists
             with open(config_file, "w") as f:
                 default_config_data = {
-                    "BASE_DIR": os.path.join(os.path.dirname(os.path.realpath(__file__)), "servers"),
+                    "BASE_DIR": os.path.join(
+                        os.path.dirname(os.path.realpath(__file__)), "servers"
+                    ),
                     "BACKUP_KEEP": 3,
                     "DOWNLOAD_KEEP": 3,
                 }
@@ -377,6 +437,7 @@ def write_config_if_not_exists(config_dir=None):
             return handle_error(14, action)
 
     return 0
+
 
 def manage_script_config(key, operation, value=None, config_dir=None):
     """Manages the script's configuration file (script_config.json).
@@ -391,8 +452,10 @@ def manage_script_config(key, operation, value=None, config_dir=None):
         str or int:  If operation is "read", returns the value (or None if not found).
                       If operation is "write", returns 0 on success, or an error code.
     """
-    if config_dir is None: #Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+    if config_dir is None:  # Allow config_dir to be passed in.
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
 
     config_file = os.path.join(config_dir, "script_config.json")
     action = "manage script config"
@@ -422,14 +485,15 @@ def manage_script_config(key, operation, value=None, config_dir=None):
         msg_error("Failed to read or parse existing config.json.")
         return handle_error(14, action)
 
-
     if operation == "read":
-        #msg_debug("Operating in READ mode.")
+        # msg_debug("Operating in READ mode.")
         read_value = current_config.get(key)
         if read_value is not None:  # Use None to check for missing keys
             return read_value
         else:
-            msg_warn(f"Warning: Key '{key}' not found in config.json or value is empty.")
+            msg_warn(
+                f"Warning: Key '{key}' not found in config.json or value is empty."
+            )
             return None  # Consistent return type for "read"
 
     elif operation == "write":
@@ -448,8 +512,11 @@ def manage_script_config(key, operation, value=None, config_dir=None):
             return handle_error(14, action)
 
     else:
-        msg_error(f"Error: Invalid operation type: '{operation}'. Must be 'read' or 'write'.")
+        msg_error(
+            f"Error: Invalid operation type: '{operation}'. Must be 'read' or 'write'."
+        )
         return handle_error(5, action)
+
 
 def default_config():
     """Loads default configuration variables from script_config.json."""
@@ -460,28 +527,29 @@ def default_config():
         msg_error("Failed to write or validate config. Exiting")
         return handle_error(14, action)
 
-    config = {} # Store config
+    config = {}  # Store config
 
     base_dir = manage_script_config("BASE_DIR", "read")
     if base_dir is None:
         msg_error("Failed to read BASE_DIR from config. Exiting.")
         return handle_error(14, action)
-    config['BASE_DIR'] = base_dir
+    config["BASE_DIR"] = base_dir
 
     backup_keep = manage_script_config("BACKUP_KEEP", "read")
     if backup_keep is None:
         msg_warn("Failed to read BACKUP_KEEP, defaulting to 3")
         backup_keep = 3
-    config['BACKUP_KEEP'] = backup_keep
+    config["BACKUP_KEEP"] = backup_keep
 
     download_keep = manage_script_config("DOWNLOAD_KEEP", "read")
     if download_keep is None:
         msg_warn("Failed to read DOWNLOAD_KEEP, defaulting to 3")
         download_keep = 3
-    config['DOWNLOAD_KEEP'] = download_keep
+    config["DOWNLOAD_KEEP"] = download_keep
 
     msg_debug("Default configuration variables loaded.")
     return config
+
 
 def manage_server_config(server_name, key, operation, value=None, config_dir=None):
     """Manages individual server configuration files (server_name_config.json).
@@ -497,12 +565,16 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         str or int: Value for "read", 0 for successful "write", error code otherwise.
     """
     if config_dir is None:  # Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     server_config_dir = os.path.join(config_dir, server_name)
     config_file = os.path.join(server_config_dir, f"{server_name}_config.json")
     action = "manage server config"
 
-    msg_debug(f"Managing {server_name}_config.json, Key: '{key}', Operation: '{operation}'")
+    msg_debug(
+        f"Managing {server_name}_config.json, Key: '{key}', Operation: '{operation}'"
+    )
 
     if not server_name:
         msg_error("manage_server_config: server_name is empty.")
@@ -517,7 +589,9 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
     os.makedirs(server_config_dir, exist_ok=True)
 
     if not os.path.exists(config_file):
-        msg_debug(f"{server_name}_config.json not found in {server_config_dir}. Creating a new one.")
+        msg_debug(
+            f"{server_name}_config.json not found in {server_config_dir}. Creating a new one."
+        )
         try:
             with open(config_file, "w") as f:
                 json.dump({}, f)
@@ -532,13 +606,14 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         msg_error(f"Failed to read or parse existing {server_name}_config.json.")
         return handle_error(14, action)
 
-
     if operation == "read":
         read_value = current_config.get(key)
         if read_value is not None:
             return read_value
         else:
-            msg_warn(f"Key '{key}' not found in {server_name}_config.json or value is empty.")
+            msg_warn(
+                f"Key '{key}' not found in {server_name}_config.json or value is empty."
+            )
             return None
 
     elif operation == "write":
@@ -560,6 +635,7 @@ def manage_server_config(server_name, key, operation, value=None, config_dir=Non
         msg_error(f"Invalid operation type: '{operation}'. Must be 'read' or 'write'.")
         return handle_error(5, action)
 
+
 def validate_server(server_name, base_dir):
     """Validates if a server exists by checking for the server executable.
 
@@ -580,7 +656,7 @@ def validate_server(server_name, base_dir):
 
     if platform.system() == "Windows":
         exe_name = "bedrock_server.exe"
-    else: 
+    else:
         exe_name = "bedrock_server"
 
     if not os.path.exists(os.path.join(server_dir, exe_name)):
@@ -590,6 +666,7 @@ def validate_server(server_name, base_dir):
 
     msg_debug(f"{server_name} valid")
     return True
+
 
 def get_server_name(base_dir):
     """Prompts the user for a server name and validates its existence.
@@ -602,7 +679,11 @@ def get_server_name(base_dir):
     """
     action = "get server name"
     while True:
-        server_name = input(Fore.MAGENTA + "Enter server name (or type 'exit' to cancel): " + Style.RESET_ALL)
+        server_name = input(
+            Fore.MAGENTA
+            + "Enter server name (or type 'exit' to cancel): "
+            + Style.RESET_ALL
+        )
 
         if server_name == "exit":
             msg_ok("Operation canceled.")
@@ -617,6 +698,7 @@ def get_server_name(base_dir):
         else:
             msg_warn("Please enter a valid server name or type 'exit' to cancel.")
 
+
 def get_installed_version(server_name, config_dir=None):
     """Gets the installed version of a server from its config.json.
 
@@ -628,17 +710,21 @@ def get_installed_version(server_name, config_dir=None):
         str: The installed version, or "UNKNOWN" if not found or an error occurs.
     """
     if config_dir is None:  # Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "get installed version"
 
     msg_debug(f"Getting installed version for server: {server_name}")
 
     if not server_name:
         msg_error("No server name provided.")
-        handle_error(25,action)
+        handle_error(25, action)
         return "UNKNOWN"
 
-    installed_version = manage_server_config(server_name, "installed_version", "read", config_dir=config_dir)
+    installed_version = manage_server_config(
+        server_name, "installed_version", "read", config_dir=config_dir
+    )
 
     if installed_version is None:
         msg_warn("No installed_version found in config.json, defaulting to UNKNOWN.")
@@ -647,6 +733,7 @@ def get_installed_version(server_name, config_dir=None):
         msg_debug(f"Installed version for {server_name}: {installed_version}")
 
     return installed_version
+
 
 def check_server_status(server_name, base_dir):
     """Checks the server status by reading server_output.txt.
@@ -679,19 +766,19 @@ def check_server_status(server_name, base_dir):
         return "UNKNOWN"
 
     try:
-      with open(log_file, "r") as f:
-          lines = f.readlines()  # Read all lines into a list
+        with open(log_file, "r") as f:
+            lines = f.readlines()  # Read all lines into a list
     except OSError:
-      msg_error(f"Failed to read server log {log_file}")
-      return "UNKNOWN"
+        msg_error(f"Failed to read server log {log_file}")
+        return "UNKNOWN"
 
     total_lines = len(lines)
     read_lines = 0
 
     while read_lines < max_lines and read_lines < total_lines:
         lines_to_read = min(chunk_size, total_lines - read_lines)
-        log_chunk = lines[-(read_lines + lines_to_read):]  # Read chunk from the end
-        log_chunk.reverse() #Reverse
+        log_chunk = lines[-(read_lines + lines_to_read) :]  # Read chunk from the end
+        log_chunk.reverse()  # Reverse
 
         for line in log_chunk:
             line = line.strip()  # Remove leading/trailing whitespace
@@ -715,27 +802,29 @@ def check_server_status(server_name, base_dir):
             break
         read_lines += chunk_size
 
-
     msg_debug(f"{server_name} status from output file: {status}")
     return status
+
 
 def get_server_status_from_config(server_name, config_dir=None):
     """Gets the server status from the server's config.json file.
 
-        Args:
-            server_name (str): The name of the server.
-            config_dir (str, optional): config directory, defaults to .config
+    Args:
+        server_name (str): The name of the server.
+        config_dir (str, optional): config directory, defaults to .config
 
-        Returns:
-            str: The server status ("RUNNING", "STARTING", etc., or "UNKNOWN").
+    Returns:
+        str: The server status ("RUNNING", "STARTING", etc., or "UNKNOWN").
     """
     if config_dir is None:  # Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "get server status from config"
 
     if not server_name:
         msg_error("get_server_status_from_config: server_name is empty.")
-        handle_error(25,action) #Call handle error, don't return
+        handle_error(25, action)  # Call handle error, don't return
         return "UNKNOWN"
 
     status = manage_server_config(server_name, "status", "read", config_dir=config_dir)
@@ -743,6 +832,7 @@ def get_server_status_from_config(server_name, config_dir=None):
         status = "UNKNOWN"
 
     return status
+
 
 def update_server_status_in_config(server_name, base_dir, config_dir=None):
     """Updates the server status in the server's config.json file.
@@ -753,7 +843,9 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
         config_dir (str, optional): config directory, defaults to .config
     """
     if config_dir is None:  # Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "update server status in config"
 
     if not server_name:
@@ -762,22 +854,30 @@ def update_server_status_in_config(server_name, base_dir, config_dir=None):
 
     current_status = get_server_status_from_config(server_name, config_dir=config_dir)
     if current_status is None:
-        current_status = "UNKNOWN" #Set as unknown
+        current_status = "UNKNOWN"  # Set as unknown
 
     status = check_server_status(server_name, base_dir)
     if not status:
-        status = "UNKNOWN" # Set as unknown
+        status = "UNKNOWN"  # Set as unknown
 
     if current_status == "installed" and status == "UNKNOWN":
-        msg_debug("Status is 'installed' and retrieved status is 'UNKNOWN'. Not updating config.json.")
+        msg_debug(
+            "Status is 'installed' and retrieved status is 'UNKNOWN'. Not updating config.json."
+        )
         return  # No error, just don't update
 
-    if manage_server_config(server_name, "status", "write", status, config_dir=config_dir) != 0:
+    if (
+        manage_server_config(
+            server_name, "status", "write", status, config_dir=config_dir
+        )
+        != 0
+    ):
         msg_error("Failed to update server status in config.json")
         return handle_error(14, action)
 
     msg_debug(f"Successfully updated server status for {server_name} in config.json")
     return 0
+
 
 def get_world_name(server_name, base_dir):
     """Gets the world name from the server.properties file.
@@ -794,7 +894,7 @@ def get_world_name(server_name, base_dir):
 
     if not server_name:
         msg_error("get_world_name: server_name is empty")
-        handle_error(25,action)
+        handle_error(25, action)
         return None
 
     msg_debug(f"Getting world name for: {server_name}")
@@ -813,12 +913,13 @@ def get_world_name(server_name, base_dir):
                     return world_name
     except OSError:
         msg_error("Failed to read server.properties")
-        handle_error(14,action)
-        return None #Error
+        handle_error(14, action)
+        return None  # Error
 
     msg_error("Failed to extract world name from server.properties.")
-    handle_error(14,action)
+    handle_error(14, action)
     return None
+
 
 def list_servers_status(base_dir, config_dir=None):
     """Lists the status and version of all servers.
@@ -828,7 +929,9 @@ def list_servers_status(base_dir, config_dir=None):
         config_dir (str, optional): Config dir, defaults to .config
     """
     if config_dir is None:  # Allow config_dir to be passed in.
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "list servers status"
     print(Fore.MAGENTA + "Servers Status:" + Style.RESET_ALL)
     print("---------------------------------------------------")
@@ -837,7 +940,7 @@ def list_servers_status(base_dir, config_dir=None):
 
     if not os.path.isdir(base_dir):
         msg_error(f"Error: {base_dir} does not exist or is not a directory.")
-        handle_error(16,action)
+        handle_error(16, action)
         return
 
     found_servers = False
@@ -850,7 +953,9 @@ def list_servers_status(base_dir, config_dir=None):
 
             status = Fore.YELLOW + "CHECKING..." + Style.RESET_ALL
 
-            server_status = get_server_status_from_config(server_name, config_dir=config_dir)
+            server_status = get_server_status_from_config(
+                server_name, config_dir=config_dir
+            )
             if server_status:
                 status = server_status
             else:
@@ -864,15 +969,18 @@ def list_servers_status(base_dir, config_dir=None):
             elif status == "STOPPED":
                 status = Fore.RED + status + Style.RESET_ALL
 
-
-            retrieved_version = get_installed_version(server_name, config_dir=config_dir)
+            retrieved_version = get_installed_version(
+                server_name, config_dir=config_dir
+            )
             if retrieved_version:
                 version = Fore.YELLOW + retrieved_version + Style.RESET_ALL
             else:
                 version = Fore.RED + "ERROR GETTING VERSION" + Style.RESET_ALL
                 msg_error(f"Error retrieving version for {server_name}")
 
-            print(f"{Fore.CYAN}{server_name:<20}{Style.RESET_ALL} {status:<20}  {version:<10}")
+            print(
+                f"{Fore.CYAN}{server_name:<20}{Style.RESET_ALL} {status:<20}  {version:<10}"
+            )
             found_servers = True
 
     if not found_servers:
@@ -880,6 +988,7 @@ def list_servers_status(base_dir, config_dir=None):
 
     print("---------------------------------------------------")
     print()
+
 
 def check_service_exists(server_name):
     """Checks if a systemd service file exists for the given server.
@@ -895,8 +1004,11 @@ def check_service_exists(server_name):
 
     service_name = f"bedrock-{server_name}"
     # Corrected path for user services:
-    service_file = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user", f"{service_name}.service")
+    service_file = os.path.join(
+        os.path.expanduser("~"), ".config", "systemd", "user", f"{service_name}.service"
+    )
     return os.path.exists(service_file)
+
 
 def configure_allowlist(server_name, base_dir):
     """Configures the allowlist.json file for a given server.
@@ -931,7 +1043,11 @@ def configure_allowlist(server_name, base_dir):
 
     # Ask for new players
     while True:
-        player_name = input(Fore.CYAN + "Enter a player's name to add to the allowlist (or type 'done' to finish): " + Style.RESET_ALL)
+        player_name = input(
+            Fore.CYAN
+            + "Enter a player's name to add to the allowlist (or type 'done' to finish): "
+            + Style.RESET_ALL
+        )
         if player_name == "done":
             break
         elif not player_name:
@@ -943,8 +1059,12 @@ def configure_allowlist(server_name, base_dir):
             msg_warn(f"Player '{player_name}' is already in the allowlist. Skipping.")
             continue
 
-        while True: # Loop to ensure valid input
-            ignore_limit_input = input(Fore.MAGENTA + "Should this player ignore the player limit? (y/n): " + Style.RESET_ALL).lower()
+        while True:  # Loop to ensure valid input
+            ignore_limit_input = input(
+                Fore.MAGENTA
+                + "Should this player ignore the player limit? (y/n): "
+                + Style.RESET_ALL
+            ).lower()
             if ignore_limit_input in ("yes", "y"):
                 ignore_limit = True
                 break
@@ -971,6 +1091,7 @@ def configure_allowlist(server_name, base_dir):
         msg_info("No new players were added. Existing allowlist.json was not modified.")
 
     return 0
+
 
 def configure_permissions(server_name, xuid, player, permission, base_dir):
     """Updates permissions.json with a player and their permission level.
@@ -1020,13 +1141,17 @@ def configure_permissions(server_name, xuid, player, permission, base_dir):
         if player["xuid"] == xuid:
             player_exists = True
             if player["permission"] == permission:
-                msg_warn(f"Player: {player} with permission '{permission}' is already in permissions.json.")
+                msg_warn(
+                    f"Player: {player} with permission '{permission}' is already in permissions.json."
+                )
                 return 0  # Already exists with the same permission
             else:
                 # Update existing player's permission
                 permissions_data[i]["permission"] = permission
-                msg_ok(f"Updated player: {player} to '{permission}' in permissions.json.")
-                break # Exit loop
+                msg_ok(
+                    f"Updated player: {player} to '{permission}' in permissions.json."
+                )
+                break  # Exit loop
 
     if not player_exists:
         # Add the new player
@@ -1044,7 +1169,8 @@ def configure_permissions(server_name, xuid, player, permission, base_dir):
 
     return 0
 
-def select_player_for_permission(server_name, base_dir, config_dir = None):
+
+def select_player_for_permission(server_name, base_dir, config_dir=None):
     """Selects a player and permission level, then calls configure_permissions.
 
     Args:
@@ -1053,7 +1179,9 @@ def select_player_for_permission(server_name, base_dir, config_dir = None):
         config_dir (str, optional): config directory, defaults to .config
     """
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     players_file = os.path.join(config_dir, "players.json")
     action = "select player for permission"
 
@@ -1072,14 +1200,16 @@ def select_player_for_permission(server_name, base_dir, config_dir = None):
         msg_error("Failed to read or parse players.json.")
         return handle_error(14, action)
 
-    if not players_data.get("players"):  # Check if "players" key exists and is not empty
+    if not players_data.get(
+        "players"
+    ):  # Check if "players" key exists and is not empty
         msg_warn("No players found in players.json!")
         return 0
 
     # Create lists for player names and XUIDs
     player_names = [player["name"] for player in players_data["players"]]
     xuids = [player["xuid"] for player in players_data["players"]]
-     # Display player selection menu
+    # Display player selection menu
     print(Fore.CYAN + "Select a player to add to permissions.json:" + Style.RESET_ALL)
     for i, name in enumerate(player_names):
         print(f"{i + 1}. {name}")
@@ -1128,7 +1258,10 @@ def select_player_for_permission(server_name, base_dir, config_dir = None):
             print("Invalid input. Please enter a number.")
 
     # Call the function to add/update the player in permissions.json
-    return configure_permissions(server_name, selected_xuid, selected_name, permission, base_dir)
+    return configure_permissions(
+        server_name, selected_xuid, selected_name, permission, base_dir
+    )
+
 
 def select_option(prompt, default_value, *options):
     """Presents a selection menu to the user.
@@ -1147,7 +1280,11 @@ def select_option(prompt, default_value, *options):
 
     while True:
         try:
-            choice = input(Fore.MAGENTA + f"Select an option [Default: {default_value}]: " + Style.RESET_ALL)
+            choice = input(
+                Fore.MAGENTA
+                + f"Select an option [Default: {default_value}]: "
+                + Style.RESET_ALL
+            )
             if not choice:
                 print(f"Using default: {default_value}")
                 return default_value
@@ -1158,6 +1295,7 @@ def select_option(prompt, default_value, *options):
                 msg_error("Invalid selection. Please try again.")
         except ValueError:
             msg_error("Invalid input. Please enter a number.")
+
 
 def modify_server_properties(server_properties, property_name, property_value):
     """Modifies or adds a property in the server.properties file.
@@ -1176,13 +1314,17 @@ def modify_server_properties(server_properties, property_name, property_value):
         msg_error("modify_server_properties: server_properties file path is empty.")
         return handle_error(14, action)
     if not os.path.exists(server_properties):
-        msg_error(f"modify_server_properties: server_properties file does not exist: {server_properties}")
+        msg_error(
+            f"modify_server_properties: server_properties file does not exist: {server_properties}"
+        )
         return handle_error(14, action)
     if not property_name:
         msg_error("modify_server_properties: property_name is empty.")
         return handle_error(2, action)
-    if any(ord(c) < 32 for c in property_value): #Check for control characters
-        msg_error("modify_server_properties: property_value contains control characters.")
+    if any(ord(c) < 32 for c in property_value):  # Check for control characters
+        msg_error(
+            "modify_server_properties: property_value contains control characters."
+        )
         return handle_error(5, action)
 
     try:
@@ -1206,8 +1348,11 @@ def modify_server_properties(server_properties, property_name, property_value):
         return 0
 
     except OSError as e:
-        msg_error(f"Failed to modify property '{property_name}' in '{server_properties}': {e}")
+        msg_error(
+            f"Failed to modify property '{property_name}' in '{server_properties}': {e}"
+        )
         return handle_error(14, action)
+
 
 def configure_server_properties(server_name, base_dir):
     """Configures common server properties interactively.
@@ -1228,7 +1373,7 @@ def configure_server_properties(server_name, base_dir):
     if not os.path.exists(server_properties):
         msg_error("server.properties not found!")
         return handle_error(11, action)
-    #Default values
+    # Default values
     DEFAULT_PORT = "19132"
     DEFAULT_IPV6_PORT = "19133"
 
@@ -1245,71 +1390,173 @@ def configure_server_properties(server_name, base_dir):
         msg_error(f"Failed to read server.properties {e}")
         return handle_error(14, action)  # Failed to configure server properties
 
-
     # Prompts with validation and defaults
-    input_server_name = input(Fore.CYAN + f"Enter server name [Default: {current_properties.get('server-name', '')}]: " + Style.RESET_ALL)
-    input_server_name = input_server_name or current_properties.get('server-name', '')
+    input_server_name = input(
+        Fore.CYAN
+        + f"Enter server name [Default: {current_properties.get('server-name', '')}]: "
+        + Style.RESET_ALL
+    )
+    input_server_name = input_server_name or current_properties.get("server-name", "")
     while ";" in input_server_name:
         msg_error("Server name cannot contain semicolons.")
-        input_server_name = input(Fore.CYAN + f"Enter server name [Default: {current_properties.get('server-name', '')}]: " + Style.RESET_ALL)
-        input_server_name = input_server_name or current_properties.get('server-name', '')
+        input_server_name = input(
+            Fore.CYAN
+            + f"Enter server name [Default: {current_properties.get('server-name', '')}]: "
+            + Style.RESET_ALL
+        )
+        input_server_name = input_server_name or current_properties.get(
+            "server-name", ""
+        )
 
-    input_level_name = input(Fore.CYAN + f"Enter level name [Default: {current_properties.get('level-name', '')}]: " + Style.RESET_ALL)
-    input_level_name = input_level_name or current_properties.get('level-name', '')
+    input_level_name = input(
+        Fore.CYAN
+        + f"Enter level name [Default: {current_properties.get('level-name', '')}]: "
+        + Style.RESET_ALL
+    )
+    input_level_name = input_level_name or current_properties.get("level-name", "")
     input_level_name = input_level_name.replace(" ", "_")
     while not re.match(r"^[a-zA-Z0-9_-]+$", input_level_name):
-        msg_error("Invalid level-name. Only alphanumeric characters, hyphens, and underscores are allowed (spaces converted to underscores).")
-        input_level_name = input(Fore.CYAN + f"Enter level name [Default: {current_properties.get('level-name', '')}]: " + Style.RESET_ALL)
-        input_level_name = input_level_name or current_properties.get('level-name', '')
+        msg_error(
+            "Invalid level-name. Only alphanumeric characters, hyphens, and underscores are allowed (spaces converted to underscores)."
+        )
+        input_level_name = input(
+            Fore.CYAN
+            + f"Enter level name [Default: {current_properties.get('level-name', '')}]: "
+            + Style.RESET_ALL
+        )
+        input_level_name = input_level_name or current_properties.get("level-name", "")
         input_level_name = input_level_name.replace(" ", "_")
 
-    input_gamemode = select_option("Select gamemode:", current_properties.get('gamemode', 'survival'), "survival", "creative", "adventure")
-    input_difficulty = select_option("Select difficulty:", current_properties.get('difficulty', 'easy'), "peaceful", "easy", "normal", "hard")
-    input_allow_cheats = select_option("Allow cheats:", current_properties.get('allow-cheats', 'false'), "true", "false")
+    input_gamemode = select_option(
+        "Select gamemode:",
+        current_properties.get("gamemode", "survival"),
+        "survival",
+        "creative",
+        "adventure",
+    )
+    input_difficulty = select_option(
+        "Select difficulty:",
+        current_properties.get("difficulty", "easy"),
+        "peaceful",
+        "easy",
+        "normal",
+        "hard",
+    )
+    input_allow_cheats = select_option(
+        "Allow cheats:",
+        current_properties.get("allow-cheats", "false"),
+        "true",
+        "false",
+    )
 
     while True:
-        input_port = input(Fore.CYAN + f"Enter IPV4 Port [Default: {current_properties.get('server-port', DEFAULT_PORT)}]: " + Style.RESET_ALL)
-        input_port = input_port or current_properties.get('server-port', DEFAULT_PORT)
+        input_port = input(
+            Fore.CYAN
+            + f"Enter IPV4 Port [Default: {current_properties.get('server-port', DEFAULT_PORT)}]: "
+            + Style.RESET_ALL
+        )
+        input_port = input_port or current_properties.get("server-port", DEFAULT_PORT)
         if re.match(r"^[0-9]+$", input_port) and 1024 <= int(input_port) <= 65535:
             break
         msg_error("Invalid port number. Please enter a number between 1024 and 65535.")
 
     while True:
-        input_port_v6 = input(Fore.CYAN + f"Enter IPV6 Port [Default: {current_properties.get('server-portv6', DEFAULT_IPV6_PORT)}]: " + Style.RESET_ALL)
-        input_port_v6 = input_port_v6 or current_properties.get('server-portv6', DEFAULT_IPV6_PORT)
+        input_port_v6 = input(
+            Fore.CYAN
+            + f"Enter IPV6 Port [Default: {current_properties.get('server-portv6', DEFAULT_IPV6_PORT)}]: "
+            + Style.RESET_ALL
+        )
+        input_port_v6 = input_port_v6 or current_properties.get(
+            "server-portv6", DEFAULT_IPV6_PORT
+        )
         if re.match(r"^[0-9]+$", input_port_v6) and 1024 <= int(input_port_v6) <= 65535:
             break
-        msg_error("Invalid IPV6 port number. Please enter a number between 1024 and 65535.")
+        msg_error(
+            "Invalid IPV6 port number. Please enter a number between 1024 and 65535."
+        )
 
-    input_lan_visibility = select_option("Enable LAN visibility:", current_properties.get('enable-lan-visibility', 'true'), "true", "false")
-    input_allow_list = select_option("Enable allow list:", current_properties.get('allow-list', 'false'), "true", "false")
+    input_lan_visibility = select_option(
+        "Enable LAN visibility:",
+        current_properties.get("enable-lan-visibility", "true"),
+        "true",
+        "false",
+    )
+    input_allow_list = select_option(
+        "Enable allow list:",
+        current_properties.get("allow-list", "false"),
+        "true",
+        "false",
+    )
 
     while True:
-        input_max_players = input(Fore.CYAN + f"Enter max players [Default: {current_properties.get('max-players', '10')}]: " + Style.RESET_ALL)
-        input_max_players = input_max_players or current_properties.get('max-players', '10')
+        input_max_players = input(
+            Fore.CYAN
+            + f"Enter max players [Default: {current_properties.get('max-players', '10')}]: "
+            + Style.RESET_ALL
+        )
+        input_max_players = input_max_players or current_properties.get(
+            "max-players", "10"
+        )
         if re.match(r"^[0-9]+$", input_max_players):
             break
         msg_error("Invalid number for max players.")
 
-    input_permission_level = select_option("Select default permission level:", current_properties.get('default-player-permission-level', 'member'), "visitor", "member", "operator")
+    input_permission_level = select_option(
+        "Select default permission level:",
+        current_properties.get("default-player-permission-level", "member"),
+        "visitor",
+        "member",
+        "operator",
+    )
 
     while True:
-        input_render_distance = input(Fore.CYAN + f"Default render distance [Default: {current_properties.get('view-distance', '10')}]: " + Style.RESET_ALL)
-        input_render_distance = input_render_distance or current_properties.get('view-distance', '10')
-        if re.match(r"^[0-9]+$", input_render_distance) and int(input_render_distance) >= 5:
+        input_render_distance = input(
+            Fore.CYAN
+            + f"Default render distance [Default: {current_properties.get('view-distance', '10')}]: "
+            + Style.RESET_ALL
+        )
+        input_render_distance = input_render_distance or current_properties.get(
+            "view-distance", "10"
+        )
+        if (
+            re.match(r"^[0-9]+$", input_render_distance)
+            and int(input_render_distance) >= 5
+        ):
             break
-        msg_error("Invalid render distance. Please enter a number greater than or equal to 5.")
+        msg_error(
+            "Invalid render distance. Please enter a number greater than or equal to 5."
+        )
 
     while True:
-        input_tick_distance = input(Fore.CYAN + f"Default tick distance [Default: {current_properties.get('tick-distance', '4')}]: " + Style.RESET_ALL)
-        input_tick_distance = input_tick_distance or current_properties.get('tick-distance', '4')
-        if re.match(r"^[0-9]+$", input_tick_distance) and 4 <= int(input_tick_distance) <= 12:
+        input_tick_distance = input(
+            Fore.CYAN
+            + f"Default tick distance [Default: {current_properties.get('tick-distance', '4')}]: "
+            + Style.RESET_ALL
+        )
+        input_tick_distance = input_tick_distance or current_properties.get(
+            "tick-distance", "4"
+        )
+        if (
+            re.match(r"^[0-9]+$", input_tick_distance)
+            and 4 <= int(input_tick_distance) <= 12
+        ):
             break
         msg_error("Invalid tick distance. Please enter a number between 4 and 12.")
-    input_level_seed = input(Fore.CYAN + f"Enter level seed: " + Style.RESET_ALL) # No default or validation
-    input_online_mode = select_option("Enable online mode:", current_properties.get('online-mode', 'true'), "true", "false")
-    input_texturepack_required = select_option("Require texture pack:", current_properties.get('texturepack-required', 'false'), "true", "false")
-
+    input_level_seed = input(
+        Fore.CYAN + f"Enter level seed: " + Style.RESET_ALL
+    )  # No default or validation
+    input_online_mode = select_option(
+        "Enable online mode:",
+        current_properties.get("online-mode", "true"),
+        "true",
+        "false",
+    )
+    input_texturepack_required = select_option(
+        "Require texture pack:",
+        current_properties.get("texturepack-required", "false"),
+        "true",
+        "false",
+    )
 
     # Update properties
     modify_server_properties(server_properties, "server-name", input_server_name)
@@ -1319,19 +1566,25 @@ def configure_server_properties(server_name, base_dir):
     modify_server_properties(server_properties, "allow-cheats", input_allow_cheats)
     modify_server_properties(server_properties, "server-port", input_port)
     modify_server_properties(server_properties, "server-portv6", input_port_v6)
-    modify_server_properties(server_properties, "enable-lan-visibility", input_lan_visibility)
+    modify_server_properties(
+        server_properties, "enable-lan-visibility", input_lan_visibility
+    )
     modify_server_properties(server_properties, "allow-list", input_allow_list)
     modify_server_properties(server_properties, "max-players", input_max_players)
-    modify_server_properties(server_properties, "default-player-permission-level", input_permission_level)
+    modify_server_properties(
+        server_properties, "default-player-permission-level", input_permission_level
+    )
     modify_server_properties(server_properties, "view-distance", input_render_distance)
     modify_server_properties(server_properties, "tick-distance", input_tick_distance)
     modify_server_properties(server_properties, "level-seed", input_level_seed)
     modify_server_properties(server_properties, "online-mode", input_online_mode)
-    modify_server_properties(server_properties, "texturepack-required", input_texturepack_required)
-
+    modify_server_properties(
+        server_properties, "texturepack-required", input_texturepack_required
+    )
 
     msg_ok("Server properties configured")
     return 0
+
 
 def lookup_bedrock_download_url(target_version):
     """Finds the Bedrock server download URL.
@@ -1373,12 +1626,16 @@ def lookup_bedrock_download_url(target_version):
     # OS-specific download URL regex
     if platform.system() == "Linux":
         if version_type == "PREVIEW":
-            regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewLinux"'
+            regex = (
+                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewLinux"'
+            )
         else:
             regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockLinux"'
     elif platform.system() == "Windows":
         if version_type == "PREVIEW":
-            regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewWindows"'
+            regex = (
+                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewWindows"'
+            )
         else:
             regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockWindows"'
     else:
@@ -1415,6 +1672,7 @@ def lookup_bedrock_download_url(target_version):
         msg_error(f"Could not find a valid download URL for {version_type}.")
         return None
 
+
 def get_version_from_url(download_url):
     """Extracts the version from the download URL.
 
@@ -1427,17 +1685,18 @@ def get_version_from_url(download_url):
     action = "get version from url"
     if not download_url:
         msg_error("download_url is empty.")
-        handle_error(2,action)
+        handle_error(2, action)
         return None
 
     match = re.search(r"bedrock-server-([0-9.]+)", download_url)
     if match:
         version = match.group(1)
-        return version.rstrip('.')  # Remove trailing dot if present
+        return version.rstrip(".")  # Remove trailing dot if present
     else:
         msg_error("Failed to extract version from URL.")
         return None
-        
+
+
 def write_version_config(server_name, installed_version, config_dir=None):
     """Writes the installed version to the server's config.json.
 
@@ -1447,7 +1706,9 @@ def write_version_config(server_name, installed_version, config_dir=None):
         config_dir (str, optional): config directory, defaults to .config.
     """
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "write version config"
 
     if not server_name:
@@ -1455,14 +1716,30 @@ def write_version_config(server_name, installed_version, config_dir=None):
         return handle_error(25, action)
 
     if not installed_version:
-        msg_warn("write_version_config: installed_version is empty.  Writing empty string to config.")
+        msg_warn(
+            "write_version_config: installed_version is empty.  Writing empty string to config."
+        )
 
-    if manage_server_config(server_name, "installed_version", "write", installed_version, config_dir=config_dir) != 0:
-        msg_error(f"Failed to update installed_version in config.json for server: {server_name}")
+    if (
+        manage_server_config(
+            server_name,
+            "installed_version",
+            "write",
+            installed_version,
+            config_dir=config_dir,
+        )
+        != 0
+    ):
+        msg_error(
+            f"Failed to update installed_version in config.json for server: {server_name}"
+        )
         return handle_error(14, action)
     else:
-        msg_ok(f"Successfully updated installed_version in config.json for server: {server_name}")
+        msg_ok(
+            f"Successfully updated installed_version in config.json for server: {server_name}"
+        )
         return 0
+
 
 def prune_old_downloads(download_dir, download_keep):
     """Removes old downloaded server ZIP files, keeping the most recent ones.
@@ -1478,7 +1755,9 @@ def prune_old_downloads(download_dir, download_keep):
         return handle_error(2, action)
 
     if not os.path.isdir(download_dir):
-        msg_warn(f"prune_old_downloads: '{download_dir}' is not a directory or does not exist. Skipping cleanup.")
+        msg_warn(
+            f"prune_old_downloads: '{download_dir}' is not a directory or does not exist. Skipping cleanup."
+        )
         return 0
 
     msg_info("Cleaning up old Bedrock server downloads...")
@@ -1492,12 +1771,15 @@ def prune_old_downloads(download_dir, download_keep):
 
         msg_debug(f"Files found: {download_files} in Dir: {download_dir}")
 
-        
         download_keep = int(download_keep)
         num_files = len(download_files)
         if num_files > download_keep:
-            msg_debug(f"Found {num_files} old server downloads. Keeping the {download_keep} most recent.")
-            files_to_delete = download_files[:-download_keep]  # All except the last 'download_keep' files
+            msg_debug(
+                f"Found {num_files} old server downloads. Keeping the {download_keep} most recent."
+            )
+            files_to_delete = download_files[
+                :-download_keep
+            ]  # All except the last 'download_keep' files
             if files_to_delete:
                 msg_debug(f"Files to delete: {files_to_delete}")
                 for file_path in files_to_delete:
@@ -1508,14 +1790,17 @@ def prune_old_downloads(download_dir, download_keep):
                         return handle_error(30, action)
                 msg_ok("Old server downloads deleted.")
             else:
-                msg_debug(f"No old server downloads to delete (keeping {download_keep} most recent).")
+                msg_debug(
+                    f"No old server downloads to delete (keeping {download_keep} most recent)."
+                )
         else:
             msg_debug(f"Found {num_files} or fewer old server downloads. Keeping all.")
     except OSError as e:
         msg_error(f"An error occurred while listing files: {e}")
-        return handle_error(1,action)
+        return handle_error(1, action)
 
     return 0
+
 
 def download_server_zip_file(download_url, zip_file):
     """Downloads the server ZIP file.
@@ -1553,6 +1838,7 @@ def download_server_zip_file(download_url, zip_file):
         msg_error(f"Failed to download Bedrock server from {download_url}: {e}")
         return handle_error(15, action)
 
+
 def extract_server_files_from_zip(zip_file, server_dir, in_update):
     """Extracts server files from the ZIP, handling updates correctly.
 
@@ -1576,8 +1862,15 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
     try:
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             if in_update:
-                msg_info("Extracting server files (update), excluding critical files...")
-                files_to_exclude = {"worlds/", "allowlist.json", "permissions.json", "server.properties"}
+                msg_info(
+                    "Extracting server files (update), excluding critical files..."
+                )
+                files_to_exclude = {
+                    "worlds/",
+                    "allowlist.json",
+                    "permissions.json",
+                    "server.properties",
+                }
 
                 for zip_info in zip_ref.infolist():
                     normalized_filename = zip_info.filename.replace("\\", "/")
@@ -1585,9 +1878,11 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
 
                     for exclude_item in files_to_exclude:
                         if normalized_filename.startswith(exclude_item):
-                            msg_debug(f"Skipping extraction (excluded): {normalized_filename}")
+                            msg_debug(
+                                f"Skipping extraction (excluded): {normalized_filename}"
+                            )
                             extract = False
-                            break 
+                            break
 
                     if extract:
                         target_path = os.path.join(server_dir, zip_info.filename)
@@ -1605,11 +1900,14 @@ def extract_server_files_from_zip(zip_file, server_dir, in_update):
         msg_ok("Server files extracted successfully.")
         return 0
     except zipfile.BadZipFile:
-        msg_error(f"Failed to extract server files: {zip_file} is not a valid ZIP file.")
+        msg_error(
+            f"Failed to extract server files: {zip_file} is not a valid ZIP file."
+        )
         return handle_error(15, action)
     except OSError as e:
         msg_error(f"Failed to extract server files: {e}")
         return handle_error(15, action)
+
 
 def set_server_folder_permissions(server_dir):
     """Sets appropriate owner:group and permissions on the server directory.
@@ -1626,7 +1924,9 @@ def set_server_folder_permissions(server_dir):
         msg_error("set_server_folder_permissions: server_dir is empty.")
         return handle_error(2, action)
     if not os.path.isdir(server_dir):
-        msg_error(f"set_server_folder_permissions: server_dir '{server_dir}' does not exist or is not a directory.")
+        msg_error(
+            f"set_server_folder_permissions: server_dir '{server_dir}' does not exist or is not a directory."
+        )
         return handle_error(16, action)
 
     if platform.system() == "Linux":
@@ -1668,7 +1968,7 @@ def set_server_folder_permissions(server_dir):
                     file_path = os.path.join(root, f)
                     current_permissions = os.stat(file_path).st_mode
                     if not (current_permissions & stat.S_IWRITE):
-                         os.chmod(file_path, current_permissions | stat.S_IWRITE)
+                        os.chmod(file_path, current_permissions | stat.S_IWRITE)
             msg_ok("Folder permissions set for Windows (ensured write access).")
             return 0
         except OSError as e:
@@ -1679,7 +1979,15 @@ def set_server_folder_permissions(server_dir):
         msg_warn("set_server_folder_permissions: Unsupported operating system.")
         return 1
 
-def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_update=False, installed_version="undefined", config_dir = None):
+
+def download_bedrock_server(
+    server_name,
+    base_dir,
+    target_version="LATEST",
+    in_update=False,
+    installed_version="undefined",
+    config_dir=None,
+):
     """Downloads and installs the Bedrock server.
 
     Args:
@@ -1695,7 +2003,9 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
     """
 
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     server_dir = os.path.join(base_dir, server_name)
     was_running = False
     action = "download bedrock server"
@@ -1716,11 +2026,13 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
         msg_error(f"Failed to create server directory: {server_dir}")
         return handle_error(16, action)
     try:
-        os.makedirs(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".downloads"), exist_ok=True)
+        os.makedirs(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), ".downloads"),
+            exist_ok=True,
+        )
     except OSError:
         msg_error("Failed to create downloads directory")
         return handle_error(16, action)
-
 
     download_url = lookup_bedrock_download_url(target_version)
     if not download_url:
@@ -1733,7 +2045,9 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
         return handle_error(1, action)
 
     # Determine download directory
-    download_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".downloads")
+    download_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), ".downloads"
+    )
     if target_version.upper() == "LATEST":
         download_dir = os.path.join(download_dir, "stable")
     elif target_version.upper() == "PREVIEW":
@@ -1748,16 +2062,18 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
     zip_file = os.path.join(download_dir, f"bedrock_server_{current_version}.zip")
 
     if os.path.exists(zip_file):
-        msg_ok(f"Bedrock server version {current_version} is already downloaded. Skipping download.")
+        msg_ok(
+            f"Bedrock server version {current_version} is already downloaded. Skipping download."
+        )
     else:
         msg_info("Server ZIP not found. Proceeding with download.")
         if download_server_zip_file(download_url, zip_file) != 0:
             msg_error("Failed to download server ZIP file.")
             return handle_error(15, action)
 
-    config = default_config() # Get config for download keep
+    config = default_config()  # Get config for download keep
     # Cleanup old downloads
-    prune_old_downloads(download_dir, config['DOWNLOAD_KEEP'])
+    prune_old_downloads(download_dir, config["DOWNLOAD_KEEP"])
 
     # Stop server if running for update
     if in_update:
@@ -1766,8 +2082,17 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
     # Backup server before update
     backup_success = False
     if in_update:
-        if backup_all(server_name, base_dir, change_status=False, script_dir=script_dir, config_dir=config_dir) == 0:
-           backup_success = True
+        if (
+            backup_all(
+                server_name,
+                base_dir,
+                change_status=False,
+                script_dir=script_dir,
+                config_dir=config_dir,
+            )
+            == 0
+        ):
+            backup_success = True
 
     if extract_server_files_from_zip(zip_file, server_dir, in_update) != 0:
         msg_error("Failed to extract server files.")
@@ -1784,7 +2109,6 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
         msg_error("Failed to write version to config.json")
         return handle_error(14, action)
 
-
     msg_ok(f"Installed Bedrock server version: {current_version}")
 
     # Start server if it was running
@@ -1794,7 +2118,8 @@ def download_bedrock_server(server_name, base_dir, target_version="LATEST", in_u
     msg_info("Bedrock server download process finished")
     return 0
 
-def install_new_server(base_dir, config_dir = None):
+
+def install_new_server(base_dir, config_dir=None):
     """Installs a new server.
 
     Args:
@@ -1802,23 +2127,35 @@ def install_new_server(base_dir, config_dir = None):
         config_dir (str, optional): config directory, defaults to .config
     """
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "install new server"
     while True:
         server_name = input("Enter server folder name: ")
         if re.match(r"^[a-zA-Z0-9_-]+$", server_name):
             break
         else:
-            msg_warn("Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed.")
+            msg_warn(
+                "Invalid server folder name. Only alphanumeric characters, hyphens, and underscores are allowed."
+            )
 
     if os.path.exists(os.path.join(base_dir, server_name)):
-        msg_warn(Fore.RED + f"Folder '{server_name}' already exists, continue?" + Style.RESET_ALL)
+        msg_warn(
+            Fore.RED
+            + f"Folder '{server_name}' already exists, continue?"
+            + Style.RESET_ALL
+        )
         while True:
-            continue_response = input(Fore.RED + f"Folder '{server_name}' already exists, continue? (y/n): " + Style.RESET_ALL).lower()
+            continue_response = input(
+                Fore.RED
+                + f"Folder '{server_name}' already exists, continue? (y/n): "
+                + Style.RESET_ALL
+            ).lower()
             if continue_response in ("yes", "y"):
                 if delete_server(server_name, base_dir, config_dir) != 0:
-                  msg_error(f"Failed to delete existing server '{server_name}'.")
-                  return handle_error(21, action)
+                    msg_error(f"Failed to delete existing server '{server_name}'.")
+                    return handle_error(21, action)
                 break
             elif continue_response in ("no", "n", ""):
                 msg_warn("Exiting")
@@ -1826,27 +2163,57 @@ def install_new_server(base_dir, config_dir = None):
             else:
                 msg_warn("Invalid input. Please answer 'yes' or 'no'.")
 
-    if manage_server_config(server_name, "server_name", "write", server_name, config_dir=config_dir) != 0:
-        msg_error(f"Failed to update server name in config.json for server: {server_name}")
+    if (
+        manage_server_config(
+            server_name, "server_name", "write", server_name, config_dir=config_dir
+        )
+        != 0
+    ):
+        msg_error(
+            f"Failed to update server name in config.json for server: {server_name}"
+        )
         return handle_error(14, action)
     else:
-        msg_ok(f"Successfully updated server name in config.json for server: {server_name}")
+        msg_ok(
+            f"Successfully updated server name in config.json for server: {server_name}"
+        )
 
-    target_version = input(Fore.MAGENTA + "Enter server version (e.g., LATEST or PREVIEW): " + Style.RESET_ALL)
+    target_version = input(
+        Fore.MAGENTA
+        + "Enter server version (e.g., LATEST or PREVIEW): "
+        + Style.RESET_ALL
+    )
 
-    if manage_server_config(server_name, "target_version", "write", target_version, config_dir=config_dir) != 0:
-        msg_error(f"Failed to update target version in config.json for server: {server_name}")
+    if (
+        manage_server_config(
+            server_name,
+            "target_version",
+            "write",
+            target_version,
+            config_dir=config_dir,
+        )
+        != 0
+    ):
+        msg_error(
+            f"Failed to update target version in config.json for server: {server_name}"
+        )
         return handle_error(14, action)
     else:
-        msg_ok(f"Successfully updated target version in config.json for server: {server_name}")
+        msg_ok(
+            f"Successfully updated target version in config.json for server: {server_name}"
+        )
 
     try:
         os.makedirs(os.path.join(base_dir, server_name), exist_ok=True)
     except OSError as e:
-        msg_error(f"Failed to create server directory: {os.path.join(base_dir, server_name)}: {e}")
+        msg_error(
+            f"Failed to create server directory: {os.path.join(base_dir, server_name)}: {e}"
+        )
         return handle_error(16, action)
 
-    download_status = download_bedrock_server(server_name, base_dir, target_version=target_version, config_dir=config_dir)
+    download_status = download_bedrock_server(
+        server_name, base_dir, target_version=target_version, config_dir=config_dir
+    )
 
     if download_status == 0:
         msg_ok(f"Server {server_name} installed")
@@ -1872,7 +2239,12 @@ def install_new_server(base_dir, config_dir = None):
     while True:
         permissions_response = input("Configure permissions? (y/n): ").lower()
         if permissions_response in ("yes", "y"):
-            if select_player_for_permission(server_name, base_dir, config_dir=config_dir) != 0:
+            if (
+                select_player_for_permission(
+                    server_name, base_dir, config_dir=config_dir
+                )
+                != 0
+            ):
                 msg_error("Failed to configure permissions")
             break
         elif permissions_response in ("no", "n", ""):
@@ -1885,9 +2257,10 @@ def install_new_server(base_dir, config_dir = None):
     if create_service(server_name, base_dir, script_direct) != 0:
         msg_error("Failed to create service")
 
-
     while True:
-        start_choice = input(f"Do you want to start the server '{server_name}' now? (y/n): ").lower()
+        start_choice = input(
+            f"Do you want to start the server '{server_name}' now? (y/n): "
+        ).lower()
         if start_choice in ("yes", "y"):
             # Start the server
             if start_server(server_name, base_dir) != 0:
@@ -1900,7 +2273,8 @@ def install_new_server(base_dir, config_dir = None):
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
     return 0
 
-def update_server(server_name, base_dir, config_dir = None):
+
+def update_server(server_name, base_dir, config_dir=None):
     """Updates an existing server.
 
     Args:
@@ -1911,7 +2285,9 @@ def update_server(server_name, base_dir, config_dir = None):
         int: 0 on success, an error code on failure.
     """
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     server_dir = os.path.join(base_dir, server_name)
     action = "update server"
 
@@ -1927,15 +2303,16 @@ def update_server(server_name, base_dir, config_dir = None):
 
     # Check if the server is running
     if is_server_running(server_name, base_dir):
-         send_command(server_name, "say Checking for server updates..")
+        send_command(server_name, "say Checking for server updates..")
 
     installed_version = get_installed_version(server_name, config_dir=config_dir)
     if installed_version == "UNKNOWN":
         msg_error("Failed to get the installed version.")
         return handle_error(1, action)
 
-
-    target_version = manage_server_config(server_name, "target_version", "read", config_dir=config_dir)
+    target_version = manage_server_config(
+        server_name, "target_version", "read", config_dir=config_dir
+    )
     if target_version is None:
         msg_error("Failed to read target_version from config. Using 'LATEST'.")
         target_version = "LATEST"
@@ -1950,12 +2327,19 @@ def update_server(server_name, base_dir, config_dir = None):
         msg_error("Failed to extract version from URL.")
         return handle_error(15, action)
 
-
-    if no_update_needed(server_name, installed_version, current_version, config_dir=config_dir):
+    if no_update_needed(
+        server_name, installed_version, current_version, config_dir=config_dir
+    ):
         msg_info(f"No update needed for server '{server_name}'.")
         return 0
 
-    download_status = download_bedrock_server(server_name, base_dir, target_version=target_version, in_update=True, config_dir=config_dir)
+    download_status = download_bedrock_server(
+        server_name,
+        base_dir,
+        target_version=target_version,
+        in_update=True,
+        config_dir=config_dir,
+    )
 
     if download_status == 0:
         msg_ok(f"Server '{server_name}' updated to version: {current_version}")
@@ -1963,6 +2347,7 @@ def update_server(server_name, base_dir, config_dir = None):
     else:
         msg_error("Failed to update server.")
         return handle_error(9, action)
+
 
 def no_update_needed(server_name, installed_version, current_version, config_dir=None):
     """Checks if an update is needed.
@@ -1978,22 +2363,29 @@ def no_update_needed(server_name, installed_version, current_version, config_dir
     """
 
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "check no update needed"
 
     if not server_name:
-      msg_error("no_update_needed: server_name is empty.")
-      return handle_error(25, action)
+        msg_error("no_update_needed: server_name is empty.")
+        return handle_error(25, action)
     if not installed_version:
-      msg_warn("no_update_needed: installed_version is empty. Assuming update is needed.")
-      return False # Update is needed
+        msg_warn(
+            "no_update_needed: installed_version is empty. Assuming update is needed."
+        )
+        return False  # Update is needed
     if not current_version:
-      msg_warn("no_update_needed: current_version is empty.  Assuming update is needed.")
-      return False # Update is needed
+        msg_warn(
+            "no_update_needed: current_version is empty.  Assuming update is needed."
+        )
+        return False  # Update is needed
 
     if installed_version == current_version:
         return True  # No update needed
     return False  # Update needed
+
 
 def enable_user_lingering():
     """Enables user lingering on Linux (systemd systems).
@@ -2020,45 +2412,68 @@ def enable_user_lingering():
             return 0
     except FileNotFoundError:
         msg_warn("loginctl command not found.  Lingering cannot be checked/enabled.")
-        return #If loginctl isn't found
+        return  # If loginctl isn't found
 
     while True:
-        response = input(f"Do you want to enable lingering for user {username}? This is required for servers to start after logout. (y/n): ").lower()
+        response = input(
+            f"Do you want to enable lingering for user {username}? This is required for servers to start after logout. (y/n): "
+        ).lower()
         if response in ("yes", "y"):
             msg_info(f"Attempting to enable lingering for user {username}")
             try:
-                result = subprocess.run(["sudo", "loginctl", "enable-linger", username], check=True, capture_output=True, text=True)
+                result = subprocess.run(
+                    ["sudo", "loginctl", "enable-linger", username],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
                 msg_ok(f"Lingering enabled for {username}")
                 return 0
             except subprocess.CalledProcessError as e:
-                msg_warn(f"Failed to enable lingering for {username}. User services might not start after logout.  Check sudo permissions if this is a problem.\nError: {e}")
+                msg_warn(
+                    f"Failed to enable lingering for {username}. User services might not start after logout.  Check sudo permissions if this is a problem.\nError: {e}"
+                )
                 return handle_error(13, action)
             except FileNotFoundError:
-                msg_warn("loginctl or sudo command not found. Lingering cannot be enabled")
-                return #Sudo or loginctl isn't found
+                msg_warn(
+                    "loginctl or sudo command not found. Lingering cannot be enabled"
+                )
+                return  # Sudo or loginctl isn't found
         elif response in ("no", "n", ""):
-            msg_info("Lingering not enabled. User services will not start after logout.")
+            msg_info(
+                "Lingering not enabled. User services will not start after logout."
+            )
             return 0
         else:
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
+
 
 def _create_systemd_service(server_name, base_dir, autoupdate, script_direct):
     """Creates a systemd service file (Linux-specific)."""
     action = "create systemd service"
     server_dir = os.path.join(base_dir, server_name)
-    service_file = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user", f"bedrock-{server_name}.service")
+    service_file = os.path.join(
+        os.path.expanduser("~"),
+        ".config",
+        "systemd",
+        "user",
+        f"bedrock-{server_name}.service",
+    )
 
     if not server_name:
         msg_error("create_systemd_service: server_name is empty.")
         return handle_error(25, action)
 
-    os.makedirs(os.path.join(os.path.expanduser("~"), ".config", "systemd", "user"), exist_ok=True)
+    os.makedirs(
+        os.path.join(os.path.expanduser("~"), ".config", "systemd", "user"),
+        exist_ok=True,
+    )
 
     if os.path.exists(service_file):
         msg_warn(f"Reconfiguring service file for '{server_name}' at {service_file}")
     autoupdate_cmd = ""
     if autoupdate:
-        autoupdate_cmd = f'ExecStartPre={sys.executable} {script_direct} update-server --server {server_name}'
+        autoupdate_cmd = f"ExecStartPre={sys.executable} {script_direct} update-server --server {server_name}"
         msg_info("Auto-update enabled on start.")
     else:
         msg_info("Auto-update disabled on start.")
@@ -2102,12 +2517,17 @@ WantedBy=default.target
         msg_error(f"Failed to write systemd service file: {service_file}: {e}")
         return handle_error(12, action)
 
+
 def create_service(server_name, base_dir, script_direct):
     """Creates a systemd service (Linux)."""
     if platform.system() == "Linux":
         # Ask user if they want auto-update
         while True:
-            response = input(Fore.MAGENTA + f"Do you want to enable auto-update on start for {server_name}? (y/n): " + Style.RESET_ALL).lower()
+            response = input(
+                Fore.MAGENTA
+                + f"Do you want to enable auto-update on start for {server_name}? (y/n): "
+                + Style.RESET_ALL
+            ).lower()
             if response in ("yes", "y"):
                 autoupdate = True
                 break
@@ -2118,7 +2538,11 @@ def create_service(server_name, base_dir, script_direct):
                 msg_warn("Invalid input. Please answer 'yes' or 'no'.")
 
         while True:
-            response = input(Fore.CYAN + f"Do you want to enable autostart on boot for {server_name}? (y/n): " + Style.RESET_ALL).lower()
+            response = input(
+                Fore.CYAN
+                + f"Do you want to enable autostart on boot for {server_name}? (y/n): "
+                + Style.RESET_ALL
+            ).lower()
             if response in ("yes", "y"):
                 autostart = True
                 break
@@ -2128,84 +2552,126 @@ def create_service(server_name, base_dir, script_direct):
             else:
                 msg_warn("Invalid input. Please answer 'yes' or 'no'.")
 
-        result = _create_systemd_service(server_name, base_dir, autoupdate, script_direct)
+        result = _create_systemd_service(
+            server_name, base_dir, autoupdate, script_direct
+        )
         if result != 0:
             return result  # Return error if service creation failed
 
-        
         if autostart:
             enable_service(server_name)
         else:
             disable_service(server_name)
 
         enable_user_lingering()
-        return 0 # Success
-
+        return 0  # Success
 
     elif platform.system() == "Windows":
         while True:
-            response = input(Fore.MAGENTA + f"Do you want to enable auto-update on start for {server_name}? (y/n): " + Style.RESET_ALL).lower()
+            response = input(
+                Fore.MAGENTA
+                + f"Do you want to enable auto-update on start for {server_name}? (y/n): "
+                + Style.RESET_ALL
+            ).lower()
             if response in ("yes", "y"):
-                if manage_server_config(server_name, "autoupdate", "write", 'true', config_dir=config_dir) != 0:
-                    msg_error(f"Failed to update autoupdate in config.json for server: {server_name}")
+                if (
+                    manage_server_config(
+                        server_name,
+                        "autoupdate",
+                        "write",
+                        "true",
+                        config_dir=config_dir,
+                    )
+                    != 0
+                ):
+                    msg_error(
+                        f"Failed to update autoupdate in config.json for server: {server_name}"
+                    )
                     return handle_error(14, action)
                 else:
-                    msg_ok(f"Successfully updated autoupdate in config.json for server: {server_name}")
+                    msg_ok(
+                        f"Successfully updated autoupdate in config.json for server: {server_name}"
+                    )
                 break
             elif response in ("no", "n", ""):
-                if manage_server_config(server_name, "autoupdate", "write", 'false', config_dir=config_dir) != 0:
-                    msg_error(f"Failed to update autoupdate in config.json for server: {server_name}")
+                if (
+                    manage_server_config(
+                        server_name,
+                        "autoupdate",
+                        "write",
+                        "false",
+                        config_dir=config_dir,
+                    )
+                    != 0
+                ):
+                    msg_error(
+                        f"Failed to update autoupdate in config.json for server: {server_name}"
+                    )
                     return handle_error(14, action)
                 else:
-                    msg_ok(f"Successfully updated autoupdate in config.json for server: {server_name}")  
+                    msg_ok(
+                        f"Successfully updated autoupdate in config.json for server: {server_name}"
+                    )
                 break
             else:
-                msg_warn("Invalid input. Please answer 'yes' or 'no'.")  
+                msg_warn("Invalid input. Please answer 'yes' or 'no'.")
 
-            return 0     
+            return 0
     else:
         msg_error("Unsupported operating system for service creation.")
         return 1  # Indicate failure
+
 
 def _enable_systemd_service(server_name):
     """Enables a systemd service (Linux-specific)."""
     action = "enable service"
     if not server_name:
-          msg_error("enable_service: server_name is empty.")
-          return handle_error(25, action)  # Invalid server name
+        msg_error("enable_service: server_name is empty.")
+        return handle_error(25, action)  # Invalid server name
 
     if check_service_exists(server_name) != 0:
-      msg_error(f"Service file for '{server_name}' does not exist. Cannot enable.")
-      return handle_error(12, action)
+        msg_error(f"Service file for '{server_name}' does not exist. Cannot enable.")
+        return handle_error(12, action)
 
     try:
-      # Check if service is enabled
-      result = subprocess.run(["systemctl", "--user", "is-enabled", f"bedrock-{server_name}"], capture_output=True, text=True, check=False)
-      if result.returncode == 0: # Enabled
-          msg_info(f"Service {server_name} is already enabled.")
-          return 0
+        # Check if service is enabled
+        result = subprocess.run(
+            ["systemctl", "--user", "is-enabled", f"bedrock-{server_name}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:  # Enabled
+            msg_info(f"Service {server_name} is already enabled.")
+            return 0
     except FileNotFoundError:
         msg_error("systemctl command not found, make sure you are on a systemd system")
         return handle_error(42, action)
 
     try:
-        subprocess.run(["systemctl", "--user", "enable", f"bedrock-{server_name}"], check=True)
+        subprocess.run(
+            ["systemctl", "--user", "enable", f"bedrock-{server_name}"], check=True
+        )
         msg_ok(f"Autostart for {server_name} enabled successfully.")
         return 0
     except subprocess.CalledProcessError as e:
         msg_error(f"Failed to enable {server_name}: {e}")
         return handle_error(13, action)
 
+
 def enable_service(server_name):
     """Enables a systemd."""
     if platform.system() == "Linux":
         return _enable_systemd_service(server_name)
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
         return 0
     else:
         msg_error("Unsupported operating system for service enabling.")
         return 1
+
 
 def _disable_systemd_service(server_name):
     """Disables a systemd service (Linux-specific)."""
@@ -2216,37 +2682,50 @@ def _disable_systemd_service(server_name):
         return handle_error(25, action)
 
     if check_service_exists(server_name) != 0:
-        msg_info(f"Service file for '{server_name}' does not exist.  No need to disable.")
+        msg_info(
+            f"Service file for '{server_name}' does not exist.  No need to disable."
+        )
         return 0
 
     try:
         # Check if service is disabled
-        result = subprocess.run(["systemctl", "--user", "is-enabled", f"bedrock-{server_name}"], capture_output=True, text=True, check=False)
-        if result.returncode != 0: # Disabled or not found
+        result = subprocess.run(
+            ["systemctl", "--user", "is-enabled", f"bedrock-{server_name}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:  # Disabled or not found
             msg_info(f"Service {server_name} is already disabled.")
-            return 0 # Already disabled.
+            return 0  # Already disabled.
     except FileNotFoundError:
         msg_error("systemctl command not found, make sure you are on a systemd system")
         return handle_error(42, action)
 
     try:
-        subprocess.run(["systemctl", "--user", "disable", f"bedrock-{server_name}"], check=True)
+        subprocess.run(
+            ["systemctl", "--user", "disable", f"bedrock-{server_name}"], check=True
+        )
         msg_ok(f"Server {server_name} disabled successfully.")
         return 0
     except subprocess.CalledProcessError as e:
         msg_error(f"Failed to disable {server_name}: {e}")
         return handle_error(13, action)
 
+
 def disable_service(server_name):
     """Disables a systemd."""
     if platform.system() == "Linux":
         return _disable_systemd_service(server_name)
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
         return 0
     else:
         msg_error("Unsupported operating system for service disabling.")
         return 1
+
 
 def check_service_exists(server_name):
     """Checks if a systemd.
@@ -2258,17 +2737,26 @@ def check_service_exists(server_name):
         int: 0 if the service exists, 1 otherwise.
     """
     if platform.system() == "Linux":
-        service_file = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user", f"bedrock-{server_name}.service")
+        service_file = os.path.join(
+            os.path.expanduser("~"),
+            ".config",
+            "systemd",
+            "user",
+            f"bedrock-{server_name}.service",
+        )
         if os.path.exists(service_file):
             return 0
         else:
             return 1
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
         return 1
     else:
         msg_error("Unsupported operating system for service checking.")
         return 1
+
 
 def is_server_running(server_name, base_dir):
     """Checks if the server is running.
@@ -2288,7 +2776,9 @@ def is_server_running(server_name, base_dir):
                 text=True,
                 check=False,
             )
-            return f".bedrock-{server_name}" in result.stdout  # Check if session name appears in output
+            return (
+                f".bedrock-{server_name}" in result.stdout
+            )  # Check if session name appears in output
         except FileNotFoundError:
             msg_error("screen command not found.")
             return False  # Assume not running
@@ -2296,12 +2786,19 @@ def is_server_running(server_name, base_dir):
     elif platform.system() == "Windows":
         # Check for the Bedrock process by PID and working directory.
         try:
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
+            for proc in psutil.process_iter(["pid", "name", "cmdline", "cwd"]):
                 try:
-                    if proc.info['name'] == 'bedrock_server.exe' and \
-                            proc.info['cwd'] and base_dir.lower() in proc.info['cwd'].lower():
+                    if (
+                        proc.info["name"] == "bedrock_server.exe"
+                        and proc.info["cwd"]
+                        and base_dir.lower() in proc.info["cwd"].lower()
+                    ):
                         return True  # Found a matching process
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                except (
+                    psutil.NoSuchProcess,
+                    psutil.AccessDenied,
+                    psutil.ZombieProcess,
+                ):
                     pass
             return False  # No matching process found
         except Exception as e:
@@ -2311,6 +2808,7 @@ def is_server_running(server_name, base_dir):
     else:
         msg_error("Unsupported operating system for running check.")
         return False
+
 
 def _systemd_start_server(server_name, base_dir):
     """Starts the Bedrock server within a screen session."""
@@ -2341,7 +2839,7 @@ def _systemd_start_server(server_name, base_dir):
         os.path.join(base_dir, server_name, "server_output.txt"),
         "bash",
         "-c",
-        f'cd "{base_dir}/{server_name}" && exec ./bedrock_server'
+        f'cd "{base_dir}/{server_name}" && exec ./bedrock_server',
     ]
 
     try:
@@ -2355,7 +2853,6 @@ def _systemd_start_server(server_name, base_dir):
         update_server_status_in_config(server_name, base_dir)
         return handle_error(45, action)
 
-
     # Wait for the server to start
     status = "UNKNOWN"
     attempts = 0
@@ -2364,21 +2861,26 @@ def _systemd_start_server(server_name, base_dir):
         status = check_server_status(server_name, base_dir)
         if status == "RUNNING":
             break
-        msg_info(f"Waiting for server '{server_name}' to start... Current status: {status}")
+        msg_info(
+            f"Waiting for server '{server_name}' to start... Current status: {status}"
+        )
         time.sleep(2)
         attempts += 1
 
     if status != "RUNNING":
-        msg_warn(f"Server '{server_name}' did not start within the timeout.  Final status: {status}")
+        msg_warn(
+            f"Server '{server_name}' did not start within the timeout.  Final status: {status}"
+        )
 
     update_server_status_in_config(server_name, base_dir)
     msg_ok(f"'{server_name}' started")
     return 0
 
+
 def _windows_start_server(server_name, base_dir):
     """Starts the Bedrock server on Windows by running the executable with communication enabled."""
     action = "windows start server"
-    
+
     if not server_name:
         msg_error("windows_start_server: server_name is empty.")
         return handle_error(25, action)
@@ -2388,8 +2890,10 @@ def _windows_start_server(server_name, base_dir):
         msg_warn(f"Server '{server_name}' is already running.")
         return 0  # No need to start it again
 
-    autoupdate = manage_server_config(server_name, "autoupdate", "read", config_dir=config_dir)
-    if autoupdate is not None and str(autoupdate).lower() == 'true':
+    autoupdate = manage_server_config(
+        server_name, "autoupdate", "read", config_dir=config_dir
+    )
+    if autoupdate is not None and str(autoupdate).lower() == "true":
         msg_info(f"Checking for updates...")
         if update_server(server_name, base_dir, config_dir) != 0:
             msg_warn("Auto-update failed.  Continuing with server start.")
@@ -2423,7 +2927,7 @@ def _windows_start_server(server_name, base_dir):
                 stdin=subprocess.PIPE,
                 stdout=f,  # Append to the server_output.txt file
                 stderr=f,  # Also capture error output
-                creationflags=subprocess.CREATE_NO_WINDOW  # Hide the console window
+                creationflags=subprocess.CREATE_NO_WINDOW,  # Hide the console window
             )
         msg_ok(f"Server '{server_name}' started successfully. PID: {process.pid}")
 
@@ -2442,27 +2946,32 @@ def _windows_start_server(server_name, base_dir):
         status = check_server_status(server_name, base_dir)
         if status == "RUNNING":
             break
-        msg_info(f"Waiting for server '{server_name}' to start... Current status: {status}")
+        msg_info(
+            f"Waiting for server '{server_name}' to start... Current status: {status}"
+        )
         time.sleep(2)
         attempts += 1
 
     if status != "RUNNING":
-        msg_warn(f"Server '{server_name}' did not start within the timeout. Final status: {status}")
+        msg_warn(
+            f"Server '{server_name}' did not start within the timeout. Final status: {status}"
+        )
 
     update_server_status_in_config(server_name, base_dir)
     return 0
-    
+
+
 def start_server(server_name, base_dir):
     """Starts the Bedrock server (systemd user service or Windows)."""
-    
+
     if platform.system() == "Linux":
         service_name = f"bedrock-{server_name}"
-        
+
         # Check if the server is already running before trying to start it.
         if is_server_running(server_name, base_dir):
             msg_warn(f"Server '{server_name}' is already running.")
             return 0  # No need to start it again
-        
+
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "start", service_name],
@@ -2487,6 +2996,7 @@ def start_server(server_name, base_dir):
         msg_error("Unsupported operating system for starting server.")
         return 1
 
+
 def _systemd_stop_server(server_name, base_dir):
     """Stops the Bedrock server running in a screen session (Linux-specific)."""
     action = "systemd stop server"
@@ -2499,12 +3009,12 @@ def _systemd_stop_server(server_name, base_dir):
 
     # Send shutdown warning
     if is_server_running(server_name, base_dir):
-         send_command(server_name, "say Shutting down server in 10 seconds..")
-    time.sleep(0.5) 
+        send_command(server_name, "say Shutting down server in 10 seconds..")
+    time.sleep(0.5)
     if manage_server_config(server_name, "status", "write", "STOPPING") != 0:
         msg_error("Failed to update server status in config (STOPPING).")
         return handle_error(14, action)
-    
+
     # Find and kill the screen session.
     try:
         # Use pgrep to find the screen session.
@@ -2522,13 +3032,14 @@ def _systemd_stop_server(server_name, base_dir):
             # Send the "stop" command to the Bedrock server
             subprocess.run(
                 ["screen", "-S", f"bedrock-{server_name}", "-X", "stuff", "stop\n"],
-                check=False # It might not be running
+                check=False,  # It might not be running
             )
             # Give the server some time to stop
             time.sleep(10)
         else:
-            msg_warn(f"No screen session found for 'bedrock-{server_name}'.  It may already be stopped.")
-
+            msg_warn(
+                f"No screen session found for 'bedrock-{server_name}'.  It may already be stopped."
+            )
 
     except FileNotFoundError:
         msg_error("pgrep or screen command not found.")
@@ -2545,17 +3056,22 @@ def _systemd_stop_server(server_name, base_dir):
         status = check_server_status(server_name, base_dir)
         if status == "STOPPED":
             break
-        msg_info(f"Waiting for server '{server_name}' to stop... Current status: {status}")
+        msg_info(
+            f"Waiting for server '{server_name}' to stop... Current status: {status}"
+        )
         time.sleep(2)
         attempts += 1
 
     if status != "STOPPED":
-        msg_warn(f"Server '{server_name}' did not stop gracefully within the timeout. Final status: {status}")
+        msg_warn(
+            f"Server '{server_name}' did not stop gracefully within the timeout. Final status: {status}"
+        )
 
     if manage_server_config(server_name, "status", "write", "STOPPED") != 0:
         msg_error("Failed to update server status in config (STOPPED).")
         return handle_error(14, action)
     return 0
+
 
 def _windows_stop_server(server_name, base_dir):
     """Stops the Bedrock server on Windows by terminating its process."""
@@ -2579,12 +3095,15 @@ def _windows_stop_server(server_name, base_dir):
 
     try:
         # Iterate over all processes to find the one with the matching server name and cwd
-        for proc in psutil.process_iter(['pid', 'name', 'cwd']):
+        for proc in psutil.process_iter(["pid", "name", "cwd"]):
             try:
-                if proc.info['name'] == 'bedrock_server.exe' and \
-                        proc.info['cwd'] and base_dir.lower() in proc.info['cwd'].lower():
+                if (
+                    proc.info["name"] == "bedrock_server.exe"
+                    and proc.info["cwd"]
+                    and base_dir.lower() in proc.info["cwd"].lower()
+                ):
                     # Found the matching process, so we can stop it
-                    pid = proc.info['pid']
+                    pid = proc.info["pid"]
                     process = psutil.Process(pid)
                     process.kill()  # Forcibly kill the process
                     process.wait(timeout=5)
@@ -2604,17 +3123,18 @@ def _windows_stop_server(server_name, base_dir):
 
     return 0
 
+
 def stop_server(server_name, base_dir):
     """Stops the Bedrock server (systemd user service or Windows)."""
-    
+
     if platform.system() == "Linux":
         service_name = f"bedrock-{server_name}"
-        
+
         # Check if the server is running before trying to stop it.
         if not is_server_running(server_name, base_dir):
             msg_warn(f"Server '{server_name}' is not running.")
             return 0  # No need to stop it if it's not running
-        
+
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "stop", service_name],
@@ -2638,6 +3158,7 @@ def stop_server(server_name, base_dir):
     else:
         msg_error("Unsupported operating system for stopping server.")
         return 1
+
 
 def _linux_monitor(server_name, base_dir):
     """Linux monitor for Bedrock server"""
@@ -2664,16 +3185,26 @@ def _linux_monitor(server_name, base_dir):
         try:
             # Find the screen process running the Bedrock server
             screen_pid = None
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
-                    if proc.info['name'] == 'screen' and f'bedrock-{server_name}' in " ".join(proc.info['cmdline']):
-                        screen_pid = proc.info['pid']
+                    if proc.info[
+                        "name"
+                    ] == "screen" and f"bedrock-{server_name}" in " ".join(
+                        proc.info["cmdline"]
+                    ):
+                        screen_pid = proc.info["pid"]
                         break
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                except (
+                    psutil.NoSuchProcess,
+                    psutil.AccessDenied,
+                    psutil.ZombieProcess,
+                ):
                     pass
 
             if not screen_pid:
-                msg_warn(f"No running 'screen' process found for service '{service_name}'.")
+                msg_warn(
+                    f"No running 'screen' process found for service '{service_name}'."
+                )
                 return 0
 
             # Find the Bedrock server process (child of screen)
@@ -2681,14 +3212,16 @@ def _linux_monitor(server_name, base_dir):
             try:
                 screen_process = psutil.Process(screen_pid)
                 for child in screen_process.children(recursive=True):
-                    if 'bedrock_server' in child.name():
+                    if "bedrock_server" in child.name():
                         bedrock_pid = child.pid
                         break
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
 
             if not bedrock_pid:
-                msg_warn(f"No running Bedrock server process found for service '{service_name}'.")
+                msg_warn(
+                    f"No running Bedrock server process found for service '{service_name}'."
+                )
                 return 0
 
             # Get process details
@@ -2699,16 +3232,25 @@ def _linux_monitor(server_name, base_dir):
                     current_cpu_times = bedrock_process.cpu_times()
                     prev_cpu_times = last_cpu_times.get(bedrock_pid, current_cpu_times)
 
-                    cpu_time_delta = (current_cpu_times.user + current_cpu_times.system) - \
-                                     (prev_cpu_times.user + prev_cpu_times.system)
-                    total_time_delta = time.time() - last_cpu_times.get('timestamp', time.time())
+                    cpu_time_delta = (
+                        current_cpu_times.user + current_cpu_times.system
+                    ) - (prev_cpu_times.user + prev_cpu_times.system)
+                    total_time_delta = time.time() - last_cpu_times.get(
+                        "timestamp", time.time()
+                    )
 
-                    cpu_usage = (cpu_time_delta / total_time_delta) * 100 if total_time_delta > 0 else 0.0
+                    cpu_usage = (
+                        (cpu_time_delta / total_time_delta) * 100
+                        if total_time_delta > 0
+                        else 0.0
+                    )
                     last_cpu_times[bedrock_pid] = current_cpu_times
-                    last_cpu_times['timestamp'] = time.time()
+                    last_cpu_times["timestamp"] = time.time()
 
                     # Memory Usage
-                    mem_usage = bedrock_process.memory_info().rss / (1024 * 1024)  # Convert to MB
+                    mem_usage = bedrock_process.memory_info().rss / (
+                        1024 * 1024
+                    )  # Convert to MB
 
                     # Uptime
                     uptime_seconds = time.time() - bedrock_process.create_time()
@@ -2717,7 +3259,7 @@ def _linux_monitor(server_name, base_dir):
                 return 0
 
             # Clear screen and display output
-            os.system('cls' if platform.system() == 'Windows' else 'clear')
+            os.system("cls" if platform.system() == "Windows" else "clear")
             print("---------------------------------")
             print(f" Monitoring:  {service_name} ")
             print("---------------------------------")
@@ -2733,6 +3275,7 @@ def _linux_monitor(server_name, base_dir):
         except Exception as e:
             msg_error(f"Error during monitoring: {e}")
             return handle_error(23, action)
+
 
 def _windows_monitor(server_name, base_dir):
     """Windows monitor for Bedrock server"""
@@ -2760,23 +3303,31 @@ def _windows_monitor(server_name, base_dir):
         try:
             # Find the Bedrock server process
             bedrock_pid = None
-            oldest_create_time = float('inf')
+            oldest_create_time = float("inf")
 
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
+            for proc in psutil.process_iter(["pid", "name", "cmdline", "cwd"]):
                 try:
-                    if proc.info['name'] == 'bedrock_server.exe' and \
-                            base_dir.lower() in proc.info['cwd'].lower():
-                        bedrock_pid = proc.info['pid']
+                    if (
+                        proc.info["name"] == "bedrock_server.exe"
+                        and base_dir.lower() in proc.info["cwd"].lower()
+                    ):
+                        bedrock_pid = proc.info["pid"]
                         with proc.oneshot():
                             create_time = proc.create_time()
                             if create_time < oldest_create_time:
                                 oldest_create_time = create_time
-                        break 
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        break
+                except (
+                    psutil.NoSuchProcess,
+                    psutil.AccessDenied,
+                    psutil.ZombieProcess,
+                ):
                     pass
 
             if not bedrock_pid:
-                msg_warn(f"No running Bedrock server process found for service '{service_name}'.")
+                msg_warn(
+                    f"No running Bedrock server process found for service '{service_name}'."
+                )
                 return 0
 
             # Get process details
@@ -2787,13 +3338,20 @@ def _windows_monitor(server_name, base_dir):
                     current_cpu_times = bedrock_process.cpu_times()
                     prev_cpu_times = last_cpu_times.get(bedrock_pid, current_cpu_times)
 
-                    cpu_time_delta = (current_cpu_times.user + current_cpu_times.system) - \
-                                     (prev_cpu_times.user + prev_cpu_times.system)
-                    total_time_delta = time.time() - last_cpu_times.get('timestamp', time.time())
+                    cpu_time_delta = (
+                        current_cpu_times.user + current_cpu_times.system
+                    ) - (prev_cpu_times.user + prev_cpu_times.system)
+                    total_time_delta = time.time() - last_cpu_times.get(
+                        "timestamp", time.time()
+                    )
 
-                    cpu_usage = (cpu_time_delta / total_time_delta) * 100 if total_time_delta > 0 else 0.0
+                    cpu_usage = (
+                        (cpu_time_delta / total_time_delta) * 100
+                        if total_time_delta > 0
+                        else 0.0
+                    )
                     last_cpu_times[bedrock_pid] = current_cpu_times
-                    last_cpu_times['timestamp'] = time.time()
+                    last_cpu_times["timestamp"] = time.time()
 
                     # Memory Usage (in MB)
                     mem_usage = bedrock_process.memory_info().rss / (1024 * 1024)
@@ -2805,7 +3363,7 @@ def _windows_monitor(server_name, base_dir):
                 return 0
 
             # Clear screen and display output
-            os.system('cls' if platform.system() == 'Windows' else 'clear')
+            os.system("cls" if platform.system() == "Windows" else "clear")
             print("---------------------------------")
             print(f" Monitoring:  {service_name} ")
             print("---------------------------------")
@@ -2821,7 +3379,8 @@ def _windows_monitor(server_name, base_dir):
         except Exception as e:
             msg_error(f"Error during monitoring: {e}")
             return handle_error(23, action)
-                                
+
+
 def monitor_service_usage(server_name, base_dir):
     """Monitors the CPU and memory usage of the Bedrock server."""
     if platform.system() == "Linux":
@@ -2831,6 +3390,7 @@ def monitor_service_usage(server_name, base_dir):
     else:
         msg_error("Unsupported operating system for monitoring.")
         return 1
+
 
 def attach_console(server_name, base_dir):
     """Attaches to the server console."""
@@ -2845,24 +3405,29 @@ def attach_console(server_name, base_dir):
             msg_info(f"Attaching to server '{server_name}' console...")
             try:
                 subprocess.run(["screen", "-r", f"bedrock-{server_name}"], check=True)
-                return 0 
+                return 0
             except subprocess.CalledProcessError:
-                msg_error(f"Failed to attach to screen session for server: {server_name}")
+                msg_error(
+                    f"Failed to attach to screen session for server: {server_name}"
+                )
                 return handle_error(18, action)
             except FileNotFoundError:
                 msg_error("screen command not found. Is screen installed?")
-                return handle_error(45,action)
+                return handle_error(45, action)
         else:
             msg_warn(f"Server '{server_name}' is not running in a screen session.")
-            return handle_error(8, action) #Return server not running
+            return handle_error(8, action)  # Return server not running
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
-        return 0 # Not really an error
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
+        return 0  # Not really an error
     else:
         msg_error("attach_console not supported on this platform")
-        return 1 # Return error
+        return 1  # Return error
 
-def send_command(server_name, command, config_dir = None):
+
+def send_command(server_name, command, config_dir=None):
     """Sends a command to the Bedrock server.
 
     Args:
@@ -2874,7 +3439,9 @@ def send_command(server_name, command, config_dir = None):
         int: 0 on success, an error code on failure.
     """
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "send command"
     if not server_name:
         msg_error("send_command: server_name is empty.")
@@ -2887,8 +3454,15 @@ def send_command(server_name, command, config_dir = None):
         try:
             # Use screen -X stuff to send the command
             subprocess.run(
-                ["screen", "-S", f"bedrock-{server_name}", "-X", "stuff", f"{command}\n"],
-                check=True  # Raise exception on error
+                [
+                    "screen",
+                    "-S",
+                    f"bedrock-{server_name}",
+                    "-X",
+                    "stuff",
+                    f"{command}\n",
+                ],
+                check=True,  # Raise exception on error
             )
             msg_debug(f"Sent command '{command}' to server '{server_name}'")
             return 0
@@ -2900,17 +3474,22 @@ def send_command(server_name, command, config_dir = None):
             return handle_error(45, action)
 
     elif platform.system() == "Windows":
-        msg_info("Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl).")
+        msg_info(
+            "Windows doesn't currently support all script features. You may want to look into Windows Subsystem Linux (wsl)."
+        )
         return 0  # Not an error
 
     else:
         msg_error("Unsupported operating system for sending commands.")
         return 1
 
-def delete_server(server_name, base_dir, config_dir = None):
+
+def delete_server(server_name, base_dir, config_dir=None):
     """Deletes a Bedrock server."""
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     server_dir = os.path.join(base_dir, server_name)
     config_folder = os.path.join(config_dir, server_name)
     action = "delete server"
@@ -2920,11 +3499,17 @@ def delete_server(server_name, base_dir, config_dir = None):
         return handle_error(25, action)
 
     if not os.path.exists(server_dir) and not os.path.exists(config_folder):
-        msg_warn(f"Server '{server_name}' does not appear to exist (no server or config directory).")
+        msg_warn(
+            f"Server '{server_name}' does not appear to exist (no server or config directory)."
+        )
         return 0  # Not an error if it doesn't exist
 
     # Confirm deletion
-    confirm = input(Fore.RED + f"Are you sure you want to delete the server '{server_name}'? This action is irreversible! (y/n): " + Style.RESET_ALL).lower()
+    confirm = input(
+        Fore.RED
+        + f"Are you sure you want to delete the server '{server_name}'? This action is irreversible! (y/n): "
+        + Style.RESET_ALL
+    ).lower()
     if confirm not in ("y", "yes"):
         msg_info("Server deletion canceled.")
         return 0
@@ -2936,17 +3521,27 @@ def delete_server(server_name, base_dir, config_dir = None):
 
     # Remove the systemd service file
     if platform.system() == "Linux":
-        service_file = os.path.join(os.path.expanduser("~"), ".config", "systemd", "user", f"bedrock-{server_name}.service")
+        service_file = os.path.join(
+            os.path.expanduser("~"),
+            ".config",
+            "systemd",
+            "user",
+            f"bedrock-{server_name}.service",
+        )
         if os.path.exists(service_file):
             msg_warn(f"Removing user systemd service for '{server_name}'")
             disable_service(server_name)
             try:
                 os.remove(service_file)
             except OSError as e:
-                msg_warn(f"Failed to remove service file: {service_file}: {e}") # Not a fatal error
+                msg_warn(
+                    f"Failed to remove service file: {service_file}: {e}"
+                )  # Not a fatal error
 
             try:
-                subprocess.run(["systemctl", "--user", "daemon-reload"], check=False) # Check false in case it fails
+                subprocess.run(
+                    ["systemctl", "--user", "daemon-reload"], check=False
+                )  # Check false in case it fails
             except FileNotFoundError:
                 msg_error("systemctl command not found. Could not reload daemon")
             except subprocess.CalledProcessError:
@@ -2954,7 +3549,7 @@ def delete_server(server_name, base_dir, config_dir = None):
     elif platform.system() == "Windows":
         remove_readonly(server_dir)
         remove_readonly(config_dir)
-    
+
     # Remove the server directory
     msg_warn(f"Deleting server directory: {server_dir}")
     try:
@@ -2973,6 +3568,7 @@ def delete_server(server_name, base_dir, config_dir = None):
 
     msg_ok(f"Server '{server_name}' deleted successfully.")
     return 0
+
 
 def start_server_if_was_running(server_name, base_dir, was_running):
     """Starts the server if it was previously running.
@@ -2996,6 +3592,7 @@ def start_server_if_was_running(server_name, base_dir, was_running):
         msg_info(f"Skip starting server '{server_name}'.")
         return 0
 
+
 def stop_server_if_running(server_name, base_dir):
     """Stops the server if it's running, and returns whether it was running.
 
@@ -3008,18 +3605,19 @@ def stop_server_if_running(server_name, base_dir):
     """
     action = "stop server if running"
     if not server_name:
-       msg_error("stop_server_if_running: server_name is empty.")
-       return handle_error(25, action)
+        msg_error("stop_server_if_running: server_name is empty.")
+        return handle_error(25, action)
 
     msg_info("Checking if server is running")
     if is_server_running(server_name, base_dir):
         if stop_server(server_name, base_dir) == 0:
             return True
         else:
-            return False # Stop failed
+            return False  # Stop failed
     else:
         msg_info(f"Server '{server_name}' is not currently running.")
         return False
+
 
 def restart_server(server_name, base_dir):
     """Restarts the Bedrock server."""
@@ -3048,9 +3646,10 @@ def restart_server(server_name, base_dir):
     time.sleep(2)
 
     if start_server(server_name, base_dir) != 0:
-         return handle_error(10, action)
+        return handle_error(10, action)
 
     return 0
+
 
 def extract_world(server_name, selected_file, base_dir, from_addon=False):
     """Extracts a world from a .mcworld file to the server directory.
@@ -3095,9 +3694,9 @@ def extract_world(server_name, selected_file, base_dir, from_addon=False):
     # Remove existing world folder content
     msg_warn("Removing existing world folder...")
     try:
-        if os.path.exists(extract_dir): # Prevent errors if it doesnt exist.
+        if os.path.exists(extract_dir):  # Prevent errors if it doesnt exist.
             shutil.rmtree(extract_dir)
-            os.makedirs(extract_dir, exist_ok = True) # Remake empty folder
+            os.makedirs(extract_dir, exist_ok=True)  # Remake empty folder
     except OSError as e:
         msg_error(f"Failed to remove existing world folder content: {e}")
         return handle_error(16, action)
@@ -3105,7 +3704,7 @@ def extract_world(server_name, selected_file, base_dir, from_addon=False):
     # Extract the new world
     msg_info("Extracting new world...")
     try:
-        with zipfile.ZipFile(selected_file, 'r') as zip_ref:
+        with zipfile.ZipFile(selected_file, "r") as zip_ref:
             zip_ref.extractall(extract_dir)
         msg_ok(f"World installed to {server_name}")
     except zipfile.BadZipFile:
@@ -3113,13 +3712,14 @@ def extract_world(server_name, selected_file, base_dir, from_addon=False):
         return handle_error(15, action)  # Failed to download or extract
     except OSError as e:
         msg_error(f"Failed to extract world from {selected_file}: {e}")
-        return handle_error(15, action) #Return error.
+        return handle_error(15, action)  # Return error.
 
     # Start the server after world install if it was running and not from an addon
     if not from_addon:
-      if start_server_if_was_running(server_name, base_dir, was_running) != 0:
-          return handle_error(10, action) #Return error.
+        if start_server_if_was_running(server_name, base_dir, was_running) != 0:
+            return handle_error(10, action)  # Return error.
     return 0
+
 
 def install_worlds(server_name, base_dir, script_dir):
     """Provides a menu to select and install .mcworld files.
@@ -3174,7 +3774,7 @@ def install_worlds(server_name, base_dir, script_dir):
             choice = int(input(f"Select a world to install (1-{len(file_names)}): "))
             if 1 <= choice <= len(file_names):
                 selected_file = mcworld_files[choice - 1]
-                break # Valid choice
+                break  # Valid choice
             else:
                 msg_warn("Invalid selection. Please choose a valid option.")
         except ValueError:
@@ -3193,6 +3793,7 @@ def install_worlds(server_name, base_dir, script_dir):
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
 
     return extract_world(server_name, selected_file, base_dir)
+
 
 def export_world(server_name, base_dir, script_dir):
     """Exports the world as a .mcworld file (ZIP archive).
@@ -3224,7 +3825,9 @@ def export_world(server_name, base_dir, script_dir):
     world_path = os.path.join(server_dir, "worlds", world_folder)
 
     if not os.path.isdir(world_path):
-        msg_warn(f"World directory '{world_folder}' does not exist. Skipping world backup.")
+        msg_warn(
+            f"World directory '{world_folder}' does not exist. Skipping world backup."
+        )
         return 0
 
     msg_info(f"Backing up world folder '{world_folder}'...")
@@ -3233,16 +3836,17 @@ def export_world(server_name, base_dir, script_dir):
         # Change root_dir to world_path
         shutil.make_archive(
             os.path.splitext(backup_file)[0],  # Base name (without extension)
-            'zip',  # Format
-            root_dir=world_path
+            "zip",  # Format
+            root_dir=world_path,
         )
-        #make_archive creates a .zip, so we rename it to .mcworld
+        # make_archive creates a .zip, so we rename it to .mcworld
         os.rename(os.path.splitext(backup_file)[0] + ".zip", backup_file)
         msg_ok(f"World backup created: {backup_file}")
         return 0
     except OSError as e:
         msg_error(f"Backup of world failed: {e}")
         return handle_error(20, action)
+
 
 def prune_old_backups(server_name, file_name=None, script_dir=None, backup_keep=None):
     """Prunes old backups, keeping only the most recent ones.
@@ -3256,7 +3860,7 @@ def prune_old_backups(server_name, file_name=None, script_dir=None, backup_keep=
     Returns:
         int: 0 on success, error code on failure
     """
-    if script_dir is None: # Allow passing script dir
+    if script_dir is None:  # Allow passing script dir
         script_dir = os.path.dirname(os.path.realpath(__file__))
     backup_dir = os.path.join(script_dir, "backups", server_name)
     action = "prune old backups"
@@ -3268,19 +3872,25 @@ def prune_old_backups(server_name, file_name=None, script_dir=None, backup_keep=
     if not os.path.isdir(backup_dir):
         msg_warn(f"Backup directory does not exist: {backup_dir}.  Nothing to prune.")
         return 0
-    if backup_keep is None: # Allow passing of value
+    if backup_keep is None:  # Allow passing of value
         config = default_config()
-        backup_keep = config['BACKUP_KEEP'] # Get from config
+        backup_keep = config["BACKUP_KEEP"]  # Get from config
 
     backups_to_keep = int(backup_keep) + 1  # Keep one extra
-    level_name = get_world_name(server_name, base_dir=os.path.join(script_dir, "servers"))
+    level_name = get_world_name(
+        server_name, base_dir=os.path.join(script_dir, "servers")
+    )
     if not level_name:
         msg_warn("Failed to get world name. Pruning world backups may be inaccurate.")
 
     msg_info("Pruning old backups...")
 
     # Prune world backups (*.mcworld)
-    world_backups = sorted(glob.glob(os.path.join(backup_dir, f"{level_name}_backup_*.mcworld")), key=os.path.getmtime, reverse=True)
+    world_backups = sorted(
+        glob.glob(os.path.join(backup_dir, f"{level_name}_backup_*.mcworld")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
     for old_backup in world_backups[backups_to_keep:]:
         try:
             msg_info(f"Removing old backup: {old_backup}")
@@ -3290,7 +3900,16 @@ def prune_old_backups(server_name, file_name=None, script_dir=None, backup_keep=
 
     # Prune config file backups (if file_name is provided)
     if file_name:
-        config_backups = sorted(glob.glob(os.path.join(backup_dir, f"{os.path.splitext(file_name)[0]}_backup_*.{file_name.split('.')[-1]}")), key=os.path.getmtime, reverse=True)
+        config_backups = sorted(
+            glob.glob(
+                os.path.join(
+                    backup_dir,
+                    f"{os.path.splitext(file_name)[0]}_backup_*.{file_name.split('.')[-1]}",
+                )
+            ),
+            key=os.path.getmtime,
+            reverse=True,
+        )
         for old_backup in config_backups[backups_to_keep:]:
             try:
                 msg_info(f"Removing old backup: {old_backup}")
@@ -3299,7 +3918,16 @@ def prune_old_backups(server_name, file_name=None, script_dir=None, backup_keep=
                 msg_error(f"Failed to remove {old_backup}: {e}")
     return 0
 
-def backup_server(server_name, backup_type, file_to_backup=None, change_status=True, base_dir=None, script_dir=None, config_dir=None):
+
+def backup_server(
+    server_name,
+    backup_type,
+    file_to_backup=None,
+    change_status=True,
+    base_dir=None,
+    script_dir=None,
+    config_dir=None,
+):
     """Backs up a server's world or a specific configuration file.
 
     Args:
@@ -3314,12 +3942,14 @@ def backup_server(server_name, backup_type, file_to_backup=None, change_status=T
     Returns:
         int: 0 on success, error code on failure.
     """
-    if script_dir is None: # Allow passing script dir
+    if script_dir is None:  # Allow passing script dir
         script_dir = os.path.dirname(os.path.realpath(__file__))
     if base_dir is None:
         base_dir = os.path.join(script_dir, "servers")
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     server_dir = os.path.join(base_dir, server_name)
     backup_dir = os.path.join(script_dir, "backups", server_name)
     action = "backup server"
@@ -3356,7 +3986,9 @@ def backup_server(server_name, backup_type, file_to_backup=None, change_status=T
 
     elif backup_type == "config":
         if not file_to_backup:
-            msg_error("backup_server: file_to_backup is empty when backup_type is config.")
+            msg_error(
+                "backup_server: file_to_backup is empty when backup_type is config."
+            )
             return handle_error(2, action)
 
         if not os.path.exists(file_to_backup):
@@ -3365,8 +3997,11 @@ def backup_server(server_name, backup_type, file_to_backup=None, change_status=T
 
         timestamp = get_timestamp()
         try:
-            destination = os.path.join(backup_dir, f"{os.path.splitext(file_name)[0]}_backup_{timestamp}.{file_name.split('.')[-1]}")
-            shutil.copy2(file_to_backup, destination) # Use copy2 to preserve metadata
+            destination = os.path.join(
+                backup_dir,
+                f"{os.path.splitext(file_name)[0]}_backup_{timestamp}.{file_name.split('.')[-1]}",
+            )
+            shutil.copy2(file_to_backup, destination)  # Use copy2 to preserve metadata
             msg_ok(f"{file_name} backed up to {backup_dir}")
             prune_old_backups(server_name, file_name, script_dir=script_dir)
         except OSError as e:
@@ -3380,7 +4015,10 @@ def backup_server(server_name, backup_type, file_to_backup=None, change_status=T
     msg_ok("Backup process completed.")
     return 0
 
-def backup_all(server_name, base_dir, change_status=True, script_dir=None, config_dir=None):
+
+def backup_all(
+    server_name, base_dir, change_status=True, script_dir=None, config_dir=None
+):
     """Backs up all files (world and configuration files).
 
     Args:
@@ -3392,10 +4030,12 @@ def backup_all(server_name, base_dir, change_status=True, script_dir=None, confi
     Returns:
         int: 0 on success, error code on failure.
     """
-    if script_dir is None: # Allow passing script dir
+    if script_dir is None:  # Allow passing script dir
         script_dir = os.path.dirname(os.path.realpath(__file__))
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     action = "backup all"
 
     if not server_name:
@@ -3407,14 +4047,34 @@ def backup_all(server_name, base_dir, change_status=True, script_dir=None, confi
         was_running = stop_server_if_running(server_name, base_dir)
 
     # Backup the world
-    if backup_server(server_name, "world", base_dir=base_dir, script_dir=script_dir, change_status=False, config_dir=config_dir) != 0: # Pass base/script/config_dir
+    if (
+        backup_server(
+            server_name,
+            "world",
+            base_dir=base_dir,
+            script_dir=script_dir,
+            change_status=False,
+            config_dir=config_dir,
+        )
+        != 0
+    ):  # Pass base/script/config_dir
         msg_error(f"Failed to backup world for {server_name}.")
 
     # Backup config files
     for config_file in ["allowlist.json", "permissions.json", "server.properties"]:
-        if backup_server(server_name, "config", config_file, base_dir=base_dir, script_dir=script_dir, change_status=False, config_dir=config_dir) != 0: # Pass base/script/config_dir
+        if (
+            backup_server(
+                server_name,
+                "config",
+                config_file,
+                base_dir=base_dir,
+                script_dir=script_dir,
+                change_status=False,
+                config_dir=config_dir,
+            )
+            != 0
+        ):  # Pass base/script/config_dir
             msg_error(f"Failed to backup {config_file} for {server_name}.")
-
 
     if change_status:
         start_server_if_was_running(server_name, base_dir, was_running)
@@ -3423,6 +4083,7 @@ def backup_all(server_name, base_dir, change_status=True, script_dir=None, confi
 
     msg_ok("All files have been backed up.")
     return 0
+
 
 def backup_menu(server_name, base_dir, script_dir, config_dir):
     """Displays the backup menu and handles user input."""
@@ -3441,11 +4102,22 @@ def backup_menu(server_name, base_dir, script_dir, config_dir):
         choice = input("Select the type of backup: ")
 
         if choice == "1":
-            if backup_server(server_name, "world", base_dir=base_dir, script_dir=script_dir, config_dir=config_dir) != 0:
+            if (
+                backup_server(
+                    server_name,
+                    "world",
+                    base_dir=base_dir,
+                    script_dir=script_dir,
+                    config_dir=config_dir,
+                )
+                != 0
+            ):
                 msg_error("Failed to backup world.")
             break  # Exit after backup
         elif choice == "2":
-            print(Fore.MAGENTA + "Select configuration file to backup:" + Style.RESET_ALL)
+            print(
+                Fore.MAGENTA + "Select configuration file to backup:" + Style.RESET_ALL
+            )
             print("1. allowlist.json")
             print("2. permissions.json")
             print("3. server.properties")
@@ -3465,18 +4137,34 @@ def backup_menu(server_name, base_dir, script_dir, config_dir):
                 msg_warn("Invalid selection, please try again.")
                 continue
 
-            if backup_server(server_name, "config", file_to_backup, base_dir=base_dir, script_dir=script_dir, config_dir=config_dir) != 0:
+            if (
+                backup_server(
+                    server_name,
+                    "config",
+                    file_to_backup,
+                    base_dir=base_dir,
+                    script_dir=script_dir,
+                    config_dir=config_dir,
+                )
+                != 0
+            ):
                 msg_error(f"Failed to backup {file_to_backup}.")
-            break #Exit menu
+            break  # Exit menu
         elif choice == "3":
-            if backup_all(server_name, base_dir, script_dir=script_dir, config_dir=config_dir) != 0:
+            if (
+                backup_all(
+                    server_name, base_dir, script_dir=script_dir, config_dir=config_dir
+                )
+                != 0
+            ):
                 msg_error("Failed to backup all.")
-            break # Exit menu
+            break  # Exit menu
         elif choice == "4":
             msg_info("Backup operation canceled.")
             return 0
         else:
             msg_warn("Invalid selection, please try again.")
+
 
 def install_addons(server_name, base_dir, script_dir):
     """Installs addons (.mcaddon or .mcpack files) to the server.
@@ -3513,21 +4201,30 @@ def install_addons(server_name, base_dir, script_dir):
 
     behavior_dir = os.path.join(server_dir, "worlds", world_name, "behavior_packs")
     resource_dir = os.path.join(server_dir, "worlds", world_name, "resource_packs")
-    behavior_json = os.path.join(server_dir, "worlds", world_name, "world_behavior_packs.json")
-    resource_json = os.path.join(server_dir, "worlds", world_name, "world_resource_packs.json")
+    behavior_json = os.path.join(
+        server_dir, "worlds", world_name, "world_behavior_packs.json"
+    )
+    resource_json = os.path.join(
+        server_dir, "worlds", world_name, "world_resource_packs.json"
+    )
 
     # Create directories if they don't exist
     os.makedirs(behavior_dir, exist_ok=True)
     os.makedirs(resource_dir, exist_ok=True)
 
     # Collect .mcaddon and .mcpack files
-    addon_files = glob.glob(os.path.join(addon_dir, "*.mcaddon")) + glob.glob(os.path.join(addon_dir, "*.mcpack"))
+    addon_files = glob.glob(os.path.join(addon_dir, "*.mcaddon")) + glob.glob(
+        os.path.join(addon_dir, "*.mcpack")
+    )
 
     if not addon_files:
         msg_warn(f"No .mcaddon or .mcpack files found in {addon_dir}")
         return 0
 
-    return show_addon_selection_menu(server_name, addon_files, base_dir, script_dir) # Pass base and script dir
+    return show_addon_selection_menu(
+        server_name, addon_files, base_dir, script_dir
+    )  # Pass base and script dir
+
 
 def show_addon_selection_menu(server_name, addon_files, base_dir, script_dir):
     """Displays the addon selection menu and processes the selected addon.
@@ -3562,8 +4259,10 @@ def show_addon_selection_menu(server_name, addon_files, base_dir, script_dir):
         try:
             choice = int(input(f"Select an addon to install (1-{len(addon_names)}): "))
             if 1 <= choice <= len(addon_names):
-                addon_file = os.path.join(addon_dir, addon_names[choice - 1])  # Construct full path
-                break # Valid
+                addon_file = os.path.join(
+                    addon_dir, addon_names[choice - 1]
+                )  # Construct full path
+                break  # Valid
             else:
                 msg_warn("Invalid selection. Please choose a valid option.")
         except ValueError:
@@ -3575,10 +4274,11 @@ def show_addon_selection_menu(server_name, addon_files, base_dir, script_dir):
     result = process_addon(addon_file, server_name, base_dir, script_dir)
     if result != 0:
         msg_error(f"Failed to process addon {addon_names[choice-1]}")
-        return result # Return error
+        return result  # Return error
 
     start_server_if_was_running(server_name, base_dir, was_running)
     return 0
+
 
 def process_addon(addon_file, server_name, base_dir, script_dir):
     """Processes the selected addon file (.mcaddon or .mcpack).
@@ -3613,6 +4313,7 @@ def process_addon(addon_file, server_name, base_dir, script_dir):
         msg_error(f"Unsupported addon file type: {addon_file}")
         return handle_error(27, action)
 
+
 def process_mcaddon(addon_file, server_name, base_dir, script_dir):
     """Processes an .mcaddon file (extracts and handles contained files).
 
@@ -3640,7 +4341,7 @@ def process_mcaddon(addon_file, server_name, base_dir, script_dir):
     msg_info(f"Extracting {os.path.basename(addon_file)}...")
 
     try:
-        with zipfile.ZipFile(addon_file, 'r') as zip_ref:
+        with zipfile.ZipFile(addon_file, "r") as zip_ref:
             zip_ref.extractall(temp_dir)
     except zipfile.BadZipFile:
         msg_error(f"Failed to unzip .mcaddon file: {addon_file} (Not a valid zip file)")
@@ -3656,6 +4357,7 @@ def process_mcaddon(addon_file, server_name, base_dir, script_dir):
         return result
     finally:
         shutil.rmtree(temp_dir)
+
 
 def process_mcaddon_files(temp_dir, server_name, base_dir, script_dir):
     """Processes the files extracted from an .mcaddon file.
@@ -3678,24 +4380,31 @@ def process_mcaddon_files(temp_dir, server_name, base_dir, script_dir):
         msg_error("process_mcaddon_files: server_name is empty.")
         return handle_error(25, action)
     if not os.path.isdir(temp_dir):
-        msg_error(f"process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}")
+        msg_error(
+            f"process_mcaddon_files: temp_dir does not exist or is not a directory: {temp_dir}"
+        )
         return handle_error(1, action)
 
     # Process .mcworld files
     for world_file in glob.glob(os.path.join(temp_dir, "*.mcworld")):
         msg_info(f"Processing .mcworld file: {os.path.basename(world_file)}")
         if extract_world(server_name, world_file, base_dir, from_addon=True) != 0:
-            msg_error(f"Failed to extract world from .mcaddon: {os.path.basename(world_file)}")
+            msg_error(
+                f"Failed to extract world from .mcaddon: {os.path.basename(world_file)}"
+            )
             return 1
 
     # Process .mcpack files
     for pack_file in glob.glob(os.path.join(temp_dir, "*.mcpack")):
         msg_info(f"Processing .mcpack file: {os.path.basename(pack_file)}")
         if process_mcpack(pack_file, server_name, base_dir, script_dir) != 0:
-            msg_error(f"Failed to process .mcpack from .mcaddon: {os.path.basename(pack_file)}")
+            msg_error(
+                f"Failed to process .mcpack from .mcaddon: {os.path.basename(pack_file)}"
+            )
             return 1
 
     return 0
+
 
 def process_mcpack(pack_file, server_name, base_dir, script_dir):
     """Processes an .mcpack file (extracts and processes manifest).
@@ -3724,11 +4433,11 @@ def process_mcpack(pack_file, server_name, base_dir, script_dir):
     msg_info(f"Extracting {os.path.basename(pack_file)}...")
 
     try:
-        with zipfile.ZipFile(pack_file, 'r') as zip_ref:
+        with zipfile.ZipFile(pack_file, "r") as zip_ref:
             zip_ref.extractall(temp_dir)
     except zipfile.BadZipFile:
         msg_error(f"Failed to unzip .mcpack file: {pack_file} (Not a valid zip file)")
-        shutil.rmtree(temp_dir) # Cleanup
+        shutil.rmtree(temp_dir)  # Cleanup
         return handle_error(15, action)
     except OSError as e:
         msg_error(f"Failed to unzip .mcpack file: {pack_file}: {e}")
@@ -3739,6 +4448,7 @@ def process_mcpack(pack_file, server_name, base_dir, script_dir):
         return process_manifest(temp_dir, server_name, pack_file, base_dir, script_dir)
     finally:
         shutil.rmtree(temp_dir)
+
 
 def process_manifest(temp_dir, server_name, pack_file, base_dir, script_dir):
     """Processes the manifest.json file within an extracted .mcpack.
@@ -3764,12 +4474,28 @@ def process_manifest(temp_dir, server_name, pack_file, base_dir, script_dir):
         return handle_error(2, action)
     manifest_info = extract_manifest_info(temp_dir)
     if manifest_info is None:
-        msg_error(f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json")
+        msg_error(
+            f"Failed to process {os.path.basename(pack_file)} due to missing or invalid manifest.json"
+        )
         return 1
 
-    pack_type, uuid, version, addon_name_from_manifest, formatted_addon_name = manifest_info
+    pack_type, uuid, version, addon_name_from_manifest, formatted_addon_name = (
+        manifest_info
+    )
 
-    return install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_dir, uuid, version, addon_name_from_manifest, formatted_addon_name)
+    return install_pack(
+        pack_type,
+        temp_dir,
+        server_name,
+        pack_file,
+        base_dir,
+        script_dir,
+        uuid,
+        version,
+        addon_name_from_manifest,
+        formatted_addon_name,
+    )
+
 
 def extract_manifest_info(temp_dir):
     """Extracts information from manifest.json.
@@ -3797,18 +4523,30 @@ def extract_manifest_info(temp_dir):
         with open(manifest_file, "r") as f:
             manifest_data = json.load(f)
 
-        pack_type = manifest_data['modules'][0]['type']
-        uuid = manifest_data['header']['uuid']
-        version = manifest_data['header']['version']
-        addon_name_from_manifest = manifest_data['header']['name']
-        formatted_addon_name = addon_name_from_manifest.lower().replace(' ', '_')
+        pack_type = manifest_data["modules"][0]["type"]
+        uuid = manifest_data["header"]["uuid"]
+        version = manifest_data["header"]["version"]
+        addon_name_from_manifest = manifest_data["header"]["name"]
+        formatted_addon_name = addon_name_from_manifest.lower().replace(" ", "_")
 
         return pack_type, uuid, version, addon_name_from_manifest, formatted_addon_name
     except (OSError, json.JSONDecodeError, KeyError, IndexError) as e:
         msg_error(f"Failed to extract info from manifest.json: {e}")
         return None
 
-def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_dir, uuid, version, addon_name_from_manifest, formatted_addon_name):
+
+def install_pack(
+    pack_type,
+    temp_dir,
+    server_name,
+    pack_file,
+    base_dir,
+    script_dir,
+    uuid,
+    version,
+    addon_name_from_manifest,
+    formatted_addon_name,
+):
     """Installs a pack based on its type (data/resources).
 
     Args:
@@ -3844,10 +4582,18 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
         msg_error("Could not find level-name in server.properties")
         return handle_error(11, action)
 
-    behavior_dir = os.path.join(base_dir, server_name, "worlds", world_name, "behavior_packs")
-    resource_dir = os.path.join(base_dir, server_name, "worlds", world_name, "resource_packs")
-    behavior_json = os.path.join(base_dir, server_name, "worlds", world_name, "world_behavior_packs.json")
-    resource_json = os.path.join(base_dir, server_name, "worlds", world_name, "world_resource_packs.json")
+    behavior_dir = os.path.join(
+        base_dir, server_name, "worlds", world_name, "behavior_packs"
+    )
+    resource_dir = os.path.join(
+        base_dir, server_name, "worlds", world_name, "resource_packs"
+    )
+    behavior_json = os.path.join(
+        base_dir, server_name, "worlds", world_name, "world_behavior_packs.json"
+    )
+    resource_json = os.path.join(
+        base_dir, server_name, "worlds", world_name, "world_resource_packs.json"
+    )
 
     # Create directories if they don't exist
     os.makedirs(behavior_dir, exist_ok=True)
@@ -3855,7 +4601,9 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
 
     if pack_type == "data":
         msg_info(f"Installing behavior pack to {server_name}")
-        addon_behavior_dir = os.path.join(behavior_dir, f"{formatted_addon_name}_{'.'.join(map(str, version))}")
+        addon_behavior_dir = os.path.join(
+            behavior_dir, f"{formatted_addon_name}_{'.'.join(map(str, version))}"
+        )
         os.makedirs(addon_behavior_dir, exist_ok=True)
         try:
             # Copy all files from temp_dir to addon_behavior_dir
@@ -3865,7 +4613,7 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
                 if os.path.isdir(s):
                     shutil.copytree(s, d, dirs_exist_ok=True)
                 else:
-                    shutil.copy2(s, d) # Copy files
+                    shutil.copy2(s, d)  # Copy files
 
             update_pack_json(behavior_json, uuid, version)
             msg_ok(f"Installed {os.path.basename(pack_file)} to {server_name}.")
@@ -3876,7 +4624,9 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
 
     elif pack_type == "resources":
         msg_info(f"Installing resource pack to {server_name}")
-        addon_resource_dir = os.path.join(resource_dir, f"{formatted_addon_name}_{'.'.join(map(str, version))}")
+        addon_resource_dir = os.path.join(
+            resource_dir, f"{formatted_addon_name}_{'.'.join(map(str, version))}"
+        )
         os.makedirs(addon_resource_dir, exist_ok=True)
         try:
             # Copy all files from temp_dir to addon_resource_dir
@@ -3886,7 +4636,7 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
                 if os.path.isdir(s):
                     shutil.copytree(s, d, dirs_exist_ok=True)
                 else:
-                    shutil.copy2(s, d) # Copy Files
+                    shutil.copy2(s, d)  # Copy Files
             update_pack_json(resource_json, uuid, version)
             msg_ok(f"Installed {os.path.basename(pack_file)} to {server_name}.")
             return 0
@@ -3896,6 +4646,7 @@ def install_pack(pack_type, temp_dir, server_name, pack_file, base_dir, script_d
     else:
         msg_error(f"Unknown pack type: {pack_type}")
         return handle_error(27, action)
+
 
 def update_pack_json(json_file, pack_id, version):
     """Updates the world_behavior_packs.json or world_resource_packs.json file.
@@ -3941,13 +4692,13 @@ def update_pack_json(json_file, pack_id, version):
         for i, pack in enumerate(packs):
             if pack["pack_id"] == pack_id:
                 pack_exists = True
-                #convert versions to tuples for easy comparison
-                pack_version = tuple(pack['version'])
+                # convert versions to tuples for easy comparison
+                pack_version = tuple(pack["version"])
                 input_version = tuple(version)
                 if input_version > pack_version:
                     packs[i] = {"pack_id": pack_id, "version": version}
                     msg_debug(f"Updated existing pack entry in {json_file}")
-                break # Exit Loop
+                break  # Exit Loop
 
         if not pack_exists:
             packs.append({"pack_id": pack_id, "version": version})
@@ -3961,7 +4712,15 @@ def update_pack_json(json_file, pack_id, version):
         msg_error(f"Failed to update {json_file}: {e}")
         return handle_error(14, action)
 
-def restore_server(server_name, backup_file, restore_type, change_status=True, base_dir=None, script_dir=None):
+
+def restore_server(
+    server_name,
+    backup_file,
+    restore_type,
+    change_status=True,
+    base_dir=None,
+    script_dir=None,
+):
     """Restores a server from a backup file.
 
     Args:
@@ -3997,13 +4756,12 @@ def restore_server(server_name, backup_file, restore_type, change_status=True, b
         msg_error(f"Backup file '{backup_file}' not found!")
         return handle_error(15, action)
 
-
-    base_name = os.path.basename(backup_file).split('_backup_')[0]
+    base_name = os.path.basename(backup_file).split("_backup_")[0]
     file_extension = os.path.splitext(backup_file)[1]
     if file_extension == ".mcworld":
         file_extension = "mcworld"
     else:
-        file_extension = file_extension[1:] # Remove leading .
+        file_extension = file_extension[1:]  # Remove leading .
 
     was_running = False
     if change_status:
@@ -4014,7 +4772,7 @@ def restore_server(server_name, backup_file, restore_type, change_status=True, b
         if extract_world(server_name, backup_file, base_dir, from_addon=False) != 0:
             msg_error("Failed to extract world during restore.")
             if change_status and was_running:
-                start_server(server_name, base_dir) # Attempt a restart.
+                start_server(server_name, base_dir)  # Attempt a restart.
             return handle_error(15, action)
 
     elif restore_type == "config":
@@ -4024,20 +4782,26 @@ def restore_server(server_name, backup_file, restore_type, change_status=True, b
             shutil.copy2(backup_file, target_file)
             msg_ok(f"{base_name} file restored successfully!")
         except OSError as e:
-            msg_error(f"Failed to restore configuration file: {os.path.basename(backup_file)}: {e}")
+            msg_error(
+                f"Failed to restore configuration file: {os.path.basename(backup_file)}: {e}"
+            )
             return handle_error(14, action)
 
     else:  # defensive programming
         msg_error("Invalid restore type in restore_server")
         return handle_error(5, action)  # Invalid Input
 
-
     if change_status:
-        start_server_if_was_running(server_name, base_dir, was_running) # Start server if it was running
+        start_server_if_was_running(
+            server_name, base_dir, was_running
+        )  # Start server if it was running
 
     return 0
 
-def restore_all(server_name, base_dir, change_status=True, script_dir=None, config_dir=None):
+
+def restore_all(
+    server_name, base_dir, change_status=True, script_dir=None, config_dir=None
+):
     """Restores all newest files (world and configuration files).
 
     Args:
@@ -4052,7 +4816,9 @@ def restore_all(server_name, base_dir, change_status=True, script_dir=None, conf
     if script_dir is None:
         script_dir = os.path.dirname(os.path.realpath(__file__))
     if config_dir is None:
-        config_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), ".config")
+        config_dir = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), ".config"
+        )
     backup_dir = os.path.join(script_dir, "backups", server_name)
     action = "restore all"
 
@@ -4072,7 +4838,6 @@ def restore_all(server_name, base_dir, change_status=True, script_dir=None, conf
         latest_world = None
         msg_warn("No world backups found.")
 
-
     was_running = False
     if change_status:
         was_running = stop_server_if_running(server_name, base_dir)
@@ -4080,14 +4845,36 @@ def restore_all(server_name, base_dir, change_status=True, script_dir=None, conf
     # Restore the latest world backup
     if latest_world:
         msg_info(f"Restoring the latest world from: {os.path.basename(latest_world)}")
-        if restore_server(server_name, latest_world, "world", change_status=False, base_dir=base_dir, script_dir=script_dir) != 0: # Pass base and script dir
+        if (
+            restore_server(
+                server_name,
+                latest_world,
+                "world",
+                change_status=False,
+                base_dir=base_dir,
+                script_dir=script_dir,
+            )
+            != 0
+        ):  # Pass base and script dir
             msg_error("Failed to restore world.")
 
     # Restore latest server.properties backup
-    properties_backups = glob.glob(os.path.join(backup_dir, "server_backup_*.properties"))
+    properties_backups = glob.glob(
+        os.path.join(backup_dir, "server_backup_*.properties")
+    )
     if properties_backups:
         latest_properties = max(properties_backups, key=os.path.getmtime)
-        if restore_server(server_name, latest_properties, "config", change_status=False, base_dir=base_dir, script_dir=script_dir) != 0: #Pass base and script dir
+        if (
+            restore_server(
+                server_name,
+                latest_properties,
+                "config",
+                change_status=False,
+                base_dir=base_dir,
+                script_dir=script_dir,
+            )
+            != 0
+        ):  # Pass base and script dir
             msg_error("Failed to restore server.properties.")
     else:
         msg_warn("No server.properties backup found to restore.")
@@ -4096,20 +4883,35 @@ def restore_all(server_name, base_dir, change_status=True, script_dir=None, conf
     json_backups = glob.glob(os.path.join(backup_dir, "*_backup_*.json"))
     restored_json_types = set()  # Use a set for efficient checking
 
-    for config_file in sorted(json_backups, key=os.path.getmtime, reverse=True): # sort by time
+    for config_file in sorted(
+        json_backups, key=os.path.getmtime, reverse=True
+    ):  # sort by time
         filename = os.path.basename(config_file)
         config_type = filename.split("_backup_")[0]  # Extract base name
 
         if config_type not in restored_json_types:
-            if restore_server(server_name, config_file, "config", change_status=False, base_dir=base_dir, script_dir=script_dir) != 0: # Pass base/script/config dir
+            if (
+                restore_server(
+                    server_name,
+                    config_file,
+                    "config",
+                    change_status=False,
+                    base_dir=base_dir,
+                    script_dir=script_dir,
+                )
+                != 0
+            ):  # Pass base/script/config dir
                 msg_error(f"Failed to restore {config_type}.")
             restored_json_types.add(config_type)  # Add to the set
 
     if change_status:
-        start_server_if_was_running(server_name, base_dir, was_running) # Start server if it was running
+        start_server_if_was_running(
+            server_name, base_dir, was_running
+        )  # Start server if it was running
 
     msg_ok("All restore operations completed.")
     return 0
+
 
 def restore_menu(server_name, base_dir, script_dir, config_dir):
     """Displays the restore menu and handles user interaction."""
@@ -4138,8 +4940,8 @@ def restore_menu(server_name, base_dir, script_dir, config_dir):
             backup_files = glob.glob(os.path.join(backup_dir, "*.mcworld"))
             if not backup_files:
                 msg_error("No world backups found.")
-                return 0 # Return to main menu
-            break # Exit loop
+                return 0  # Return to main menu
+            break  # Exit loop
 
         elif choice == "2":
             restore_type = "config"
@@ -4149,10 +4951,12 @@ def restore_menu(server_name, base_dir, script_dir, config_dir):
             if not backup_files:
                 msg_error("No configuration backups found.")
                 return 0
-            break # Exit loop
+            break  # Exit loop
 
         elif choice == "3":
-            return restore_all(server_name, base_dir, script_dir=script_dir, config_dir=config_dir) # Pass base/script/config_dir
+            return restore_all(
+                server_name, base_dir, script_dir=script_dir, config_dir=config_dir
+            )  # Pass base/script/config_dir
 
         elif choice == "4":
             msg_info("Restore operation canceled.")
@@ -4175,11 +4979,18 @@ def restore_menu(server_name, base_dir, script_dir, config_dir):
                 return 0
             elif choice in backup_map:
                 selected_file = backup_map[choice]
-                return restore_server(server_name, selected_file, restore_type, base_dir=base_dir, script_dir=script_dir) # Pass base and script_dir
+                return restore_server(
+                    server_name,
+                    selected_file,
+                    restore_type,
+                    base_dir=base_dir,
+                    script_dir=script_dir,
+                )  # Pass base and script_dir
             else:
                 msg_warn("Invalid selection. Please choose again.")
         except ValueError:
             msg_warn("Invalid input. Please enter a number.")
+
 
 def scan_player_data(base_dir, config_dir):
     """Scans server_output.txt files for player data."""
@@ -4205,7 +5016,9 @@ def scan_player_data(base_dir, config_dir):
         try:
             with open(log_file, "r", encoding="utf-8") as f:
                 for line in f:
-                    match = re.search(r"Player connected:\s*([^,]+),\s*xuid:\s*(\d+)", line)
+                    match = re.search(
+                        r"Player connected:\s*([^,]+),\s*xuid:\s*(\d+)", line
+                    )
                     if match:
                         player_name = match.group(1)
                         xuid = match.group(2)
@@ -4226,6 +5039,7 @@ def scan_player_data(base_dir, config_dir):
         msg_info("No player data found across all servers.")
 
     return 0
+
 
 def save_players_to_json(players_data, config_dir):
     """Saves or updates player data in players.json.
@@ -4254,7 +5068,9 @@ def save_players_to_json(players_data, config_dir):
     try:
         with open(players_file, "r") as f:
             existing_data = json.load(f)
-            existing_players = {player['xuid']: player['name'] for player in existing_data['players']}
+            existing_players = {
+                player["xuid"]: player["name"] for player in existing_data["players"]
+            }
     except (OSError, json.JSONDecodeError) as e:
         msg_error(f"Failed to read existing players from players.json: {e}")
         return handle_error(14, action)
@@ -4269,16 +5085,18 @@ def save_players_to_json(players_data, config_dir):
         msg_info("No new players found.")
         return 0
 
-    new_player_list = [{"name": name, "xuid": xuid} for xuid, name in new_players.items()]
+    new_player_list = [
+        {"name": name, "xuid": xuid} for xuid, name in new_players.items()
+    ]
 
     # Combine and deduplicate
-    combined_players = existing_data['players'] + new_player_list
+    combined_players = existing_data["players"] + new_player_list
     seen = set()
     unique_players = []
     for player in combined_players:
-        if player['xuid'] not in seen:
+        if player["xuid"] not in seen:
             unique_players.append(player)
-            seen.add(player['xuid'])
+            seen.add(player["xuid"])
 
     try:
         with open(players_file, "w") as f:
@@ -4288,6 +5106,7 @@ def save_players_to_json(players_data, config_dir):
     except OSError as e:
         msg_error(f"Failed to write to players.json: {e}")
         return handle_error(14, action)
+
 
 def task_scheduler(server_name, base_dir, script_direct, config_dir):
     """Displays the cron scheduler menu and handles user interaction.
@@ -4311,12 +5130,13 @@ def task_scheduler(server_name, base_dir, script_direct, config_dir):
         return cron_scheduler(server_name, base_dir, script_direct)
 
     elif platform.system() == "Windows":
-        
+
         return windows_scheduler(server_name, base_dir, script_direct, config_dir)
 
     else:
         msg_error("Unsupported operating system for sending commands.")
         return 1
+
 
 def cron_scheduler(server_name, base_dir, script_direct):
     """Displays the cron scheduler menu and handles user interaction.
@@ -4334,9 +5154,17 @@ def cron_scheduler(server_name, base_dir, script_direct):
     if not server_name:
         msg_error("cron_scheduler: server_name is empty.")
         return handle_error(25, action)
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler" + Style.RESET_ALL)
+        print(
+            Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Task Scheduler"
+            + Style.RESET_ALL
+        )
         print("You can schedule various server tasks.")
         print(f"Current scheduled task for {Fore.CYAN}{server_name}{Style.RESET_ALL}:")
 
@@ -4373,6 +5201,7 @@ def cron_scheduler(server_name, base_dir, script_direct):
         else:
             msg_warn("Invalid choice. Please try again.")
 
+
 def get_server_cron_jobs(server_name):
     """Retrieves cron jobs for a specific server.
 
@@ -4394,7 +5223,9 @@ def get_server_cron_jobs(server_name):
         return "undefined"
 
     try:
-        result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
+        result = subprocess.run(
+            ["crontab", "-l"], capture_output=True, text=True, check=False
+        )
 
         if result.returncode == 1 and "no crontab for" in result.stderr.lower():
             print(Fore.YELLOW + "No crontab for current user." + Style.RESET_ALL)
@@ -4402,7 +5233,7 @@ def get_server_cron_jobs(server_name):
         elif result.returncode != 0:
             # Other error
             msg_error(f"Error running crontab -l: {result.stderr}")
-            return None # Indicate an error
+            return None  # Indicate an error
 
         cron_jobs = result.stdout
         # Filter for lines related to the specific server.
@@ -4412,7 +5243,11 @@ def get_server_cron_jobs(server_name):
                 filtered_jobs.append(line)
 
         if not filtered_jobs:
-            print(Fore.YELLOW + f"No scheduled cron jobs found for {server_name}." + Style.RESET_ALL)
+            print(
+                Fore.YELLOW
+                + f"No scheduled cron jobs found for {server_name}."
+                + Style.RESET_ALL
+            )
             return "undefined"  # No jobs found for this server
         else:
             return "\n".join(filtered_jobs)  # Return as a single string
@@ -4424,6 +5259,7 @@ def get_server_cron_jobs(server_name):
         msg_error(f"An unexpected error occurred: {e}")
         return None
 
+
 def display_cron_job_table(cron_jobs):
     """Displays a table of cron jobs.
 
@@ -4434,13 +5270,15 @@ def display_cron_job_table(cron_jobs):
         int: Always returns 0.
     """
     if cron_jobs == "undefined":
-        return 0  # Already handled "No scheduled cron jobs found." in get_server_cron_jobs
+        return (
+            0  # Already handled "No scheduled cron jobs found." in get_server_cron_jobs
+        )
 
     print("-------------------------------------------------------")
     print(f"{'CRON JOBS':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
     print("-------------------------------------------------------")
 
-    if not cron_jobs: # Handle empty string case
+    if not cron_jobs:  # Handle empty string case
         return 0
 
     for cron_job in cron_jobs.splitlines():
@@ -4454,25 +5292,35 @@ def display_cron_job_table(cron_jobs):
         day = parts[2]
         month = parts[3]
         weekday = parts[4]
-        command = " ".join(parts[5:]) # Reassemble the command
+        command = " ".join(parts[5:])  # Reassemble the command
 
         # Clean up command for display
-        command = command.split("bedrock-server-manager", 1)[-1].strip()  # Remove leading path
-        command = command.split(".py", 1)[-1].strip() # Remove .sh if present
+        command = command.split("bedrock-server-manager", 1)[
+            -1
+        ].strip()  # Remove leading path
+        command = command.split(".py", 1)[-1].strip()  # Remove .sh if present
         command = command.split("--", 1)[0].strip()  # Remove arguments
 
         schedule_time = convert_to_readable_schedule(month, day, hour, minute, weekday)
         if schedule_time is None:
             schedule_time = "ERROR CONVERTING"
 
-
-        print(Fore.CYAN + f"{minute} {hour} {day} {month} {weekday}".ljust(10) + Style.RESET_ALL + \
-              Fore.GREEN + f"{schedule_time:<25}" + Style.RESET_ALL + \
-              Fore.YELLOW + f"{command}" + Style.RESET_ALL)
+        print(
+            Fore.CYAN
+            + f"{minute} {hour} {day} {month} {weekday}".ljust(10)
+            + Style.RESET_ALL
+            + Fore.GREEN
+            + f"{schedule_time:<25}"
+            + Style.RESET_ALL
+            + Fore.YELLOW
+            + f"{command}"
+            + Style.RESET_ALL
+        )
         print()
 
     print("-------------------------------------------------------")
     return 0
+
 
 def add_cron_job(server_name, base_dir, script_direct):
     """Adds a new cron job for the specified server.
@@ -4494,8 +5342,16 @@ def add_cron_job(server_name, base_dir, script_direct):
         msg_error("Cron jobs are only supported on Linux.")
         return 1
 
-    os.system('cls' if platform.system() == 'Windows' else 'clear') # Clear
-    print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler" + Style.RESET_ALL)
+    os.system("cls" if platform.system() == "Windows" else "clear")  # Clear
+    print(
+        Fore.MAGENTA
+        + "Bedrock Server Manager"
+        + Style.RESET_ALL
+        + " - "
+        + Fore.MAGENTA
+        + "Task Scheduler"
+        + Style.RESET_ALL
+    )
 
     cron_jobs = get_server_cron_jobs(server_name)
     if cron_jobs is None:  # Use 'is None' to check for error from get_server_cron_jobs
@@ -4569,13 +5425,21 @@ def add_cron_job(server_name, base_dir, script_direct):
     print(f"{'CRON JOB':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
     print("-------------------------------------------------------")
 
-    #Format command
+    # Format command
     display_command = command.split("bedrock-server-manager", 1)[-1].strip()
     display_command = display_command.split(".py", 1)[-1].strip()
     display_command = display_command.split("--", 1)[1].strip()
-    print(Fore.CYAN + f"{minute} {hour} {day} {month} {weekday}".ljust(10) + Style.RESET_ALL + \
-          Fore.GREEN + f"{schedule_time:<25}" + Style.RESET_ALL + \
-          Fore.YELLOW + f"{display_command}" + Style.RESET_ALL)
+    print(
+        Fore.CYAN
+        + f"{minute} {hour} {day} {month} {weekday}".ljust(10)
+        + Style.RESET_ALL
+        + Fore.GREEN
+        + f"{schedule_time:<25}"
+        + Style.RESET_ALL
+        + Fore.YELLOW
+        + f"{display_command}"
+        + Style.RESET_ALL
+    )
     print()
     print("-------------------------------------------------------")
 
@@ -4586,19 +5450,25 @@ def add_cron_job(server_name, base_dir, script_direct):
             new_cron_job = f"{minute} {hour} {day} {month} {weekday} {command}"
             try:
                 # Get existing cron jobs
-                result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
+                result = subprocess.run(
+                    ["crontab", "-l"], capture_output=True, text=True, check=False
+                )
                 existing_crontab = result.stdout
                 # If no crontab exists and there is an error, set existing crontab to empty
                 if result.returncode != 0 and "no crontab for" in result.stderr.lower():
                     existing_crontab = ""
-                elif result.returncode !=0: # If there is another error, raise it
-                    raise subprocess.CalledProcessError(result.returncode, result.stderr)
+                elif result.returncode != 0:  # If there is another error, raise it
+                    raise subprocess.CalledProcessError(
+                        result.returncode, result.stderr
+                    )
 
                 # Add the new job and write back to crontab
                 new_crontab = existing_crontab + new_cron_job + "\n"
-                process = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True)
+                process = subprocess.Popen(
+                    ["crontab", "-"], stdin=subprocess.PIPE, text=True
+                )
                 process.communicate(input=new_crontab)
-                if process.returncode != 0: # Check return code
+                if process.returncode != 0:  # Check return code
                     raise subprocess.CalledProcessError(process.returncode, "crontab")
                 msg_ok("Cron job added successfully!")
                 return 0
@@ -4614,6 +5484,7 @@ def add_cron_job(server_name, base_dir, script_direct):
             return 0
         else:
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
+
 
 def modify_cron_job(server_name):
     """Modifies an existing cron job for the specified server.
@@ -4691,7 +5562,7 @@ def modify_cron_job(server_name):
         msg_error("Failed to convert schedule to readable format.")
         schedule_time = "ERROR CONVERTING"
 
-    #Format command
+    # Format command
     display_command = job_command.split("bedrock-server-manager", 1)[-1].strip()
     display_command = display_command.split(".py", 1)[-1].strip()
     display_command = display_command.split("--", 1)[0].strip()
@@ -4700,9 +5571,17 @@ def modify_cron_job(server_name):
     print("-------------------------------------------------------")
     print(f"{'CRON JOB':<15} {'SCHEDULE':<20}  {'COMMAND':<10}")
     print("-------------------------------------------------------")
-    print(Fore.CYAN + f"{minute} {hour} {day} {month} {weekday}".ljust(10) + Style.RESET_ALL + \
-          Fore.GREEN + f"{schedule_time:<25}" + Style.RESET_ALL + \
-          Fore.YELLOW + f"{display_command}" + Style.RESET_ALL)
+    print(
+        Fore.CYAN
+        + f"{minute} {hour} {day} {month} {weekday}".ljust(10)
+        + Style.RESET_ALL
+        + Fore.GREEN
+        + f"{schedule_time:<25}"
+        + Style.RESET_ALL
+        + Fore.YELLOW
+        + f"{display_command}"
+        + Style.RESET_ALL
+    )
     print()
     print("-------------------------------------------------------")
 
@@ -4711,21 +5590,35 @@ def modify_cron_job(server_name):
         if confirm in ("yes", "y"):
             try:
                 # Remove the selected job and add the modified job
-                result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
+                result = subprocess.run(
+                    ["crontab", "-l"], capture_output=True, text=True, check=False
+                )
                 existing_crontab = result.stdout
                 if result.returncode != 0 and "no crontab" not in result.stderr.lower():
-                    raise subprocess.CalledProcessError(result.returncode, result.stderr)
+                    raise subprocess.CalledProcessError(
+                        result.returncode, result.stderr
+                    )
 
                 # Filter out the old job
-                new_crontab_lines = [line for line in existing_crontab.splitlines() if line != job_to_modify]
+                new_crontab_lines = [
+                    line
+                    for line in existing_crontab.splitlines()
+                    if line != job_to_modify
+                ]
                 # Add new job
-                new_crontab_lines.append(f"{minute} {hour} {day} {month} {weekday} {job_command}")
-                updated_crontab = "\n".join(new_crontab_lines) + "\n" # Join and add newline.
+                new_crontab_lines.append(
+                    f"{minute} {hour} {day} {month} {weekday} {job_command}"
+                )
+                updated_crontab = (
+                    "\n".join(new_crontab_lines) + "\n"
+                )  # Join and add newline.
 
-                process = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True)
+                process = subprocess.Popen(
+                    ["crontab", "-"], stdin=subprocess.PIPE, text=True
+                )
                 process.communicate(input=updated_crontab)
                 if process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, 'crontab')
+                    raise subprocess.CalledProcessError(process.returncode, "crontab")
 
                 msg_ok("Cron job modified successfully!")
                 return 0
@@ -4740,6 +5633,7 @@ def modify_cron_job(server_name):
             return 0
         else:
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
+
 
 def delete_cron_job(server_name):
     """Deletes a cron job for the specified server.
@@ -4787,24 +5681,38 @@ def delete_cron_job(server_name):
             msg_warn("Invalid input. Please enter a number.")
 
     while True:
-        confirm_delete = input("Are you sure you want to delete this cron job? (y/n): ").lower()
+        confirm_delete = input(
+            "Are you sure you want to delete this cron job? (y/n): "
+        ).lower()
         if confirm_delete in ("y", "yes"):
             try:
                 # Get existing cron jobs
-                result = subprocess.run(["crontab", "-l"], capture_output=True, text=True, check=False)
+                result = subprocess.run(
+                    ["crontab", "-l"], capture_output=True, text=True, check=False
+                )
                 existing_crontab = result.stdout
                 if result.returncode != 0 and "no crontab" not in result.stderr.lower():
-                    raise subprocess.CalledProcessError(result.returncode, result.stderr)
+                    raise subprocess.CalledProcessError(
+                        result.returncode, result.stderr
+                    )
 
                 # Filter out the job to delete
-                new_crontab_lines = [line for line in existing_crontab.splitlines() if line != job_to_delete]
-                updated_crontab = "\n".join(new_crontab_lines) + "\n" # Join and add newline
+                new_crontab_lines = [
+                    line
+                    for line in existing_crontab.splitlines()
+                    if line != job_to_delete
+                ]
+                updated_crontab = (
+                    "\n".join(new_crontab_lines) + "\n"
+                )  # Join and add newline
 
                 # Write back to crontab
-                process = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True)
+                process = subprocess.Popen(
+                    ["crontab", "-"], stdin=subprocess.PIPE, text=True
+                )
                 process.communicate(input=updated_crontab)
                 if process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, 'crontab')
+                    raise subprocess.CalledProcessError(process.returncode, "crontab")
 
                 msg_ok("Cron job deleted successfully!")
                 return 0
@@ -4820,6 +5728,7 @@ def delete_cron_job(server_name):
             return 0
         else:
             msg_warn("Invalid input. Please answer 'yes' or 'no'.")
+
 
 def validate_cron_input(value, min_val, max_val):
     """Validates cron input (minute, hour, day, month, weekday).
@@ -4840,11 +5749,16 @@ def validate_cron_input(value, min_val, max_val):
         if min_val <= int_value <= max_val:
             return 0
         else:
-            msg_warn(f"Invalid input. Please enter a value between {min_val} and {max_val}, or '*' for any.")
+            msg_warn(
+                f"Invalid input. Please enter a value between {min_val} and {max_val}, or '*' for any."
+            )
             return handle_error(26, action)
     except ValueError:
-        msg_warn(f"Invalid input. Please enter a number between {min_val} and {max_val}, or '*' for any.")
-        return handle_error(26, action) 
+        msg_warn(
+            f"Invalid input. Please enter a number between {min_val} and {max_val}, or '*' for any."
+        )
+        return handle_error(26, action)
+
 
 def convert_to_readable_schedule(month, day, hour, minute, weekday):
     """Converts cron format to a readable schedule string.
@@ -4866,11 +5780,13 @@ def convert_to_readable_schedule(month, day, hour, minute, weekday):
         return "Invalid Input"
 
     # Validate input ranges
-    if (validate_cron_input(month, 1, 12) != 0 or
-        validate_cron_input(day, 1, 31) != 0 or
-        validate_cron_input(hour, 0, 23) != 0 or
-        validate_cron_input(minute, 0, 59) != 0 or
-        validate_cron_input(weekday, 0, 7) != 0):
+    if (
+        validate_cron_input(month, 1, 12) != 0
+        or validate_cron_input(day, 1, 31) != 0
+        or validate_cron_input(hour, 0, 23) != 0
+        or validate_cron_input(minute, 0, 59) != 0
+        or validate_cron_input(weekday, 0, 7) != 0
+    ):
         return None  # Let the caller handle the specific error messages.
 
     try:
@@ -4879,7 +5795,16 @@ def convert_to_readable_schedule(month, day, hour, minute, weekday):
         elif day != "*" and weekday == "*" and month == "*":
             return f"Monthly on day {int(day)} at {int(hour):02d}:{int(minute):02d}"
         elif day == "*" and weekday != "*":
-            days_of_week = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            days_of_week = [
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
             weekday_index = int(weekday) % 8  # Handle 0 and 7 for Sunday
             return f"Weekly on {days_of_week[weekday_index]} at {int(hour):02d}:{int(minute):02d}"
         else:
@@ -4890,15 +5815,18 @@ def convert_to_readable_schedule(month, day, hour, minute, weekday):
             now = datetime.now()
             try:
                 # Create a datetime object for the next scheduled run.
-                next_run = datetime(now.year, int(month), int(day), int(hour), int(minute))
+                next_run = datetime(
+                    now.year, int(month), int(day), int(hour), int(minute)
+                )
                 # If time already passed, add a year
                 if next_run < now:
                     next_run = next_run.replace(year=now.year + 1)
                 return f"Next run at {next_run.strftime('%m/%d/%Y %H:%M')}"
-            except ValueError: # Invalid date/time
+            except ValueError:  # Invalid date/time
                 return "?"
-    except ValueError: # Failed to cast
+    except ValueError:  # Failed to cast
         return "?"
+
 
 def windows_scheduler(server_name, base_dir, script_direct, config_dir):
     """Displays the Windows Task Scheduler menu and handles user interaction."""
@@ -4911,15 +5839,23 @@ def windows_scheduler(server_name, base_dir, script_direct, config_dir):
     if platform.system() != "Windows":
         msg_error("This function is for Windows only.")
         return 1
-    os.system('cls')
+    os.system("cls")
     while True:
-        print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler (Windows)" + Style.RESET_ALL)
+        print(
+            Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Task Scheduler (Windows)"
+            + Style.RESET_ALL
+        )
         print("You can schedule various server tasks.")
         print(f"Current scheduled tasks for {Fore.CYAN}{server_name}{Style.RESET_ALL}:")
 
         task_names = get_server_task_names(server_name, config_dir)
         if not task_names:
-             print("No scheduled tasks found.")
+            print("No scheduled tasks found.")
         else:
             display_windows_task_table(task_names)
 
@@ -4935,7 +5871,10 @@ def windows_scheduler(server_name, base_dir, script_direct, config_dir):
             if add_windows_task(server_name, base_dir, script_direct, config_dir) != 0:
                 msg_error("add_windows_task failed.")
         elif choice == "2":
-            if modify_windows_task(server_name, base_dir, script_direct, config_dir) != 0:
+            if (
+                modify_windows_task(server_name, base_dir, script_direct, config_dir)
+                != 0
+            ):
                 msg_error("modify_windows_task failed.")
         elif choice == "3":
             if delete_windows_task(server_name, config_dir) != 0:
@@ -4945,63 +5884,117 @@ def windows_scheduler(server_name, base_dir, script_direct, config_dir):
         else:
             msg_warn("Invalid choice. Please try again.")
 
+
 def display_windows_task_table(task_names):
     """Displays a table of Windows scheduled tasks, including schedule and command."""
-    print("-------------------------------------------------------------------------------")
+    print(
+        "-------------------------------------------------------------------------------"
+    )
     print(f"{'TASK NAME':<30} {'COMMAND':<25} {'SCHEDULE':<20}")
-    print("-------------------------------------------------------------------------------")
+    print(
+        "-------------------------------------------------------------------------------"
+    )
 
     for task_name, file_path in task_names:
         try:
             tree = ET.parse(file_path)
             root = tree.getroot()
-            actions = root.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Actions")
-            arguments_element = actions.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Arguments")
+            actions = root.find(
+                ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Actions"
+            )
+            arguments_element = actions.find(
+                ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Arguments"
+            )
             if arguments_element is not None:
                 arguments = arguments_element.text
-                command = arguments.split()[1] if len(arguments.split()) > 1 else "Unknown"
+                command = (
+                    arguments.split()[1] if len(arguments.split()) > 1 else "Unknown"
+                )
             else:
                 command = "Unknown"
 
             schedule = get_schedule_string(root)  # Get schedule string
 
-            print(Fore.CYAN + f"{task_name.lstrip('/'):<30}" + Style.RESET_ALL +
-                  Fore.YELLOW + f"{command:<25}" + Style.RESET_ALL +
-                  Fore.GREEN + f"{schedule:<20}" + Style.RESET_ALL)
+            print(
+                Fore.CYAN
+                + f"{task_name.lstrip('/'):<30}"
+                + Style.RESET_ALL
+                + Fore.YELLOW
+                + f"{command:<25}"
+                + Style.RESET_ALL
+                + Fore.GREEN
+                + f"{schedule:<20}"
+                + Style.RESET_ALL
+            )
 
         except (ET.ParseError, FileNotFoundError):
             print(Fore.RED + f"Error parsing XML for {task_name}" + Style.RESET_ALL)
-    print("-------------------------------------------------------------------------------")
+    print(
+        "-------------------------------------------------------------------------------"
+    )
+
 
 def get_schedule_string(root):
     """Extracts a human-readable schedule string from the task XML."""
-    triggers = root.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers")
+    triggers = root.find(
+        ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers"
+    )
     if triggers is None:
         return "No Triggers"
 
     schedule_parts = []
     for trigger in triggers:
         if trigger.tag.endswith("TimeTrigger"):
-            start_boundary = trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}StartBoundary").text
-            schedule_parts.append(f"One Time: {start_boundary.split('T')[1][:-3]}")  # Extract time
+            start_boundary = trigger.find(
+                ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}StartBoundary"
+            ).text
+            schedule_parts.append(
+                f"One Time: {start_boundary.split('T')[1][:-3]}"
+            )  # Extract time
         elif trigger.tag.endswith("CalendarTrigger"):
-            if trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByDay") is not None:
-                days_interval = trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}DaysInterval").text
+            if (
+                trigger.find(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByDay"
+                )
+                is not None
+            ):
+                days_interval = trigger.find(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}DaysInterval"
+                ).text
                 schedule_parts.append(f"Daily (every {days_interval} days)")
-            elif trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByWeek") is not None:
-                weeks_interval = trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}WeeksInterval").text
+            elif (
+                trigger.find(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByWeek"
+                )
+                is not None
+            ):
+                weeks_interval = trigger.find(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}WeeksInterval"
+                ).text
                 days_of_week = []
-                for day_element in trigger.findall(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}DaysOfWeek/*"):
-                    days_of_week.append(day_element.tag.split('}')[-1])  # Extract day name
-                schedule_parts.append(f"Weekly (every {weeks_interval} weeks on {', '.join(days_of_week)})")
-            elif trigger.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByMonth") is not None:
-                schedule_parts.append("Monthly") #Simplified
+                for day_element in trigger.findall(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}DaysOfWeek/*"
+                ):
+                    days_of_week.append(
+                        day_element.tag.split("}")[-1]
+                    )  # Extract day name
+                schedule_parts.append(
+                    f"Weekly (every {weeks_interval} weeks on {', '.join(days_of_week)})"
+                )
+            elif (
+                trigger.find(
+                    ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}ScheduleByMonth"
+                )
+                is not None
+            ):
+                schedule_parts.append("Monthly")  # Simplified
             else:
                 schedule_parts.append("CalendarTrigger (Unknown Type)")
         else:
             schedule_parts.append("Unknown Trigger Type")
 
     return ", ".join(schedule_parts)
+
 
 def get_server_task_names(server_name, config_dir):
     """Gets a list of task names associated with the server.  Also returns file paths.
@@ -5024,9 +6017,13 @@ def get_server_task_names(server_name, config_dir):
                 try:
                     tree = ET.parse(file_path)
                     root = tree.getroot()
-                    reg_info = root.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}RegistrationInfo")
+                    reg_info = root.find(
+                        ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}RegistrationInfo"
+                    )
                     if reg_info is not None:
-                        uri = reg_info.find("{http://schemas.microsoft.com/windows/2004/02/mit/task}URI")
+                        uri = reg_info.find(
+                            "{http://schemas.microsoft.com/windows/2004/02/mit/task}URI"
+                        )
                         if uri is not None:
                             task_files.append((uri.text, file_path))
 
@@ -5035,10 +6032,11 @@ def get_server_task_names(server_name, config_dir):
                     continue
 
     except Exception as e:
-         msg_error(f"Error reading tasks from {task_dir}: {e}")
-         return None
+        msg_error(f"Error reading tasks from {task_dir}: {e}")
+        return None
 
     return task_files
+
 
 def add_windows_task(server_name, base_dir, script_direct, config_dir):
     """Adds a new Windows scheduled task."""
@@ -5051,8 +6049,16 @@ def add_windows_task(server_name, base_dir, script_direct, config_dir):
     if platform.system() != "Windows":
         msg_error("This function is for Windows only.")
         return 1
-    os.system('cls')
-    print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler (Windows) - Add Task" + Style.RESET_ALL)
+    os.system("cls")
+    print(
+        Fore.MAGENTA
+        + "Bedrock Server Manager"
+        + Style.RESET_ALL
+        + " - "
+        + Fore.MAGENTA
+        + "Task Scheduler (Windows) - Add Task"
+        + Style.RESET_ALL
+    )
     print(f"Adding task for '{server_name}':")
 
     print("Choose the command:")
@@ -5093,7 +6099,9 @@ def add_windows_task(server_name, base_dir, script_direct, config_dir):
         command_args = ""
 
     task_name = f"bedrock_{server_name}_{command.replace('-', '_')}"  # Create a task name.  Replace hyphens.
-    xml_file_path = create_windows_task_xml(server_name, script_direct, command, command_args, task_name, config_dir)
+    xml_file_path = create_windows_task_xml(
+        server_name, script_direct, command, command_args, task_name, config_dir
+    )
 
     if xml_file_path:
         if import_task_xml(xml_file_path, task_name) == 0:  # Pass task_name
@@ -5106,7 +6114,16 @@ def add_windows_task(server_name, base_dir, script_direct, config_dir):
         return 52
     return 0
 
-def create_windows_task_xml(server_name, script_direct, command, command_args, task_name, config_dir, existing_triggers=None):
+
+def create_windows_task_xml(
+    server_name,
+    script_direct,
+    command,
+    command_args,
+    task_name,
+    config_dir,
+    existing_triggers=None,
+):
     """Creates the XML file for a Windows scheduled task."""
     action = "create_windows_task_xml"
 
@@ -5115,7 +6132,9 @@ def create_windows_task_xml(server_name, script_direct, command, command_args, t
 
     reg_info = ET.SubElement(task, "RegistrationInfo")
     ET.SubElement(reg_info, "Date").text = datetime.now().isoformat()
-    ET.SubElement(reg_info, "Author").text = f"{os.getenv('USERDOMAIN')}\\{os.getenv('USERNAME')}"
+    ET.SubElement(reg_info, "Author").text = (
+        f"{os.getenv('USERDOMAIN')}\\{os.getenv('USERNAME')}"
+    )
     ET.SubElement(reg_info, "URI").text = task_name
 
     triggers = ET.SubElement(task, "Triggers")
@@ -5128,10 +6147,16 @@ def create_windows_task_xml(server_name, script_direct, command, command_args, t
     principals = ET.SubElement(task, "Principals")
     principal = ET.SubElement(principals, "Principal", id="Author")
     try:
-        sid = subprocess.check_output(["whoami", "/user", "/fo", "csv"], text=True).strip().splitlines()[-1].split(",")[-1].strip('"')
+        sid = (
+            subprocess.check_output(["whoami", "/user", "/fo", "csv"], text=True)
+            .strip()
+            .splitlines()[-1]
+            .split(",")[-1]
+            .strip('"')
+        )
         ET.SubElement(principal, "UserId").text = sid
     except:
-        ET.SubElement(principal, "UserId").text = os.getenv('USERNAME')
+        ET.SubElement(principal, "UserId").text = os.getenv("USERNAME")
     ET.SubElement(principal, "LogonType").text = "InteractiveToken"
     ET.SubElement(principal, "RunLevel").text = "LeastPrivilege"
 
@@ -5156,7 +6181,9 @@ def create_windows_task_xml(server_name, script_direct, command, command_args, t
     actions = ET.SubElement(task, "Actions", Context="Author")
     exec_action = ET.SubElement(actions, "Exec")
     ET.SubElement(exec_action, "Command").text = f"{sys.executable}"
-    ET.SubElement(exec_action, "Arguments").text = f"{script_direct} {command} {command_args}"
+    ET.SubElement(exec_action, "Arguments").text = (
+        f"{script_direct} {command} {command_args}"
+    )
 
     task_dir = os.path.join(config_dir, server_name)
     if not os.path.exists(task_dir):
@@ -5173,6 +6200,7 @@ def create_windows_task_xml(server_name, script_direct, command, command_args, t
         msg_error(f"Error writing XML file: {e}")
         return 52
 
+
 def import_task_xml(xml_file_path, task_name):
     """Imports the XML file into the Windows Task Scheduler."""
     action = "import task xml"
@@ -5180,7 +6208,12 @@ def import_task_xml(xml_file_path, task_name):
         msg_error("Task name is empty.")
         return 1
     try:
-        subprocess.run(["schtasks", "/Create", "/TN", task_name, "/XML", xml_file_path, "/F"], check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["schtasks", "/Create", "/TN", task_name, "/XML", xml_file_path, "/F"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         return 0
     except subprocess.CalledProcessError as e:
         msg_error(f"Failed to import task: {e.stderr}")
@@ -5188,6 +6221,7 @@ def import_task_xml(xml_file_path, task_name):
     except Exception as e:
         msg_error(f"An unexpected error occurred while importing: {e}")
         return 1
+
 
 def get_day_element_name(day_input):
     """Converts user input for a day of the week to the correct XML element name.
@@ -5199,12 +6233,22 @@ def get_day_element_name(day_input):
         str: The correct XML element name (e.g., "Monday"), or None if invalid.
     """
     days_mapping = {
-        "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
-        "thu": "Thursday", "fri": "Friday", "sat": "Saturday"
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
     }
     days_by_number = {
-        1: "Sunday", 2: "Monday", 3: "Tuesday", 4: "Wednesday",
-        5: "Thursday", 6: "Friday", 7: "Saturday"
+        1: "Sunday",
+        2: "Monday",
+        3: "Tuesday",
+        4: "Wednesday",
+        5: "Thursday",
+        6: "Friday",
+        7: "Saturday",
     }
 
     day_input_lower = str(day_input).lower()
@@ -5234,6 +6278,7 @@ def get_day_element_name(day_input):
 
     return None  # Invalid input
 
+
 def get_month_element_name(month_input):
     """Converts user input for a month to the correct XML element name.
 
@@ -5244,13 +6289,32 @@ def get_month_element_name(month_input):
         str: The correct XML element name (e.g., "January"), or None if invalid.
     """
     months_mapping = {
-        "jan": "January", "feb": "February", "mar": "March", "apr": "April",
-        "may": "May", "jun": "June", "jul": "July", "aug": "August",
-        "sep": "September", "oct": "October", "nov": "November", "dec": "December"
+        "jan": "January",
+        "feb": "February",
+        "mar": "March",
+        "apr": "April",
+        "may": "May",
+        "jun": "June",
+        "jul": "July",
+        "aug": "August",
+        "sep": "September",
+        "oct": "October",
+        "nov": "November",
+        "dec": "December",
     }
     months_by_number = {
-        1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June",
-        7: "July", 8: "August", 9: "September", 10: "October", 11: "November", 12: "December"
+        1: "January",
+        2: "February",
+        3: "March",
+        4: "April",
+        5: "May",
+        6: "June",
+        7: "July",
+        8: "August",
+        9: "September",
+        10: "October",
+        11: "November",
+        12: "December",
     }
 
     month_input_lower = str(month_input).lower()
@@ -5259,8 +6323,8 @@ def get_month_element_name(month_input):
         return months_mapping[month_input_lower]
     # Handle longer variations
     for short_name, long_name in months_mapping.items():
-         if month_input_lower.startswith(short_name):
-             return long_name
+        if month_input_lower.startswith(short_name):
+            return long_name
     try:
         month_number = int(month_input)
         if 1 <= month_number <= 12:
@@ -5269,6 +6333,7 @@ def get_month_element_name(month_input):
         pass
 
     return None
+
 
 def get_trigger_info(triggers_element):
     """Gets trigger information from the user and adds it to the XML."""
@@ -5290,12 +6355,16 @@ def get_trigger_info(triggers_element):
             while True:
                 start_boundary = input("Enter start date and time (YYYY-MM-DD HH:MM): ")
                 try:
-                    start_boundary_dt = datetime.strptime(start_boundary, "%Y-%m-%d %H:%M")
+                    start_boundary_dt = datetime.strptime(
+                        start_boundary, "%Y-%m-%d %H:%M"
+                    )
                     break
                 except ValueError:
                     msg_error("Incorrect format, please use YYYY-MM-DD HH:MM")
 
-            ET.SubElement(time_trigger, "StartBoundary").text = start_boundary_dt.isoformat()
+            ET.SubElement(time_trigger, "StartBoundary").text = (
+                start_boundary_dt.isoformat()
+            )
             ET.SubElement(time_trigger, "Enabled").text = "true"
 
         elif trigger_choice == "2":
@@ -5303,12 +6372,16 @@ def get_trigger_info(triggers_element):
             while True:
                 start_boundary = input("Enter start date and time (YYYY-MM-DD HH:MM): ")
                 try:
-                    start_boundary_dt = datetime.strptime(start_boundary, "%Y-%m-%d %H:%M")
+                    start_boundary_dt = datetime.strptime(
+                        start_boundary, "%Y-%m-%d %H:%M"
+                    )
                     break
                 except ValueError:
                     msg_error("Incorrect format, please use YYYY-MM-DD HH:MM")
 
-            ET.SubElement(calendar_trigger, "StartBoundary").text = start_boundary_dt.isoformat()
+            ET.SubElement(calendar_trigger, "StartBoundary").text = (
+                start_boundary_dt.isoformat()
+            )
             ET.SubElement(calendar_trigger, "Enabled").text = "true"
             schedule_by_day = ET.SubElement(calendar_trigger, "ScheduleByDay")
             while True:
@@ -5327,16 +6400,22 @@ def get_trigger_info(triggers_element):
             while True:
                 start_boundary = input("Enter start date and time (YYYY-MM-DD HH:MM): ")
                 try:
-                    start_boundary_dt = datetime.strptime(start_boundary, "%Y-%m-%d %H:%M")
+                    start_boundary_dt = datetime.strptime(
+                        start_boundary, "%Y-%m-%d %H:%M"
+                    )
                     break
                 except ValueError:
                     msg_error("Incorrect format, please use YYYY-MM-DD HH:MM")
-            ET.SubElement(calendar_trigger, "StartBoundary").text = start_boundary_dt.isoformat()
+            ET.SubElement(calendar_trigger, "StartBoundary").text = (
+                start_boundary_dt.isoformat()
+            )
             ET.SubElement(calendar_trigger, "Enabled").text = "true"
             schedule_by_week = ET.SubElement(calendar_trigger, "ScheduleByWeek")
 
             while True:  # Loop for days of the week input
-                days_of_week_str = input("Enter days of the week (comma-separated: Sun,Mon,Tue,Wed,Thu,Fri,Sat OR 1-7): ")
+                days_of_week_str = input(
+                    "Enter days of the week (comma-separated: Sun,Mon,Tue,Wed,Thu,Fri,Sat OR 1-7): "
+                )
                 days_of_week = [day.strip() for day in days_of_week_str.split(",")]
                 valid_days = []
                 days_of_week_element = ET.SubElement(schedule_by_week, "DaysOfWeek")
@@ -5349,10 +6428,9 @@ def get_trigger_info(triggers_element):
                     else:
                         msg_warn(f"Invalid day of week: {day_input}. Skipping.")
                 if valid_days:
-                    break #Exit if at least one day is valid
+                    break  # Exit if at least one day is valid
                 else:
                     msg_error("You must enter at least one valid day.")
-
 
             while True:
                 try:
@@ -5371,17 +6449,23 @@ def get_trigger_info(triggers_element):
             while True:
                 start_boundary = input("Enter start date and time (YYYY-MM-DD HH:MM): ")
                 try:
-                    start_boundary_dt = datetime.strptime(start_boundary, "%Y-%m-%d %H:%M")
+                    start_boundary_dt = datetime.strptime(
+                        start_boundary, "%Y-%m-%d %H:%M"
+                    )
                     break
                 except ValueError:
                     msg_error("Incorrect date format, please use YYYY-MM-DD HH:MM")
 
-            ET.SubElement(calendar_trigger, "StartBoundary").text = start_boundary_dt.isoformat()
+            ET.SubElement(calendar_trigger, "StartBoundary").text = (
+                start_boundary_dt.isoformat()
+            )
             ET.SubElement(calendar_trigger, "Enabled").text = "true"
             schedule_by_month = ET.SubElement(calendar_trigger, "ScheduleByMonth")
 
-            while True: # Loop for days input
-                days_of_month_str = input("Enter days of the month (comma-separated, 1-31): ")
+            while True:  # Loop for days input
+                days_of_month_str = input(
+                    "Enter days of the month (comma-separated, 1-31): "
+                )
                 days_of_month = [day.strip() for day in days_of_month_str.split(",")]
                 days_of_month_element = ET.SubElement(schedule_by_month, "DaysOfMonth")
                 valid_days = []
@@ -5390,19 +6474,23 @@ def get_trigger_info(triggers_element):
                     try:
                         day_int = int(day)
                         if 1 <= day_int <= 31:
-                            ET.SubElement(days_of_month_element, "Day").text = str(day_int)
+                            ET.SubElement(days_of_month_element, "Day").text = str(
+                                day_int
+                            )
                             valid_days.append(day_int)
                         else:
                             msg_warn(f"Invalid day of month: {day}. Skipping.")
                     except ValueError:
                         msg_warn(f"Invalid day of month: {day}. Skipping.")
                 if valid_days:
-                    break #Exit loop
+                    break  # Exit loop
                 else:
                     msg_error("You must enter at least one valid day")
 
             while True:  # Loop for months input
-                months_str = input("Enter months (comma-separated: Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec OR 1-12): ")
+                months_str = input(
+                    "Enter months (comma-separated: Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec OR 1-12): "
+                )
                 months = [month.strip() for month in months_str.split(",")]
                 months_element = ET.SubElement(schedule_by_month, "Months")
                 valid_months = []
@@ -5426,6 +6514,7 @@ def get_trigger_info(triggers_element):
         else:
             msg_warn("Invalid choice.")
 
+
 def modify_windows_task(server_name, base_dir, script_direct, config_dir):
     """Modifies an existing Windows scheduled task."""
     action = "modify windows task"
@@ -5442,8 +6531,16 @@ def modify_windows_task(server_name, base_dir, script_direct, config_dir):
     if not task_names:
         print("No scheduled tasks found to modify.")
         return 0
-    os.system('cls')
-    print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler - Modify Task" + Style.RESET_ALL)
+    os.system("cls")
+    print(
+        Fore.MAGENTA
+        + "Bedrock Server Manager"
+        + Style.RESET_ALL
+        + " - "
+        + Fore.MAGENTA
+        + "Task Scheduler - Modify Task"
+        + Style.RESET_ALL
+    )
 
     print(f"Select the task to modify for '{server_name}':")
     for i, (task_name, file_path) in enumerate(task_names):
@@ -5464,8 +6561,12 @@ def modify_windows_task(server_name, base_dir, script_direct, config_dir):
     try:
         tree = ET.parse(selected_file_path)
         root = tree.getroot()
-        existing_triggers = root.findall(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers/*")
-        triggers_element = root.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers")
+        existing_triggers = root.findall(
+            ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers/*"
+        )
+        triggers_element = root.find(
+            ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Triggers"
+        )
         if triggers_element is not None:
             for trigger in existing_triggers:
                 triggers_element.remove(trigger)
@@ -5478,21 +6579,37 @@ def modify_windows_task(server_name, base_dir, script_direct, config_dir):
 
     get_trigger_info(triggers_element)
 
-    actions = root.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Actions")
-    command_element = actions.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Command")
-    arguments_element = actions.find(".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Arguments")
+    actions = root.find(
+        ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Actions"
+    )
+    command_element = actions.find(
+        ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Command"
+    )
+    arguments_element = actions.find(
+        ".//{http://schemas.microsoft.com/windows/2004/02/mit/task}Arguments"
+    )
     existing_command = command_element.text if command_element is not None else ""
     existing_arguments = arguments_element.text if arguments_element is not None else ""
     command_parts = existing_arguments.split()
 
     command = command_parts[1]
-    new_task_name = f"{server_name}_{command.replace('-', '_')}" # Use new name
+    new_task_name = f"{server_name}_{command.replace('-', '_')}"  # Use new name
 
     if delete_task(selected_task_name) != 0:
-        msg_error(f"Failed to remove original task '{selected_task_name}' before modification.")
+        msg_error(
+            f"Failed to remove original task '{selected_task_name}' before modification."
+        )
         return handle_error(22, action)
 
-    new_xml_file_path = create_windows_task_xml(server_name, script_direct, command, " ".join(command_parts[2:]), new_task_name, config_dir, existing_triggers=[])
+    new_xml_file_path = create_windows_task_xml(
+        server_name,
+        script_direct,
+        command,
+        " ".join(command_parts[2:]),
+        new_task_name,
+        config_dir,
+        existing_triggers=[],
+    )
 
     if new_xml_file_path:
         if import_task_xml(new_xml_file_path, new_task_name) == 0:  # Pass new_task_name
@@ -5504,7 +6621,8 @@ def modify_windows_task(server_name, base_dir, script_direct, config_dir):
         msg_error("Failed to create modified XML.")
         return handle_error(22, action)
     return 0
-    
+
+
 def delete_windows_task(server_name, config_dir):
     """Deletes a Windows scheduled task."""
     action = "delete windows task"
@@ -5516,8 +6634,16 @@ def delete_windows_task(server_name, config_dir):
     if platform.system() != "Windows":
         msg_error("This function is for Windows only.")
         return 1
-    os.system('cls')
-    print(Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Task Scheduler (Windows) - Delete Task" + Style.RESET_ALL)
+    os.system("cls")
+    print(
+        Fore.MAGENTA
+        + "Bedrock Server Manager"
+        + Style.RESET_ALL
+        + " - "
+        + Fore.MAGENTA
+        + "Task Scheduler (Windows) - Delete Task"
+        + Style.RESET_ALL
+    )
     task_names = get_server_task_names(server_name, config_dir)  # Get list of tasks
     if not task_names:
         print("No scheduled tasks found to delete.")
@@ -5526,7 +6652,6 @@ def delete_windows_task(server_name, config_dir):
     print(f"Select the task to delete for '{server_name}':")
     for i, (task_name, file_path) in enumerate(task_names):
         print(f"{i + 1}) {task_name}")
-
 
     while True:
         try:
@@ -5539,13 +6664,15 @@ def delete_windows_task(server_name, config_dir):
         except ValueError:
             msg_warn("Invalid input. Please enter a number.")
 
-    #Confirm deletion
+    # Confirm deletion
     while True:
-        confirm_delete = input(f"Are you sure you want to delete the task '{selected_task_name}'? (y/n): ").lower()
+        confirm_delete = input(
+            f"Are you sure you want to delete the task '{selected_task_name}'? (y/n): "
+        ).lower()
         if confirm_delete in ("y", "yes"):
             if delete_task(selected_task_name) == 0:
                 msg_ok(f"Task '{selected_task_name}' deleted successfully!")
-                 # Also remove the XML file
+                # Also remove the XML file
                 try:
                     os.remove(selected_file_path)
                     msg_ok(f"Task XML file '{selected_file_path}' removed.")
@@ -5560,7 +6687,8 @@ def delete_windows_task(server_name, config_dir):
             return 0
         else:
             msg_warn("Invalid input.  Please enter 'y' or 'n'.")
-    return 0 #Success
+    return 0  # Success
+
 
 def delete_task(task_name):
     """Deletes a task by its name using schtasks.
@@ -5568,21 +6696,29 @@ def delete_task(task_name):
     This function is used by both delete_windows_task and modify_windows_task.
     """
     try:
-        subprocess.run(["schtasks", "/Delete", "/TN", task_name, "/F"], check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["schtasks", "/Delete", "/TN", task_name, "/F"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         return 0  # Success
     except subprocess.CalledProcessError as e:
-        if "does not exist" in e.stderr.lower():  # Task not found - not an error in this context
-           # msg_warn(f"Task '{task_name}' not found.") # Don't even warn
-            return 0 # Treat as success
+        if (
+            "does not exist" in e.stderr.lower()
+        ):  # Task not found - not an error in this context
+            # msg_warn(f"Task '{task_name}' not found.") # Don't even warn
+            return 0  # Treat as success
         msg_error(f"Failed to delete task '{task_name}': {e.stderr}")
         return handle_error(22, action)
     except Exception as e:
         msg_error(f"An unexpected error occurred while deleting task: {e}")
         return 1
 
+
 def main_menu(base_dir, script_dir, config_dir):
     """Displays the main menu and handles user interaction."""
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
         print("\n" + Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL)
         list_servers_status(base_dir, config_dir)
@@ -5616,16 +6752,26 @@ def main_menu(base_dir, script_dir, config_dir):
             if advanced_menu(base_dir, script_dir, config_dir) != 0:
                 msg_error("advanced_menu failed.")
         elif choice == "6":
-            os.system('cls' if platform.system() == 'Windows' else 'clear')
+            os.system("cls" if platform.system() == "Windows" else "clear")
             sys.exit(0)
         else:
             msg_warn("Invalid choice")
 
+
 def manage_server(base_dir, script_dir, config_dir):
     """Displays the manage server menu and handles user interaction."""
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print("\n" + Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Manage Server" + Style.RESET_ALL)
+        print(
+            "\n"
+            + Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Manage Server"
+            + Style.RESET_ALL
+        )
         list_servers_status(base_dir, config_dir)
         print("1) Update Server")
         print("2) Start Server")
@@ -5680,12 +6826,22 @@ def manage_server(base_dir, script_dir, config_dir):
         else:
             msg_warn("Invalid choice")
 
+
 def install_content(base_dir, script_dir, config_dir):
     """Displays the install content menu and handles user interaction."""
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print("\n" + Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Install Content" + Style.RESET_ALL)
-        list_servers_status(base_dir, config_dir) # Display server list.
+        print(
+            "\n"
+            + Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Install Content"
+            + Style.RESET_ALL
+        )
+        list_servers_status(base_dir, config_dir)  # Display server list.
         print("1) Import World")
         print("2) Import Addon")
         print("3) Back")
@@ -5711,11 +6867,21 @@ def install_content(base_dir, script_dir, config_dir):
         else:
             msg_warn("Invalid choice")
 
+
 def advanced_menu(base_dir, script_dir, config_dir):
     """Displays the advanced menu and handles user interaction."""
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print("\n" + Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Advanced Menu" + Style.RESET_ALL)
+        print(
+            "\n"
+            + Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Advanced Menu"
+            + Style.RESET_ALL
+        )
         list_servers_status(base_dir, config_dir)
         print("1) Configure Server Properties")
         print("2) Configure Allowlist")
@@ -5758,7 +6924,10 @@ def advanced_menu(base_dir, script_dir, config_dir):
         elif choice == "5":
             server_name = get_server_name(base_dir)
             if server_name:
-                if task_scheduler(server_name, base_dir, script_direct, config_dir) != 0:
+                if (
+                    task_scheduler(server_name, base_dir, script_direct, config_dir)
+                    != 0
+                ):
                     msg_error("Failed to schedule task.")
             else:
                 print("Schedule canceled.")
@@ -5783,11 +6952,21 @@ def advanced_menu(base_dir, script_dir, config_dir):
         else:
             msg_warn("Invalid choice")
 
+
 def backup_restore(base_dir, script_dir, config_dir):
     """Displays the backup/restore menu and handles user interaction."""
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
+    os.system("cls" if platform.system() == "Windows" else "clear")
     while True:
-        print("\n" + Fore.MAGENTA + "Bedrock Server Manager" + Style.RESET_ALL + " - " + Fore.MAGENTA + "Backup/Restore" + Style.RESET_ALL)
+        print(
+            "\n"
+            + Fore.MAGENTA
+            + "Bedrock Server Manager"
+            + Style.RESET_ALL
+            + " - "
+            + Fore.MAGENTA
+            + "Backup/Restore"
+            + Style.RESET_ALL
+        )
         list_servers_status(base_dir, config_dir)
         print("1) Backup Server")
         print("2) Restore Server")
@@ -5814,6 +6993,7 @@ def backup_restore(base_dir, script_dir, config_dir):
         else:
             msg_warn("Invalid choice")
 
+
 def remove_readonly(path):
     """Removes the read-only attribute from a file or directory (cross-platform).
 
@@ -5836,22 +7016,31 @@ def remove_readonly(path):
     if platform.system() == "Windows":
         try:
             # Use attrib command on Windows
-            subprocess.run(["attrib", "-R", path], check=True, shell=True, capture_output=True, text=True)
+            subprocess.run(
+                ["attrib", "-R", path],
+                check=True,
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
             msg_ok("Permissions set")
             return 0
         except subprocess.CalledProcessError as e:
-            msg_error(f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}")
-            return handle_error(1, action) # General error
+            msg_error(
+                f"Failed to remove read-only attribute on Windows: {e.stderr} {e.stdout}"
+            )
+            return handle_error(1, action)  # General error
         except FileNotFoundError:
-            msg_error("attrib command not found.") # Should never happen on Windows
+            msg_error("attrib command not found.")  # Should never happen on Windows
             return handle_error(1, action)
-
 
     elif platform.system() == "Linux":
         try:
             # Use os.chmod on Linux
             if os.path.isfile(path):
-                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR) # Add write for owner
+                os.chmod(
+                    path, os.stat(path).st_mode | stat.S_IWUSR
+                )  # Add write for owner
             elif os.path.isdir(path):
                 # Recursively remove read-only for all files and dirs
                 for root, dirs, files in os.walk(path):
@@ -5862,17 +7051,20 @@ def remove_readonly(path):
                         file_path = os.path.join(root, f)
                         os.chmod(file_path, os.stat(file_path).st_mode | stat.S_IWUSR)
             else:
-                msg_warn(f"Unsupported file type: {path}") #Should never happen
+                msg_warn(f"Unsupported file type: {path}")  # Should never happen
                 return handle_error(1, action)
             msg_ok("Permissions set")
-            return 0 # Success
+            return 0  # Success
         except OSError as e:
             msg_error(f"Failed to remove read-only attribute on Linux: {e}")
             return handle_error(1, action)
 
     else:
-        msg_warn(f"Unsupported operating system in remove_readonly: {platform.system()}")
+        msg_warn(
+            f"Unsupported operating system in remove_readonly: {platform.system()}"
+        )
         return 1
+
 
 def main():
     """Main function of the script."""
@@ -5884,7 +7076,7 @@ def main():
     # Load default configuration
     config = default_config()
 
-    base_dir = config['BASE_DIR'] 
+    base_dir = config["BASE_DIR"]
 
     os.makedirs(base_dir, exist_ok=True)
     os.makedirs(content_dir, exist_ok=True)
@@ -5894,12 +7086,13 @@ def main():
     def list_servers_loop(base_dir, config_dir):
         """Continuously lists servers and their statuses."""
         while True:
-            os.system('cls' if platform.system() == 'Windows' else 'clear')
+            os.system("cls" if platform.system() == "Windows" else "clear")
             list_servers_status(base_dir, config_dir)
             time.sleep(5)
 
     # --- Argument Parsing ---
     import argparse
+
     parser = argparse.ArgumentParser(description="Bedrock Server Manager")
     subparsers = parser.add_subparsers(title="commands", dest="subcommand")
 
@@ -5909,78 +7102,135 @@ def main():
     main_parser = subparsers.add_parser("main", help="Open Bedrock Server Manager menu")
 
     # list-servers
-    list_parser = subparsers.add_parser("list-servers", help="List all servers and their statuses")
-    list_parser.add_argument("-l", "--loop", action="store_true", help="Continuously list servers")
+    list_parser = subparsers.add_parser(
+        "list-servers", help="List all servers and their statuses"
+    )
+    list_parser.add_argument(
+        "-l", "--loop", action="store_true", help="Continuously list servers"
+    )
 
     # get-status
-    status_parser = subparsers.add_parser("get-status", help="Get the status of a specific server")
+    status_parser = subparsers.add_parser(
+        "get-status", help="Get the status of a specific server"
+    )
     status_parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # update-script
     update_parser = subparsers.add_parser("update-script", help="Update the script")
 
     # configure-allowlist
-    allowlist_parser = subparsers.add_parser("configure-allowlist", help="Configure the allowlist for a server")
+    allowlist_parser = subparsers.add_parser(
+        "configure-allowlist", help="Configure the allowlist for a server"
+    )
     allowlist_parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # configure-permissions
-    permissions_parser = subparsers.add_parser("configure-permissions", help="Configure permissions for a server")
+    permissions_parser = subparsers.add_parser(
+        "configure-permissions", help="Configure permissions for a server"
+    )
     permissions_parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # configure-properties
-    config_parser = subparsers.add_parser("configure-properties", help="Configure individual server.properties")
+    config_parser = subparsers.add_parser(
+        "configure-properties", help="Configure individual server.properties"
+    )
     config_parser.add_argument("-s", "--server", help="Server name", required=True)
-    config_parser.add_argument("-p", "--property", help="Name of the property to modify", required=True)
-    config_parser.add_argument("-v", "--value", help="New value for the property", required=True)
+    config_parser.add_argument(
+        "-p", "--property", help="Name of the property to modify", required=True
+    )
+    config_parser.add_argument(
+        "-v", "--value", help="New value for the property", required=True
+    )
 
     # install-server
-    install_parser = subparsers.add_parser("install-server", help="Install a new server")
+    install_parser = subparsers.add_parser(
+        "install-server", help="Install a new server"
+    )
 
     # update-server
-    update_server_parser = subparsers.add_parser("update-server", help="Update an existing server")
-    update_server_parser.add_argument("-s", "--server", help="Server name", required=True)
-    update_server_parser.add_argument("-v", "--version", help="Server version to install (LATEST, PREVIEW, or specific version)", default="LATEST") # Added default
+    update_server_parser = subparsers.add_parser(
+        "update-server", help="Update an existing server"
+    )
+    update_server_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
+    update_server_parser.add_argument(
+        "-v",
+        "--version",
+        help="Server version to install (LATEST, PREVIEW, or specific version)",
+        default="LATEST",
+    )  # Added default
 
     # start-server
     start_server_parser = subparsers.add_parser("start-server", help="Start a server")
-    start_server_parser.add_argument("-s", "--server", help="Server Name", required=True)
+    start_server_parser.add_argument(
+        "-s", "--server", help="Server Name", required=True
+    )
 
     # stop-server
     stop_server_parser = subparsers.add_parser("stop-server", help="Stop a server")
     stop_server_parser.add_argument("-s", "--server", help="Server Name", required=True)
 
     # systemd-start (for direct systemd calls - advanced)
-    systemd_start_parser = subparsers.add_parser("systemd-start", help="systemd start command (Linux only)")
-    systemd_start_parser.add_argument("-s", "--server", help="Server name", required=True)
+    systemd_start_parser = subparsers.add_parser(
+        "systemd-start", help="systemd start command (Linux only)"
+    )
+    systemd_start_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # systemd-stop (for direct systemd calls - advanced)
-    systemd_stop_parser = subparsers.add_parser("systemd-stop", help="systemd stop command (Linux only)")
-    systemd_stop_parser.add_argument("-s", "--server", help="Server name", required=True)
-    
+    systemd_stop_parser = subparsers.add_parser(
+        "systemd-stop", help="systemd stop command (Linux only)"
+    )
+    systemd_stop_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
+
     # windows-stop
-    windows_stop_parser = subparsers.add_parser("windows-stop", help="Stop a server (Windows only)")
-    windows_stop_parser.add_argument("-s", "--server", help="Server name", required=True)
+    windows_stop_parser = subparsers.add_parser(
+        "windows-stop", help="Stop a server (Windows only)"
+    )
+    windows_stop_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # windows-start
-    windows_start_parser = subparsers.add_parser("windows-start", help="Start a server (Windows only)")
-    windows_start_parser.add_argument("-s", "--server", help="Server name", required=True)
+    windows_start_parser = subparsers.add_parser(
+        "windows-start", help="Start a server (Windows only)"
+    )
+    windows_start_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # install-world
-    install_world_parser = subparsers.add_parser("install-world", help="Install a world from a .mcworld file")
-    install_world_parser.add_argument("-s", "--server", help="Server name", required=True)
-    install_world_parser.add_argument("-f", "--file", help="Path to the .mcworld file", required=False)
+    install_world_parser = subparsers.add_parser(
+        "install-world", help="Install a world from a .mcworld file"
+    )
+    install_world_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
+    install_world_parser.add_argument(
+        "-f", "--file", help="Path to the .mcworld file", required=False
+    )
 
     # install-addon
-    addon_parser = subparsers.add_parser("install-addon", help="Install an addon (.mcaddon or .mcpack)")
+    addon_parser = subparsers.add_parser(
+        "install-addon", help="Install an addon (.mcaddon or .mcpack)"
+    )
     addon_parser.add_argument("-s", "--server", help="Server name", required=True)
-    addon_parser.add_argument("-f", "--file", help="Path to the .mcaddon or .mcpack file", required=False)
+    addon_parser.add_argument(
+        "-f", "--file", help="Path to the .mcaddon or .mcpack file", required=False
+    )
 
     # restart-server
     restart_parser = subparsers.add_parser("restart-server", help="Restart a server")
     restart_parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # attach-console
-    attach_parser = subparsers.add_parser("attach-console", help="Attach to the server console (Linux only)")
+    attach_parser = subparsers.add_parser(
+        "attach-console", help="Attach to the server console (Linux only)"
+    )
     attach_parser.add_argument("-s", "--server", help="Server Name", required=True)
 
     # delete-server
@@ -5990,137 +7240,317 @@ def main():
     # backup-server
     backup_parser = subparsers.add_parser("backup-server", help="Backup server files")
     backup_parser.add_argument("-s", "--server", help="Server name", required=True)
-    backup_parser.add_argument("-t", "--type", help="Backup type (world, config, all)", required=True)
-    backup_parser.add_argument("-f", "--file", help="Specific file to backup (for config type)", required=False)
-    backup_parser.add_argument("--no-stop", action="store_false", dest="change_status", help="Don't stop the server before backup", default=True)
+    backup_parser.add_argument(
+        "-t", "--type", help="Backup type (world, config, all)", required=True
+    )
+    backup_parser.add_argument(
+        "-f", "--file", help="Specific file to backup (for config type)", required=False
+    )
+    backup_parser.add_argument(
+        "--no-stop",
+        action="store_false",
+        dest="change_status",
+        help="Don't stop the server before backup",
+        default=True,
+    )
 
     # backup-all
-    restore_all_parser = subparsers.add_parser("backup-all", help="Restores all newest files (world and configuration files).")
+    restore_all_parser = subparsers.add_parser(
+        "backup-all", help="Restores all newest files (world and configuration files)."
+    )
     restore_all_parser.add_argument("-s", "--server", help="Server Name", required=True)
-    restore_all_parser.add_argument("--no-stop", action="store_false", dest="change_status", help="Don't stop the server before restore", default=True)
+    restore_all_parser.add_argument(
+        "--no-stop",
+        action="store_false",
+        dest="change_status",
+        help="Don't stop the server before restore",
+        default=True,
+    )
 
     # restore-server
-    restore_parser = subparsers.add_parser("restore-server", help="Restore server files from backup")
+    restore_parser = subparsers.add_parser(
+        "restore-server", help="Restore server files from backup"
+    )
     restore_parser.add_argument("-s", "--server", help="Server name", required=True)
-    restore_parser.add_argument("-f", "--file", help="Path to the backup file", required=True)
-    restore_parser.add_argument("-t", "--type", help="Restore type (world, config)", required=True)
-    restore_parser.add_argument("--no-stop", action="store_false", dest="change_status", help="Don't stop the server before restore", default=True)
+    restore_parser.add_argument(
+        "-f", "--file", help="Path to the backup file", required=True
+    )
+    restore_parser.add_argument(
+        "-t", "--type", help="Restore type (world, config)", required=True
+    )
+    restore_parser.add_argument(
+        "--no-stop",
+        action="store_false",
+        dest="change_status",
+        help="Don't stop the server before restore",
+        default=True,
+    )
 
     # restore-all
-    restore_all_parser = subparsers.add_parser("restore-all", help="Restores all newest files (world and configuration files).")
+    restore_all_parser = subparsers.add_parser(
+        "restore-all", help="Restores all newest files (world and configuration files)."
+    )
     restore_all_parser.add_argument("-s", "--server", help="Server Name", required=True)
-    restore_all_parser.add_argument("--no-stop", action="store_false", dest="change_status", help="Don't stop the server before restore", default=True)
+    restore_all_parser.add_argument(
+        "--no-stop",
+        action="store_false",
+        dest="change_status",
+        help="Don't stop the server before restore",
+        default=True,
+    )
 
     # scan-players
-    scan_players_parser = subparsers.add_parser("scan-players", help="Scan server logs for player data")
+    scan_players_parser = subparsers.add_parser(
+        "scan-players", help="Scan server logs for player data"
+    )
 
     # monitor-usage
-    monitor_parser = subparsers.add_parser("monitor-usage", help="Monitor server resource usage")
+    monitor_parser = subparsers.add_parser(
+        "monitor-usage", help="Monitor server resource usage"
+    )
     monitor_parser.add_argument("-s", "--server", help="Server name", required=True)
 
     # add-players (manual player entry)
-    add_players_parser = subparsers.add_parser("add-players", help="Manually add player:xuid to players.json")
-    add_players_parser.add_argument("-p", "--players", help="<player1:xuid> <player2:xuid> ...", nargs='+')
+    add_players_parser = subparsers.add_parser(
+        "add-players", help="Manually add player:xuid to players.json"
+    )
+    add_players_parser.add_argument(
+        "-p", "--players", help="<player1:xuid> <player2:xuid> ...", nargs="+"
+    )
 
     # manage-log-files
-    manage_log_files_parser = subparsers.add_parser("manage-log-files", help="Manages log files")
-    manage_log_files_parser.add_argument("--log-dir", help="The directory containing the log files.", default=LOG_DIR)
-    manage_log_files_parser.add_argument("--max-files", type=int, help="The maximum number of log files to keep.", default=10)
-    manage_log_files_parser.add_argument("--max-size-mb", type=int, help="The maximum total size of log files in MB.", default=15)
+    manage_log_files_parser = subparsers.add_parser(
+        "manage-log-files", help="Manages log files"
+    )
+    manage_log_files_parser.add_argument(
+        "--log-dir", help="The directory containing the log files.", default=LOG_DIR
+    )
+    manage_log_files_parser.add_argument(
+        "--max-files",
+        type=int,
+        help="The maximum number of log files to keep.",
+        default=10,
+    )
+    manage_log_files_parser.add_argument(
+        "--max-size-mb",
+        type=int,
+        help="The maximum total size of log files in MB.",
+        default=15,
+    )
 
     # prune-old-backups
-    prune_old_backups_parser = subparsers.add_parser("prune-old-backups", help="Prunes old backups")
-    prune_old_backups_parser.add_argument("-s", "--server", help="Server Name", required=True)
-    prune_old_backups_parser.add_argument("-f", "--file-name", help="Specific file name to prune (for config files).", required=False)
-    prune_old_backups_parser.add_argument("-k", "--keep", help="How many backups to keep", required=False)
+    prune_old_backups_parser = subparsers.add_parser(
+        "prune-old-backups", help="Prunes old backups"
+    )
+    prune_old_backups_parser.add_argument(
+        "-s", "--server", help="Server Name", required=True
+    )
+    prune_old_backups_parser.add_argument(
+        "-f",
+        "--file-name",
+        help="Specific file name to prune (for config files).",
+        required=False,
+    )
+    prune_old_backups_parser.add_argument(
+        "-k", "--keep", help="How many backups to keep", required=False
+    )
 
     # prune-old-downloads
-    prune_old_downloads_parser = subparsers.add_parser("prune-old-downloads", help="Prunes old downloads")
-    prune_old_downloads_parser.add_argument("-f", "--folder", help="Folder path downloads are kept", required=False)
-    prune_old_downloads_parser.add_argument("-k", "--keep", help="How many downloads to keep", required=False)
+    prune_old_downloads_parser = subparsers.add_parser(
+        "prune-old-downloads", help="Prunes old downloads"
+    )
+    prune_old_downloads_parser.add_argument(
+        "-f", "--folder", help="Folder path downloads are kept", required=False
+    )
+    prune_old_downloads_parser.add_argument(
+        "-k", "--keep", help="How many downloads to keep", required=False
+    )
 
     # manage-script-config
-    manage_script_config_parser = subparsers.add_parser("manage-script-config", help="Manages the script's configuration file")
-    manage_script_config_parser.add_argument("-k", "--key", help="The configuration key to read or write.", required=True)
-    manage_script_config_parser.add_argument("-o", "--operation", help="read or write", choices=["read", "write"], required=True)
-    manage_script_config_parser.add_argument("-v", "--value", help="The value to write (required for 'write')", required=False)
+    manage_script_config_parser = subparsers.add_parser(
+        "manage-script-config", help="Manages the script's configuration file"
+    )
+    manage_script_config_parser.add_argument(
+        "-k", "--key", help="The configuration key to read or write.", required=True
+    )
+    manage_script_config_parser.add_argument(
+        "-o",
+        "--operation",
+        help="read or write",
+        choices=["read", "write"],
+        required=True,
+    )
+    manage_script_config_parser.add_argument(
+        "-v",
+        "--value",
+        help="The value to write (required for 'write')",
+        required=False,
+    )
 
     # manage-server-config
-    manage_server_config_parser = subparsers.add_parser("manage-server-config", help="Manages individual server configuration files")
-    manage_server_config_parser.add_argument("-s", "--server", help="Server Name", required=True)
-    manage_server_config_parser.add_argument("-k", "--key", help="The configuration key to read or write.", required=True)
-    manage_server_config_parser.add_argument("-o", "--operation", help="read or write", choices=["read", "write"], required=True)
-    manage_server_config_parser.add_argument("-v", "--value", help="The value to write (required for 'write')", required=False)
+    manage_server_config_parser = subparsers.add_parser(
+        "manage-server-config", help="Manages individual server configuration files"
+    )
+    manage_server_config_parser.add_argument(
+        "-s", "--server", help="Server Name", required=True
+    )
+    manage_server_config_parser.add_argument(
+        "-k", "--key", help="The configuration key to read or write.", required=True
+    )
+    manage_server_config_parser.add_argument(
+        "-o",
+        "--operation",
+        help="read or write",
+        choices=["read", "write"],
+        required=True,
+    )
+    manage_server_config_parser.add_argument(
+        "-v",
+        "--value",
+        help="The value to write (required for 'write')",
+        required=False,
+    )
 
     # get-installed-version
-    get_installed_version_parser = subparsers.add_parser("get-installed-version", help="Gets the installed version of a server")
-    get_installed_version_parser.add_argument("-s", "--server", help="Server Name", required=True)
+    get_installed_version_parser = subparsers.add_parser(
+        "get-installed-version", help="Gets the installed version of a server"
+    )
+    get_installed_version_parser.add_argument(
+        "-s", "--server", help="Server Name", required=True
+    )
 
     # check-server-status
-    check_server_status_parser = subparsers.add_parser("check-server-status", help="Checks the server status by reading server_output.txt")
-    check_server_status_parser.add_argument("-s", "--server", help="Server Name", required=True)
+    check_server_status_parser = subparsers.add_parser(
+        "check-server-status",
+        help="Checks the server status by reading server_output.txt",
+    )
+    check_server_status_parser.add_argument(
+        "-s", "--server", help="Server Name", required=True
+    )
 
     # get-server-status-from-config
-    get_server_status_from_config_parser = subparsers.add_parser("get-server-status-from-config", help="Gets the server status from the server's config.json")
-    get_server_status_from_config_parser.add_argument("-s", "--server", help="Server name", required=True)
+    get_server_status_from_config_parser = subparsers.add_parser(
+        "get-server-status-from-config",
+        help="Gets the server status from the server's config.json",
+    )
+    get_server_status_from_config_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # update-server-status-in-config
-    update_server_status_in_config_parser = subparsers.add_parser("update-server-status-in-config", help="Updates the server status in the server's config.json")
-    update_server_status_in_config_parser.add_argument("-s", "--server", help="Server name", required=True)
+    update_server_status_in_config_parser = subparsers.add_parser(
+        "update-server-status-in-config",
+        help="Updates the server status in the server's config.json",
+    )
+    update_server_status_in_config_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # get-world-name
-    get_world_name_parser = subparsers.add_parser("get-world-name", help="Gets the world name from the server.properties")
-    get_world_name_parser.add_argument("-s", "--server", help="Server name", required=True)
+    get_world_name_parser = subparsers.add_parser(
+        "get-world-name", help="Gets the world name from the server.properties"
+    )
+    get_world_name_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # check-service-exists
-    check_service_exists_parser = subparsers.add_parser("check-service-exists", help="Checks if a systemd service file exists (Linux only)")
-    check_service_exists_parser.add_argument("-s", "--server", help="Server name", required=True)
+    check_service_exists_parser = subparsers.add_parser(
+        "check-service-exists",
+        help="Checks if a systemd service file exists (Linux only)",
+    )
+    check_service_exists_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # create-service
-    create_service_parser = subparsers.add_parser("create-service", help="Enable/Disable autoupdate")
-    create_service_parser.add_argument("-s", "--server", help="Server name", required=True)
+    create_service_parser = subparsers.add_parser(
+        "create-service", help="Enable/Disable autoupdate"
+    )
+    create_service_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # enable-service
-    enable_service_parser = subparsers.add_parser("enable-service", help="Enables a systemd service(Linux only)")
-    enable_service_parser.add_argument("-s", "--server", help="Server name", required=True)
+    enable_service_parser = subparsers.add_parser(
+        "enable-service", help="Enables a systemd service(Linux only)"
+    )
+    enable_service_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # disable-service
-    disable_service_parser = subparsers.add_parser("disable-service", help="Disables a systemd service (Linux only)")
-    disable_service_parser.add_argument("-s", "--server", help="Server name", required=True)
+    disable_service_parser = subparsers.add_parser(
+        "disable-service", help="Disables a systemd service (Linux only)"
+    )
+    disable_service_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # is-server-running
-    is_server_running_parser = subparsers.add_parser("is-server-running", help="Checks if the server is running")
-    is_server_running_parser.add_argument("-s", "--server", help="Server name", required=True)
+    is_server_running_parser = subparsers.add_parser(
+        "is-server-running", help="Checks if the server is running"
+    )
+    is_server_running_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # send-command
-    send_command_parser = subparsers.add_parser("send-command", help="Sends a command to the server (Linux only)")
-    send_command_parser.add_argument("-s", "--server", help="Server name", required=True)
-    send_command_parser.add_argument("-c", "--command", help="Command to send", required=True, nargs='+') 
+    send_command_parser = subparsers.add_parser(
+        "send-command", help="Sends a command to the server (Linux only)"
+    )
+    send_command_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
+    send_command_parser.add_argument(
+        "-c", "--command", help="Command to send", required=True, nargs="+"
+    )
 
     # export-world
-    export_world_parser = subparsers.add_parser("export-world", help="Exports a world to mcworld")
-    export_world_parser.add_argument("-s", "--server", help="Server name", required=True)
+    export_world_parser = subparsers.add_parser(
+        "export-world", help="Exports a world to mcworld"
+    )
+    export_world_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # validate-server
-    validate_server_parser = subparsers.add_parser("validate-server", help="Validates if server exists")
-    validate_server_parser.add_argument("-s", "--server", help="Server name", required=True)
+    validate_server_parser = subparsers.add_parser(
+        "validate-server", help="Validates if server exists"
+    )
+    validate_server_parser.add_argument(
+        "-s", "--server", help="Server name", required=True
+    )
 
     # check-internet-connectivity
-    check_internet_parser = subparsers.add_parser("check-internet", help="Checks for internet connectivity")
+    check_internet_parser = subparsers.add_parser(
+        "check-internet", help="Checks for internet connectivity"
+    )
 
     # --- Argument Parsing ---
     args = parser.parse_args()
 
-
     # --- Command Dispatch Table (using a dictionary) ---
     commands = {
         "main": lambda: main_menu(base_dir, script_dir, config_dir),
-        "list-servers": lambda: list_servers_loop(base_dir, config_dir) if args.loop else list_servers_status(base_dir, config_dir),
-        "get-status": lambda: print(get_server_status_from_config(args.server, config_dir=config_dir)),
+        "list-servers": lambda: (
+            list_servers_loop(base_dir, config_dir)
+            if args.loop
+            else list_servers_status(base_dir, config_dir)
+        ),
+        "get-status": lambda: print(
+            get_server_status_from_config(args.server, config_dir=config_dir)
+        ),
         "update-script": lambda: update_script(),
         "configure-allowlist": lambda: configure_allowlist(args.server, base_dir),
-        "configure-permissions": lambda: select_player_for_permission(args.server, base_dir, config_dir),
-        "configure-properties": lambda: modify_server_properties(os.path.join(base_dir, args.server, "server.properties"), args.property, args.value),
+        "configure-permissions": lambda: select_player_for_permission(
+            args.server, base_dir, config_dir
+        ),
+        "configure-properties": lambda: modify_server_properties(
+            os.path.join(base_dir, args.server, "server.properties"),
+            args.property,
+            args.value,
+        ),
         "install-server": lambda: install_new_server(base_dir, config_dir),
         "update-server": lambda: update_server(args.server, base_dir, config_dir),
         "start-server": lambda: start_server(args.server, base_dir),
@@ -6129,39 +7559,100 @@ def main():
         "systemd-stop": lambda: _systemd_stop_server(args.server, base_dir),
         "windows-start": lambda: _windows_start_server(args.server, base_dir),
         "windows-stop": lambda: _windows_stop_server(args.server, base_dir),
-        "install-world": (lambda: install_worlds(args.server, base_dir, script_dir) if not args.file
-                          else extract_world(args.server, args.file, base_dir)),
-        "install-addon": (lambda: install_addons(args.server, base_dir, script_dir) if not args.file
-                           else process_addon(args.file, args.server, base_dir, script_dir)),
+        "install-world": (
+            lambda: (
+                install_worlds(args.server, base_dir, script_dir)
+                if not args.file
+                else extract_world(args.server, args.file, base_dir)
+            )
+        ),
+        "install-addon": (
+            lambda: (
+                install_addons(args.server, base_dir, script_dir)
+                if not args.file
+                else process_addon(args.file, args.server, base_dir, script_dir)
+            )
+        ),
         "restart-server": lambda: restart_server(args.server, base_dir),
         "attach-console": lambda: attach_console(args.server, base_dir),
         "delete-server": lambda: delete_server(args.server, base_dir, config_dir),
-        "backup-server": lambda: backup_server(args.server, args.type, args.file, args.change_status, base_dir, script_dir, config_dir),
-        "backup-all": lambda: backup_all(args.server, base_dir, args.change_status, script_dir, config_dir),
-        "restore-server": lambda: restore_server(args.server, args.file, args.type, args.change_status, base_dir, script_dir),
-        "restore-all": lambda: restore_all(args.server, base_dir, args.change_status, script_dir, config_dir),
+        "backup-server": lambda: backup_server(
+            args.server,
+            args.type,
+            args.file,
+            args.change_status,
+            base_dir,
+            script_dir,
+            config_dir,
+        ),
+        "backup-all": lambda: backup_all(
+            args.server, base_dir, args.change_status, script_dir, config_dir
+        ),
+        "restore-server": lambda: restore_server(
+            args.server, args.file, args.type, args.change_status, base_dir, script_dir
+        ),
+        "restore-all": lambda: restore_all(
+            args.server, base_dir, args.change_status, script_dir, config_dir
+        ),
         "scan-players": lambda: scan_player_data(base_dir, config_dir),
         "monitor-usage": lambda: monitor_service_usage(args.server, base_dir),
-        "add-players": lambda: [save_players_to_json([(f"{player_name}:{xuid}")], config_dir) for player_name, xuid in (player_data.split(":") for player_data in args.players)],
-        "manage-log-files": lambda: manage_log_files(args.log_dir, args.max_files, args.max_size_mb),
-        "prune-old-backups": lambda: prune_old_backups(args.server, args.file_name, script_dir, args.keep),
-        "prune-old-downloads": lambda: prune_old_downloads(args.download_dir, args.keep),
-        "manage-script-config": lambda: print(manage_script_config(args.key, args.operation, args.value, config_dir)) if args.operation == "read" else manage_script_config(args.key, args.operation, args.value, config_dir),
-        "manage-server-config": lambda: print(manage_server_config(args.server, args.key, args.operation, args.value, config_dir)) if args.operation == "read" else manage_server_config(args.server, args.key, args.operation, args.value, config_dir),
-        "get-installed-version": lambda: print(get_installed_version(args.server, config_dir=config_dir)),
-        "check-server-status": lambda: print(check_server_status(args.server, base_dir)),
-        "get-server-status-from-config": lambda: print(get_server_status_from_config(args.server, config_dir=config_dir)),
-        "update-server-status-in-config": lambda: update_server_status_in_config(args.server, base_dir, config_dir),
+        "add-players": lambda: [
+            save_players_to_json([f"{player_name}:{xuid}"], config_dir)
+            for player_name, xuid in (
+                player_data.split(":") for player_data in args.players
+            )
+        ],
+        "manage-log-files": lambda: manage_log_files(
+            args.log_dir, args.max_files, args.max_size_mb
+        ),
+        "prune-old-backups": lambda: prune_old_backups(
+            args.server, args.file_name, script_dir, args.keep
+        ),
+        "prune-old-downloads": lambda: prune_old_downloads(
+            args.download_dir, args.keep
+        ),
+        "manage-script-config": lambda: (
+            print(
+                manage_script_config(args.key, args.operation, args.value, config_dir)
+            )
+            if args.operation == "read"
+            else manage_script_config(args.key, args.operation, args.value, config_dir)
+        ),
+        "manage-server-config": lambda: (
+            print(
+                manage_server_config(
+                    args.server, args.key, args.operation, args.value, config_dir
+                )
+            )
+            if args.operation == "read"
+            else manage_server_config(
+                args.server, args.key, args.operation, args.value, config_dir
+            )
+        ),
+        "get-installed-version": lambda: print(
+            get_installed_version(args.server, config_dir=config_dir)
+        ),
+        "check-server-status": lambda: print(
+            check_server_status(args.server, base_dir)
+        ),
+        "get-server-status-from-config": lambda: print(
+            get_server_status_from_config(args.server, config_dir=config_dir)
+        ),
+        "update-server-status-in-config": lambda: update_server_status_in_config(
+            args.server, base_dir, config_dir
+        ),
         "get-world-name": lambda: print(get_world_name(args.server, base_dir)),
         "check-service-exists": lambda: print(check_service_exists(args.server)),
         "create-service": lambda: create_service(args.server, base_dir, script_direct),
         "enable-service": lambda: enable_service(args.server),
         "disable-service": lambda: disable_service(args.server),
         "is-server-running": lambda: print(is_server_running(args.server, base_dir)),
-        "send-command": lambda: send_command(args.server, " ".join(args.command), config_dir),
+        "send-command": lambda: send_command(
+            args.server, " ".join(args.command), config_dir
+        ),
         "export-world": lambda: export_world(args.server, base_dir, script_dir),
         "validate-server": lambda: print(validate_server(args.server, base_dir)),
-        "check-internet": lambda: check_internet_connectivity()
+        "check-internet": lambda: check_internet_connectivity(),
     }
 
     if args.subcommand in commands:
@@ -6173,13 +7664,16 @@ def main():
             print("\nOperation interrupted. Exiting...")  # Handle Ctrl + C
             return handle_error(255, "")
         except Exception as e:
-            msg_error(f"An unexpected error occurred: {type(e).__name__}: {e}")  # General error
+            msg_error(
+                f"An unexpected error occurred: {type(e).__name__}: {e}"
+            )  # General error
             sys.exit(1)  # Exit with error
     elif args.subcommand is None:
         parser.print_help()  # Display help if no command is provided
     else:
         msg_error("Unimplemented command")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
