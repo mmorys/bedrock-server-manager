@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/backup.py
+# bedrock-server-manager/bedrock_server_manager/core/server/backup_restore.py
 """
 Provides functions for creating and managing backups of Bedrock server worlds
 and configuration files, as well as restoring from these backups.
