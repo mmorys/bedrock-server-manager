@@ -23,6 +23,7 @@ from bedrock_server_manager.web.utils.auth_decorators import (
 )
 from bedrock_server_manager.api import server as server_api
 from bedrock_server_manager.api import server_install_config
+from bedrock_server_manager.core.server.server import manage_server_config
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -67,7 +68,9 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
     try:
         # Call the start server API function
         # base_dir resolution handled within the api function
-        result = server_api.start_server(server_name)  # Returns dict
+        result = server_api.start_server(
+            server_name=server_name, mode="detached"
+        )  # Returns dict
         logger.debug(f"API Start Server '{server_name}': Handler response: {result}")
 
         # Determine HTTP status based on the handler's response
@@ -145,7 +148,10 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
 
     try:
         # Call the stop server API function
-        result = server_api.stop_server(server_name)  # Returns dict
+        result = server_api.stop_server(
+            server_name=server_name,
+            mode=manage_server_config(server_name, "start_method", "read"),
+        )  # Returns dict
         logger.debug(f"API Stop Server '{server_name}': Handler response: {result}")
 
         if isinstance(result, dict) and result.get("status") == "success":

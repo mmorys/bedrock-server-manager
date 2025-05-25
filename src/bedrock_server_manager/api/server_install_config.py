@@ -14,14 +14,20 @@ import re
 from typing import Dict, List, Optional, Any
 
 # Local imports
-from bedrock_server_manager.core import downloader
+from bedrock_server_manager.core import downloader as core_downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.api.server import write_server_config, send_command
+from bedrock_server_manager.api.server import (
+    write_server_config as api_write_server_config,
+)
+from bedrock_server_manager.api.server import send_command as api_send_command
 from bedrock_server_manager.api import player as player_api
-from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.server import server as server_base
-from bedrock_server_manager.api.utils import validate_server_name_format
+from bedrock_server_manager.core.server import server as core_server_base
+from bedrock_server_manager.core.server import backup as core_backup
+from bedrock_server_manager.api.utils import (
+    _server_stop_start_manager,
+    validate_server_name_format,
+)
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
@@ -32,7 +38,6 @@ from bedrock_server_manager.error import (
     DownloadExtractError,
     InternetConnectivityError,
     BackupWorldError,
-    RestoreError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -46,55 +51,34 @@ def configure_allowlist(
     """
     Configures the allowlist for a specific server. Reads the existing list and
     optionally adds new players if provided.
-
-    Args:
-        server_name: The name of the server.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-        new_players_data: Optional. A list of dictionaries for new players to add.
-                          Each dictionary must have 'name' (str) and should typically have
-                          'ignoresPlayerLimit' (bool). Defaults to None (no players added).
-
-    Returns:
-        A dictionary indicating the outcome:
-        - {"status": "success", "existing_players": List[Dict], "added_players": List[Dict], "message": str}
-        - {"status": "error", "message": str}
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        TypeError: If `new_players_data` is provided but is not a list.
-        FileOperationError: If `base_dir` cannot be determined.
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
     if new_players_data is not None and not isinstance(new_players_data, list):
         raise TypeError("If provided, new_players_data must be a list of dictionaries.")
 
-    logger.info(f"Configuring allowlist for server '{server_name}'.")
+    logger.info(f"API: Configuring allowlist for server '{server_name}'.")
 
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
 
-        # Ensure server directory exists before proceeding
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        # 1. Read existing allowlist
-        logger.debug("Reading existing allowlist...")
-        existing_players = server_base.configure_allowlist(
-            server_dir
-        )  # Core function reads/returns list
-        logger.debug(f"Found {len(existing_players)} players in existing allowlist.")
+        existing_players = core_server_base.configure_allowlist(server_dir)
+        logger.debug(
+            f"API: Found {len(existing_players)} players in existing allowlist."
+        )
 
     except (FileOperationError, DirectoryError) as e:
         logger.error(
-            f"Failed to read or access allowlist directory for server '{server_name}': {e}",
-            exc_info=True,
+            f"API: Failed to access allowlist for '{server_name}': {e}", exc_info=True
         )
         return {"status": "error", "message": f"Failed to access allowlist: {e}"}
     except Exception as e:
         logger.error(
-            f"Unexpected error reading allowlist for server '{server_name}': {e}",
+            f"API: Unexpected error reading allowlist for '{server_name}': {e}",
             exc_info=True,
         )
         return {
@@ -102,84 +86,76 @@ def configure_allowlist(
             "message": f"Unexpected error reading allowlist: {e}",
         }
 
-    # 2. Process new players if provided
-    added_players_list: List[Dict[str, Any]] = []
+    added_players_list_final: List[Dict[str, Any]] = []
     if new_players_data:
         logger.info(
-            f"Processing {len(new_players_data)} new player entries to potentially add..."
+            f"API: Processing {len(new_players_data)} new player entries for '{server_name}'..."
         )
         existing_names_lower = {
             p.get("name", "").lower() for p in existing_players if isinstance(p, dict)
         }
-        added_names_lower = set()
+        processed_in_batch = set()
 
         for player_entry in new_players_data:
             if (
                 not isinstance(player_entry, dict)
-                or not isinstance(player_entry.get("name"), str)
                 or not player_entry.get("name")
+                or not isinstance(player_entry.get("name"), str)
             ):
-                logger.warning(
-                    f"Skipping invalid player entry in new_players_data (missing/invalid name): {player_entry}"
-                )
+                logger.warning(f"API: Skipping invalid player entry: {player_entry}")
                 continue
-
             player_name = player_entry["name"]
             player_name_lower = player_name.lower()
-
-            if player_name_lower in existing_names_lower:
+            if (
+                player_name_lower in existing_names_lower
+                or player_name_lower in processed_in_batch
+            ):
                 logger.debug(
-                    f"Player '{player_name}' already exists in allowlist. Skipping."
-                )
-                continue
-            if player_name_lower in added_names_lower:
-                logger.debug(
-                    f"Player '{player_name}' already processed in this batch. Skipping duplicate."
+                    f"API: Player '{player_name}' already exists or processed. Skipping."
                 )
                 continue
 
-            # Add default ignoresPlayerLimit if missing (optional, based on need)
-            if "ignoresPlayerLimit" not in player_entry:
-                player_entry["ignoresPlayerLimit"] = False
+            player_obj = {
+                "name": player_name,
+                "ignoresPlayerLimit": player_entry.get("ignoresPlayerLimit", False),
+            }
+            added_players_list_final.append(player_obj)
+            processed_in_batch.add(player_name_lower)
+            logger.debug(f"API: Prepared player '{player_name}' for addition.")
 
-            added_players_list.append(player_entry)
-            added_names_lower.add(player_name_lower)
-            logger.debug(f"Prepared player '{player_name}' for addition.")
-
-        # 3. Add the validated new players if any exist
-        if added_players_list:
+        if added_players_list_final:
             logger.info(
-                f"Adding {len(added_players_list)} new valid players to allowlist..."
+                f"API: Adding {len(added_players_list_final)} new players to allowlist for '{server_name}'..."
             )
             try:
-                # Core function handles writing the file
-                server_base.add_players_to_allowlist(server_dir, added_players_list)
-                message = f"Successfully added {len(added_players_list)} players to allowlist."
-                logger.info(message)
+                core_server_base.add_players_to_allowlist(
+                    server_dir, added_players_list_final
+                )
+                # Optionally send reload command
+                if core_server_base.check_if_server_is_running(
+                    server_name
+                ):  # Pass base_dir if needed
+                    cmd_res = api_send_command(server_name, "allowlist reload")
+                    if cmd_res.get("status") == "error":
+                        logger.warning(
+                            f"API: Failed to send 'allowlist reload' to '{server_name}': {cmd_res.get('message')}"
+                        )
+
+                message = f"Successfully added {len(added_players_list_final)} players."
                 return {
                     "status": "success",
                     "existing_players": existing_players,
-                    "added_players": added_players_list,
+                    "added_players": added_players_list_final,
                     "message": message,
                 }
             except (FileOperationError, TypeError) as e:
                 logger.error(
-                    f"Failed to add players to allowlist file for server '{server_name}': {e}",
+                    f"API: Failed to save allowlist for '{server_name}': {e}",
                     exc_info=True,
                 )
                 return {"status": "error", "message": f"Error saving allowlist: {e}"}
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error adding players for server '{server_name}': {e}",
-                    exc_info=True,
-                )
-                return {
-                    "status": "error",
-                    "message": f"Unexpected error saving allowlist: {e}",
-                }
         else:
-            message = "No new players provided or all provided players were duplicates/invalid."
-            logger.info(message)
+            message = "No new valid players to add."
             return {
                 "status": "success",
                 "existing_players": existing_players,
@@ -187,11 +163,7 @@ def configure_allowlist(
                 "message": message,
             }
     else:
-        # No new players provided, just return existing list
-        message = (
-            "Read existing allowlist successfully. No new players provided to add."
-        )
-        logger.debug(message)
+        message = "Read existing allowlist. No new players provided."
         return {
             "status": "success",
             "existing_players": existing_players,
@@ -203,78 +175,53 @@ def configure_allowlist(
 def remove_player_from_allowlist(
     server_name: str, player_name: str, base_dir: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Removes a specific player from the allowlist of a given server.
-
-    Args:
-        server_name: The name of the server.
-        player_name: The name of the player to remove (case-insensitive).
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary indicating the outcome:
-        - {"status": "success", "message": "Player '...' removed successfully."}
-        - {"status": "success", "message": "Player '...' not found in allowlist."} (Note: success status)
-        - {"status": "error", "message": str} on failure (e.g., file access error).
-
-    Raises:
-        MissingArgumentError: If `server_name` or `player_name` is empty.
-        FileOperationError: If `base_dir` cannot be determined.
-        DirectoryError: If the server directory doesn't exist.
-    """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
     if not player_name:
         raise MissingArgumentError("Player name cannot be empty.")
-
     logger.info(
-        f"Attempting to remove player '{player_name}' from allowlist for server '{server_name}'."
+        f"API: Removing player '{player_name}' from allowlist for '{server_name}'."
     )
-
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
-
-        # Ensure server directory exists before proceeding
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        # Call the core function to perform the removal
-        was_removed = server_base.remove_player_from_allowlist(server_dir, player_name)
-
+        was_removed = core_server_base.remove_player_from_allowlist(
+            server_dir, player_name
+        )
         if was_removed:
-            message = f"Player '{player_name}' removed successfully from allowlist for server '{server_name}'."
-            logger.info(message)
-            return {"status": "success", "message": message}
+            if core_server_base.check_if_server_is_running(server_name):
+                cmd_res = api_send_command(server_name, "whitelist reload")
+                if cmd_res.get("status") == "error":
+                    logger.warning(
+                        f"API: Failed to send 'whitelist reload' to '{server_name}': {cmd_res.get('message')}"
+                    )
+            return {
+                "status": "success",
+                "message": f"Player '{player_name}' removed successfully.",
+            }
         else:
-            # Player wasn't found - this is not necessarily a server error,
-            # so return success status but indicate not found.
-            message = f"Player '{player_name}' not found in the allowlist for server '{server_name}'. No changes made."
-            logger.warning(f"API Allowlist Remove: {message}")  # Log as warning
-            return {"status": "success", "message": message}
-
+            return {
+                "status": "success",
+                "message": f"Player '{player_name}' not found in allowlist.",
+            }
     except (FileOperationError, DirectoryError, MissingArgumentError) as e:
-        # Catch specific errors from setup or core function
         logger.error(
-            f"Failed to remove player '{player_name}' from allowlist for server '{server_name}': {e}",
+            f"API: Failed to remove player from allowlist for '{server_name}': {e}",
             exc_info=True,
         )
-        # Re-raise these specific exceptions to be handled by the route's error handlers
-        # Or return an error dict if this API function is the final layer before the route
         return {
             "status": "error",
             "message": f"Failed to process allowlist removal: {e}",
         }
     except Exception as e:
-        # Catch any unexpected errors
         logger.error(
-            f"Unexpected error removing player '{player_name}' for server '{server_name}': {e}",
+            f"API: Unexpected error removing player for '{server_name}': {e}",
             exc_info=True,
         )
-        return {
-            "status": "error",
-            "message": f"Unexpected error removing player from allowlist: {e}",
-        }
+        return {"status": "error", "message": f"Unexpected error: {e}"}
 
 
 def configure_player_permission(
@@ -284,53 +231,31 @@ def configure_player_permission(
     permission: str,
     base_dir: Optional[str] = None,
 ) -> Dict[str, str]:
-    """
-    Configures the permission level for a specific player on a server.
-
-    Updates the `permissions.json` file within the server's directory.
-
-    Args:
-        server_name: The name of the server.
-        xuid: The player's XUID string.
-        player_name: Optional. The player's name (used if adding a new entry).
-        permission: The desired permission level ("member", "operator", or "visitor"). Case-insensitive.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
-    Raises:
-        MissingArgumentError: If `server_name`, `xuid`, or `permission` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
-    """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if not xuid:
         raise MissingArgumentError("Player XUID cannot be empty.")
     if not permission:
         raise MissingArgumentError("Permission level cannot be empty.")
-    # Core function validates permission value ("operator", "member", "visitor")
-
     logger.info(
-        f"Configuring permission for XUID '{xuid}' on server '{server_name}' to '{permission}'."
+        f"API: Configuring permission for XUID '{xuid}' on '{server_name}' to '{permission}'."
     )
-
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
-
-        # Delegate to core function which handles file I/O, validation, and logic
-        server_base.configure_permissions(server_dir, xuid, player_name, permission)
-
-        logger.info(
-            f"Successfully configured permission for XUID '{xuid}' on server '{server_name}'."
+        core_server_base.configure_permissions(
+            server_dir, xuid, player_name, permission
         )
+        if core_server_base.check_if_server_is_running(server_name):
+            cmd_res = api_send_command(server_name, "permission reload")
+            if cmd_res.get("status") == "error":
+                logger.warning(
+                    f"API: Failed to send 'permission reload' to '{server_name}': {cmd_res.get('message')}"
+                )
         return {
             "status": "success",
             "message": f"Permission for XUID '{xuid}' set to '{permission.lower()}'.",
         }
-
     except (
         InvalidInputError,
         DirectoryError,
@@ -338,287 +263,157 @@ def configure_player_permission(
         MissingArgumentError,
         InvalidServerNameError,
     ) as e:
-        # Catch specific errors raised by core function or path issues
         logger.error(
-            f"Failed to configure permission for XUID '{xuid}' on server '{server_name}': {e}",
+            f"API: Failed to configure permission for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Failed to configure permission: {e}"}
     except Exception as e:
-        # Catch unexpected errors
         logger.error(
-            f"Unexpected error configuring permission for XUID '{xuid}' on server '{server_name}': {e}",
+            f"API: Unexpected error configuring permission for '{server_name}': {e}",
             exc_info=True,
         )
-        return {
-            "status": "error",
-            "message": f"Unexpected error configuring permission: {e}",
-        }
+        return {"status": "error", "message": f"Unexpected error: {e}"}
 
 
 def get_server_permissions_data(
     server_name: str,
     base_dir_override: Optional[str] = None,
-    config_dir_override: Optional[str] = None,  # For players.json lookup
+    config_dir_override: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves player permission data for a specific server from its permissions.json.
-    Optionally enriches this data with player names from the global players.json.
-
-    Args:
-        server_name: The name of the server.
-
-    Returns:
-        A dictionary:
-        - {"status": "success", "data": {"permissions": List[Dict]}}
-          where each dict in "permissions" is e.g.,
-          {"xuid": "...", "name": "...", "permission_level": "..."}
-        - {"status": "error", "message": str} on failure.
-    """
     if not server_name:
         return {"status": "error", "message": "Server name cannot be empty."}
-
     logger.info(f"API: Getting server permissions data for server '{server_name}'.")
     server_permissions_list_for_ui: List[Dict[str, Any]] = []
     error_messages = []
-    player_name_map: Dict[str, str] = {}  # {xuid: name} from global players.json
-
+    player_name_map: Dict[str, str] = {}
     try:
         effective_server_base_dir = get_base_dir(base_dir_override)
         server_instance_dir = os.path.join(effective_server_base_dir, server_name)
-
         if not os.path.isdir(server_instance_dir):
             raise InvalidServerNameError(
                 f"Server directory not found: {server_instance_dir}"
             )
-
-        # 1. Optionally load global player names for enrichment
         try:
             effective_app_config_dir = (
                 config_dir_override
                 if config_dir_override is not None
                 else getattr(settings, "_config_dir", None)
             )
-            if effective_app_config_dir:  # Only attempt if config_dir is available
+            if effective_app_config_dir:
                 players_response = player_api.get_players_from_json(
                     config_dir=effective_app_config_dir
                 )
                 if players_response.get("status") == "success":
-                    global_players = players_response.get("players", [])
-                    for p_data in global_players:
+                    for p_data in players_response.get("players", []):
                         if p_data.get("xuid") and p_data.get("name"):
                             player_name_map[str(p_data["xuid"])] = str(p_data["name"])
-                    logger.debug(
-                        f"API Layer: Loaded {len(player_name_map)} names from global players.json."
-                    )
                 else:
-                    msg = f"Could not load global player list for name enrichment: {players_response.get('message')}"
-                    logger.warning(msg)
-                    error_messages.append(msg)  # Non-critical for core functionality
-            else:
-                logger.debug(
-                    "API Layer: App config directory not set, skipping global player name lookup."
-                )
-        except Exception as e_players:  # Catch errors during player name lookup
-            msg = f"Error loading global player names: {e_players}"
-            logger.warning(msg, exc_info=True)
-            error_messages.append(msg)
-
-        # 2. Read the server's permissions.json
+                    error_messages.append(
+                        f"Could not load global player list: {players_response.get('message')}"
+                    )
+        except Exception as e_players:
+            error_messages.append(f"Error loading global player names: {e_players}")
         permissions_file_path = os.path.join(server_instance_dir, "permissions.json")
-        logger.debug(
-            f"API Layer: Reading server permissions file: {permissions_file_path}"
-        )
-
         if not os.path.isfile(permissions_file_path):
-            logger.info(
-                f"API Layer: Server permissions file not found at '{permissions_file_path}'. No permissions to list."
-            )
-            # This is not an error if the goal is just to see what's there; an empty list is valid.
-            # If the file MUST exist, this would be an error.
             return {
                 "status": "success",
                 "data": {"permissions": []},
-                "message": (
-                    "Server permissions file not found." if error_messages else None
-                ),  # Add if other warnings
+                "message": "Server permissions file not found.",
             }
-
         try:
             with open(permissions_file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                if not content.strip():
-                    logger.info(
-                        f"API Layer: Server permissions file '{permissions_file_path}' is empty."
+            if not content.strip():
+                return {
+                    "status": "success",
+                    "data": {"permissions": []},
+                    "message": "Server permissions file is empty.",
+                }
+            permissions_from_file = json.loads(content)
+            if not isinstance(permissions_from_file, list):
+                raise ValueError("Permissions file not a list.")
+            for entry in permissions_from_file:
+                if (
+                    isinstance(entry, dict)
+                    and "xuid" in entry
+                    and "permission" in entry
+                ):
+                    xuid_str = str(entry["xuid"])
+                    name = player_name_map.get(xuid_str, f"Unknown (XUID: {xuid_str})")
+                    server_permissions_list_for_ui.append(
+                        {
+                            "xuid": xuid_str,
+                            "name": name,
+                            "permission_level": str(entry["permission"]),
+                        }
                     )
-                    # Return success, empty list
-                    return {
-                        "status": "success",
-                        "data": {"permissions": []},
-                        "message": (
-                            "; ".join(error_messages) if error_messages else None
-                        ),
-                    }
-
-                permissions_from_file = json.loads(content)
-                if not isinstance(permissions_from_file, list):
-                    raise ValueError(
-                        "Permissions file does not contain a list as expected."
+                else:
+                    logger.warning(
+                        f"API: Skipping malformed entry in '{permissions_file_path}': {entry}"
                     )
-
-                for entry in permissions_from_file:
-                    if (
-                        isinstance(entry, dict)
-                        and "xuid" in entry
-                        and "permission" in entry
-                    ):
-                        xuid_str = str(entry["xuid"])
-                        name = player_name_map.get(
-                            xuid_str, f"Unknown (XUID: {xuid_str})"
-                        )
-                        server_permissions_list_for_ui.append(
-                            {
-                                "xuid": xuid_str,
-                                "name": name,
-                                "permission_level": str(entry["permission"]),
-                            }
-                        )
-                    else:
-                        logger.warning(
-                            f"API Layer: Skipping malformed entry in '{permissions_file_path}': {entry}"
-                        )
-                logger.debug(
-                    f"API Layer: Processed {len(server_permissions_list_for_ui)} entries from '{permissions_file_path}'."
-                )
-
         except (OSError, json.JSONDecodeError, ValueError) as e:
-            # These are critical errors for reading this server's permissions
-            logger.error(
-                f"API Layer: Failed to read or parse server permissions file '{permissions_file_path}': {e}",
-                exc_info=True,
-            )
             return {
                 "status": "error",
                 "message": f"Failed to process server permissions file: {e}",
             }
-
-        # Sort final list for display
         server_permissions_list_for_ui.sort(key=lambda p: p.get("name", "").lower())
-
-        response_data = {"permissions": server_permissions_list_for_ui}
         final_message = (
             "; ".join(error_messages)
             if error_messages
             else "Successfully retrieved server permissions."
         )
-
         return {
             "status": "success",
-            "data": response_data,
+            "data": {"permissions": server_permissions_list_for_ui},
             "message": (
                 final_message
                 if error_messages or not server_permissions_list_for_ui
                 else None
             ),
         }
-
     except (FileOperationError, InvalidServerNameError) as e:
-        logger.error(
-            f"API Layer: Error getting server permissions data for '{server_name}': {e}",
-            exc_info=True,
-        )
         return {"status": "error", "message": str(e)}
     except Exception as e:
-        logger.error(
-            f"API Layer: Unexpected error getting server permissions for '{server_name}': {e}",
-            exc_info=True,
-        )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
 def read_server_properties(
     server_name: str, base_dir: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Reads and parses the `server.properties` file for a given server.
-
-    Args:
-        server_name: The name of the server.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary indicating the outcome:
-        - {"status": "success", "properties": Dict[str, str]} on success.
-        - {"status": "error", "message": str} if the file is not found or cannot be read/parsed.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
-    """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"Reading server.properties for server '{server_name}'...")
+    logger.debug(f"API: Reading server.properties for server '{server_name}'...")
     properties: Dict[str, str] = {}
-
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_properties_path = os.path.join(
             effective_base_dir, server_name, "server.properties"
         )
-
-        logger.debug(f"Attempting to read properties file: {server_properties_path}")
         if not os.path.isfile(server_properties_path):
             raise FileNotFoundError(
-                f"server.properties file not found at: {server_properties_path}"
+                f"server.properties not found: {server_properties_path}"
             )
-
         with open(server_properties_path, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
-                # Skip empty lines and comments
                 if not line or line.startswith("#"):
                     continue
-                # Split only on the first equals sign
                 parts = line.split("=", 1)
                 if len(parts) == 2:
-                    key = parts[0].strip()
-                    value = parts[1].strip()
-                    properties[key] = value
+                    properties[parts[0].strip()] = parts[1].strip()
                 else:
                     logger.warning(
-                        f"Skipping malformed line {line_num} in '{server_properties_path}': {line}"
+                        f"API: Skipping malformed line {line_num} in '{server_properties_path}': {line}"
                     )
-
-        logger.debug(
-            f"Successfully read and parsed {len(properties)} properties for server '{server_name}'."
-        )
         return {"status": "success", "properties": properties}
-
     except FileNotFoundError as e:
-        logger.error(f"Could not read properties for server '{server_name}': {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-        }  # Return FileNotFoundError message
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing reading properties for '{server_name}': {e}",
-            exc_info=True,
-        )
+        return {"status": "error", "message": str(e)}
+    except FileOperationError as e:
         return {"status": "error", "message": f"Configuration error: {e}"}
     except OSError as e:
-        logger.error(
-            f"Failed to read server.properties file '{server_properties_path}': {e}",
-            exc_info=True,
-        )
         return {"status": "error", "message": f"Failed to read server.properties: {e}"}
     except Exception as e:
-        logger.error(
-            f"Unexpected error reading server.properties for '{server_name}': {e}",
-            exc_info=True,
-        )
         return {
             "status": "error",
             "message": f"Unexpected error reading properties: {e}",
@@ -626,86 +421,53 @@ def read_server_properties(
 
 
 def validate_server_property_value(property_name: str, value: str) -> Dict[str, str]:
-    """
-    Validates the value for common server properties based on expected format or range.
-
-    Note: This provides basic client-side or API-level validation. The core
-    `modify_server_properties` should ideally rely on the server itself for
-    ultimate validation, but this can catch common errors early.
-
-    Args:
-        property_name: The name of the property being validated (e.g., "server-port").
-        value: The string value to validate.
-
-    Returns:
-        `{"status": "success"}` if validation passes, or
-        `{"status": "error", "message": "Validation error description..."}` if it fails.
-    """
     logger.debug(
-        f"Validating server property value: Property='{property_name}', Value='{value}'"
+        f"API: Validating server property: '{property_name}', Value: '{value}'"
     )
-
-    # Allow empty values for some properties? Handle None input.
     if value is None:
         value = ""
-
-    # Example Validations (Expand as needed)
     if property_name == "server-name":
-        # Minecraft allows most characters, but ';' can break parsing sometimes. Limit length?
         if ";" in value:
-            msg = f"Value for '{property_name}' cannot contain semicolons."
-            logger.warning(msg + f" Value: '{value}'")
-            return {"status": "error", "message": msg}
-        if len(value) > 100:  # Arbitrary length limit example
-            msg = f"Value for '{property_name}' is excessively long (max 100 chars)."
-            logger.warning(msg + f" Value: '{value[:50]}...'")
-            return {"status": "error", "message": msg}
-
+            return {
+                "status": "error",
+                "message": "server-name cannot contain semicolons.",
+            }
+        if len(value) > 100:
+            return {
+                "status": "error",
+                "message": "server-name is too long (max 100 chars).",
+            }
     elif property_name == "level-name":
-        # Official recommendation: Avoid special characters that might cause issues on file systems.
-        # Let's enforce alphanumeric, underscore, hyphen.
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", value):
-            msg = f"Invalid value for '{property_name}'. Only use letters, numbers, underscore (_), and hyphen (-)."
-            logger.warning(msg + f" Value: '{value}'")
-            return {"status": "error", "message": msg}
-        if len(value) > 80:  # Arbitrary length limit
-            msg = f"Value for '{property_name}' is too long (max 80 chars)."
-            logger.warning(msg + f" Value: '{value[:50]}...'")
-            return {"status": "error", "message": msg}
-
+            return {
+                "status": "error",
+                "message": "level-name: use letters, numbers, underscore, hyphen.",
+            }
+        if len(value) > 80:
+            return {
+                "status": "error",
+                "message": "level-name is too long (max 80 chars).",
+            }
     elif property_name in ("server-port", "server-portv6"):
         try:
-            port_num = int(value)
-            # Standard port range, avoiding privileged ports (<1024)
-            if not (1024 <= port_num <= 65535):
-                raise ValueError("Port number out of valid range.")
+            port = int(value)
+            if not (1024 <= port <= 65535):
+                raise ValueError()
         except (ValueError, TypeError):
-            msg = f"Invalid value for '{property_name}'. Must be a number between 1024 and 65535."
-            logger.warning(msg + f" Value: '{value}'")
-            return {"status": "error", "message": msg}
-
-    elif property_name in ("max-players", "view-distance", "tick-distance"):
+            return {
+                "status": "error",
+                "message": f"{property_name}: must be a number 1024-65535.",
+            }
+    elif property_name == "max-players":
         try:
-            num_val = int(value)
-            if property_name == "max-players" and num_val < 1:
-                raise ValueError("Must be >= 1")
-            if property_name == "view-distance" and num_val < 5:
-                raise ValueError("Must be >= 5")
-            if property_name == "tick-distance" and not (4 <= num_val <= 12):
-                raise ValueError("Must be between 4-12")
+            if int(value) < 1:
+                raise ValueError()
         except (ValueError, TypeError):
-            range_msg = "a positive number"
-            if property_name == "view-distance":
-                range_msg = "a number >= 5"
-            if property_name == "tick-distance":
-                range_msg = "a number between 4 and 12"
-            msg = f"Invalid value for '{property_name}'. Must be {range_msg}."
-            logger.warning(msg + f" Value: '{value}'")
-            return {"status": "error", "message": msg}
+            return {
+                "status": "error",
+                "message": "max-players: must be a positive number.",
+            }
 
-    logger.debug(
-        f"Validation successful for Property='{property_name}', Value='{value}'"
-    )
     return {"status": "success"}
 
 
@@ -713,205 +475,227 @@ def modify_server_properties(
     server_name: str,
     properties_to_update: Dict[str, str],
     base_dir: Optional[str] = None,
+    restart_after_modify: bool = True,
 ) -> Dict[str, str]:
-    """
-    Modifies one or more properties in the server's `server.properties` file.
-
-    Performs basic validation on values before attempting to write.
-
-    Args:
-        server_name: The name of the server.
-        properties_to_update: A dictionary where keys are property names and values
-                              are the new string values to set.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-        If multiple validation errors occur, only the first one encountered is returned.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        TypeError: If `properties_to_update` is not a dictionary.
-        FileOperationError: If `base_dir` cannot be determined or core modification fails.
-    """
     if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+        raise InvalidServerNameError("Server name required.")
     if not isinstance(properties_to_update, dict):
-        raise TypeError("properties_to_update must be a dictionary.")
+        raise TypeError("Properties must be a dict.")
     if not properties_to_update:
-        logger.warning(f"No properties provided to modify for server '{server_name}'.")
-        return {
-            "status": "success",
-            "message": "No properties specified for modification.",
-        }
+        return {"status": "success", "message": "No properties specified."}
 
-    logger.debug(
-        f"Modifying server properties for server '{server_name}': {list(properties_to_update.keys())}"
+    logger.info(
+        f"API: Modifying properties for '{server_name}'. Restart: {restart_after_modify}"
     )
-
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_properties_path = os.path.join(
             effective_base_dir, server_name, "server.properties"
         )
-
         if not os.path.isfile(server_properties_path):
             raise FileNotFoundError(
-                f"server.properties file not found at: {server_properties_path}"
+                f"server.properties not found: {server_properties_path}"
             )
 
-        # --- Validate all properties ---
-        validation_errors = {}
-        validated_properties = {}
-        for prop_name, prop_value in properties_to_update.items():
-            # Ensure value is string for validation and writing
-            prop_value_str = str(prop_value) if prop_value is not None else ""
-            validation_result = validate_server_property_value(
-                prop_name, prop_value_str
+        validated_props = {}
+        for name, val_str in properties_to_update.items():
+            val_res = validate_server_property_value(
+                name, str(val_str) if val_str is not None else ""
             )
-            if validation_result.get("status") == "error":
-                validation_errors[prop_name] = validation_result.get("message")
-            else:
-                validated_properties[prop_name] = (
-                    prop_value_str  # Store validated string value
+            if val_res.get("status") == "error":
+                return {
+                    "status": "error",
+                    "message": f"Validation failed for '{name}': {val_res.get('message')}",
+                }
+            validated_props[name] = str(val_str) if val_str is not None else ""
+
+        with _server_stop_start_manager(
+            server_name,
+            effective_base_dir,
+            stop_start_flag=restart_after_modify,
+            restart_on_success_only=True,
+        ):
+            for prop_name, prop_value in validated_props.items():
+                core_server_base.modify_server_properties(
+                    server_properties_path, prop_name, prop_value
                 )
 
-        if validation_errors:
-            error_msg = "Validation failed for one or more properties: " + "; ".join(
-                [f"{k}: {v}" for k, v in validation_errors.items()]
+        message = "Server properties updated."
+        if restart_after_modify:
+            message += (
+                " Server restart handled (if it was running and properties changed)."
             )
-            logger.error(error_msg)
-            return {"status": "error", "message": error_msg}
-
-        # --- Apply validated properties ---
-        for prop_name, prop_value in validated_properties.items():
-            logger.info(f"Applying change: {prop_name}={prop_value}")
-            # Core function raises FileOperationError, InvalidInputError
-            server_base.modify_server_properties(
-                server_properties_path, prop_name, prop_value
+        else:
+            message += (
+                " Manual server restart may be needed for changes to take effect."
             )
+        return {"status": "success", "message": message}
 
-        logger.info(f"Successfully modified properties for server '{server_name}'.")
-        return {
-            "status": "success",
-            "message": "Server properties updated successfully.",
-        }
-
-    except (FileNotFoundError, FileOperationError, InvalidInputError) as e:
+    except (
+        FileNotFoundError,
+        FileOperationError,
+        InvalidInputError,
+        InvalidServerNameError,
+    ) as e:
         logger.error(
-            f"Failed to modify server properties for '{server_name}': {e}",
-            exc_info=True,
+            f"API: Failed to modify properties for '{server_name}': {e}", exc_info=True
         )
         return {"status": "error", "message": f"Failed to modify properties: {e}"}
     except Exception as e:
         logger.error(
-            f"Unexpected error modifying server properties for '{server_name}': {e}",
+            f"API: Unexpected error modifying properties for '{server_name}': {e}",
             exc_info=True,
         )
-        return {
-            "status": "error",
-            "message": f"Unexpected error modifying properties: {e}",
-        }
+        return {"status": "error", "message": f"Unexpected error: {e}"}
+
+
+# --- INSTALL/UPDATE FUNCTIONS ---
 
 
 def download_and_install_server(
     server_name: str,
     base_dir: Optional[str] = None,
     target_version: str = "LATEST",
-    in_update: bool = False,
+    is_update: bool = False,
 ) -> Dict[str, Any]:
     """
-    Downloads the specified Bedrock server version and installs/updates it.
-
-    Orchestrates calls to core downloader and server installation functions.
-
-    Args:
-        server_name: The name of the server.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        target_version: Version to download ("LATEST", "PREVIEW", or specific "1.x.y.z").
-        in_update: True if updating an existing server, False for a fresh install.
-
-    Returns:
-        A dictionary indicating the outcome:
-        - {"status": "success", "version": str, "message": str} on success.
-        - {"status": "error", "message": str} on failure.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
+    API: Downloads the specified Bedrock server version and installs/updates it.
+    This function orchestrates the entire process including stop/start for updates.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
-
-    action = "Updating" if in_update else "Installing"
-    logger.debug(
-        f"Starting server download and {action.lower()} process for '{server_name}', target version '{target_version}'."
+    action = "Updating" if is_update else "Installing"
+    logger.info(
+        f"API: Starting server {action.lower()} process for '{server_name}', target version '{target_version}'."
     )
+
+    # Define app_config_dir early for use in error handlers if needed
+    app_config_dir = settings._config_dir
+    if not app_config_dir:
+        # This is a critical configuration error
+        logger.critical(
+            "API: Application configuration directory (_config_dir) not set in settings. Cannot proceed."
+        )
+        return {
+            "status": "error",
+            "message": "Application configuration error: _config_dir not set.",
+        }
 
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
 
-        # 1. Download phase (core function handles checks, returns paths)
-        logger.info("Step 1: Downloading server files...")
-        # download_bedrock_server raises: InternetConnectivityError, DirectoryError, DownloadExtractError, FileOperationError
-        actual_version, zip_file_path, _ = downloader.download_bedrock_server(
-            server_dir=server_dir,  # Pass server dir (it ensures it exists)
-            target_version=target_version,
+        # --- 1. Download Phase ---
+        logger.info("API: Step 1 - Downloading server software...")
+        actual_version, zip_file_path, _ = core_downloader.download_bedrock_server(
+            server_dir=server_dir, target_version=target_version
         )
         logger.debug(
-            f"Download complete. Version: {actual_version}, ZIP: {zip_file_path}"
+            f"API: Download complete. Version: {actual_version}, ZIP: {zip_file_path}"
         )
 
-        # 2. Installation phase (core function handles extraction, permissions, version config)
-        logger.info(f"Step 2: {action} server files...")
-        # install_server raises: InstallUpdateError, FileOperationError, BackupWorldError, RestoreError, etc.
-        server_base.install_server(
-            server_name=server_name,
-            base_dir=effective_base_dir,
-            target_version=actual_version,
-            zip_file_path=zip_file_path,
-            server_dir=server_dir,
-            is_update=in_update,
-        )
+        # --- 2. Orchestrate Stop, Backup (if update), File Setup, Start ---
+        with _server_stop_start_manager(
+            server_name,
+            effective_base_dir,
+            stop_start_flag=is_update,
+            restart_on_success_only=True,  # Only restart if backup & setup are fine
+        ):
+            if is_update:
+                logger.info(
+                    f"API: Step 2a - Backing up server '{server_name}' before update..."
+                )
+                core_backup.backup_all_server_data(server_name, effective_base_dir)
+                logger.info(f"API: Pre-update backup for '{server_name}' successful.")
+
+            logger.info(
+                f"API: Step 2b - Setting up server files from '{os.path.basename(zip_file_path)}'..."
+            )
+            core_server_base.setup_server_files(
+                zip_file_path=zip_file_path, server_dir=server_dir, is_update=is_update
+            )
+            logger.info("API: Server file setup successful.")
+
+            # --- 3. Finalizing Configuration ---
+            logger.info(
+                f"API: Step 3 - Writing version '{actual_version}' and status for '{server_name}'."
+            )
+            core_server_base._write_version_config(
+                server_name, actual_version, config_dir=app_config_dir
+            )
+
+            if not is_update:
+                core_server_base.manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "INSTALLED",
+                    config_dir=app_config_dir,
+                )
+            else:  # For updates, server is currently stopped by context manager.
+                # If it was running, context manager's 'finally' will restart it.
+                # core_server_base.start_server called by API start will set status to RUNNING.
+                # If it wasn't running, it should remain STOPPED.
+                core_server_base.manage_server_config(
+                    server_name, "status", "write", "STOPPED", config_dir=app_config_dir
+                )
+
+        # Message after context manager, reflecting potential restart
+        final_message = f"Server '{server_name}' {action.lower()} to version {actual_version} successful."
+        if is_update:
+            final_message += " Server restart handled if it was previously running."
+
         logger.info(
-            f"Server {action.lower()} completed successfully for version {actual_version}."
+            f"API: Server {action.lower()} for '{server_name}' (v{actual_version}) orchestrated successfully."
         )
-
         return {
             "status": "success",
             "version": actual_version,
-            "message": f"Server '{server_name}' {action.lower()} successful (Version: {actual_version}).",
+            "message": final_message,
         }
 
-    # Catch specific errors from download/install phases
     except (
-        DownloadExtractError,
-        InternetConnectivityError,
+        core_downloader.DownloadExtractError,
+        core_downloader.InternetConnectivityError,
         InstallUpdateError,
         DirectoryError,
         FileOperationError,
         BackupWorldError,
-        RestoreError,
+        MissingArgumentError,
+        InvalidServerNameError,
     ) as e:
         logger.error(
-            f"Server download/install process failed for '{server_name}': {e}",
+            f"API: Server {action.lower()} process failed for '{server_name}': {e}",
             exc_info=True,
         )
+        try:
+            if app_config_dir:  # Check if app_config_dir was resolved
+                core_server_base.manage_server_config(
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
+                )
+        except Exception as e_cfg:
+            logger.error(
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
+            )
         return {"status": "error", "message": f"Server {action.lower()} failed: {e}"}
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing server download/install for '{server_name}': {e}",
+    except Exception as e:  # Catch-all for truly unexpected issues
+        logger.critical(
+            f"API: CRITICAL UNEXPECTED error during server {action.lower()} for '{server_name}': {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Configuration error: {e}"}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error during server download/install for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        try:
+            if app_config_dir:
+                core_server_base.manage_server_config(
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
+                )
+        except Exception as e_cfg:
+            logger.error(
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
+            )
+        return {
+            "status": "error",
+            "message": f"An critical unexpected error occurred: {e}",
+        }
 
 
 def install_new_server(
@@ -920,233 +704,169 @@ def install_new_server(
     base_dir: Optional[str] = None,
     config_dir: Optional[str] = None,
 ) -> Dict[str, str]:
-    """
-    Installs a completely new Bedrock server instance.
-
-    Validates name, checks for existing server, writes initial config,
-    downloads/installs files, and sets initial status.
-
-    Args:
-        server_name: The desired name for the new server.
-        target_version: Version to install ("LATEST", "PREVIEW", or specific "1.x.y.z").
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        config_dir: Optional. Base directory for server configs. Uses default if None.
-
-    Returns:
-        A dictionary indicating the outcome: `{"status": "success", "server_name": str, "message": ...}`
-        or `{"status": "error", "message": str}`.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        FileOperationError: If `base_dir` cannot be determined.
-    """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-
-    logger.debug(
-        f"Starting installation process for new server '{server_name}', target version '{target_version}'."
+    logger.info(
+        f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
+
+    # Define app_config_dir early for consistent use
+    effective_app_config_dir = (
+        config_dir if config_dir is not None else settings._config_dir
+    )
+    if not effective_app_config_dir:
+        logger.critical(
+            "API: Application configuration directory (_config_dir) not set. Cannot install new server."
+        )
+        return {
+            "status": "error",
+            "message": "Application configuration error: _config_dir not set.",
+        }
 
     try:
         effective_base_dir = get_base_dir(base_dir)
 
-        # --- 1. Validate Name Format ---
-        validation_result = validate_server_name_format(server_name)  # Returns dict
+        validation_result = validate_server_name_format(server_name)
         if validation_result.get("status") == "error":
-            logger.error(
-                f"Invalid server name format for '{server_name}': {validation_result.get('message')}"
-            )
-            return validation_result  # Return the validation error dict
+            return validation_result
 
-        # --- 2. Check if Server Already Exists ---
-        server_dir = os.path.join(effective_base_dir, server_name)
-        if os.path.exists(server_dir):
-            # Check if it's just an empty dir or actually contains files? For now, any existence is error.
-            error_msg = (
-                f"Cannot install new server: Directory '{server_dir}' already exists."
-            )
-            logger.error(error_msg)
-            return {"status": "error", "message": error_msg}
+        server_dir_check = os.path.join(effective_base_dir, server_name)
+        if os.path.exists(server_dir_check):
+            return {
+                "status": "error",
+                "message": f"Directory '{server_dir_check}' already exists.",
+            }
 
-        # --- 3. Write Initial Config (Name, Target Version) ---
-        logger.debug("Writing initial server configuration...")
-        config_results = []
-        config_results.append(
-            write_server_config(server_name, "server_name", server_name, config_dir)
-        )
-        config_results.append(
-            write_server_config(
-                server_name, "target_version", target_version, config_dir
+        # Write initial config (name, target version, initial status)
+        # Use api_write_server_config as it returns dicts, easy to check status
+        init_configs = {
+            "server_name": server_name,
+            "target_version": target_version,
+            "status": "INSTALLING",  # Initial status before download
+        }
+        for key, value in init_configs.items():
+            cfg_res = api_write_server_config(
+                server_name, key, value, config_dir=effective_app_config_dir
             )
-        )
-        # Check if any config write failed
-        for result in config_results:
-            if result.get("status") == "error":
+            if cfg_res.get("status") == "error":
                 logger.error(
-                    f"Failed to write initial configuration for server '{server_name}'. Error: {result.get('message')}"
+                    f"API: Failed to write initial config '{key}' for '{server_name}': {cfg_res.get('message')}"
                 )
-                return result  # Return the first config write error
+                return {
+                    "status": "error",
+                    "message": f"Initial config write failed for '{key}': {cfg_res.get('message')}",
+                }
 
-        # --- 4. Download and Install ---
-        logger.debug(
-            f"Proceeding with download and installation for server '{server_name}'..."
-        )
-        # Use the API function which returns dict
+        # Call the main orchestrator for download and file setup
+        # is_update=False means _server_stop_start_manager will effectively be a no-op for stop/start
         install_result = download_and_install_server(
             server_name=server_name,
             base_dir=effective_base_dir,
             target_version=target_version,
-            in_update=False,  # Explicitly False for new install
+            is_update=False,
         )
-        if install_result.get("status") == "error":
+
+        # download_and_install_server will set status to "INSTALLED" on success for new install.
+        return install_result  # Return the result from the main orchestrator
+
+    except (MissingArgumentError, FileOperationError, InvalidServerNameError) as e:
+        logger.error(
+            f"API: Setup error for new server '{server_name}': {e}", exc_info=True
+        )
+        # Attempt to set server status to ERROR in config
+        try:
+            if effective_app_config_dir:
+                core_server_base.manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "ERROR",
+                    config_dir=effective_app_config_dir,
+                )
+        except Exception as e_cfg:
             logger.error(
-                f"Download/installation failed for new server '{server_name}'. Error: {install_result.get('message')}"
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
             )
-            return install_result  # Return the install error
-
-        installed_version = install_result.get(
-            "version", "UNKNOWN"
-        )  # Get version from successful result
-
-        # --- 5. Write Final Status ---
-        logger.debug("Writing final status ('INSTALLED') to server configuration...")
-        status_result = write_server_config(
-            server_name, "status", "INSTALLED", config_dir
-        )
-        if status_result.get("status") == "error":
-            # Installation succeeded but status write failed - log warning, but return success for install itself?
-            logger.warning(
-                f"Server '{server_name}' installed successfully (Version: {installed_version}), but failed to write final status to config: {status_result.get('message')}"
-            )
-            # Let's return success but mention the status issue
-            return {
-                "status": "success",
-                "server_name": server_name,
-                "message": f"Server '{server_name}' installed (Version: {installed_version}), but status update failed.",
-            }
-
-        logger.info(
-            f"New server '{server_name}' (Version: {installed_version}) installed successfully."
-        )
-        return {
-            "status": "success",
-            "server_name": server_name,
-            "version": installed_version,
-            "message": f"Server '{server_name}' installed successfully (Version: {installed_version}).",
-        }
-
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing server installation for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Configuration error: {e}"}
+        return {"status": "error", "message": f"Setup error for new server: {e}"}
     except Exception as e:
-        # Catch unexpected errors during orchestration
-        logger.error(
-            f"Unexpected error during new server installation for '{server_name}': {e}",
+        logger.critical(
+            f"API: CRITICAL UNEXPECTED error installing new server '{server_name}': {e}",
             exc_info=True,
         )
+        try:
+            if effective_app_config_dir:
+                core_server_base.manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "ERROR",
+                    config_dir=effective_app_config_dir,
+                )
+        except Exception as e_cfg:
+            logger.error(
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
+            )
         return {
             "status": "error",
-            "message": f"Unexpected error installing server: {e}",
+            "message": f"An critical unexpected error occurred installing new server: {e}",
         }
 
 
 def update_server(
-    server_name: str,
-    base_dir: Optional[str] = None,
-    send_message: bool = True,
+    server_name: str, base_dir: Optional[str] = None, send_message: bool = True
 ) -> Dict[str, Any]:
-    """
-    Updates an existing Bedrock server to the target version specified in its config.
-
-    Checks if an update is needed, handles download/installation, and optionally
-    sends an in-game warning message if the server is running.
-
-    Args:
-        server_name: The name of the server to update.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        send_message: If True, attempt to send "say Checking for updates..." message
-                      to the server if it's running.
-
-    Returns:
-        A dictionary indicating the outcome:
-        - {"status": "success", "updated": bool, "new_version": Optional[str], "message": str}
-        - {"status": "error", "message": str}
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined or essential config cannot be read.
-    """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
+    logger.info(f"API: Updating server '{server_name}'. Send message: {send_message}")
 
-    logger.debug(
-        f"Starting update check process for server '{server_name}'. Send message: {send_message}"
-    )
+    # Define app_config_dir early
+    effective_app_config_dir = settings._config_dir
+    if not effective_app_config_dir:
+        logger.critical(
+            "API: Application configuration directory (_config_dir) not set. Cannot update server."
+        )
+        return {
+            "status": "error",
+            "message": "Application configuration error: _config_dir not set.",
+        }
 
     try:
         effective_base_dir = get_base_dir(base_dir)
 
-        # --- Check if server is running and send message (optional) ---
-        if send_message:
-            try:
-                if system_base.is_server_running(server_name, effective_base_dir):
-                    logger.info(
-                        f"Server '{server_name}' is running. Sending update check notification..."
-                    )
-                    # Use API send_command which returns dict
-                    cmd_result = send_command(
-                        server_name,
-                        "say Checking for server updates...",
-                        effective_base_dir,
-                    )
-                    if cmd_result.get("status") == "error":
-                        # Log warning but don't abort update if message fails
-                        logger.warning(
-                            f"Failed to send update notification message to server '{server_name}': {cmd_result.get('message')}"
-                        )
-                    else:
-                        logger.debug("Update notification sent.")
-                else:
-                    logger.debug(
-                        f"Server '{server_name}' is not running. Skipping update notification."
-                    )
-            except Exception as e:
-                # Catch any error during running check or message sending, log warning and continue
+        if send_message and core_server_base.check_if_server_is_running(
+            server_name
+        ):  # Pass base_dir if core func needs it
+            logger.info(
+                f"API: Server '{server_name}' running. Sending update check notification..."
+            )
+            cmd_res = api_send_command(
+                server_name, "say Checking for server updates..."
+            )
+            if cmd_res.get("status") == "error":
                 logger.warning(
-                    f"Could not send update notification to server '{server_name}': {e}",
-                    exc_info=True,
+                    f"API: Failed to send update notification to '{server_name}': {cmd_res.get('message')}"
                 )
 
-        # --- Get Installed and Target Versions ---
-        logger.debug("Retrieving installed and target versions...")
-        installed_version = server_base.get_installed_version(server_name)
-        target_version = server_base.manage_server_config(
-            server_name, "target_version", "read"
+        installed_version = core_server_base.get_installed_version(
+            server_name, config_dir=effective_app_config_dir
+        )
+        target_version_cfg = core_server_base.manage_server_config(
+            server_name, "target_version", "read", config_dir=effective_app_config_dir
         )
 
-        if installed_version == "UNKNOWN":
-            logger.warning(
-                f"Cannot determine installed version for server '{server_name}'. Assuming update is needed."
-            )
-            # Proceed, but download_and_install will handle actual version check logic if target is LATEST/PREVIEW
-        if target_version is None:
-            logger.warning(
-                f"Target version not found in config for server '{server_name}'. Defaulting to 'LATEST'."
-            )
-            target_version = "LATEST"  # Default behavior if not set
-
-        logger.debug(
-            f"Server '{server_name}': Installed Version='{installed_version}', Target Version='{target_version}'"
+        target_version_to_use = (
+            str(target_version_cfg) if target_version_cfg is not None else "LATEST"
         )
+        if target_version_cfg is None:
+            logger.warning(
+                f"API: Target version not set for '{server_name}', defaulting to 'LATEST'."
+            )
 
-        # --- Check if Update is Needed ---
-        if server_base.no_update_needed(server_name, installed_version, target_version):
+        if core_server_base.no_update_needed(
+            server_name, installed_version, target_version_to_use
+        ):
             logger.info(
-                f"Server '{server_name}' is already up-to-date (Version: {installed_version})."
+                f"API: Server '{server_name}' (v{installed_version}) is already up-to-date with target '{target_version_to_use}'."
             )
             return {
                 "status": "success",
@@ -1155,55 +875,69 @@ def update_server(
                 "message": "Server is already up-to-date.",
             }
 
-        # --- Perform Download and Installation (as update) ---
-        logger.info(f"Proceeding with update attempt for server '{server_name}'...")
+        # Call the main orchestrator for download and file setup, with is_update=True
         update_result = download_and_install_server(
             server_name=server_name,
             base_dir=effective_base_dir,
-            target_version=target_version,
-            in_update=True,  # Explicitly True for update
+            target_version=target_version_to_use,
+            is_update=True,
         )
 
-        # --- Process Result ---
+        # download_and_install_server's message already reflects success and version.
+        # We just need to adjust the 'updated' flag logic if needed, but it's better if
+        # download_and_install_server's response is comprehensive.
         if update_result.get("status") == "success":
-            new_version = update_result.get("version", "UNKNOWN")
-            updated_flag = (
-                installed_version != new_version
-            )  # Set flag based on actual version change
-            message = f"Server '{server_name}' update process completed. "
-            if updated_flag:
-                message += f"New version: {new_version}."
-            else:
-                message += f"Server already at target version ({installed_version})."
-            logger.info(message)
+            new_actual_version = update_result.get("version", "UNKNOWN")
             return {
                 "status": "success",
-                "updated": updated_flag,
-                "new_version": new_version,
-                "message": message,
+                "updated": installed_version
+                != new_actual_version,  # Compare old installed with new actual
+                "new_version": new_actual_version,
+                "message": update_result.get(
+                    "message",
+                    f"Server '{server_name}' update process completed. New version: {new_actual_version}.",
+                ),
             }
         else:
-            # Update failed during download/install phase
-            logger.error(
-                f"Update failed for server '{server_name}'. Error: {update_result.get('message')}"
-            )
-            return (
-                update_result  # Return the error dict from download_and_install_server
-            )
+            return update_result
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
-        # Re-raise input validation errors
-        raise
-    except FileOperationError as e:  # Catch error from get_base_dir or core functions
+    except (FileOperationError, InvalidServerNameError, MissingArgumentError) as e:
         logger.error(
-            f"Configuration or File error preventing server update for '{server_name}': {e}",
-            exc_info=True,
+            f"API: Setup error for server update '{server_name}': {e}", exc_info=True
         )
-        return {"status": "error", "message": f"Configuration/File error: {e}"}
+        try:
+            if effective_app_config_dir:
+                core_server_base.manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "ERROR",
+                    config_dir=effective_app_config_dir,
+                )
+        except Exception as e_cfg:
+            logger.error(
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
+            )
+        return {"status": "error", "message": f"Setup error for update: {e}"}
     except Exception as e:
-        # Catch unexpected errors during orchestration
-        logger.error(
-            f"Unexpected error during update process for server '{server_name}': {e}",
+        logger.critical(
+            f"API: CRITICAL UNEXPECTED error updating server '{server_name}': {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Unexpected error during update: {e}"}
+        try:
+            if effective_app_config_dir:
+                core_server_base.manage_server_config(
+                    server_name,
+                    "status",
+                    "write",
+                    "ERROR",
+                    config_dir=effective_app_config_dir,
+                )
+        except Exception as e_cfg:
+            logger.error(
+                f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
+            )
+        return {
+            "status": "error",
+            "message": f"An critical unexpected error occurred updating server: {e}",
+        }

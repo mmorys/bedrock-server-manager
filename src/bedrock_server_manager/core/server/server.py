@@ -2,9 +2,9 @@
 """
 Core module for managing Bedrock server instances.
 
-Provides the `BedrockServer` class to interact with running server processes
-(start, stop, status, commands) and standalone functions for installation,
-updates, configuration management (server.properties, JSON files), status checks,
+Provides standalone functions to interact with running server processes
+(start, stop, status, commands), and for installation, updates,
+configuration management (server.properties, JSON files), status checks,
 and validation.
 """
 
@@ -60,626 +60,668 @@ else:
 logger = logging.getLogger("bedrock_server_manager")
 
 
-class BedrockServer:
+# --- Helper function ---
+def _get_server_details(
+    server_name: str, server_path_override: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Represents and manages a specific Bedrock server instance.
+    Gathers and validates server paths and essential details.
+    This helper is used by functions that previously were methods of BedrockServer.
 
-    Handles starting, stopping, checking status, getting process information
-    (PID, CPU, memory, uptime), and sending commands to the running server process.
+    Args:
+        server_name: The name of the server.
+        server_path_override: Optional. The full path to the server executable.
+                              If None, it's inferred based on OS and server_dir.
 
-    Attributes:
-        server_name (str): The unique name identifier for the server.
-        server_dir (str): The base directory path for the server installation.
-        server_path (str): The full path to the server executable.
-        process: Platform-specific process handle (e.g., Popen object on Windows).
-                 May be None if not started by this instance or not applicable.
-        status (str): An internal indicator of the server's perceived state
-                      ("STOPPED", "STARTING", "RUNNING", "STOPPING", "ERROR").
-                      Note: For actual running status, use `is_running()`.
+    Returns:
+        A dictionary containing server details:
+        - server_name (str)
+        - base_dir (str): Base directory for all servers from settings.
+        - server_dir (str): Path to this specific server's installation directory.
+        - server_path (str): Full path to the server executable.
+        - config_dir_base (str): Base directory for all server configs from settings.
+        - server_config_dir (str): Path to this specific server's configuration directory.
+
+    Raises:
+        MissingArgumentError: If `server_name` is empty.
+        FileOperationError: If BASE_DIR or _config_dir setting is missing.
+        ServerNotFoundError: If the server executable cannot be found.
     """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty for server operations.")
 
-    def __init__(self, server_name: str, server_path: Optional[str] = None):
-        """
-        Initializes the BedrockServer object.
+    logger.debug(f"Getting details for server '{server_name}'")
 
-        Args:
-            server_name: The name of the server.
-            server_path: Optional. The full path to the server executable.
-                         If None, it's inferred based on OS and server_dir.
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
+        )
+    server_dir = os.path.join(base_dir, server_name)
 
-        Raises:
-            MissingArgumentError: If `server_name` is empty.
-            FileOperationError: If BASE_DIR setting is missing.
-            ServerNotFoundError: If the server executable cannot be found at the
-                                 determined `server_path`.
-        """
-        if not server_name:
-            raise MissingArgumentError(
-                "Server name cannot be empty for BedrockServer initialization."
-            )
+    config_dir_base = settings._config_dir
+    if not config_dir_base:
+        raise FileOperationError(
+            "Internal _config_dir setting is missing or empty. Ensure settings are loaded."
+        )
+    server_config_dir = os.path.join(config_dir_base, server_name)
 
-        logger.debug(f"Initializing BedrockServer instance for '{server_name}'")
-        self.server_name = server_name
+    if server_path_override:
+        server_executable_path = server_path_override
+        logger.debug(f"Using provided server executable path: {server_executable_path}")
+    else:
+        exe_name = (
+            "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
+        )
+        server_executable_path = os.path.join(server_dir, exe_name)
+        logger.debug(f"Using default server executable path: {server_executable_path}")
 
-        base_dir = settings.get("BASE_DIR")
-        if not base_dir:
-            raise FileOperationError(
-                "BASE_DIR setting is missing or empty in configuration."
-            )
-        self.server_dir = os.path.join(base_dir, self.server_name)
+    # Validate existence of executable immediately
+    if not os.path.isfile(server_executable_path):
+        error_msg = f"Server executable not found at path: {server_executable_path}"
+        logger.error(error_msg)
+        raise ServerNotFoundError(error_msg)
 
-        config_dir = settings._config_dir
-        if not config_dir:
-            raise FileOperationError(
-                "CONFIG_DIR setting is missing or empty in configuration."
-            )
-        self.server_config_dir = os.path.join(config_dir, self.server_name)
+    return {
+        "server_name": server_name,
+        "base_dir": base_dir,
+        "server_dir": server_dir,
+        "server_path": server_executable_path,
+        "config_dir_base": config_dir_base,
+        "server_config_dir": server_config_dir,
+    }
 
-        if server_path:
-            self.server_path = server_path
-            logger.debug(f"Using provided server executable path: {self.server_path}")
-        else:
-            # Determine the executable name based on the platform
-            exe_name = (
-                "bedrock_server.exe"
-                if platform.system() == "Windows"
-                else "bedrock_server"
-            )
-            self.server_path = os.path.join(self.server_dir, exe_name)
-            logger.debug(f"Using default server executable path: {self.server_path}")
 
-        # Validate existence immediately on init
-        if not os.path.isfile(self.server_path):
-            error_msg = f"Server executable not found at path: {self.server_path}"
-            logger.error(error_msg)
-            raise ServerNotFoundError(error_msg)
+# --- Standalone functions replacing BedrockServer methods ---
 
-        self.process = None  # Platform specific process object (e.g., subprocess.Popen)
-        self.status = "STOPPED"  # Internal status tracking
-        logger.debug(
-            f"BedrockServer '{self.server_name}' initialized. Executable: {self.server_path}"
+
+def check_if_server_is_running(server_name: str) -> bool:
+    """
+    Checks if the server process associated with this name is currently running.
+    Equivalent to former BedrockServer.is_running().
+    """
+    if not server_name:
+        # Consistent with how _get_server_details handles server_name
+        raise MissingArgumentError("Server name cannot be empty.")
+
+    logger.debug(f"Checking running status for server '{server_name}'")
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
         )
 
-    def is_running(self) -> bool:
-        """Checks if the server process associated with this name is currently running."""
-        logger.debug(f"Checking running status for server '{self.server_name}'")
-        # Relies on the system-specific implementation
-        is_running = system_base.is_server_running(
-            self.server_name, settings.get("BASE_DIR")
+    is_running_flag = system_base.is_server_running(server_name, base_dir)
+    logger.debug(f"Server '{server_name}' is_running result: {is_running_flag}")
+    return is_running_flag
+
+
+def get_server_pid(server_name: str) -> Optional[int]:
+    """
+    Gets the process ID (PID) of the running server, if found.
+    Equivalent to former BedrockServer.get_pid().
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    logger.debug(f"Attempting to get PID for server '{server_name}'")
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
         )
-        logger.debug(f"Server '{self.server_name}' is_running result: {is_running}")
-        return is_running
 
-    def get_pid(self) -> Optional[int]:
-        """Gets the process ID (PID) of the running server, if found."""
-        logger.debug(f"Attempting to get PID for server '{self.server_name}'")
-        server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.get("BASE_DIR")
+    server_info = system_base._get_bedrock_process_info(server_name, base_dir)
+    pid = server_info.get("pid") if server_info else None
+    logger.debug(f"Server '{server_name}' PID: {pid}")
+    return pid
+
+
+def get_server_cpu_usage(server_name: str) -> Optional[float]:
+    """
+    Gets the current CPU usage percentage of the server process, if running.
+    Equivalent to former BedrockServer.get_cpu_usage().
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    logger.debug(f"Attempting to get CPU usage for server '{server_name}'")
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
         )
-        pid = server_info.get("pid") if server_info else None
-        logger.debug(f"Server '{self.server_name}' PID: {pid}")
-        return pid
 
-    def get_cpu_usage(self) -> Optional[float]:
-        """Gets the current CPU usage percentage of the server process, if running."""
-        logger.debug(f"Attempting to get CPU usage for server '{self.server_name}'")
-        server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.get("BASE_DIR")
+    server_info = system_base._get_bedrock_process_info(server_name, base_dir)
+    cpu_usage = server_info.get("cpu_percent") if server_info else None
+    logger.debug(f"Server '{server_name}' CPU usage: {cpu_usage}%")
+    return cpu_usage
+
+
+def get_server_memory_usage(server_name: str) -> Optional[float]:
+    """
+    Gets the current memory usage (in MB) of the server process, if running.
+    Equivalent to former BedrockServer.get_memory_usage().
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    logger.debug(f"Attempting to get memory usage for server '{server_name}'")
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
         )
-        cpu_usage = server_info.get("cpu_percent") if server_info else None
-        logger.debug(f"Server '{self.server_name}' CPU usage: {cpu_usage}%")
-        return cpu_usage
 
-    def get_memory_usage(self) -> Optional[float]:
-        """Gets the current memory usage (in MB) of the server process, if running."""
-        logger.debug(f"Attempting to get memory usage for server '{self.server_name}'")
-        server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.get("BASE_DIR")
+    server_info = system_base._get_bedrock_process_info(server_name, base_dir)
+    memory_usage = server_info.get("memory_mb") if server_info else None
+    logger.debug(f"Server '{server_name}' memory usage: {memory_usage} MB")
+    return memory_usage
+
+
+def get_server_uptime(server_name: str) -> Optional[float]:
+    """
+    Gets the server process uptime in seconds, if running.
+    Equivalent to former BedrockServer.get_uptime().
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    logger.debug(f"Attempting to get uptime for server '{server_name}'")
+    base_dir = settings.get("BASE_DIR")
+    if not base_dir:
+        raise FileOperationError(
+            "BASE_DIR setting is missing or empty in configuration."
         )
-        memory_usage = server_info.get("memory_mb") if server_info else None
-        logger.debug(f"Server '{self.server_name}' memory usage: {memory_usage} MB")
-        return memory_usage
 
-    def get_uptime(self) -> Optional[float]:
-        """Gets the server process uptime in seconds, if running."""
-        logger.debug(f"Attempting to get uptime for server '{self.server_name}'")
-        server_info = system_base._get_bedrock_process_info(
-            self.server_name, settings.get("BASE_DIR")
+    server_info = system_base._get_bedrock_process_info(server_name, base_dir)
+    uptime = server_info.get("uptime") if server_info else None
+    logger.debug(f"Server '{server_name}' uptime: {uptime} seconds")
+    return uptime
+
+
+def send_server_command(server_name: str, command: str) -> None:
+    """
+    Sends a command string to the running server process.
+    Implementation is platform-specific (screen on Linux, named pipes on Windows).
+    Equivalent to former BedrockServer.send_command().
+
+    Args:
+        server_name: The name of the server.
+        command: The command string to send to the server console.
+
+    Raises:
+        MissingArgumentError: If `server_name` or `command` is empty.
+        ServerNotRunningError: If the server process cannot be found or communicated with.
+        SendCommandError: If there's a platform-specific error sending the command.
+        CommandNotFoundError: If a required external command (like 'screen') is not found.
+        NotImplementedError: If the current OS is not supported.
+        FileOperationError: If BASE_DIR setting is missing.
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty for send_command.")
+    if not command:
+        raise MissingArgumentError("Command cannot be empty.")
+
+    if not check_if_server_is_running(server_name):
+        logger.error(
+            f"Cannot send command to server '{server_name}': Server is not running."
         )
-        uptime = server_info.get("uptime") if server_info else None
-        logger.debug(f"Server '{self.server_name}' uptime: {uptime} seconds")
-        return uptime
+        raise ServerNotRunningError(f"Server '{server_name}' is not running.")
 
-    def send_command(self, command: str) -> None:
-        """
-        Sends a command string to the running server process.
+    logger.info(f"Sending command '{command}' to server '{server_name}'...")
 
-        Implementation is platform-specific (screen on Linux, named pipes on Windows).
-
-        Args:
-            command: The command string to send to the server console.
-
-        Raises:
-            MissingArgumentError: If `command` is empty.
-            ServerNotRunningError: If the server process cannot be found or communicated with.
-            SendCommandError: If there's a platform-specific error sending the command
-                              (e.g., pipe errors, screen errors).
-            CommandNotFoundError: If a required external command (like 'screen') is not found.
-            NotImplementedError: If the current OS is not supported.
-        """
-        if not command:
-            raise MissingArgumentError("Command cannot be empty.")
-
-        # Check if running *before* attempting platform-specific methods
-        if not self.is_running():
-            # Use is_running() for consistency, though _get_bedrock_process_info is also checked later
+    os_name = platform.system()
+    if os_name == "Linux":
+        screen_cmd_path = shutil.which("screen")
+        if not screen_cmd_path:
             logger.error(
-                f"Cannot send command to server '{self.server_name}': Server is not running."
+                "'screen' command not found. Cannot send command. Is 'screen' installed and in PATH?"
             )
-            raise ServerNotRunningError(f"Server '{self.server_name}' is not running.")
-
-        logger.info(f"Sending command '{command}' to server '{self.server_name}'...")
-
-        os_name = platform.system()
-        if os_name == "Linux":
-            screen_cmd_path = shutil.which("screen")
-            if not screen_cmd_path:
-                logger.error(
-                    "'screen' command not found. Cannot send command. Is 'screen' installed and in PATH?"
-                )
-                raise CommandNotFoundError(
-                    "screen", message="'screen' command not found. Is it installed?"
-                )
-
-            try:
-                # Use screen -S <session_name> -X stuff "command\n"
-                screen_session_name = f"bedrock-{self.server_name}"
-                # Ensure command ends with a newline for execution in screen
-                command_with_newline = (
-                    command if command.endswith("\n") else command + "\n"
-                )
-                process = subprocess.run(
-                    [
-                        screen_cmd_path,
-                        "-S",
-                        screen_session_name,
-                        "-X",
-                        "stuff",
-                        command_with_newline,
-                    ],
-                    check=True,  # Raise exception on non-zero exit code
-                    capture_output=True,  # Capture stdout/stderr
-                    text=True,  # Decode output as text
-                )
-                logger.debug(
-                    f"'screen' command executed successfully for server '{self.server_name}'. stdout: {process.stdout}, stderr: {process.stderr}"
-                )
-                logger.info(
-                    f"Sent command '{command}' to server '{self.server_name}' via screen."
-                )
-            except subprocess.CalledProcessError as e:
-                # Common error: screen session doesn't exist (server not running in expected screen)
-                if "No screen session found" in e.stderr:
-                    logger.error(
-                        f"Failed to send command: Screen session '{screen_session_name}' not found. Is the server running correctly in screen?"
-                    )
-                    raise ServerNotRunningError(
-                        f"Screen session '{screen_session_name}' not found."
-                    ) from e
-                else:
-                    logger.error(
-                        f"Failed to send command via screen: {e}. stderr: {e.stderr}",
-                        exc_info=True,
-                    )
-                    raise SendCommandError(
-                        f"Failed to send command via screen: {e}"
-                    ) from e
-            except (
-                FileNotFoundError
-            ):  # Should be caught by shutil.which check, but safeguard
-                logger.error("'screen' command not found unexpectedly.")
-                raise CommandNotFoundError(
-                    "screen", message="'screen' command not found."
-                ) from None
-
-        elif os_name == "Windows":
-            if not WINDOWS_IMPORTS_AVAILABLE:
-                logger.error(
-                    "Cannot send command on Windows: Required 'pywin32' module is not installed."
-                )
-                raise SendCommandError(
-                    "Cannot send command on Windows: 'pywin32' module not found."
-                )
-            pass
-
-            pipe_name = rf"\\.\pipe\BedrockServerPipe_{self.server_name}"
-            handle = win32file.INVALID_HANDLE_VALUE
-
-            try:
-                logger.debug(f"Attempting to connect to named pipe: {pipe_name}")
-                handle = win32file.CreateFile(
-                    pipe_name,
-                    win32file.GENERIC_WRITE,  # Access rights
-                    0,  # Share mode (0 for exclusive access)
-                    None,  # Security attributes
-                    win32file.OPEN_EXISTING,  # Open only if exists
-                    0,  # Flags and attributes
-                    None,  # Template file handle
-                )
-
-                # Check if CreateFile failed immediately
-                if handle == win32file.INVALID_HANDLE_VALUE:
-                    # This usually means the pipe doesn't exist (server not running or pipe not created)
-                    logger.error(
-                        f"Could not open named pipe '{pipe_name}'. Server might not be running or pipe setup failed. Error code: {pywintypes.GetLastError()}"
-                    )
-                    raise ServerNotRunningError(
-                        f"Could not connect to server pipe '{pipe_name}'."
-                    )
-
-                # Set pipe to message mode
-                win32pipe.SetNamedPipeHandleState(
-                    handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
-                )
-
-                # Write command (ensure CRLF line ending)
-                command_bytes = (command + "\r\n").encode("utf-8")  # Use UTF-8 encoding
-                win32file.WriteFile(handle, command_bytes)
-                logger.info(
-                    f"Sent command '{command}' to server '{self.server_name}' via named pipe."
-                )
-
-            except pywintypes.error as e:
-                # Handle specific Windows errors
-                win_error_code = e.winerror
-                logger.error(
-                    f"Windows error sending command via pipe '{pipe_name}': Code {win_error_code} - {e}",
-                    exc_info=True,
-                )
-                if win_error_code == 2:  # ERROR_FILE_NOT_FOUND
-                    raise ServerNotRunningError(
-                        f"Pipe '{pipe_name}' does not exist. Server likely not running."
-                    ) from e
-                elif win_error_code == 231:  # ERROR_PIPE_BUSY
-                    raise SendCommandError(
-                        "All pipe instances are busy. Try again later."
-                    ) from e
-                elif win_error_code == 109:  # ERROR_BROKEN_PIPE
-                    raise SendCommandError(
-                        "Pipe connection broken (server may have closed it)."
-                    ) from e
-                else:
-                    raise SendCommandError(f"Windows error sending command: {e}") from e
-            except Exception as e:  # Catch other potential errors
-                logger.error(
-                    f"Unexpected error sending command via pipe '{pipe_name}': {e}",
-                    exc_info=True,
-                )
-                raise SendCommandError(f"Unexpected error sending command: {e}") from e
-            finally:
-                # Always ensure the handle is closed if it was opened
-                if handle != win32file.INVALID_HANDLE_VALUE:
-                    try:
-                        win32file.CloseHandle(handle)
-                        logger.debug(f"Closed named pipe handle for '{pipe_name}'.")
-                    except pywintypes.error as close_err:
-                        # Log error during close but don't mask original error if one occurred
-                        logger.warning(
-                            f"Error closing pipe handle for '{pipe_name}': {close_err}",
-                            exc_info=True,
-                        )
-        else:
-            logger.error(
-                f"Sending commands is not supported on this operating system: {os_name}"
+            raise CommandNotFoundError(
+                "screen", message="'screen' command not found. Is it installed?"
             )
-            raise NotImplementedError(f"Sending commands not supported on {os_name}")
 
-    def start(self) -> None:
-        """
-        Starts the Bedrock server process.
-
-        Uses systemd on Linux (if available, falling back to screen) or starts
-        directly on Windows. Manages internal status and waits for confirmation.
-
-        Raises:
-            ServerStartError: If the server is already running, if the OS is unsupported,
-                              or if the server fails to start within the timeout.
-            CommandNotFoundError: If required external commands (systemctl, screen) are missing.
-        """
-        if self.is_running():
-            logger.warning(
-                f"Attempted to start server '{self.server_name}' but it is already running."
+        try:
+            screen_session_name = f"bedrock-{server_name}"
+            command_with_newline = command if command.endswith("\n") else command + "\n"
+            process = subprocess.run(
+                [
+                    screen_cmd_path,
+                    "-S",
+                    screen_session_name,
+                    "-X",
+                    "stuff",
+                    command_with_newline,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
             )
-            # Decide if this should be an error or just a warning. Let's make it an error.
-            raise ServerStartError(f"Server '{self.server_name}' is already running.")
-
-        self.status = "STARTING"
-        manage_server_config(
-            self.server_name, "status", "write", self.status
-        )  # Update persistent status
-        logger.info(f"Attempting to start server '{self.server_name}'...")
-
-        os_name = platform.system()
-        start_successful_method = None
-
-        if os_name == "Linux":
-            # Try systemd first
-            systemctl_cmd_path = shutil.which("systemctl")
-            service_name = f"bedrock-{self.server_name}"
-            if systemctl_cmd_path:
-                logger.debug("Attempting to start server via systemd user service.")
-                try:
-                    # Check if service exists and is enabled before starting? Optional.
-                    process = subprocess.run(
-                        [systemctl_cmd_path, "--user", "start", service_name],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    logger.info(
-                        f"Successfully initiated start for systemd service '{service_name}'."
-                    )
-                    start_successful_method = "systemd"
-                except (
-                    FileNotFoundError
-                ):  # Should be caught by shutil.which, but safeguard
-                    logger.error("'systemctl' command not found unexpectedly.")
-                    start_successful_method = None  # Ensure it proceeds to fallback
-                except subprocess.CalledProcessError as e:
-                    logger.warning(
-                        f"Starting via systemctl failed (maybe service not found/enabled?): {e}. stderr: {e.stderr}",
-                        exc_info=True,
-                    )
-                    # Fall through to screen method
+            logger.debug(
+                f"'screen' command executed successfully for server '{server_name}'. stdout: {process.stdout}, stderr: {process.stderr}"
+            )
+            logger.info(
+                f"Sent command '{command}' to server '{server_name}' via screen."
+            )
+        except subprocess.CalledProcessError as e:
+            if "No screen session found" in e.stderr:
+                logger.error(
+                    f"Failed to send command: Screen session '{screen_session_name}' not found. Is the server running correctly in screen?"
+                )
+                raise ServerNotRunningError(
+                    f"Screen session '{screen_session_name}' not found."
+                ) from e
             else:
-                logger.warning(
-                    "'systemctl' command not found. Cannot use systemd method."
-                )
-
-            # Fallback to screen if systemd didn't work or wasn't available
-            if start_successful_method != "systemd":
-                screen_cmd_path = shutil.which("screen")
-                if screen_cmd_path:
-                    logger.info("Falling back to starting server via 'screen'.")
-                    try:
-                        system_linux._systemd_start_server(
-                            self.server_name, self.server_dir
-                        )
-                        start_successful_method = "screen"
-                    except (CommandNotFoundError, ServerStartError) as e:
-                        logger.error(
-                            f"Failed to start server using screen method: {e}",
-                            exc_info=True,
-                        )
-                        # Let the final timeout handle the overall failure
-                    except Exception as e:
-                        logger.error(
-                            f"Unexpected error starting server via screen method: {e}",
-                            exc_info=True,
-                        )
-                else:
-                    logger.error("'screen' command not found. Cannot start server.")
-                    manage_server_config(self.server_name, "status", "write", "ERROR")
-                    raise CommandNotFoundError(
-                        "screen",
-                        message="'screen' command not found. Cannot start server.",
-                    )
-
-        elif os_name == "Windows":
-            logger.debug("Attempting to start server via Windows process creation.")
-            try:
-                # This function should return the Popen object or raise ServerStartError
-                self.process = system_windows._windows_start_server(
-                    self.server_name, self.server_dir, self.server_config_dir
-                )
-                start_successful_method = "windows_process"
-                logger.info(
-                    f"Initiated server start process on Windows for '{self.server_name}'."
-                )
-            except ServerStartError as e:
                 logger.error(
-                    f"Failed to start server process on Windows: {e}", exc_info=True
+                    f"Failed to send command via screen: {e}. stderr: {e.stderr}",
+                    exc_info=True,
                 )
-                # Let the final timeout handle the overall failure
+                raise SendCommandError(f"Failed to send command via screen: {e}") from e
+        except FileNotFoundError:
+            logger.error("'screen' command not found unexpectedly.")
+            raise CommandNotFoundError(
+                "screen", message="'screen' command not found."
+            ) from None
+
+    elif os_name == "Windows":
+        if not WINDOWS_IMPORTS_AVAILABLE:
+            logger.error(
+                "Cannot send command on Windows: Required 'pywin32' module is not installed."
+            )
+            raise SendCommandError(
+                "Cannot send command on Windows: 'pywin32' module not found."
+            )
+
+        pipe_name = rf"\\.\pipe\BedrockServerPipe_{server_name}"
+        handle = win32file.INVALID_HANDLE_VALUE
+
+        try:
+            logger.debug(f"Attempting to connect to named pipe: {pipe_name}")
+            handle = win32file.CreateFile(
+                pipe_name,
+                win32file.GENERIC_WRITE,
+                0,
+                None,
+                win32file.OPEN_EXISTING,
+                0,
+                None,
+            )
+
+            if handle == win32file.INVALID_HANDLE_VALUE:
+                logger.error(
+                    f"Could not open named pipe '{pipe_name}'. Server might not be running or pipe setup failed. Error code: {pywintypes.GetLastError()}"
+                )
+                raise ServerNotRunningError(
+                    f"Could not connect to server pipe '{pipe_name}'."
+                )
+
+            win32pipe.SetNamedPipeHandleState(
+                handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
+            )
+
+            command_bytes = (command + "\r\n").encode("utf-8")
+            win32file.WriteFile(handle, command_bytes)
+            logger.info(
+                f"Sent command '{command}' to server '{server_name}' via named pipe."
+            )
+
+        except pywintypes.error as e:
+            win_error_code = e.winerror
+            logger.error(
+                f"Windows error sending command via pipe '{pipe_name}': Code {win_error_code} - {e}",
+                exc_info=True,
+            )
+            if win_error_code == 2:
+                raise ServerNotRunningError(
+                    f"Pipe '{pipe_name}' does not exist. Server likely not running."
+                ) from e
+            elif win_error_code == 231:
+                raise SendCommandError(
+                    "All pipe instances are busy. Try again later."
+                ) from e
+            elif win_error_code == 109:
+                raise SendCommandError(
+                    "Pipe connection broken (server may have closed it)."
+                ) from e
+            else:
+                raise SendCommandError(f"Windows error sending command: {e}") from e
+        except Exception as e:
+            logger.error(
+                f"Unexpected error sending command via pipe '{pipe_name}': {e}",
+                exc_info=True,
+            )
+            raise SendCommandError(f"Unexpected error sending command: {e}") from e
+        finally:
+            if handle != win32file.INVALID_HANDLE_VALUE:
+                try:
+                    win32file.CloseHandle(handle)
+                    logger.debug(f"Closed named pipe handle for '{pipe_name}'.")
+                except pywintypes.error as close_err:
+                    logger.warning(
+                        f"Error closing pipe handle for '{pipe_name}': {close_err}",
+                        exc_info=True,
+                    )
+    else:
+        logger.error(
+            f"Sending commands is not supported on this operating system: {os_name}"
+        )
+        raise NotImplementedError(f"Sending commands not supported on {os_name}")
+
+
+def start_server(server_name: str, server_path_override: Optional[str] = None) -> None:
+    """
+    Starts the Bedrock server process.
+    Uses systemd on Linux (if available, falling back to screen) or starts
+    directly on Windows. Manages persistent status and waits for confirmation.
+    Equivalent to former BedrockServer.start().
+
+    Args:
+        server_name: The name of the server.
+        server_path_override: Optional. The full path to the server executable.
+
+    Raises:
+        ServerStartError: If the server is already running, if the OS is unsupported,
+                          or if the server fails to start within the timeout.
+        CommandNotFoundError: If required external commands (systemctl, screen) are missing.
+        ServerNotFoundError: If the server executable cannot be found.
+        MissingArgumentError: If server_name is empty.
+        FileOperationError: If essential settings (BASE_DIR, _config_dir) are missing.
+    """
+    details = _get_server_details(server_name, server_path_override)
+    # server_name is details["server_name"]
+    # server_dir = details["server_dir"]
+    # server_config_dir = details["server_config_dir"]
+    # config_dir_base = details["config_dir_base"] (used for manage_server_config)
+
+    if check_if_server_is_running(server_name):
+        logger.warning(
+            f"Attempted to start server '{server_name}' but it is already running."
+        )
+        raise ServerStartError(f"Server '{server_name}' is already running.")
+
+    manage_server_config(
+        server_name,
+        "status",
+        "write",
+        "STARTING",
+        config_dir=details["config_dir_base"],
+    )
+    logger.info(f"Attempting to start server '{server_name}'...")
+
+    os_name = platform.system()
+    start_successful_method = None
+
+    if os_name == "Linux":
+        screen_cmd_path = shutil.which("screen")
+        if screen_cmd_path:
+            logger.info("Starting server.")
+            try:
+                system_linux._linux_start_server(server_name, details["server_dir"])
+                start_successful_method = "screen"
+            except (CommandNotFoundError, ServerStartError) as e:
+                logger.error(
+                    f"Failed to start server using screen method: {e}",
+                    exc_info=True,
+                )
             except Exception as e:
                 logger.error(
-                    f"Unexpected error starting server process on Windows: {e}",
+                    f"Unexpected error starting server via screen method: {e}",
                     exc_info=True,
                 )
-
         else:
-            logger.error(
-                f"Starting server is not supported on this operating system: {os_name}"
-            )
-            manage_server_config(self.server_name, "status", "write", "ERROR")
-            raise ServerStartError(f"Unsupported operating system: {os_name}")
-
-        # Wait for confirmation that the server is actually running
-        attempts = 0
-        # Make max_attempts configurable?
-        max_attempts = (
-            settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
-        )  # Use setting, default 60s, check every 2s
-        sleep_interval = 2
-
-        logger.info(
-            f"Waiting up to {max_attempts * sleep_interval} seconds for server '{self.server_name}' to start..."
-        )
-        while attempts < max_attempts:
-            if self.is_running():
-                self.status = "RUNNING"
-                manage_server_config(self.server_name, "status", "write", self.status)
-                logger.info(f"Server '{self.server_name}' started successfully.")
-                return  # Success!
-            logger.debug(
-                f"Waiting for server '{self.server_name}' to start... (Check {attempts + 1}/{max_attempts})"
-            )
-            time.sleep(sleep_interval)
-            attempts += 1
-
-        # If loop finishes without returning, the server failed to start
-        self.status = "ERROR"
-        manage_server_config(self.server_name, "status", "write", self.status)
-        logger.error(
-            f"Server '{self.server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
-        )
-        raise ServerStartError(
-            f"Server '{self.server_name}' failed to start within the timeout."
-        )
-
-    def stop(self) -> None:
-        """
-        Stops the Bedrock server process gracefully.
-
-        Sends a 'stop' command, waits for the process to terminate.
-        Uses systemd on Linux (if available/managed), otherwise uses screen/Windows methods.
-
-        Raises:
-            ServerStopError: If the server is not running, if the OS is unsupported,
-                             or if the server fails to stop within the timeout.
-            SendCommandError: If sending the initial 'stop' command fails.
-            CommandNotFoundError: If required external commands are missing.
-        """
-        if not self.is_running():
-            logger.info(
-                f"Attempted to stop server '{self.server_name}', but it is not currently running."
-            )
-            # Update status just in case config was out of sync
-            if manage_server_config(self.server_name, "status", "read") != "STOPPED":
-                manage_server_config(self.server_name, "status", "write", "STOPPED")
-            self.status = "STOPPED"
-            return  # Nothing to do
-
-        self.status = "STOPPING"
-        manage_server_config(self.server_name, "status", "write", self.status)
-        logger.info(f"Attempting to stop server '{self.server_name}'...")
-
-        os_name = platform.system()
-        stop_initiated = False
-
-        if os_name == "Linux":
-            # Try systemd first if it seems managed
-            systemctl_cmd_path = shutil.which("systemctl")
-            service_name = f"bedrock-{self.server_name}"
-            # Basic check: does the service file exist? A better check might involve `systemctl is-active` etc.
-            service_file_path = os.path.join(
-                os.path.expanduser("~/.config/systemd/user/"), f"{service_name}.service"
-            )
-
-            if systemctl_cmd_path and os.path.exists(service_file_path):
-                logger.debug("Attempting to stop server via systemd user service.")
-                try:
-                    process = subprocess.run(
-                        [systemctl_cmd_path, "--user", "stop", service_name],
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    logger.info(
-                        f"Successfully initiated stop for systemd service '{service_name}'."
-                    )
-                    stop_initiated = True
-                except (
-                    FileNotFoundError
-                ):  # Should be caught by shutil.which, but safeguard
-                    logger.error("'systemctl' command not found unexpectedly.")
-                except subprocess.CalledProcessError as e:
-                    logger.warning(
-                        f"Stopping via systemctl failed (maybe service wasn't running under systemd?): {e}. stderr: {e.stderr}",
-                        exc_info=True,
-                    )
-                    # Fall through to screen/command method if systemd fails
-            else:
-                logger.debug(
-                    "Systemctl not found or service file doesn't exist. Will try sending 'stop' command directly."
-                )
-
-            # If systemd didn't work or wasn't used, try sending 'stop' command
-            if not stop_initiated:
-                try:
-                    logger.info("Sending 'stop' command to server process...")
-                    self.send_command("stop")  # Use the instance method
-                    stop_initiated = True  # Command sent, now wait
-                except (
-                    SendCommandError,
-                    ServerNotRunningError,
-                    CommandNotFoundError,
-                ) as e:
-                    logger.error(
-                        f"Failed to send 'stop' command to server '{self.server_name}': {e}. Will attempt process termination.",
-                        exc_info=True,
-                    )
-                    # Proceed to wait loop anyway, maybe it's shutting down due to other reasons
-                except Exception as e:
-                    logger.error(
-                        f"Unexpected error sending 'stop' command to server '{self.server_name}': {e}. Will attempt process termination.",
-                        exc_info=True,
-                    )
-
-        elif os_name == "Windows":
-            system_windows._windows_stop_server(
-                self.server_name, self.server_dir, self.server_config_dir
-            )
-        else:
-            logger.error(
-                f"Stopping server is not supported on this operating system: {os_name}"
-            )
+            logger.error("'screen' command not found. Cannot start server.")
             manage_server_config(
-                self.server_name, "status", "write", "ERROR"
-            )  # Mark as error state
-            raise ServerStopError(f"Unsupported operating system: {os_name}")
-
-        # Wait for the server process to actually exit
-        attempts = 0
-        max_attempts = (
-            settings.get("SERVER_STOP_TIMEOUT_SEC", 60) // 2
-        )  # Use setting, default 60s, check every 2s
-        sleep_interval = 2
-        logger.info(
-            f"Waiting up to {max_attempts * sleep_interval} seconds for server '{self.server_name}' process to terminate..."
-        )
-
-        while attempts < max_attempts:
-            if not self.is_running():
-                self.status = "STOPPED"
-                manage_server_config(self.server_name, "status", "write", self.status)
-                logger.info(f"Server '{self.server_name}' stopped successfully.")
-                # Clean up screen session if it exists and wasn't managed by systemd
-                if (
-                    os_name == "Linux" and not stop_initiated
-                ):  # Or check if screen was used specifically
-                    screen_session_name = f"bedrock-{self.server_name}"
-                    try:
-                        subprocess.run(
-                            ["screen", "-S", screen_session_name, "-X", "quit"],
-                            check=False,
-                            capture_output=True,
-                        )
-                        logger.debug(
-                            f"Attempted to quit potentially lingering screen session '{screen_session_name}'."
-                        )
-                    except FileNotFoundError:
-                        pass  # Screen not found, already handled
-                return  # Success!
-
-            logger.debug(
-                f"Waiting for server '{self.server_name}' to stop... (Check {attempts + 1}/{max_attempts})"
+                server_name,
+                "status",
+                "write",
+                "ERROR",
+                config_dir=details["config_dir_base"],
             )
-            time.sleep(sleep_interval)
-            attempts += 1
+            raise CommandNotFoundError(
+                "screen", message="'screen' command not found. Cannot start server."
+            )
+            attempts = 0
+            max_attempts = settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
+            sleep_interval = 2
 
-        # If loop finishes, server didn't stop gracefully
+            logger.info(
+                f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' to start..."
+            )
+            while attempts < max_attempts:
+                if check_if_server_is_running(server_name):
+                    manage_server_config(
+                        server_name,
+                        "status",
+                        "write",
+                        "RUNNING",
+                        config_dir=details["config_dir_base"],
+                    )
+                    logger.info(f"Server '{server_name}' started successfully.")
+                    return
+                logger.debug(
+                    f"Waiting for server '{server_name}' to start... (Check {attempts + 1}/{max_attempts})"
+                )
+                time.sleep(sleep_interval)
+                attempts += 1
+
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "ERROR",
+                config_dir=details["config_dir_base"],
+            )
+            logger.error(
+                f"Server '{server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
+            )
+            raise ServerStartError(
+                f"Server '{server_name}' failed to start within the timeout."
+            )
+
+    elif os_name == "Windows":
+        logger.debug("Attempting to start server via Windows process creation.")
+
+        try:
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "RUNNING",
+                config_dir=details["config_dir_base"],
+            )
+            _ = system_windows._windows_start_server(  # Popen object not stored/used further here
+                server_name, details["server_dir"], details["server_config_dir"]
+            )
+            start_successful_method = "windows_process"
+            logger.info(
+                f"Exited named pipe cleaninly on Windows for '{server_name}'."
+            )
+
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "STOPPED",
+                config_dir=details["config_dir_base"],
+            )
+        except ServerStartError as e:
+            logger.error(
+                f"Failed to start server process on Windows: {e}", exc_info=True
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error starting server process on Windows: {e}",
+                exc_info=True,
+            )
+
+    else:
         logger.error(
-            f"Server '{self.server_name}' failed to stop within the timeout ({max_attempts * sleep_interval} seconds). Process might still be running."
+            f"Starting server is not supported on this operating system: {os_name}"
         )
-        self.status = "ERROR"  # Mark as error state
-        manage_server_config(self.server_name, "status", "write", self.status)
-        raise ServerStopError(
-            f"Server '{self.server_name}' failed to stop within the timeout. Manual intervention may be required."
+        manage_server_config(
+            server_name,
+            "status",
+            "write",
+            "ERROR",
+            config_dir=details["config_dir_base"],
         )
+        raise ServerStartError(f"Unsupported operating system: {os_name}")
 
 
-# --- Standalone Functions ---
+def stop_server(server_name: str, server_path_override: Optional[str] = None) -> None:
+    """
+    Stops the Bedrock server process gracefully.
+    Sends a 'stop' command, waits for the process to terminate.
+    Equivalent to former BedrockServer.stop().
+
+    Args:
+        server_name: The name of the server.
+        server_path_override: Optional. The full path to the server executable.
+
+    Raises:
+        ServerStopError: If the server is not running (when expected), OS unsupported,
+                         or fails to stop within timeout.
+        SendCommandError: If sending the initial 'stop' command fails.
+        CommandNotFoundError: If required external commands are missing.
+        ServerNotFoundError: If the server executable cannot be found (for checks).
+        MissingArgumentError: If server_name is empty.
+        FileOperationError: If essential settings (BASE_DIR, _config_dir) are missing.
+    """
+    # _get_server_details also validates executable existence, which is implicitly
+    # part of the original BedrockServer's state.
+    details = _get_server_details(server_name, server_path_override)
+    # server_name = details["server_name"]
+    # server_dir = details["server_dir"] (used by system_windows._windows_stop_server)
+    # server_config_dir = details["server_config_dir"] (used by system_windows._windows_stop_server)
+    # config_dir_base = details["config_dir_base"] (used for manage_server_config)
+
+    if not check_if_server_is_running(server_name):
+        logger.info(
+            f"Attempted to stop server '{server_name}', but it is not currently running."
+        )
+        if (
+            manage_server_config(
+                server_name, "status", "read", config_dir=details["config_dir_base"]
+            )
+            != "STOPPED"
+        ):
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "STOPPED",
+                config_dir=details["config_dir_base"],
+            )
+        return
+
+    manage_server_config(
+        server_name,
+        "status",
+        "write",
+        "STOPPING",
+        config_dir=details["config_dir_base"],
+    )
+    logger.info(f"Attempting to stop server '{server_name}'...")
+
+    os_name = platform.system()
+    stop_initiated_by_systemd = False  # Specific to systemd stop path
+
+    if os_name == "Linux":
+        try:
+            logger.info("Sending 'stop' command to server process...")
+            send_server_command(server_name, "stop")  # Uses the new standalone function
+            # If send_server_command succeeds, we consider stop initiated for the wait loop.
+        except (SendCommandError, ServerNotRunningError, CommandNotFoundError) as e:
+            logger.error(
+                f"Failed to send 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
+                exc_info=True,
+            )
+        except Exception as e:  # Catch other errors from send_server_command
+            logger.error(
+                f"Unexpected error sending 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
+                exc_info=True,
+            )
+
+    elif os_name == "Windows":
+        try:
+            system_windows._windows_stop_server(
+                server_name, details["server_dir"], details["server_config_dir"]
+            )
+            # Assume this function either succeeds in initiating stop or raises an error
+        except Exception as e:  # Catch errors from _windows_stop_server
+            logger.error(
+                f"Failed to stop server on Windows for '{server_name}': {e}",
+                exc_info=True,
+            )
+            # Depending on the error, we might want to raise or let the timeout handle it.
+            # For now, let the timeout proceed.
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "ERROR",
+                config_dir=details["config_dir_base"],
+            )
+            raise ServerStopError(
+                f"Failed to initiate stop for server '{server_name}' on Windows: {e}"
+            ) from e
+    else:
+        logger.error(
+            f"Stopping server is not supported on this operating system: {os_name}"
+        )
+        manage_server_config(
+            server_name,
+            "status",
+            "write",
+            "ERROR",
+            config_dir=details["config_dir_base"],
+        )
+        raise ServerStopError(f"Unsupported operating system: {os_name}")
+
+    attempts = 0
+    max_attempts = settings.get("SERVER_STOP_TIMEOUT_SEC", 60) // 2
+    sleep_interval = 2
+    logger.info(
+        f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' process to terminate..."
+    )
+
+    while attempts < max_attempts:
+        if not check_if_server_is_running(server_name):
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "STOPPED",
+                config_dir=details["config_dir_base"],
+            )
+            logger.info(f"Server '{server_name}' stopped successfully.")
+            if os_name == "Linux" and not stop_initiated_by_systemd:
+                screen_session_name = f"bedrock-{server_name}"
+                try:
+                    subprocess.run(
+                        ["screen", "-S", screen_session_name, "-X", "quit"],
+                        check=False,
+                        capture_output=True,
+                    )
+                    logger.debug(
+                        f"Attempted to quit potentially lingering screen session '{screen_session_name}'."
+                    )
+                except FileNotFoundError:
+                    pass
+            return
+
+        logger.debug(
+            f"Waiting for server '{server_name}' to stop... (Check {attempts + 1}/{max_attempts})"
+        )
+        time.sleep(sleep_interval)
+        attempts += 1
+
+    logger.error(
+        f"Server '{server_name}' failed to stop within the timeout ({max_attempts * sleep_interval} seconds). Process might still be running."
+    )
+    manage_server_config(
+        server_name, "status", "write", "ERROR", config_dir=details["config_dir_base"]
+    )
+    raise ServerStopError(
+        f"Server '{server_name}' failed to stop within the timeout. Manual intervention may be required."
+    )
 
 
 def get_world_name(server_name: str, base_dir: str) -> str:
@@ -937,11 +979,18 @@ def manage_server_config(
         logger.debug(f"Read operation: Key='{key}', Value='{read_value}'")
         return read_value
     elif operation == "write":
-        if value is None:
-            logger.warning(
-                f"Write operation called for key '{key}' but value is None. Writing None to config."
+        if (
+            value is None and key != "installed_version"
+        ):  # Allow writing None for some keys if explicitly intended, but 'value' itself is expected.
+            # This check was: if value is None: raise MissingArgumentError.
+            # Let's refine it: for write operations, value is generally expected.
+            # If a specific key *can* be None, the caller should pass None explicitly.
+            # The original raise MissingArgumentError("Value is required for 'write' operation.") is generally correct.
+            # The warning about writing None and then raising seems slightly contradictory.
+            # Let's stick to the original: value is required.
+            raise MissingArgumentError(
+                f"Value is required for 'write' operation on key '{key}'."
             )
-            raise MissingArgumentError("Value is required for 'write' operation.")
 
         logger.debug(f"Write operation: Key='{key}', New Value='{value}'")
         current_config[key] = value
@@ -1681,15 +1730,25 @@ def configure_permissions(
                     f"Updating permission for XUID '{xuid}' from '{entry.get('permission')}' to '{permission}'."
                 )
                 permissions_data[i]["permission"] = permission
-                if player_name and entry.get("name") != player_name:
+                if (
+                    player_name and entry.get("name") != player_name
+                ):  # Also update name if provided and different
                     logger.debug(f"Updating name for XUID '{xuid}' to '{player_name}'.")
                     permissions_data[i]["name"] = player_name
                 updated = True
             else:
-                logger.info(
-                    f"Player with XUID '{xuid}' already has permission '{permission}'. No changes needed."
-                )
-                updated = False  # Explicitly set updated to False if no change
+                # If permission is the same, check if name needs updating
+                if player_name and entry.get("name") != player_name:
+                    logger.info(
+                        f"Updating name for XUID '{xuid}' (permission unchanged) to '{player_name}'."
+                    )
+                    permissions_data[i]["name"] = player_name
+                    updated = True
+                else:
+                    logger.info(
+                        f"Player with XUID '{xuid}' already has permission '{permission}' and matching name (if provided). No changes needed."
+                    )
+                    # updated remains False if no changes were made
             break
 
     if not player_found:
@@ -1697,12 +1756,22 @@ def configure_permissions(
             logger.warning(
                 f"Adding new player with XUID '{xuid}' but no player_name provided. Using XUID as name."
             )
-            player_name = xuid  # Use XUID as fallback name
+            # Consider if using XUID as name is the best default or if player_name should be mandatory for new entries.
+            # For now, matching original behavior: if player_name is None, it implies it might not be set.
+            # However, the JSON structure seems to always have a name.
+            # Let's ensure 'name' is always present in the new entry.
+            effective_player_name = player_name if player_name is not None else xuid
+        else:
+            effective_player_name = player_name
 
         logger.info(
-            f"Adding new player XUID '{xuid}' (Name: '{player_name}') with permission '{permission}'."
+            f"Adding new player XUID '{xuid}' (Name: '{effective_player_name}') with permission '{permission}'."
         )
-        new_entry = {"permission": permission, "xuid": xuid, "name": player_name}
+        new_entry = {
+            "permission": permission,
+            "xuid": xuid,
+            "name": effective_player_name,
+        }
         permissions_data.append(new_entry)
         updated = True
 
@@ -1849,9 +1918,16 @@ def _write_version_config(
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    if not installed_version:
-        logger.warning(f"Empty installed_version for server '{server_name}' provided.")
-        raise InvalidInputError("installed_version required")
+    if (
+        not installed_version
+    ):  # installed_version itself should not be empty string if it's a valid version
+        logger.warning(
+            f"Empty installed_version for server '{server_name}' provided to _write_version_config."
+        )
+        # Depending on policy, this could be an error or default to "UNKNOWN"
+        raise InvalidInputError(
+            "installed_version cannot be empty when writing to config."
+        )
 
     logger.debug(
         f"Writing installed_version '{installed_version}' to config for server '{server_name}'."
@@ -1861,7 +1937,7 @@ def _write_version_config(
             server_name=server_name,
             key="installed_version",
             operation="write",
-            value=installed_version,  # Value can be None or empty string based on check above
+            value=installed_version,
             config_dir=config_dir,
         )
         logger.debug("Successfully wrote installed_version to config.")
@@ -1881,106 +1957,31 @@ def _write_version_config(
         ) from e
 
 
-def install_server(
-    server_name: str,
-    base_dir: str,
-    target_version: str,
-    zip_file_path: str,
-    server_dir: str,
-    is_update: bool,
-) -> None:
+def setup_server_files(zip_file_path: str, server_dir: str, is_update: bool) -> None:
     """
-    Installs or updates the Bedrock server files and configuration.
-
-    Handles stopping/starting, backup/restore during updates, file extraction,
-    permissions setting, and version recording.
+    CORE: Extracts server files from a ZIP archive into the server directory
+    and sets appropriate file permissions. This is a focused part of the
+    installation/update process.
 
     Args:
-        server_name: The name of the server.
-        base_dir: The base directory containing server installations.
-        target_version: The version string being installed/updated (used for logging/config).
-        zip_file_path: The full path to the downloaded server ZIP file.
-        server_dir: The full path to the target server installation directory.
-        is_update: True if performing an update on an existing server, False for a fresh install.
+        zip_file_path: Path to the downloaded server ZIP file.
+        server_dir: The target directory for the server installation.
+        is_update: True if this is an update (preserves some files), False for fresh install.
 
     Raises:
-        MissingArgumentError: If required arguments are empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If settings (DOWNLOAD_KEEP) are missing, backup/restore fails,
-                            or setting permissions/writing version config fails.
-        DirectoryError: If server directory is invalid.
-        InstallUpdateError: Wraps failures during critical steps like backup, extraction, restore.
+        InstallUpdateError: If extraction or permission setting fails.
+        MissingArgumentError, FileNotFoundError, DownloadExtractError, FileOperationError: from downloader.
     """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty.")
-    if not target_version:
-        raise MissingArgumentError("Target version cannot be empty.")
-    if not zip_file_path:
-        raise MissingArgumentError("ZIP file path cannot be empty.")
-    if not server_dir:
-        raise MissingArgumentError("Server directory cannot be empty.")
-
-    action = "Updating" if is_update else "Installing"
-    logger.info(f"{action} server '{server_name}' to version '{target_version}'...")
-    logger.debug(f"Source ZIP: {zip_file_path}, Target Dir: {server_dir}")
-
-    # 1. Stop server if it's an update and the server is running
-    was_running = False
-    if is_update:
-        try:
-            # This function stops the server if running and returns True if it was running
-            was_running = stop_server_if_running(server_name, base_dir)
-        except (InvalidServerNameError, ServerStopError, CommandNotFoundError) as e:
-            # Abort the update if stopping fails, as extraction might fail otherwise.
-            logger.error(
-                f"Failed to stop server '{server_name}' before update: {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Failed to stop server '{server_name}' before update."
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error stopping server '{server_name}' before update: {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Unexpected error stopping server '{server_name}' before update."
-            ) from e
-
-    # 3. Backup server if it's an update
-    if is_update:
-        logger.info(f"Performing backup of server '{server_name}' before update...")
-        try:
-            backup.backup_all(server_name, base_dir)
-            logger.info("Pre-update backup completed successfully.")
-        except (BackupWorldError, FileOperationError, MissingArgumentError) as e:
-            logger.error(
-                f"Backup failed before update for server '{server_name}': {e}. Aborting update.",
-                exc_info=True,
-            )
-            # If backup fails, don't proceed with update
-            raise InstallUpdateError(
-                f"Backup failed before update for '{server_name}'."
-            ) from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error during pre-update backup for '{server_name}': {e}. Aborting update.",
-                exc_info=True,
-            )
-            raise InstallUpdateError(
-                f"Unexpected error during pre-update backup for '{server_name}'."
-            ) from e
-
-    # 4. Extract server files
-    logger.debug(
-        f"Extracting server files from '{os.path.basename(zip_file_path)}' to '{server_dir}'..."
+    logger.info(
+        f"CORE: Setting up server files in '{server_dir}' from '{os.path.basename(zip_file_path)}'. Update: {is_update}"
     )
+
+    # 1. Extract server files (using the function from the downloader module)
     try:
+        # This function resides in core.downloader and handles the actual extraction logic,
+        # including preserving files during an update.
         downloader.extract_server_files_from_zip(zip_file_path, server_dir, is_update)
-        logger.info("Server file extraction completed successfully.")
+        logger.info("CORE: Server file extraction completed successfully.")
     except (
         DownloadExtractError,
         FileOperationError,
@@ -1988,74 +1989,38 @@ def install_server(
         FileNotFoundError,
     ) as e:
         logger.error(
-            f"Failed to extract server files for '{server_name}': {e}", exc_info=True
+            f"CORE: Failed to extract server files into '{server_dir}': {e}",
+            exc_info=True,
         )
-        # If extraction fails, the installation/update cannot proceed.
+        # Wrap in InstallUpdateError to signify failure at this stage of installation
         raise InstallUpdateError(
-            f"Failed to extract server files for '{server_name}'."
+            f"Extraction phase failed for server setup in '{server_dir}'."
         ) from e
     except Exception as e:
         logger.error(
-            f"Unexpected error during server file extraction for '{server_name}': {e}",
+            f"CORE: Unexpected error during server file extraction into '{server_dir}': {e}",
             exc_info=True,
         )
         raise InstallUpdateError(
-            f"Unexpected error during server file extraction for '{server_name}'."
+            f"Unexpected error during extraction phase in '{server_dir}'."
         ) from e
 
-    # 5. Set permissions (especially important on Linux)
-    logger.debug(f"Setting permissions for server directory: {server_dir}")
+    # 2. Set permissions (especially important on Linux)
+    logger.debug(f"CORE: Setting permissions for server directory: {server_dir}")
     try:
         system_base.set_server_folder_permissions(server_dir)
-        logger.debug("Server folder permissions set successfully.")
+        logger.debug("CORE: Server folder permissions set successfully.")
     except Exception as e:
-        # Log warning, but don't necessarily fail the whole install if permissions fail
+        # Log warning, but don't necessarily fail the whole install if permissions fail.
+        # However, for consistency, an InstallUpdateError could be raised if permissions are critical.
         logger.warning(
-            f"Failed to set server folder permissions for '{server_dir}': {e}. Manual adjustment might be needed.",
+            f"CORE: Failed to set server folder permissions for '{server_dir}': {e}. "
+            "Manual adjustment might be needed.",
             exc_info=True,
         )
-
-    # 6. Write installed version to config
-    logger.debug(
-        f"Writing installed version '{target_version}' to config for server '{server_name}'."
-    )
-    try:
-        _write_version_config(server_name, target_version)
-        manage_server_config(
-            server_name, "status", "write", "STOPPED"
-        )  # Set status to STOPPED after install/update
-        logger.debug("Successfully wrote version and updated status in config.")
-    except (FileOperationError, InvalidServerNameError) as e:
-        # If writing config fails, the server might work but manager won't know version/status.
-        logger.error(
-            f"Failed to write version/status to config file for '{server_name}': {e}. Installation complete but metadata missing.",
-            exc_info=True,
-        )
-        raise FileOperationError(
-            f"Failed to write version/status config for '{server_name}'."
-        ) from e
-
-    # 8. Restart server if it was running before the update
-    if was_running:
-        logger.info(
-            f"Attempting to restart server '{server_name}' as it was running before update..."
-        )
-        try:
-            start_server_if_was_running(server_name, base_dir, was_running)
-            logger.info(f"Server '{server_name}' restart initiated.")
-        except (ServerStartError, CommandNotFoundError) as e:
-            # Log error but installation itself was successful
-            logger.error(
-                f"Installation/update complete, but failed to automatically restart server '{server_name}': {e}. Please start it manually.",
-                exc_info=True,
-            )
-        except Exception as e:
-            logger.error(
-                f"Installation/update complete, but unexpected error occurred during automatic restart of server '{server_name}': {e}. Please start it manually.",
-                exc_info=True,
-            )
-
-    logger.info(f"Server '{server_name}' {action.lower()} process completed.")
+        # Optionally raise:
+        # raise InstallUpdateError(f"Failed to set permissions for '{server_dir}'.") from e
+    logger.info(f"CORE: Server file setup completed for '{server_dir}'.")
 
 
 def no_update_needed(
@@ -2083,7 +2048,9 @@ def no_update_needed(
         # (InternetConnectivityError, DownloadExtractError, OSError)
     """
     if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+        raise InvalidServerNameError(
+            "Server name cannot be empty."
+        )  # Or MissingArgumentError
 
     target_upper = target_version_spec.upper()
 
@@ -2158,7 +2125,7 @@ def delete_server_data(
         MissingArgumentError: If `server_name` or `base_dir` is empty.
         InvalidServerNameError: If `server_name` is invalid.
         DirectoryError: If deleting the server data or config directories fails.
-        FileOperationError: If settings (BACKUP_DIR) are missing.
+        FileOperationError: If settings (BACKUP_DIR, _config_dir) are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -2202,19 +2169,19 @@ def delete_server_data(
             logger.info(
                 f"Server '{server_name}' is running. Attempting to stop before deletion..."
             )
-            # Use BedrockServer class to handle stop logic
-            server_instance = BedrockServer(
-                server_name
-            )  # Assumes executable exists if running
-            server_instance.stop()  # Raises ServerStopError on failure
+            stop_server(server_name)  # Use standalone function
             logger.info(f"Server '{server_name}' stopped successfully.")
         else:
             logger.debug(f"Server '{server_name}' is not running.")
-    except ServerNotFoundError:
+    except ServerNotFoundError:  # Raised by _get_server_details if exe is already gone
         logger.debug(
-            "Server executable not found, cannot use BedrockServer class to stop. Proceeding with deletion."
+            "Server executable not found, cannot use stop_server standard procedure. Proceeding with deletion of remaining files."
         )
-    except (ServerStopError, CommandNotFoundError) as e:
+    except (
+        ServerStopError,
+        CommandNotFoundError,
+        SendCommandError,
+    ) as e:  # Errors from stop_server
         logger.error(
             f"Failed to stop server '{server_name}' before deletion: {e}. Deletion aborted.",
             exc_info=True,
@@ -2222,7 +2189,7 @@ def delete_server_data(
         raise DirectoryError(
             f"Failed to stop running server '{server_name}' before deletion."
         ) from e
-    except Exception as e:
+    except Exception as e:  # Other unexpected errors
         logger.error(
             f"Unexpected error stopping server '{server_name}' before deletion: {e}. Deletion aborted.",
             exc_info=True,
@@ -2333,27 +2300,28 @@ def delete_server_data(
             f"Failed to completely delete server '{server_name}'. Failed items: {error_summary}"
         )
     else:
-        logger.debug(f"Successfully deleted all data for server: '{server_name}'.")
+        logger.info(f"Successfully deleted all data for server: '{server_name}'.")
 
 
-# --- Helper Functions for Start/Stop Logic ---
+# --- Helper Functions for Start/Stop Logic (Updated to use standalone server functions) ---
 
 
 def start_server_if_was_running(
-    server_name: str, base_dir: str, was_running: bool
+    server_name: str,
+    base_dir: str,
+    was_running: bool,  # base_dir might be redundant if start_server fetches it
 ) -> None:
     """
-    Starts the server using the BedrockServer class, but only if `was_running` is True.
-
-    Helper function primarily for use after updates/installs.
+    Starts the server using the standalone `start_server` function,
+    but only if `was_running` is True.
 
     Args:
         server_name: The name of the server.
-        base_dir: The base directory containing the server folder.
+        base_dir: The base directory (primarily for context, start_server derives paths itself).
         was_running: Boolean indicating if the server was running prior to an operation.
 
     Raises:
-        # Propagates exceptions from BedrockServer.start()
+        # Propagates exceptions from start_server()
         ServerStartError, CommandNotFoundError, ServerNotFoundError, etc.
     """
     if was_running:
@@ -2361,23 +2329,20 @@ def start_server_if_was_running(
             f"Server '{server_name}' was running previously. Attempting to restart..."
         )
         try:
-            # Create instance and start it
-            server_instance = BedrockServer(
-                server_name
-            )  # Assumes server executable exists now
-            server_instance.start()
+            start_server(server_name)  # Standalone function
             logger.info(f"Server '{server_name}' restart initiated successfully.")
         except (ServerNotFoundError, ServerStartError, CommandNotFoundError) as e:
             logger.error(
                 f"Failed to automatically restart server '{server_name}': {e}. Please start it manually.",
                 exc_info=True,
             )
-            raise  # Re-raise the specific error from start()
+            raise
         except Exception as e:
             logger.error(
                 f"Unexpected error automatically restarting server '{server_name}': {e}. Please start it manually.",
                 exc_info=True,
             )
+            # Wrap unexpected errors in ServerStartError for consistency if desired
             raise ServerStartError(
                 f"Unexpected error restarting server '{server_name}': {e}"
             ) from e
@@ -2389,18 +2354,19 @@ def start_server_if_was_running(
 
 def stop_server_if_running(server_name: str, base_dir: str) -> bool:
     """
-    Checks if a server is running and stops it if it is.
+    Checks if a server is running (using system_base) and stops it using the
+    standalone `stop_server` function if it is.
 
     Args:
         server_name: The name of the server.
-        base_dir: The base directory containing the server folder.
+        base_dir: The base directory (used for the initial is_server_running check).
 
     Returns:
         True if the server was running (and a stop was attempted), False otherwise.
 
     Raises:
         InvalidServerNameError: If `server_name` is empty.
-        # Propagates exceptions from BedrockServer.stop() if stopping fails
+        # Propagates exceptions from stop_server() if stopping fails
         ServerStopError, SendCommandError, CommandNotFoundError, ServerNotFoundError, etc.
     """
     if not server_name:
@@ -2409,41 +2375,42 @@ def stop_server_if_running(server_name: str, base_dir: str) -> bool:
     logger.debug(f"Checking if server '{server_name}' needs to be stopped...")
 
     try:
-        # Check running status first
+        # Use system_base.is_server_running for the initial check as it's lightweight
         if system_base.is_server_running(server_name, base_dir):
             logger.info(f"Server '{server_name}' is running. Attempting to stop...")
             try:
-                # Use BedrockServer class to handle stop logic
-                server_instance = BedrockServer(
-                    server_name
-                )  # Raises ServerNotFoundError if exe missing
-                server_instance.stop()  # Raises ServerStopError etc. on failure
+                stop_server(server_name)  # Standalone function
+                # If stop_server completes without error, it means stop was successful or handled.
                 logger.info(f"Stop initiated successfully for server '{server_name}'.")
-                return True  # Server was running, stop attempt made (successful or not)
+                return True
+            except ServerNotFoundError:
+                # This case might occur if the process is running but the executable
+                # was removed before stop_server (which calls _get_server_details) is called.
+                logger.warning(
+                    f"Server process '{server_name}' seems to be running, but its executable was not found by stop_server. Manual check might be needed."
+                )
+                # Treat as if it was running but couldn't be stopped cleanly by this method.
+                raise ServerStopError(
+                    f"Server '{server_name}' process found, but executable missing. Stop via stop_server failed."
+                )
             except (ServerStopError, SendCommandError, CommandNotFoundError) as e:
                 logger.error(
-                    f"Attempt to stop server '{server_name}' failed: {e}", exc_info=True
+                    f"Attempt to stop server '{server_name}' via stop_server failed: {e}",
+                    exc_info=True,
                 )
-                # Even though stop failed, it *was* running. Raise the error.
-                raise
-            except ServerNotFoundError:
-                logger.warning(
-                    f"Server process '{server_name}' seems to be running, but executable not found. Cannot use class stop method."
-                )
-                # Report that it was running but couldn't be stopped cleanly.
-                raise ServerStopError(
-                    f"Server '{server_name}' running but executable missing. Stop failed."
-                )
-
+                raise  # Re-raise the specific error from stop_server
         else:
-            logger.debug(f"Server '{server_name}' is not currently running.")
-            return False  # Server was not running
+            logger.debug(
+                f"Server '{server_name}' is not currently running (checked via system_base)."
+            )
+            return False
 
-    except Exception as e:  # Catch unexpected errors during the check/stop process
+    except Exception as e:  # Catch other unexpected errors
         logger.error(
             f"Unexpected error during stop_server_if_running for '{server_name}': {e}",
             exc_info=True,
         )
+        # Wrap in ServerStopError for consistent error type from this function on failure
         raise ServerStopError(
-            f"Unexpected error stopping server '{server_name}': {e}"
+            f"Unexpected error attempting to stop server '{server_name}': {e}"
         ) from e

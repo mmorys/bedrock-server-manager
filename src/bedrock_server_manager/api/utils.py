@@ -2,9 +2,16 @@
 import os
 import logging
 from typing import Dict, List, Optional, Any
+from contextlib import contextmanager
 
 # Local imports from API/App layer
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.server import server as core_server_base
+from bedrock_server_manager.api.server import (
+    start_server as api_start_server,
+    stop_server as api_stop_server,
+)  # For context manager
 from bedrock_server_manager.utils.general import (
     get_base_dir,
 )
@@ -444,3 +451,93 @@ def get_system_and_app_info() -> Dict[str, Any]:
             f"API.get_system_and_app_info: Unexpected error: {e}", exc_info=True
         )
         return {"status": "error", "message": "An unexpected error occurred."}
+
+
+@contextmanager
+def _server_stop_start_manager(
+    server_name: str,
+    base_dir: str,
+    stop_start_flag: bool,
+    restart_on_success_only: bool = False,
+):
+    """
+    Context manager to handle stopping a server before an operation and
+    restarting it afterward if it was running.
+
+    Args:
+        server_name: The name of the server.
+        base_dir: Base directory for the server.
+        stop_start_flag: If True, perform stop/start.
+        restart_on_success_only: If True, only attempt restart if the managed
+                                 block ('yield') completed without exceptions.
+    """
+    was_running = False
+    operation_succeeded = True
+
+    if not stop_start_flag:
+        logger.debug(
+            f"Context Mgr: Stop/Start not flagged for '{server_name}'. Skipping."
+        )
+        yield
+        return
+
+    try:
+        logger.debug(
+            f"Context Mgr: Checking status for '{server_name}' (Stop/Start: {stop_start_flag})"
+        )
+        if core_server_base.check_if_server_is_running(server_name):
+            was_running = True
+            logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
+            stop_result = api_stop_server(server_name, base_dir)
+            if stop_result.get("status") == "error":
+                raise FileOperationError(
+                    f"Context Mgr: Failed to stop server '{server_name}' for operation: {stop_result.get('message')}"
+                )
+            logger.info(f"Context Mgr: Server '{server_name}' stopped.")
+        else:
+            logger.debug(
+                f"Context Mgr: Server '{server_name}' is not running. No stop needed."
+            )
+
+        yield
+
+    except Exception:
+        operation_succeeded = False
+        logger.error(
+            f"Context Mgr: Exception occurred during managed operation for '{server_name}'."
+        )
+        raise
+    finally:
+        if stop_start_flag and was_running:
+            should_restart_based_on_success_flag = True
+            if restart_on_success_only and not operation_succeeded:  # Check the flag
+                should_restart_based_on_success_flag = False
+                logger.warning(
+                    f"Context Mgr: Operation for '{server_name}' failed, and restart_on_success_only is True. Skipping restart."
+                )
+
+            if should_restart_based_on_success_flag:
+                if (
+                    not operation_succeeded
+                ):  # Still attempt if restart_on_success_only is False
+                    logger.warning(
+                        f"Context Mgr: Attempting to restart '{server_name}' despite operation error (restart_on_success_only is False or operation succeeded)."
+                    )
+                else:
+                    logger.info(f"Context Mgr: Restarting server '{server_name}'...")
+
+                start_result = api_start_server(server_name, base_dir, mode="detached")
+                if start_result.get("status") == "error":
+                    logger.error(
+                        f"Context Mgr: Failed to restart '{server_name}': {start_result.get('message')}"
+                    )
+                    if (
+                        operation_succeeded
+                    ):  # If main op was fine, this error is now primary
+                        raise FileOperationError(
+                            f"Operation successful, but failed to restart server '{server_name}': {start_result.get('message')}"
+                        )
+                else:
+                    logger.info(
+                        f"Context Mgr: Server '{server_name}' restart initiated."
+                    )

@@ -338,7 +338,6 @@ All documentation can also be found in the web server's footer `Docs` link.
 
 ### Platform Differences:
 - Windows suppport has the following limitations such as:
- - send-command requires seperate start method (no yet available)
  - No attach to console support
  - No service integration
 

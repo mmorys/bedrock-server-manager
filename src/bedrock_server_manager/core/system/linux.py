@@ -154,10 +154,10 @@ WorkingDirectory={server_dir}
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
 # Use absolute path to EXPATH
-ExecStart={EXPATH} systemd-start --server "{server_name}"
+ExecStart={EXPATH} start-server --server "{server_name}" --mode direct
 ExecStop={EXPATH} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
-# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} systemd-start --server "{server_name}"
+# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} start-server --server "{server_name}" -mode direct
 # Restart behavior
 Restart=on-failure
 RestartSec=10s
@@ -375,7 +375,7 @@ def _disable_systemd_service(server_name: str) -> None:
         raise ServiceError(error_msg) from e
 
 
-def _systemd_start_server(server_name: str, server_dir: str) -> None:
+def _linux_start_server(server_name: str, server_dir: str) -> None:
     """
     Starts the Bedrock server process within a detached 'screen' session.
 
@@ -480,7 +480,7 @@ def _systemd_start_server(server_name: str, server_dir: str) -> None:
         raise CommandNotFoundError(e.filename) from e
 
 
-def _systemd_stop_server(server_name: str, server_dir: str) -> None:
+def _linux_stop_server(server_name: str, server_dir: str) -> None:
     """
     Stops the Bedrock server running within a 'screen' session.
 

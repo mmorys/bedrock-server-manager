@@ -325,6 +325,14 @@ def main() -> None:
             "start-server", help="Start a server"
         )
         add_server_arg(start_server_parser)
+        start_server_parser.add_argument(
+            "-m",
+            "--mode",
+            choices=["direct", "detached"],
+            default="detached",
+            help="Mode to start server in",
+        )
+
         stop_server_parser = subparsers.add_parser("stop-server", help="Stop a server")
         add_server_arg(stop_server_parser)
         restart_parser = subparsers.add_parser(
@@ -744,7 +752,9 @@ def main() -> None:
             "update-server": lambda args: cli_server_install_config.update_server(
                 args.server, base_dir
             ),
-            "start-server": lambda args: cli_server.start_server(args.server, base_dir),
+            "start-server": lambda args: cli_server.start_server(
+                args.server, base_dir, args.mode
+            ),
             "stop-server": lambda args: cli_server.stop_server(args.server, base_dir),
             "install-world": lambda args: (
                 cli_world.import_world_cli(

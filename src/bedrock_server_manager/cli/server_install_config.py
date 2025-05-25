@@ -1039,7 +1039,7 @@ def install_new_server(
             logger.debug(f"User choice for starting server: '{start_choice}'")
             if start_choice in ("yes", "y", ""):  # Default empty to yes
                 # Call CLI start function
-                cli_server.start_server(server_name, effective_base_dir)
+                cli_server.start_server(server_name, effective_base_dir, "detached")
                 break
             elif start_choice in ("no", "n"):
                 print(
