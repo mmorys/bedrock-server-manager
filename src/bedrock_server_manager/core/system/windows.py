@@ -35,6 +35,7 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.core.system import process as core_process
+from bedrock_server_manager.config.settings import settings
 from ...error import (
     MissingArgumentError,
     ServerStartError,
@@ -462,8 +463,8 @@ def _windows_start_server(
                 stdin=subprocess.PIPE,
                 stdout=server_stdout_handle,
                 stderr=subprocess.STDOUT,
-                text=False,  # Use bytes for stdin now for more control, commands will be encoded
-                bufsize=0,  # Unbuffered for binary stdin/stdout with Popen
+                text=False,
+                bufsize=0,
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 close_fds=True,
             )
@@ -548,36 +549,136 @@ def _windows_start_server(
                 f"Failed to start or manage server '{server_name}': {e_start}"
             ) from e_start
         finally:
-            logger.info(f"Cleaning up foreground server '{server_name}' resources...")
+            logger.info(
+                f"WINDOWS_START_SERVER: Initiating cleanup for wrapper of '{server_name}' (PID: {os.getpid()})..."
+            )
 
-            _foreground_server_shutdown_event.set()  # Ensure it's set for all threads
+            # Explicitly signal shutdown to ensure all threads get it
+            _foreground_server_shutdown_event.set()
 
             if (
                 main_pipe_listener_thread_obj
                 and main_pipe_listener_thread_obj.is_alive()
             ):
                 logger.debug(
-                    f"Waiting for main pipe listener thread of '{server_name}' to exit..."
+                    f"Waiting for main pipe listener thread of '{server_name}' to join..."
                 )
-                main_pipe_listener_thread_obj.join(timeout=3.0)
+                main_pipe_listener_thread_obj.join(timeout=5.0)
                 if main_pipe_listener_thread_obj.is_alive():
                     logger.warning(
-                        f"Main pipe listener for '{server_name}' still alive."
+                        f"Main pipe listener thread for '{server_name}' did not join cleanly."
                     )
 
-            if bedrock_process and bedrock_process.poll() is None:
-                logger.info(
-                    f"Ensuring Bedrock process '{server_name}' (PID: {bedrock_process.pid}) is terminated."
-                )
-                try:
-                    core_process.terminate_process_by_pid(bedrock_process.pid)
-                except CoreProcessManagementError as e_term:
-                    logger.error(
-                        f"Error during final termination of Bedrock server '{server_name}': {e_term}"
+            # Determine if bedrock_server.exe was (or should be) stopped by this wrapper's actions
+            bedrock_server_should_be_stopped_by_this_wrapper = False
+            if (
+                bedrock_process
+            ):  # bedrock_process is the Popen object for bedrock_server.exe
+                if bedrock_process.poll() is not None:
+                    # Bedrock server already terminated (either on its own or previously stopped)
+                    logger.info(
+                        f"Bedrock server process '{server_name}' (PID: {bedrock_process.pid}) already terminated with code {bedrock_process.returncode}."
                     )
+                    bedrock_server_should_be_stopped_by_this_wrapper = (
+                        True  # It's stopped, so cleanup is appropriate
+                    )
+                elif (
+                    _foreground_server_shutdown_event.is_set()
+                ):  # Check if shutdown was signaled
+                    # This implies an intentional shutdown was requested for this wrapper and its managed server
+                    logger.info(
+                        f"Shutdown event was set. Ensuring Bedrock server process '{server_name}' (PID: {bedrock_process.pid}) is terminated."
+                    )
+                    bedrock_server_should_be_stopped_by_this_wrapper = True
+                    try:
+                        # Attempt graceful stop via stdin if pipe listener didn't already do it
+                        if bedrock_process.stdin and not bedrock_process.stdin.closed:
+                            try:
+                                logger.debug(
+                                    f"Attempting to send 'stop' command to Bedrock server PID {bedrock_process.pid} via its stdin during wrapper cleanup."
+                                )
+                                bedrock_process.stdin.write(b"stop\r\n")
+                                bedrock_process.stdin.flush()
+                                bedrock_process.stdin.close()
+                                bedrock_process.wait(
+                                    timeout=settings.get("SERVER_STOP_TIMEOUT_SEC", 60)
+                                    // 3
+                                )  # Shorter wait
+                                logger.info(
+                                    f"Bedrock server PID {bedrock_process.pid} processed 'stop' or exited."
+                                )
+                            except (
+                                OSError,
+                                ValueError,
+                                BrokenPipeError,
+                                subprocess.TimeoutExpired,
+                            ) as e_stdin:
+                                logger.warning(
+                                    f"Attempt to send 'stop' via stdin failed or timed out during cleanup: {e_stdin}. Proceeding to terminate."
+                                )
 
+                        if bedrock_process.poll() is None:  # If still running
+                            core_process.terminate_process_by_pid(bedrock_process.pid)
+                            logger.info(
+                                f"Bedrock server PID {bedrock_process.pid} terminated by wrapper cleanup."
+                            )
+                    except core_process.ProcessManagementError as e_term:
+                        logger.error(
+                            f"Error during final termination of Bedrock server '{server_name}' by wrapper: {e_term}"
+                        )
+                    except Exception as e_final_stop:
+                        logger.error(
+                            f"Unexpected error during final stop sequence of Bedrock server by wrapper: {e_final_stop}"
+                        )
+
+            # --- Conditional PID File Removal ---
+            # pid_file_path is for bedrock_server.exe (e.g., bedrock_{server_name}.pid)
             if pid_file_path and os.path.exists(pid_file_path):
-                core_process.remove_pid_file_if_exists(pid_file_path)
+                pid_in_file = core_process.read_pid_from_file(pid_file_path)
+                if pid_in_file is not None:
+                    # Check if the process in the PID file is our bedrock_process and if it's actually stopped
+                    is_actual_server_running_final_check = (
+                        core_process.is_process_running(pid_in_file)
+                    )
+
+                    if bedrock_process and pid_in_file == bedrock_process.pid:
+                        # It's the PID of the server we managed
+                        if (
+                            not is_actual_server_running_final_check
+                            or bedrock_process.poll() is not None
+                        ):
+                            logger.info(
+                                f"Bedrock server (PID {pid_in_file}) confirmed stopped. Removing PID file '{pid_file_path}'."
+                            )
+                            core_process.remove_pid_file_if_exists(pid_file_path)
+                        elif bedrock_server_should_be_stopped_by_this_wrapper:
+                            logger.warning(
+                                f"Bedrock server (PID {pid_in_file}) was targeted for stop by wrapper. Removing PID file '{pid_file_path}' even if termination was problematic."
+                            )
+                            core_process.remove_pid_file_if_exists(pid_file_path)
+                        else:
+                            # Wrapper is exiting, but bedrock_server.exe it started is intended to continue (detached case)
+                            logger.info(
+                                f"Foreground wrapper for '{server_name}' exiting, but actual Bedrock server "
+                                f"(PID {pid_in_file}) is (or expected to be) still running. "
+                                f"PID file '{pid_file_path}' will NOT be removed by this wrapper."
+                            )
+                    elif not is_actual_server_running_final_check:
+                        # PID in file is not running (and wasn't our bedrock_process or bedrock_process is None)
+                        logger.info(
+                            f"Process (PID {pid_in_file} from file) not running. Removing PID file '{pid_file_path}'."
+                        )
+                        core_process.remove_pid_file_if_exists(pid_file_path)
+                    else:
+                        # PID in file is running but isn't the bedrock_process this wrapper directly managed (e.g. stale, or other instance)
+                        logger.warning(
+                            f"PID {pid_in_file} in '{pid_file_path}' is running but not the direct child of this wrapper instance. Not removing."
+                        )
+                else:
+                    logger.warning(
+                        f"PID file '{pid_file_path}' unreadable/empty during cleanup. Removing by wrapper."
+                    )
+                    core_process.remove_pid_file_if_exists(pid_file_path)
 
             if server_stdout_handle and not server_stdout_handle.closed:
                 server_stdout_handle.close()
@@ -585,12 +686,18 @@ def _windows_start_server(
             if server_name in managed_bedrock_servers:
                 del managed_bedrock_servers[server_name]
 
-            logger.info(f"Foreground server '{server_name}' stopped and cleaned up.")
-    finally:  # Outermost finally to restore signal handlers
+            logger.info(
+                f"WINDOWS_START_SERVER: Foreground wrapper for server '{server_name}' finished cleanup."
+            )
+
+    finally:  # Outermost finally to restore OS signal handlers
         signal.signal(signal.SIGINT, original_sigint_handler)
         if hasattr(signal, "SIGTERM") and original_sigterm_handler is not None:
-            signal.signal(signal.SIGTERM, original_sigterm_handler)
-        # Reset event for next potential foreground server start in the same manager process
+            if original_sigterm_handler is not None:  # Ensure it was captured
+                try:
+                    signal.signal(signal.SIGTERM, original_sigterm_handler)
+                except OSError:
+                    pass
         _foreground_server_shutdown_event.clear()
 
 
