@@ -21,8 +21,8 @@ from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import (
-    server as server_base,
-)  # Alias for core server functions
+    server_actions as core_server_actions,
+)
 from bedrock_server_manager.core.system import (
     base as system_base,
     linux as system_linux,
@@ -52,7 +52,7 @@ def write_server_config(
     """
     Writes a key-value pair to a specific server's JSON configuration file.
 
-    Uses `server_base.manage_server_config` for the core operation.
+    Uses `core_server_actions.manage_server_config` for the core operation.
 
     Args:
         server_name: The name of the server.
@@ -81,7 +81,7 @@ def write_server_config(
     )
     try:
         # Delegate to core function, which handles file I/O and validation
-        server_base.manage_server_config(
+        core_server_actions.manage_server_config(
             server_name=server_name,
             key=key,
             operation="write",
@@ -152,7 +152,7 @@ def start_server(
     try:
         effective_base_dir = get_base_dir(base_dir)
 
-        if server_base.check_if_server_is_running(server_name):
+        if core_server_actions.check_if_server_is_running(server_name):
             logger.warning(
                 f"API: Server '{server_name}' is already running. Start request (mode: {mode}) ignored."
             )
@@ -163,9 +163,9 @@ def start_server(
 
         if mode == "direct":
             logger.debug(
-                f"API: Calling core server_base.start_server for '{server_name}' (direct mode)."
+                f"API: Calling core core_server_actions.start_server for '{server_name}' (direct mode)."
             )
-            server_base.start_server(server_name)
+            core_server_actions.start_server(server_name)
             logger.info(
                 f"API: Direct start for server '{server_name}' completed successfully."
             )
@@ -275,7 +275,7 @@ def start_server(
                         f"Service file for '{server_name}' doesn't exist. Fallback to direct mode..."
                     )
                     write_server_config(server_name, "start_method", "")
-                    server_base.start_server(server_name)
+                    core_server_actions.start_server(server_name)
                     logger.info(
                         f"API: Direct start for server '{server_name}' completed successfully."
                     )
@@ -359,7 +359,7 @@ def stop_server(
         if mode in ["direct", "", None]:
             effective_base_dir = get_base_dir(base_dir)
 
-            if not server_base.check_if_server_is_running(server_name):
+            if not core_server_actions.check_if_server_is_running(server_name):
                 logger.warning(
                     f"Server '{server_name}' is not running. Stop request ignored."
                 )
@@ -368,7 +368,7 @@ def stop_server(
                     "message": f"Server '{server_name}' was already stopped.",
                 }
 
-            server_base.stop_server(server_name)
+            core_server_actions.stop_server(server_name)
             logger.info(f"Server '{server_name}' stopped successfully.")
 
             return {
@@ -416,7 +416,7 @@ def stop_server(
                     logger.debug(
                         "Systemctl not found or service file doesn't exist. Will try stopping directly."
                     )
-                    server_base.stop_server(server_name)
+                    core_server_actions.stop_server(server_name)
                     logger.info(f"Server '{server_name}' stopped successfully.")
                     return {
                         "status": "success",
@@ -426,7 +426,7 @@ def stop_server(
                     logger.warning(
                         f"Service file for '{server_name}' doesn't exist. Will try stopping directly."
                     )
-                    server_base.stop_server(server_name)
+                    core_server_actions.stop_server(server_name)
                     logger.info(f"Server '{server_name}' stopped successfully.")
                     return {
                         "status": "success",
@@ -437,7 +437,7 @@ def stop_server(
                 logger.debug(
                     f"Attempting to stop server '{server_name}' using direct stop method (Windows)."
                 )
-                server_base.stop_server(server_name)
+                core_server_actions.stop_server(server_name)
                 logger.info(f"Server '{server_name}' stopped successfully.")
                 return {
                     "status": "success",
@@ -507,7 +507,7 @@ def restart_server(
         effective_base_dir = get_base_dir(base_dir)  # Used for initial check
 
         # Use core check_if_server_is_running
-        is_running = server_base.check_if_server_is_running(server_name)
+        is_running = core_server_actions.check_if_server_is_running(server_name)
 
         if not is_running:
             logger.info(
@@ -532,7 +532,7 @@ def restart_server(
                 )
                 try:
                     # Use core standalone send_server_command
-                    server_base.send_server_command(
+                    core_server_actions.send_server_command(
                         server_name, "say Server restarting in 10 seconds..."
                     )
                     logger.info(
@@ -683,7 +683,7 @@ def send_command(
         # effective_base_dir = get_base_dir(base_dir) # Not strictly needed if send_server_command handles its paths
 
         # Call the standalone send_server_command from core.server.server
-        server_base.send_server_command(server_name, command_clean)
+        core_server_actions.send_server_command(server_name, command_clean)
 
         logger.info(
             f"Command '{command_clean}' sent successfully to server '{server_name}'."
@@ -762,7 +762,7 @@ def delete_server_data(
             )
             try:
                 # Use core check_if_server_is_running
-                if server_base.check_if_server_is_running(server_name):
+                if core_server_actions.check_if_server_is_running(server_name):
                     logger.info(
                         f"Server '{server_name}' is running. Stopping before deletion..."
                     )
@@ -787,7 +787,7 @@ def delete_server_data(
         # --- Core Deletion Operation ---
         logger.debug(f"Proceeding with deletion of data for server '{server_name}'...")
         # Call core delete function, passing effective_base_dir and optional config_dir
-        server_base.delete_server_data(
+        core_server_actions.delete_server_data(
             server_name, effective_base_dir, config_dir=config_dir
         )
         logger.info(f"Successfully deleted data for server '{server_name}'.")

@@ -18,12 +18,15 @@ from bedrock_server_manager.core import downloader as core_downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.api.server import (
-    write_server_config as api_write_server_config,
+    write_server_config as api_write_server_config
+)
+from bedrock_server_manager.core.server import (
+    server_install_config as core_server_install_config,
+    server_actions as core_server_actions,
 )
 from bedrock_server_manager.api.server import send_command as api_send_command
 from bedrock_server_manager.api import player as player_api
-from bedrock_server_manager.core.server import server as core_server_base
-from bedrock_server_manager.core.server import backup as core_backup
+from bedrock_server_manager.core.server import backup_restore as core_backup
 from bedrock_server_manager.api.utils import (
     _server_stop_start_manager,
     validate_server_name_format,
@@ -66,7 +69,7 @@ def configure_allowlist(
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        existing_players = core_server_base.configure_allowlist(server_dir)
+        existing_players = core_server_install_config.configure_allowlist(server_dir)
         logger.debug(
             f"API: Found {len(existing_players)} players in existing allowlist."
         )
@@ -128,11 +131,11 @@ def configure_allowlist(
                 f"API: Adding {len(added_players_list_final)} new players to allowlist for '{server_name}'..."
             )
             try:
-                core_server_base.add_players_to_allowlist(
+                core_server_install_config.add_players_to_allowlist(
                     server_dir, added_players_list_final
                 )
                 # Optionally send reload command
-                if core_server_base.check_if_server_is_running(
+                if core_server_actions.check_if_server_is_running(
                     server_name
                 ):  # Pass base_dir if needed
                     cmd_res = api_send_command(server_name, "allowlist reload")
@@ -188,12 +191,12 @@ def remove_player_from_allowlist(
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        was_removed = core_server_base.remove_player_from_allowlist(
+        was_removed = core_server_install_config.remove_player_from_allowlist(
             server_dir, player_name
         )
         if was_removed:
-            if core_server_base.check_if_server_is_running(server_name):
-                cmd_res = api_send_command(server_name, "whitelist reload")
+            if core_server_actions.check_if_server_is_running(server_name):
+                cmd_res = api_send_command(server_name, "allowlist reload")
                 if cmd_res.get("status") == "error":
                     logger.warning(
                         f"API: Failed to send 'whitelist reload' to '{server_name}': {cmd_res.get('message')}"
@@ -243,10 +246,10 @@ def configure_player_permission(
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
-        core_server_base.configure_permissions(
+        core_server_install_config.configure_permissions(
             server_dir, xuid, player_name, permission
         )
-        if core_server_base.check_if_server_is_running(server_name):
+        if core_server_actions.check_if_server_is_running(server_name):
             cmd_res = api_send_command(server_name, "permission reload")
             if cmd_res.get("status") == "error":
                 logger.warning(
@@ -516,7 +519,7 @@ def modify_server_properties(
             restart_on_success_only=True,
         ):
             for prop_name, prop_value in validated_props.items():
-                core_server_base.modify_server_properties(
+                core_server_install_config.modify_server_properties(
                     server_properties_path, prop_name, prop_value
                 )
 
@@ -611,7 +614,7 @@ def download_and_install_server(
             logger.info(
                 f"API: Step 2b - Setting up server files from '{os.path.basename(zip_file_path)}'..."
             )
-            core_server_base.setup_server_files(
+            core_server_install_config.setup_server_files(
                 zip_file_path=zip_file_path, server_dir=server_dir, is_update=is_update
             )
             logger.info("API: Server file setup successful.")
@@ -620,12 +623,12 @@ def download_and_install_server(
             logger.info(
                 f"API: Step 3 - Writing version '{actual_version}' and status for '{server_name}'."
             )
-            core_server_base._write_version_config(
+            core_server_install_config._write_version_config(
                 server_name, actual_version, config_dir=app_config_dir
             )
 
             if not is_update:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -634,9 +637,9 @@ def download_and_install_server(
                 )
             else:  # For updates, server is currently stopped by context manager.
                 # If it was running, context manager's 'finally' will restart it.
-                # core_server_base.start_server called by API start will set status to RUNNING.
+                # core_server_actions.start_server called by API start will set status to RUNNING.
                 # If it wasn't running, it should remain STOPPED.
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name, "status", "write", "STOPPED", config_dir=app_config_dir
                 )
 
@@ -670,7 +673,7 @@ def download_and_install_server(
         )
         try:
             if app_config_dir:  # Check if app_config_dir was resolved
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
@@ -685,7 +688,7 @@ def download_and_install_server(
         )
         try:
             if app_config_dir:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
@@ -776,7 +779,7 @@ def install_new_server(
         # Attempt to set server status to ERROR in config
         try:
             if effective_app_config_dir:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -795,7 +798,7 @@ def install_new_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -833,7 +836,7 @@ def update_server(
     try:
         effective_base_dir = get_base_dir(base_dir)
 
-        if send_message and core_server_base.check_if_server_is_running(
+        if send_message and core_server_actions.check_if_server_is_running(
             server_name
         ):  # Pass base_dir if core func needs it
             logger.info(
@@ -847,10 +850,10 @@ def update_server(
                     f"API: Failed to send update notification to '{server_name}': {cmd_res.get('message')}"
                 )
 
-        installed_version = core_server_base.get_installed_version(
+        installed_version = core_server_actions.get_installed_version(
             server_name, config_dir=effective_app_config_dir
         )
-        target_version_cfg = core_server_base.manage_server_config(
+        target_version_cfg = core_server_actions.manage_server_config(
             server_name, "target_version", "read", config_dir=effective_app_config_dir
         )
 
@@ -862,7 +865,7 @@ def update_server(
                 f"API: Target version not set for '{server_name}', defaulting to 'LATEST'."
             )
 
-        if core_server_base.no_update_needed(
+        if core_server_install_config.no_update_needed(
             server_name, installed_version, target_version_to_use
         ):
             logger.info(
@@ -907,7 +910,7 @@ def update_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -926,7 +929,7 @@ def update_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_base.manage_server_config(
+                core_server_actions.manage_server_config(
                     server_name,
                     "status",
                     "write",
