@@ -10,6 +10,7 @@ import sys
 import argparse
 import os
 import logging
+import platform
 
 # --- Initialize Settings and Logger ---
 try:
@@ -81,10 +82,7 @@ try:
         server_actions as core_server_actions,
         server_install_config as core_server_install_config,
     )
-    from bedrock_server_manager.core.system import (
-        linux as system_linux,
-        base as system_base
-    )
+    from bedrock_server_manager.core.system import base as system_base
     from bedrock_server_manager.cli import (
         main_menus,
         utils as cli_utils,
@@ -108,6 +106,11 @@ except ImportError as e:
         file=sys.stderr,
     )
     sys.exit(1)
+
+if platform.system() == "Linux":
+    from bedrock_server_manager.core.system import linux as system_linux
+else:
+    system_linux = None
 
 
 def run_cleanup(args: argparse.Namespace) -> None:

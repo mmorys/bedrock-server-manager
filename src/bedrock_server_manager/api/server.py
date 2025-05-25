@@ -25,7 +25,6 @@ from bedrock_server_manager.core.server import (
 )
 from bedrock_server_manager.core.system import (
     base as system_base,
-    linux as system_linux,
     process as system_process,
 )
 from bedrock_server_manager.error import (
@@ -237,6 +236,8 @@ def start_server(
                     }
 
             elif platform.system() == "Linux":
+                from bedrock_server_manager.core.system import linux as system_linux
+
                 if system_linux.check_service_exist(server_name):
                     logger.debug("API: Using systemctl to start server.")
                     systemctl_cmd_path = shutil.which("systemctl")
@@ -378,6 +379,8 @@ def stop_server(
 
         elif mode == "detached":
             if platform.system() == "Linux":
+                from bedrock_server_manager.core.system import linux as system_linux
+
                 if system_linux.check_service_exist(server_name):
                     logger.debug(
                         f"Attempting to stop server '{server_name}' using systemd..."

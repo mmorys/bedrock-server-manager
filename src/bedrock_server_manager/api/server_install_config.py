@@ -18,7 +18,7 @@ from bedrock_server_manager.core import downloader as core_downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.api.server import (
-    write_server_config as api_write_server_config
+    write_server_config as api_write_server_config,
 )
 from bedrock_server_manager.core.server import (
     server_install_config as core_server_install_config,

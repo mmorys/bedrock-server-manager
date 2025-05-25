@@ -27,23 +27,20 @@ from bedrock_server_manager.error import (
     DirectoryError,
     CommandNotFoundError,
 )
-from bedrock_server_manager.core.system import (
-    base as system_base,
-    linux as system_linux,
-    windows as system_windows,
-)
+from bedrock_server_manager.core.system import base as system_base
 
-if platform.system() == "Windows":
-    try:
-        import win32file
-        import pywintypes
-        import win32pipe
 
-        WINDOWS_IMPORTS_AVAILABLE = True
-    except ImportError:
-        WINDOWS_IMPORTS_AVAILABLE = False
+if platform.system() == "Linux":
+    from bedrock_server_manager.core.system import linux as system_linux
+
+    system_windows = None
+elif platform.system() == "Windows":
+    from bedrock_server_manager.core.system import windows as system_windows
+
+    system_linux = None
 else:
-    WINDOWS_IMPORTS_AVAILABLE = False
+    system_linux = None
+    system_windows = None
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -178,135 +175,11 @@ def send_server_command(server_name: str, command: str) -> None:
 
     os_name = platform.system()
     if os_name == "Linux":
-        screen_cmd_path = shutil.which("screen")
-        if not screen_cmd_path:
-            logger.error(
-                "'screen' command not found. Cannot send command. Is 'screen' installed and in PATH?"
-            )
-            raise CommandNotFoundError(
-                "screen", message="'screen' command not found. Is it installed?"
-            )
 
-        try:
-            screen_session_name = f"bedrock-{server_name}"
-            command_with_newline = command if command.endswith("\n") else command + "\n"
-            process = subprocess.run(
-                [
-                    screen_cmd_path,
-                    "-S",
-                    screen_session_name,
-                    "-X",
-                    "stuff",
-                    command_with_newline,
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            logger.debug(
-                f"'screen' command executed successfully for server '{server_name}'. stdout: {process.stdout}, stderr: {process.stderr}"
-            )
-            logger.info(
-                f"Sent command '{command}' to server '{server_name}' via screen."
-            )
-        except subprocess.CalledProcessError as e:
-            if "No screen session found" in e.stderr:
-                logger.error(
-                    f"Failed to send command: Screen session '{screen_session_name}' not found. Is the server running correctly in screen?"
-                )
-                raise ServerNotRunningError(
-                    f"Screen session '{screen_session_name}' not found."
-                ) from e
-            else:
-                logger.error(
-                    f"Failed to send command via screen: {e}. stderr: {e.stderr}",
-                    exc_info=True,
-                )
-                raise SendCommandError(f"Failed to send command via screen: {e}") from e
-        except FileNotFoundError:
-            logger.error("'screen' command not found unexpectedly.")
-            raise CommandNotFoundError(
-                "screen", message="'screen' command not found."
-            ) from None
+        system_linux._linux_send_command(server_name, command)
 
     elif os_name == "Windows":
-        if not WINDOWS_IMPORTS_AVAILABLE:
-            logger.error(
-                "Cannot send command on Windows: Required 'pywin32' module is not installed."
-            )
-            raise SendCommandError(
-                "Cannot send command on Windows: 'pywin32' module not found."
-            )
-
-        pipe_name = rf"\\.\pipe\BedrockServerPipe_{server_name}"
-        handle = win32file.INVALID_HANDLE_VALUE
-
-        try:
-            logger.debug(f"Attempting to connect to named pipe: {pipe_name}")
-            handle = win32file.CreateFile(
-                pipe_name,
-                win32file.GENERIC_WRITE,
-                0,
-                None,
-                win32file.OPEN_EXISTING,
-                0,
-                None,
-            )
-
-            if handle == win32file.INVALID_HANDLE_VALUE:
-                logger.error(
-                    f"Could not open named pipe '{pipe_name}'. Server might not be running or pipe setup failed. Error code: {pywintypes.GetLastError()}"
-                )
-                raise ServerNotRunningError(
-                    f"Could not connect to server pipe '{pipe_name}'."
-                )
-
-            win32pipe.SetNamedPipeHandleState(
-                handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
-            )
-
-            command_bytes = (command + "\r\n").encode("utf-8")
-            win32file.WriteFile(handle, command_bytes)
-            logger.info(
-                f"Sent command '{command}' to server '{server_name}' via named pipe."
-            )
-
-        except pywintypes.error as e:
-            win_error_code = e.winerror
-            logger.error(
-                f"Windows error sending command via pipe '{pipe_name}': Code {win_error_code} - {e}",
-                exc_info=True,
-            )
-            if win_error_code == 2:
-                raise ServerNotRunningError(
-                    f"Pipe '{pipe_name}' does not exist. Server likely not running."
-                ) from e
-            elif win_error_code == 231:
-                raise SendCommandError(
-                    "All pipe instances are busy. Try again later."
-                ) from e
-            elif win_error_code == 109:
-                raise SendCommandError(
-                    "Pipe connection broken (server may have closed it)."
-                ) from e
-            else:
-                raise SendCommandError(f"Windows error sending command: {e}") from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error sending command via pipe '{pipe_name}': {e}",
-                exc_info=True,
-            )
-            raise SendCommandError(f"Unexpected error sending command: {e}") from e
-        finally:
-            if handle != win32file.INVALID_HANDLE_VALUE:
-                try:
-                    win32file.CloseHandle(handle)
-                    logger.debug(f"Closed named pipe handle for '{pipe_name}'.")
-                except pywintypes.error as close_err:
-                    logger.warning(
-                        f"Error closing pipe handle for '{pipe_name}': {close_err}",
-                        exc_info=True,
-                    )
+        system_windows._windows_send_command(server_name, command)
     else:
         logger.error(
             f"Sending commands is not supported on this operating system: {os_name}"
