@@ -453,7 +453,7 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
         if screen_cmd_path:
             logger.info("Starting server.")
             try:
-                system_linux.linux_start_server(server_name, details["server_dir"])
+                system_linux._linux_start_server(server_name, details["server_dir"])
                 start_successful_method = "screen"
             except (CommandNotFoundError, ServerStartError) as e:
                 logger.error(

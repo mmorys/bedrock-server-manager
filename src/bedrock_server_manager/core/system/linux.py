@@ -154,10 +154,10 @@ WorkingDirectory={server_dir}
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
 # Use absolute path to EXPATH
-ExecStart={EXPATH} systemd-start --server "{server_name}"
+ExecStart={EXPATH} start-server --server "{server_name}" --mode direct
 ExecStop={EXPATH} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
-# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} systemd-start --server "{server_name}"
+# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} start-server --server "{server_name}" -mode direct
 # Restart behavior
 Restart=on-failure
 RestartSec=10s
