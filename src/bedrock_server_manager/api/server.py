@@ -253,6 +253,7 @@ def start_server(
                             logger.info(
                                 f"Successfully initiated start for systemd service '{service_name}'."
                             )
+
                             return {
                                 "status": "success",
                                 "message": f"Server '{server_name}' (detached mode) started successfully.",
@@ -273,6 +274,7 @@ def start_server(
                     logger.warning(
                         f"Service file for '{server_name}' doesn't exist. Fallback to direct mode..."
                     )
+                    write_server_config(server_name, "start_method", "")
                     server_base.start_server(server_name)
                     logger.info(
                         f"API: Direct start for server '{server_name}' completed successfully."
@@ -341,7 +343,7 @@ def stop_server(
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    if mode not in ["direct", "detached"]:
+    if mode not in ["direct", "detached", "", None]:
         raise InvalidInputError(
             f"Invalid stop mode '{mode}'. Must be 'direct' or 'detached'."
         )
@@ -349,10 +351,12 @@ def stop_server(
     if platform.system() == "Windows":
         mode = "direct"  # Normalize mode for Windows
 
+    write_server_config(server_name, "start_method", "")
+
     logger.info(f"Attempting to stop server '{server_name}'...")
 
     try:
-        if mode == "direct":
+        if mode in ["direct", "", None]:
             effective_base_dir = get_base_dir(base_dir)
 
             if not server_base.check_if_server_is_running(server_name):
@@ -366,6 +370,7 @@ def stop_server(
 
             server_base.stop_server(server_name)
             logger.info(f"Server '{server_name}' stopped successfully.")
+
             return {
                 "status": "success",
                 "message": f"Server '{server_name}' stopped successfully.",

@@ -531,7 +531,15 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
             )
             start_successful_method = "windows_process"
             logger.info(
-                f"Initiated server start process on Windows for '{server_name}'."
+                f"Exited named pipe cleaninly on Windows for '{server_name}'."
+            )
+
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "STOPPED",
+                config_dir=details["config_dir_base"],
             )
         except ServerStartError as e:
             logger.error(
