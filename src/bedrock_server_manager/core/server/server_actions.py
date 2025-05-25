@@ -52,7 +52,6 @@ def _get_server_details(
 ) -> Dict[str, Any]:
     """
     Gathers and validates server paths and essential details.
-    This helper is used by functions that previously were methods of BedrockServer.
 
     Args:
         server_name: The name of the server.
@@ -118,13 +117,12 @@ def _get_server_details(
     }
 
 
-# --- Standalone functions replacing BedrockServer methods ---
+# --- Standalone functions ---
 
 
 def check_if_server_is_running(server_name: str) -> bool:
     """
     Checks if the server process associated with this name is currently running.
-    Equivalent to former BedrockServer.is_running().
     """
     if not server_name:
         # Consistent with how _get_server_details handles server_name
@@ -146,7 +144,6 @@ def send_server_command(server_name: str, command: str) -> None:
     """
     Sends a command string to the running server process.
     Implementation is platform-specific (screen on Linux, named pipes on Windows).
-    Equivalent to former BedrockServer.send_command().
 
     Args:
         server_name: The name of the server.
@@ -192,7 +189,6 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
     Starts the Bedrock server process.
     Uses systemd on Linux (if available, falling back to screen) or starts
     directly on Windows. Manages persistent status and waits for confirmation.
-    Equivalent to former BedrockServer.start().
 
     Args:
         server_name: The name of the server.
@@ -349,7 +345,6 @@ def stop_server(server_name: str, server_path_override: Optional[str] = None) ->
     """
     Stops the Bedrock server process gracefully.
     Sends a 'stop' command, waits for the process to terminate.
-    Equivalent to former BedrockServer.stop().
 
     Args:
         server_name: The name of the server.
@@ -364,8 +359,6 @@ def stop_server(server_name: str, server_path_override: Optional[str] = None) ->
         MissingArgumentError: If server_name is empty.
         FileOperationError: If essential settings (BASE_DIR, _config_dir) are missing.
     """
-    # _get_server_details also validates executable existence, which is implicitly
-    # part of the original BedrockServer's state.
     details = _get_server_details(server_name, server_path_override)
     # server_name = details["server_name"]
     # server_dir = details["server_dir"] (used by system_windows._windows_stop_server)

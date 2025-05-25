@@ -40,7 +40,6 @@ def _get_server_details(
 ) -> Dict[str, Any]:
     """
     Gathers and validates server paths and essential details.
-    This helper is used by functions that previously were methods of BedrockServer.
 
     Args:
         server_name: The name of the server.

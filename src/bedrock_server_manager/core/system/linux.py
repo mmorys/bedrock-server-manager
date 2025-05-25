@@ -534,7 +534,6 @@ def _linux_stop_server(server_name: str, server_dir: str) -> None:
                 f"'stop' command sent successfully to screen session '{screen_session_name}'."
             )
             # Note: This only sends the command. The server still needs time to shut down.
-            # The calling function (e.g., BedrockServer.stop) should handle waiting.
         elif "No screen session found" in process.stderr:
             logger.info(
                 f"Screen session '{screen_session_name}' not found. Server likely already stopped."
