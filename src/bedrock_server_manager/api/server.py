@@ -13,6 +13,8 @@ import logging
 from typing import Dict, Optional, Any
 import platform
 import time
+import shutil
+import subprocess
 
 # Local imports
 from bedrock_server_manager.utils.general import get_base_dir
@@ -120,7 +122,7 @@ def start_server(
     server_name: str,
     base_dir: Optional[str] = None,
     mode: str = "direct",  # "direct" or "detached"
-) -> Dict[str, Any]:  # Return type includes PID for detached mode
+) -> Dict[str, Any]:
     """
     Starts the specified Bedrock server.
 
@@ -131,9 +133,10 @@ def start_server(
               "detached" to launch the server as a new background process (useful for Windows user-level starts).
 
     Returns:
-        A dictionary: `{"status": "success", "message": ..., "pid": Optional[int]}` or
-                      `{"status": "error", "message": ...}`.
+        A dictionary: {"status": "success", "message": ..., "pid": Optional[int]} or
+                      {"status": "error", "message": ...}.
                       "pid" is included for "detached" mode success, representing the PID of the launcher process.
+
     Raises:
         MissingArgumentError, InvalidServerNameError, FileOperationError, InvalidInputError
     """
@@ -147,9 +150,8 @@ def start_server(
     logger.info(f"API: Attempting to start server '{server_name}' in '{mode}' mode...")
 
     try:
-        effective_base_dir = get_base_dir(base_dir)  # Used for pre-check
+        effective_base_dir = get_base_dir(base_dir)
 
-        # Pre-check if already running (core start_server also checks, but API can give specific feedback)
         if server_base.check_if_server_is_running(server_name):
             logger.warning(
                 f"API: Server '{server_name}' is already running. Start request (mode: {mode}) ignored."
@@ -163,9 +165,7 @@ def start_server(
             logger.debug(
                 f"API: Calling core server_base.start_server for '{server_name}' (direct mode)."
             )
-            server_base.start_server(
-                server_name
-            )  # No server_path_override here, let core handle defaults
+            server_base.start_server(server_name)
             logger.info(
                 f"API: Direct start for server '{server_name}' completed successfully."
             )
@@ -175,8 +175,10 @@ def start_server(
             }
 
         elif mode == "detached":
-            if platform.system() == "Windows":
 
+            write_server_config(server_name, "start_method", "detached")
+
+            if platform.system() == "Windows":
                 cli_command_parts = [
                     EXPATH,
                     "start-server",
@@ -185,15 +187,12 @@ def start_server(
                     "--mode",
                     "direct",
                 ]
-
                 cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
 
                 logger.info(
                     f"API: Preparing to launch detached starter for '{server_name}' with command: {' '.join(cli_command_str_list)}"
                 )
 
-                # PID file for the LAUNCHER process, not the bedrock_server.exe itself.
-                # The bedrock_server.exe PID file is handled by _windows_start_server.
                 app_config_dir = settings._config_dir
                 if not app_config_dir:
                     raise FileOperationError(
@@ -202,9 +201,9 @@ def start_server(
 
                 launcher_pid_dir = os.path.join(app_config_dir, server_name)
                 os.makedirs(launcher_pid_dir, exist_ok=True)
-                launcher_pid_filename = f"bedrock_{server_name}.pid"
+
                 launcher_pid_file_path = os.path.join(
-                    launcher_pid_dir, launcher_pid_filename
+                    launcher_pid_dir, f"bedrock_{server_name}.pid"
                 )
 
                 try:
@@ -214,13 +213,15 @@ def start_server(
                     logger.info(
                         f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
                     )
-                    # The actual server start confirmation now happens within that detached process's timeout.
-                    # This API call returns quickly. Subsequent status checks are needed.
                     return {
                         "status": "success",
-                        "message": f"Server '{server_name}' start initiated in detached mode (Launcher PID: {launcher_pid}). Check status for confirmation.",
+                        "message": (
+                            f"Server '{server_name}' start initiated in detached mode "
+                            f"(Launcher PID: {launcher_pid}). Check status for confirmation."
+                        ),
                         "pid": launcher_pid,
                     }
+
                 except (
                     system_process.ExecutableNotFoundError,
                     system_process.ProcessManagementError,
@@ -236,31 +237,56 @@ def start_server(
                     }
 
             elif platform.system() == "Linux":
-                logger.debug(
-                    f"API: On Linux, 'detached' mode for server start relies on systemd/screen via core.start_server."
-                )
-                server_base.start_server(server_name)
-                logger.info(
-                    f"API: Linux server '{server_name}' start (via systemd/screen) initiated successfully."
-                )
-                return {
-                    "status": "success",
-                    "message": f"Server '{server_name}' (Linux detached via core) start initiated.",
-                }
+                if system_linux.check_service_exist(server_name):
+                    logger.debug("API: Using systemctl to start server.")
+                    systemctl_cmd_path = shutil.which("systemctl")
+                    service_name = f"bedrock-{server_name}"
 
-            else:  # Other OS
-                return {
-                    "status": "error",
-                    "message": f"Detached mode not currently implemented for OS: {platform.system()}",
-                }
+                    if systemctl_cmd_path:
+                        try:
+                            subprocess.run(
+                                [systemctl_cmd_path, "--user", "start", service_name],
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                            logger.info(
+                                f"Successfully initiated start for systemd service '{service_name}'."
+                            )
+                            return {
+                                "status": "success",
+                                "message": f"Server '{server_name}' (detached mode) started successfully.",
+                            }
 
-        # Should not be reached due to mode validation earlier
+                        except FileNotFoundError:
+                            logger.error("'systemctl' command not found unexpectedly.")
+                        except subprocess.CalledProcessError as e:
+                            logger.warning(
+                                f"Starting via systemctl failed: {e}. stderr: {e.stderr}",
+                                exc_info=True,
+                            )
+                    else:
+                        logger.warning(
+                            "'systemctl' command not found. Cannot use systemd method."
+                        )
+                else:
+                    logger.warning(
+                        f"Service file for '{server_name}' doesn't exist. Fallback to direct mode..."
+                    )
+                    server_base.start_server(server_name)
+                    logger.info(
+                        f"API: Direct start for server '{server_name}' completed successfully."
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Server '{server_name}' (direct mode) started successfully.",
+                    }
+
         return {
             "status": "error",
             "message": "Internal error: Invalid mode fell through.",
         }
 
-    # Catch exceptions from server_base.start_server (for direct mode or Linux detached)
     except (
         ServerNotFoundError,
         ServerStartError,
@@ -295,154 +321,145 @@ def start_server(
         }
 
 
-def systemd_start_server(
-    server_name: str, base_dir: Optional[str] = None
+def stop_server(
+    server_name: str, base_dir: Optional[str] = None, mode: str = "direct"
 ) -> Dict[str, str]:
-    """
-    Starts the Bedrock server using the Linux-specific screen method (typically via systemd).
-    This function remains largely the same as it calls os-specific core functions directly.
-
-    Args:
-        server_name: The name of the server to start.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if platform.system() != "Linux":
-        return {
-            "status": "error",
-            "message": "Systemd start method is only supported on Linux.",
-        }
-
-    logger.info(
-        f"Attempting to start server '{server_name}' via systemd/screen method..."
-    )
-    try:
-        effective_base_dir = get_base_dir(base_dir)
-
-        # Check if already running
-        # system_base.is_server_running is still a valid check here
-        if system_base.is_server_running(server_name, effective_base_dir):
-            logger.warning(
-                f"Server '{server_name}' is already running (systemd start check)."
-            )
-            return {
-                "status": "error",
-                "message": f"Server '{server_name}' is already running.",
-            }
-
-        # Call the Linux-specific start function
-        server_dir = os.path.join(effective_base_dir, server_name)
-        system_linux._systemd_start_server(
-            server_name, server_dir
-        )  # This is an OS-specific core function
-        logger.info(
-            f"Server '{server_name}' started successfully via systemd/screen method."
-        )
-        return {
-            "status": "success",
-            "message": f"Server '{server_name}' start initiated via systemd/screen.",
-        }
-
-    except (ServerStartError, CommandNotFoundError, DirectoryError) as e:
-        logger.error(
-            f"Failed to start server '{server_name}' via systemd/screen: {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Failed to start server via systemd/screen: {e}",
-        }
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing server start for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Configuration error: {e}"}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error starting server '{server_name}' via systemd/screen: {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Unexpected error starting server via systemd/screen: {e}",
-        }
-
-
-def stop_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, str]:
     """
     Stops the specified Bedrock server using the core server functions.
 
     Args:
         server_name: The name of the server to stop.
         base_dir: Optional. The base directory for server installations. Uses config default if None.
+        mode: "direct" or "detached". On Linux, "detached" uses systemd if available.
 
     Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
+        A dictionary: {"status": "success", "message": ...} or {"status": "error", "message": ...}.
 
     Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined or essential settings missing.
+        MissingArgumentError, InvalidServerNameError, FileOperationError
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    logger.info(f"Attempting to stop server '{server_name}'...")
-    try:
-        effective_base_dir = get_base_dir(
-            base_dir
-        )  # Used for initial check_if_server_is_running
+    if mode not in ["direct", "detached"]:
+        raise InvalidInputError(
+            f"Invalid stop mode '{mode}'. Must be 'direct' or 'detached'."
+        )
 
-        # Check if not running before attempting to stop
-        if not server_base.check_if_server_is_running(server_name):
-            logger.warning(
-                f"Server '{server_name}' is not running. Stop request ignored."
-            )
+    if platform.system() == "Windows":
+        mode = "direct"  # Normalize mode for Windows
+
+    logger.info(f"Attempting to stop server '{server_name}'...")
+
+    try:
+        if mode == "direct":
+            effective_base_dir = get_base_dir(base_dir)
+
+            if not server_base.check_if_server_is_running(server_name):
+                logger.warning(
+                    f"Server '{server_name}' is not running. Stop request ignored."
+                )
+                return {
+                    "status": "success",
+                    "message": f"Server '{server_name}' was already stopped.",
+                }
+
+            server_base.stop_server(server_name)
+            logger.info(f"Server '{server_name}' stopped successfully.")
             return {
-                "status": "success",  # Desired state (stopped) is achieved
-                "message": f"Server '{server_name}' was already stopped.",
+                "status": "success",
+                "message": f"Server '{server_name}' stopped successfully.",
             }
 
-        # Call the standalone stop function from core.server.server
-        server_base.stop_server(server_name)
-        logger.info(f"Server '{server_name}' stopped successfully.")
-        return {
-            "status": "success",
-            "message": f"Server '{server_name}' stopped successfully.",
-        }
+        elif mode == "detached":
+            if platform.system() == "Linux":
+                if system_linux.check_service_exist(server_name):
+                    logger.debug(
+                        f"Attempting to stop server '{server_name}' using systemd..."
+                    )
+
+                    systemctl_cmd_path = shutil.which("systemctl")
+                    service_name = f"bedrock-{server_name}"
+                    service_file_path = os.path.join(
+                        os.path.expanduser("~/.config/systemd/user/"),
+                        f"{service_name}.service",
+                    )
+
+                    if systemctl_cmd_path and os.path.exists(service_file_path):
+                        try:
+                            subprocess.run(
+                                [systemctl_cmd_path, "--user", "stop", service_name],
+                                check=True,
+                                capture_output=True,
+                                text=True,
+                            )
+                            logger.info(
+                                f"Successfully initiated stop for systemd service '{service_name}'."
+                            )
+                            return {
+                                "status": "success",
+                                "message": f"Server '{server_name}' stopped successfully.",
+                            }
+                        except FileNotFoundError:
+                            logger.error("'systemctl' command not found unexpectedly.")
+                        except subprocess.CalledProcessError as e:
+                            logger.warning(
+                                f"Stopping via systemctl failed: {e}. stderr: {e.stderr}",
+                                exc_info=True,
+                            )
+
+                    logger.debug(
+                        "Systemctl not found or service file doesn't exist. Will try stopping directly."
+                    )
+                    server_base.stop_server(server_name)
+                    logger.info(f"Server '{server_name}' stopped successfully.")
+                    return {
+                        "status": "success",
+                        "message": f"Server '{server_name}' stopped successfully.",
+                    }
+                else:
+                    logger.warning(
+                        f"Service file for '{server_name}' doesn't exist. Will try stopping directly."
+                    )
+                    server_base.stop_server(server_name)
+                    logger.info(f"Server '{server_name}' stopped successfully.")
+                    return {
+                        "status": "success",
+                        "message": f"Server '{server_name}' stopped successfully.",
+                    }
+
+            elif platform.system() == "Windows":
+                logger.debug(
+                    f"Attempting to stop server '{server_name}' using direct stop method (Windows)."
+                )
+                server_base.stop_server(server_name)
+                logger.info(f"Server '{server_name}' stopped successfully.")
+                return {
+                    "status": "success",
+                    "message": f"Server '{server_name}' stopped successfully.",
+                }
 
     except (
-        ServerNotFoundError,  # This can be raised by stop_server if executable is gone but process was seen
+        ServerNotFoundError,
         ServerStopError,
         SendCommandError,
         CommandNotFoundError,
-        MissingArgumentError,  # from stop_server if server_name is somehow empty (should be caught above)
+        MissingArgumentError,
     ) as e:
         logger.error(f"Failed to stop server '{server_name}': {e}", exc_info=True)
-        # ServerNotFoundError case needs explicit handling for message if desired.
-        # server_base.stop_server itself will raise ServerNotFoundError if _get_server_details fails.
         return {
             "status": "error",
             "message": f"Failed to stop server '{server_name}': {e}",
         }
-    except (
-        FileOperationError
-    ) as e:  # Catch error from get_base_dir or core if settings are missing
+    except FileOperationError as e:
         logger.error(
             f"Configuration error preventing server stop for '{server_name}': {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Configuration error: {e}"}
+        return {
+            "status": "error",
+            "message": f"Configuration error: {e}",
+        }
     except Exception as e:
         logger.error(
             f"Unexpected error stopping server '{server_name}': {e}", exc_info=True
@@ -450,89 +467,6 @@ def stop_server(server_name: str, base_dir: Optional[str] = None) -> Dict[str, s
         return {
             "status": "error",
             "message": f"Unexpected error stopping server '{server_name}': {e}",
-        }
-
-
-def systemd_stop_server(
-    server_name: str, base_dir: Optional[str] = None
-) -> Dict[str, str]:
-    """
-    Stops the Bedrock server using the Linux-specific screen method (typically via systemd).
-    This function remains largely the same as it calls os-specific core functions directly.
-
-    Args:
-        server_name: The name of the server to stop.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-
-    Returns:
-        A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if platform.system() != "Linux":
-        return {
-            "status": "error",
-            "message": "Systemd stop method is only supported on Linux.",
-        }
-
-    logger.info(
-        f"Attempting to stop server '{server_name}' via systemd/screen method..."
-    )
-    try:
-        effective_base_dir = get_base_dir(base_dir)
-
-        # Check if not running
-        if not system_base.is_server_running(server_name, effective_base_dir):
-            logger.warning(
-                f"Server '{server_name}' is not running (systemd stop check)."
-            )
-            return {
-                "status": "success",
-                "message": f"Server '{server_name}' was already stopped.",
-            }
-
-        # Call the Linux-specific stop function
-        server_dir = os.path.join(effective_base_dir, server_name)
-        system_linux._systemd_stop_server(
-            server_name, server_dir
-        )  # This is an OS-specific core function
-        logger.info(
-            f"Server '{server_name}' stop command sent successfully via systemd/screen method."
-        )
-        # Note: This only sends the command, doesn't wait for full stop.
-        return {
-            "status": "success",
-            "message": f"Server '{server_name}' stop initiated via systemd/screen.",
-        }
-
-    except (ServerStopError, CommandNotFoundError) as e:
-        logger.error(
-            f"Failed to stop server '{server_name}' via systemd/screen: {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Failed to stop server via systemd/screen: {e}",
-        }
-    except FileOperationError as e:  # Catch error from get_base_dir
-        logger.error(
-            f"Configuration error preventing server stop for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Configuration error: {e}"}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error stopping server '{server_name}' via systemd/screen: {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Unexpected error stopping server via systemd/screen: {e}",
         }
 
 

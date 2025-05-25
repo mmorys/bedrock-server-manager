@@ -43,9 +43,6 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-# --- Functions from your previous version (Allowlist, Permissions, Properties Read/Validate) ---
-
-
 def configure_allowlist(
     server_name: str,
     base_dir: Optional[str] = None,

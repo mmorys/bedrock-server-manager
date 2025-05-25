@@ -43,6 +43,7 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.api import server as server_api
+from bedrock_server_manager.core.server.server import manage_server_config
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,
@@ -114,64 +115,6 @@ def start_server(
         )
 
 
-def systemd_start_server(server_name: str, base_dir: Optional[str] = None) -> None:
-    """
-    CLI handler function to start a Bedrock server using the systemd/screen method.
-
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server to start.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    # Note: API function handles the platform check
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(
-        f"CLI: Requesting to start server '{server_name}' via systemd/screen..."
-    )
-    print(
-        f"{_INFO_PREFIX}Attempting to start server '{server_name}' via systemd/screen..."
-    )
-
-    try:
-        logger.debug(
-            f"Calling API: server_api.systemd_start_server for '{server_name}'"
-        )
-        response = server_api.systemd_start_server(server_name, base_dir)
-        logger.debug(f"API response from systemd_start_server: {response}")
-
-        if response.get("status") == "error":
-            message = response.get(
-                "message", "Unknown error starting server via systemd/screen."
-            )
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Systemd start failed for '{server_name}': {message}")
-        else:
-            message = response.get(
-                "message", f"Server '{server_name}' start initiated via systemd/screen."
-            )
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: Systemd start successful for '{server_name}'.")
-
-    except (InvalidServerNameError, FileOperationError) as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call systemd start server API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
-        logger.error(
-            f"CLI: Unexpected error during systemd start for '{server_name}': {e}",
-            exc_info=True,
-        )
-
-
 def stop_server(server_name: str, base_dir: Optional[str] = None) -> None:
     """
     CLI handler function to stop a specific Bedrock server instance.
@@ -191,7 +134,11 @@ def stop_server(server_name: str, base_dir: Optional[str] = None) -> None:
 
     try:
         logger.debug(f"Calling API: server_api.stop_server for '{server_name}'")
-        response = server_api.stop_server(server_name, base_dir)
+        response = server_api.stop_server(
+            server_name,
+            base_dir,
+            mode=manage_server_config(server_name, "start_method", "read"),
+        )
         logger.debug(f"API response from stop_server: {response}")
 
         if response.get("status") == "error":
@@ -216,62 +163,6 @@ def stop_server(server_name: str, base_dir: Optional[str] = None) -> None:
         print(f"{_ERROR_PREFIX}An unexpected error occurred while stopping server: {e}")
         logger.error(
             f"CLI: Unexpected error stopping server '{server_name}': {e}", exc_info=True
-        )
-
-
-def systemd_stop_server(server_name: str, base_dir: Optional[str] = None) -> None:
-    """
-    CLI handler function to stop a Bedrock server using the systemd/screen method.
-
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server to stop.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    # Note: API function handles the platform check
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(
-        f"CLI: Requesting to stop server '{server_name}' via systemd/screen..."
-    )
-    print(
-        f"{_INFO_PREFIX}Attempting to stop server '{server_name}' via systemd/screen..."
-    )
-
-    try:
-        logger.debug(f"Calling API: server_api.systemd_stop_server for '{server_name}'")
-        response = server_api.systemd_stop_server(server_name, base_dir)
-        logger.debug(f"API response from systemd_stop_server: {response}")
-
-        if response.get("status") == "error":
-            message = response.get(
-                "message", "Unknown error stopping server via systemd/screen."
-            )
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Systemd stop failed for '{server_name}': {message}")
-        else:
-            message = response.get(
-                "message", f"Server '{server_name}' stop initiated via systemd/screen."
-            )
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: Systemd stop successful for '{server_name}'.")
-
-    except (InvalidServerNameError, FileOperationError) as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call systemd stop server API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
-        logger.error(
-            f"CLI: Unexpected error during systemd stop for '{server_name}': {e}",
-            exc_info=True,
         )
 
 

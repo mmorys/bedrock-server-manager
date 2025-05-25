@@ -375,7 +375,7 @@ def _disable_systemd_service(server_name: str) -> None:
         raise ServiceError(error_msg) from e
 
 
-def _systemd_start_server(server_name: str, server_dir: str) -> None:
+def _linux_start_server(server_name: str, server_dir: str) -> None:
     """
     Starts the Bedrock server process within a detached 'screen' session.
 
@@ -480,7 +480,7 @@ def _systemd_start_server(server_name: str, server_dir: str) -> None:
         raise CommandNotFoundError(e.filename) from e
 
 
-def _systemd_stop_server(server_name: str, server_dir: str) -> None:
+def _linux_stop_server(server_name: str, server_dir: str) -> None:
     """
     Stops the Bedrock server running within a 'screen' session.
 

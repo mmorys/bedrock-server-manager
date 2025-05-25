@@ -449,100 +449,71 @@ def start_server(server_name: str, server_path_override: Optional[str] = None) -
     start_successful_method = None
 
     if os_name == "Linux":
-        systemctl_cmd_path = shutil.which("systemctl")
-        service_name = f"bedrock-{server_name}"
-        if systemctl_cmd_path:
-            logger.debug("Attempting to start server via systemd user service.")
+        screen_cmd_path = shutil.which("screen")
+        if screen_cmd_path:
+            logger.info("Starting server.")
             try:
-                process = subprocess.run(
-                    [systemctl_cmd_path, "--user", "start", service_name],
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                system_linux.linux_start_server(server_name, details["server_dir"])
+                start_successful_method = "screen"
+            except (CommandNotFoundError, ServerStartError) as e:
+                logger.error(
+                    f"Failed to start server using screen method: {e}",
+                    exc_info=True,
                 )
-                logger.info(
-                    f"Successfully initiated start for systemd service '{service_name}'."
-                )
-                start_successful_method = "systemd"
-            except FileNotFoundError:
-                logger.error("'systemctl' command not found unexpectedly.")
-                start_successful_method = None
-            except subprocess.CalledProcessError as e:
-                logger.warning(
-                    f"Starting via systemctl failed (maybe service not found/enabled?): {e}. stderr: {e.stderr}",
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error starting server via screen method: {e}",
                     exc_info=True,
                 )
         else:
-            logger.warning("'systemctl' command not found. Cannot use systemd method.")
+            logger.error("'screen' command not found. Cannot start server.")
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "ERROR",
+                config_dir=details["config_dir_base"],
+            )
+            raise CommandNotFoundError(
+                "screen", message="'screen' command not found. Cannot start server."
+            )
+            attempts = 0
+            max_attempts = settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
+            sleep_interval = 2
 
-        if start_successful_method != "systemd":
-            screen_cmd_path = shutil.which("screen")
-            if screen_cmd_path:
-                logger.info("Falling back to starting server via 'screen'.")
-                try:
-                    system_linux._systemd_start_server(
-                        server_name, details["server_dir"]
+            logger.info(
+                f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' to start..."
+            )
+            while attempts < max_attempts:
+                if check_if_server_is_running(server_name):
+                    manage_server_config(
+                        server_name,
+                        "status",
+                        "write",
+                        "RUNNING",
+                        config_dir=details["config_dir_base"],
                     )
-                    start_successful_method = "screen"
-                except (CommandNotFoundError, ServerStartError) as e:
-                    logger.error(
-                        f"Failed to start server using screen method: {e}",
-                        exc_info=True,
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Unexpected error starting server via screen method: {e}",
-                        exc_info=True,
-                    )
-            else:
-                logger.error("'screen' command not found. Cannot start server.")
-                manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=details["config_dir_base"],
+                    logger.info(f"Server '{server_name}' started successfully.")
+                    return
+                logger.debug(
+                    f"Waiting for server '{server_name}' to start... (Check {attempts + 1}/{max_attempts})"
                 )
-                raise CommandNotFoundError(
-                    "screen", message="'screen' command not found. Cannot start server."
-                )
-                attempts = 0
-                max_attempts = settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
-                sleep_interval = 2
+                time.sleep(sleep_interval)
+                attempts += 1
 
-                logger.info(
-                    f"Waiting up to {max_attempts * sleep_interval} seconds for server '{server_name}' to start..."
-                )
-                while attempts < max_attempts:
-                    if check_if_server_is_running(server_name):
-                        manage_server_config(
-                            server_name,
-                            "status",
-                            "write",
-                            "RUNNING",
-                            config_dir=details["config_dir_base"],
-                        )
-                        logger.info(f"Server '{server_name}' started successfully.")
-                        return
-                    logger.debug(
-                        f"Waiting for server '{server_name}' to start... (Check {attempts + 1}/{max_attempts})"
-                    )
-                    time.sleep(sleep_interval)
-                    attempts += 1
-
-                manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=details["config_dir_base"],
-                )
-                logger.error(
-                    f"Server '{server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
-                )
-                raise ServerStartError(
-                    f"Server '{server_name}' failed to start within the timeout."
-                )
+            manage_server_config(
+                server_name,
+                "status",
+                "write",
+                "ERROR",
+                config_dir=details["config_dir_base"],
+            )
+            logger.error(
+                f"Server '{server_name}' failed to confirm running status within the timeout ({max_attempts * sleep_interval} seconds)."
+            )
+            raise ServerStartError(
+                f"Server '{server_name}' failed to start within the timeout."
+            )
 
     elif os_name == "Windows":
         logger.debug("Attempting to start server via Windows process creation.")
@@ -645,54 +616,20 @@ def stop_server(server_name: str, server_path_override: Optional[str] = None) ->
     stop_initiated_by_systemd = False  # Specific to systemd stop path
 
     if os_name == "Linux":
-        systemctl_cmd_path = shutil.which("systemctl")
-        service_name = f"bedrock-{server_name}"
-        service_file_path = os.path.join(
-            os.path.expanduser("~/.config/systemd/user/"), f"{service_name}.service"
-        )
-
-        if systemctl_cmd_path and os.path.exists(service_file_path):
-            logger.debug("Attempting to stop server via systemd user service.")
-            try:
-                process = subprocess.run(
-                    [systemctl_cmd_path, "--user", "stop", service_name],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                logger.info(
-                    f"Successfully initiated stop for systemd service '{service_name}'."
-                )
-                stop_initiated_by_systemd = True
-            except FileNotFoundError:
-                logger.error("'systemctl' command not found unexpectedly.")
-            except subprocess.CalledProcessError as e:
-                logger.warning(
-                    f"Stopping via systemctl failed (maybe service wasn't running under systemd?): {e}. stderr: {e.stderr}",
-                    exc_info=True,
-                )
-        else:
-            logger.debug(
-                "Systemctl not found or service file doesn't exist. Will try sending 'stop' command directly."
+        try:
+            logger.info("Sending 'stop' command to server process...")
+            send_server_command(server_name, "stop")  # Uses the new standalone function
+            # If send_server_command succeeds, we consider stop initiated for the wait loop.
+        except (SendCommandError, ServerNotRunningError, CommandNotFoundError) as e:
+            logger.error(
+                f"Failed to send 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
+                exc_info=True,
             )
-
-        if not stop_initiated_by_systemd:
-            try:
-                logger.info("Sending 'stop' command to server process...")
-                send_server_command(
-                    server_name, "stop"
-                )  # Uses the new standalone function
-                # If send_server_command succeeds, we consider stop initiated for the wait loop.
-            except (SendCommandError, ServerNotRunningError, CommandNotFoundError) as e:
-                logger.error(
-                    f"Failed to send 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
-                    exc_info=True,
-                )
-            except Exception as e:  # Catch other errors from send_server_command
-                logger.error(
-                    f"Unexpected error sending 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
-                    exc_info=True,
-                )
+        except Exception as e:  # Catch other errors from send_server_command
+            logger.error(
+                f"Unexpected error sending 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
+                exc_info=True,
+            )
 
     elif os_name == "Windows":
         try:
@@ -777,9 +714,6 @@ def stop_server(server_name: str, server_path_override: Optional[str] = None) ->
     raise ServerStopError(
         f"Server '{server_name}' failed to stop within the timeout. Manual intervention may be required."
     )
-
-
-# --- Existing Standalone Functions (Unchanged by BedrockServer class removal, but calls to its methods updated if any) ---
 
 
 def get_world_name(server_name: str, base_dir: str) -> str:
