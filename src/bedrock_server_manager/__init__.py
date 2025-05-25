@@ -329,6 +329,7 @@ def main() -> None:
             "-m",
             "--mode",
             choices=["direct", "detached"],
+            default="detached",
             help="Mode to start server in",
         )
 
