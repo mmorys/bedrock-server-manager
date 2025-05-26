@@ -8,8 +8,9 @@ import logging
 from typing import Dict, Optional, Any
 
 # Local imports
-from bedrock_server_manager.core.server import server as server_base
+from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.core.utils import get_server_status_from_config
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -74,7 +75,7 @@ def get_server_config_status(
     logger.info(f"API: Getting config status for server '{server_name}'...")
     try:
         # Core function already handles config_dir default and returns "UNKNOWN" if not found
-        status = server_base.get_server_status_from_config(server_name, config_dir)
+        status = get_server_status_from_config(server_name, config_dir)
         logger.debug(f"API: get_server_status_from_config returned: '{status}'")
         return {"status": "success", "config_status": status}
     except (FileOperationError, InvalidServerNameError) as e:
@@ -112,7 +113,7 @@ def get_server_installed_version(
     logger.info(f"API: Getting installed version for server '{server_name}'...")
     try:
         # Core function handles config_dir default and returns "UNKNOWN" if not found/error
-        version = server_base.get_installed_version(server_name, config_dir)
+        version = core_server_actions.get_installed_version(server_name, config_dir)
         logger.debug(f"API: get_installed_version returned: '{version}'")
         return {"status": "success", "installed_version": version}
     except (FileOperationError, InvalidServerNameError) as e:

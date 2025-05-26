@@ -7,7 +7,7 @@ from contextlib import contextmanager
 # Local imports from API/App layer
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.server import server as core_server_base
+from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
@@ -25,9 +25,6 @@ from bedrock_server_manager.error import (
     ResourceMonitorError,
     SystemError,
 )
-from bedrock_server_manager.core.server import (
-    server as core_server,
-)
 from bedrock_server_manager.core.system import (
     base as core_system,
 )
@@ -44,7 +41,7 @@ def validate_server_exist(
 ) -> Dict[str, Any]:
     """
     Validates if a server installation directory and executable exist.
-    (API wrapper for core_server.validate_server)
+    (API wrapper for core_server_actions.validate_server)
     """
     if not server_name:
         # API level argument validation
@@ -55,7 +52,7 @@ def validate_server_exist(
     logger.debug(f"API.validate_server_exist: Validating '{server_name}'...")
     try:
         effective_base_dir = get_base_dir(base_dir)  # Can raise FileOperationError
-        core_server.validate_server(
+        core_server_actions.validate_server(
             server_name, effective_base_dir
         )  # Can raise ServerNotFoundError (from core)
         logger.debug(
@@ -120,7 +117,7 @@ def get_all_servers_status(
 ) -> Dict[str, Any]:
     """
     Retrieves the last known status and installed version for all detected servers.
-    (API orchestrator using core_server functions)
+    (API orchestrator using core_server_actions functions)
     """
     servers_data: List[Dict[str, str]] = []
     error_messages = []
@@ -147,11 +144,11 @@ def get_all_servers_status(
             if os.path.isdir(item_path):
                 server_name = item_name
                 try:
-                    # Using core_server (core.server)
-                    status = core_server.get_server_status_from_config(
+                    # Using core_server_actions (core.server.server_actions)
+                    status = core_utils.get_server_status_from_config(
                         server_name, effective_config_dir
                     )
-                    version = core_server.get_installed_version(
+                    version = core_server_actions.get_installed_version(
                         server_name, effective_config_dir
                     )
                     servers_data.append(
@@ -217,7 +214,7 @@ def update_server_statuses(
                     is_actually_running = core_system.is_server_running(
                         server_name, effective_base_dir
                     )
-                    config_status = core_server.get_server_status_from_config(
+                    config_status = core_utils.get_server_status_from_config(
                         server_name, effective_config_dir
                     )
 
@@ -241,7 +238,7 @@ def update_server_statuses(
                         new_status = "STOPPED"
 
                     if needs_update:
-                        core_server.manage_server_config(
+                        core_server_actions.manage_server_config(
                             server_name,
                             "status",
                             "write",
@@ -485,7 +482,7 @@ def _server_stop_start_manager(
         logger.debug(
             f"Context Mgr: Checking status for '{server_name}' (Stop/Start: {stop_start_flag})"
         )
-        if core_server_base.check_if_server_is_running(server_name):
+        if core_server_actions.check_if_server_is_running(server_name):
             was_running = True
             logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
             stop_result = api_stop_server(server_name, base_dir)

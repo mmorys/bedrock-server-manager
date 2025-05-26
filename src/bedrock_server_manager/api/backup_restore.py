@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 
 # Local imports
-from bedrock_server_manager.core.server import backup as core_backup
+from bedrock_server_manager.core.server import backup_restore as core_backup
 from bedrock_server_manager.core.server import world as core_world
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api.world import get_world_name as api_get_world_name

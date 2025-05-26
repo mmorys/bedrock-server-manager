@@ -43,7 +43,7 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.api import server as server_api
-from bedrock_server_manager.core.server.server import manage_server_config
+from bedrock_server_manager.core.server.server_actions import manage_server_config
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,

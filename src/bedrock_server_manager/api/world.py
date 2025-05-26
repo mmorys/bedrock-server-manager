@@ -23,7 +23,7 @@ from bedrock_server_manager.error import (
 )
 from bedrock_server_manager.utils.general import get_base_dir, get_timestamp
 from bedrock_server_manager.core.server import (
-    server as core_server_base,
+    server_actions as core_server_actions,
     world as core_world,
 )
 
@@ -40,7 +40,7 @@ def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str
     logger.debug(f"API: Attempting to get world name for server '{server_name}'...")
     try:
         effective_base_dir = get_base_dir(base_dir)
-        world_name_str = core_server_base.get_world_name(
+        world_name_str = core_server_actions.get_world_name(
             server_name, effective_base_dir
         )
         logger.info(
@@ -94,7 +94,7 @@ def export_world(
         os.makedirs(effective_export_dir, exist_ok=True)
 
         # Get world name directly from core
-        world_name_str = core_server_base.get_world_name(
+        world_name_str = core_server_actions.get_world_name(
             server_name, effective_base_dir
         )
         world_path = os.path.join(

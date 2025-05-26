@@ -20,6 +20,8 @@ from typing import List, Optional, Tuple, Dict
 from bedrock_server_manager.config.settings import EXPATH
 from bedrock_server_manager.error import (
     CommandNotFoundError,
+    ServerNotRunningError,
+    SendCommandError,
     SystemdReloadError,
     ServiceError,
     InvalidServerNameError,
@@ -532,7 +534,6 @@ def _linux_stop_server(server_name: str, server_dir: str) -> None:
                 f"'stop' command sent successfully to screen session '{screen_session_name}'."
             )
             # Note: This only sends the command. The server still needs time to shut down.
-            # The calling function (e.g., BedrockServer.stop) should handle waiting.
         elif "No screen session found" in process.stderr:
             logger.info(
                 f"Screen session '{screen_session_name}' not found. Server likely already stopped."
@@ -555,3 +556,102 @@ def _linux_stop_server(server_name: str, server_dir: str) -> None:
             exc_info=True,
         )
         raise ServerStopError(f"Unexpected error sending stop via screen: {e}") from e
+
+
+def _linux_send_command(server_name: str, command: str) -> None:
+    """
+    Sends a command to a Bedrock server running in a 'screen' session.
+    This function is typically called by the systemd service file (`ExecReload`).
+    It sends the specified command to the server via screen.
+    (Linux-specific)
+
+    Args:
+        server_name: The name of the server (used for screen session name).
+        command: The command to send to the server.
+
+    Raises:
+        MissingArgumentError: If `server_name` or `command` is empty.
+        CommandNotFoundError: If the 'screen' command is not found.
+        ServerNotRunningError: If the screen session for the server is not found.
+        SendCommandError: If sending the command via screen fails unexpectedly.
+    """
+    if not server_name:
+        raise MissingArgumentError("server_name cannot be empty.")
+    if not command:
+        raise MissingArgumentError("command cannot be empty.")
+
+    screen_cmd_path = shutil.which("screen")
+    if not screen_cmd_path:
+        logger.error(
+            "'screen' command not found. Cannot send command. Is 'screen' installed and in PATH?"
+        )
+        raise CommandNotFoundError(
+            "screen", message="'screen' command not found. Is it installed?"
+        )
+
+    try:
+        screen_session_name = f"bedrock-{server_name}"
+        # Ensure the command ends with a newline, as 'stuff' simulates typing
+        command_with_newline = command if command.endswith("\n") else command + "\n"
+
+        process = subprocess.run(
+            [
+                screen_cmd_path,
+                "-S",
+                screen_session_name,
+                "-X",
+                "stuff",
+                command_with_newline,
+            ],
+            check=True,  # Raise CalledProcessError on non-zero exit
+            capture_output=True,  # Capture stdout and stderr
+            text=True,  # Decode stdout/stderr as text
+        )
+        logger.debug(
+            f"'screen' command executed successfully for server '{server_name}'. stdout: {process.stdout}, stderr: {process.stderr}"
+        )
+        logger.info(f"Sent command '{command}' to server '{server_name}' via screen.")
+
+    except subprocess.CalledProcessError as e:
+        # screen -X stuff usually exits 0, but if session doesn't exist,
+        # it might exit non-zero on some versions or print to stderr.
+        # More reliably, check stderr for the "No screen session found" message.
+        if "No screen session found" in e.stderr or (
+            hasattr(e, "stdout") and "No screen session found" in e.stdout
+        ):  # Check stdout too, just in case
+            logger.error(
+                f"Failed to send command: Screen session '{screen_session_name}' not found. "
+                f"Is the server running correctly in screen? stderr: {e.stderr}, stdout: {e.stdout}"
+            )
+            raise ServerNotRunningError(
+                f"Screen session '{screen_session_name}' not found."
+            ) from e
+        else:
+            logger.error(
+                f"Failed to send command via screen for server '{server_name}': {e}. "
+                f"stdout: {e.stdout}, stderr: {e.stderr}",
+                exc_info=True,
+            )
+            raise SendCommandError(
+                f"Failed to send command to '{server_name}' via screen: {e}"
+            ) from e
+    except FileNotFoundError:
+        # This would typically only happen if 'screen' was deleted *after* shutil.which found it,
+        # or if shutil.which somehow returned a path that became invalid.
+        # The primary check for 'screen' not existing is handled before the try block.
+        logger.error(
+            f"'screen' command (path: {screen_cmd_path}) not found unexpectedly "
+            f"when trying to send command to '{server_name}'."
+        )
+        raise CommandNotFoundError(
+            "screen",
+            message=f"'screen' command not found unexpectedly at path: {screen_cmd_path}.",
+        ) from None
+    except Exception as e:  # Catch-all for other unexpected errors
+        logger.error(
+            f"An unexpected error occurred while trying to send command to server '{server_name}': {e}",
+            exc_info=True,
+        )
+        raise SendCommandError(
+            f"Unexpected error sending command to '{server_name}': {e}"
+        ) from e

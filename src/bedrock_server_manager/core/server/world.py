@@ -20,7 +20,7 @@ from bedrock_server_manager.error import (
     RestoreError,
     InvalidServerNameError,
 )
-from bedrock_server_manager.core.server import server
+from bedrock_server_manager.core.server import server_actions as core_server_actions
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -275,7 +275,7 @@ def import_world(server_name: str, mcworld_backup_path: str, base_dir: str) -> s
     # 1. Determine the target world directory
     try:
         # Use the function from the server module to get the world name
-        world_name = server.get_world_name(
+        world_name = core_server_actions.get_world_name(
             server_name, base_dir
         )  # Raises FileOperationError if props missing/invalid or name missing
         logger.info(f"Target world name for server '{server_name}' is '{world_name}'.")

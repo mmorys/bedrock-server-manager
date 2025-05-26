@@ -19,7 +19,7 @@ import re
 from typing import Tuple, List
 
 # Local imports
-from bedrock_server_manager.core.server import server
+from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.core.server import world
 from bedrock_server_manager.error import (
     MissingArgumentError,
@@ -204,7 +204,7 @@ def _process_extracted_mcaddon_contents(
         logger.info(f"Found {len(mcworld_files)} .mcworld file(s) in .mcaddon.")
         try:
             # Determine the target world directory path ONCE
-            world_name = server.get_world_name(
+            world_name = core_server_actions.get_world_name(
                 server_name, base_dir
             )  # Raises FileOperationError if props missing/invalid
             if not world_name:  # Should be caught by get_world_name
@@ -593,7 +593,7 @@ def install_pack(
 
     # 1. Determine world name and paths
     try:
-        world_name = server.get_world_name(
+        world_name = core_server_actions.get_world_name(
             server_name, base_dir
         )  # Raises FileOperationError
         if not world_name:  # Should be caught by get_world_name

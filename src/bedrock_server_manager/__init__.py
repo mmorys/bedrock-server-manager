@@ -10,6 +10,7 @@ import sys
 import argparse
 import os
 import logging
+import platform
 
 # --- Initialize Settings and Logger ---
 try:
@@ -64,27 +65,25 @@ except Exception as e:
 
 # --- Import other modules ---
 try:
-    from .api import (
+    from bedrock_server_manager.api import (
         utils as api_utils,
         server_install_config as api_server_install_config,
     )
-    from .error import FileOperationError
-    from .core import downloader
-    from .utils.general import (
+    from bedrock_server_manager.error import FileOperationError
+    from bedrock_server_manager.core import downloader, utils as core_utils
+    from bedrock_server_manager.utils.general import (
         startup_checks,
         _INFO_PREFIX,
         _OK_PREFIX,
         _WARN_PREFIX,
         _ERROR_PREFIX,
     )
-    from .core.server import (
-        server as server_base,
+    from bedrock_server_manager.core.server import (
+        server_actions as core_server_actions,
+        server_install_config as core_server_install_config,
     )
-    from .core.system import base as system_base
-    from .core.system import (
-        linux as system_linux,
-    )
-    from .cli import (
+    from bedrock_server_manager.core.system import base as system_base
+    from bedrock_server_manager.cli import (
         main_menus,
         utils as cli_utils,
         server_install_config as cli_server_install_config,
@@ -107,6 +106,11 @@ except ImportError as e:
         file=sys.stderr,
     )
     sys.exit(1)
+
+if platform.system() == "Linux":
+    from bedrock_server_manager.core.system import linux as system_linux
+else:
+    system_linux = None
 
 
 def run_cleanup(args: argparse.Namespace) -> None:
@@ -694,7 +698,7 @@ def main() -> None:
                 else cli_utils.list_servers_status(base_dir, config_dir)
             ),
             "get-status": lambda args: print(
-                server_base.get_server_status_from_config(args.server, config_dir)
+                core_utils.get_server_status_from_config(args.server, config_dir)
             ),
             "configure-allowlist": lambda args: cli_server_install_config.configure_allowlist(
                 args.server, base_dir
@@ -726,7 +730,7 @@ def main() -> None:
                                 if validation.get("status") == "error"
                                 else (
                                     # Modify using core function directly for single property set
-                                    server_base.modify_server_properties(
+                                    core_server_install_config.modify_server_properties(
                                         os.path.join(
                                             base_dir, args.server, "server.properties"
                                         ),
@@ -833,7 +837,7 @@ def main() -> None:
                         else f"{_WARN_PREFIX}Key '{args.key}' not found."
                     )
                 )(
-                    server_base.manage_server_config(
+                    core_server_actions.manage_server_config(
                         args.server, args.key, "read", config_dir=config_dir
                     )
                 )
@@ -843,7 +847,7 @@ def main() -> None:
                 (
                     lambda: (
                         (
-                            server_base.manage_server_config(
+                            core_server_actions.manage_server_config(
                                 args.server,
                                 args.key,
                                 "write",
@@ -862,10 +866,10 @@ def main() -> None:
                 )
             ),
             "get-installed-version": lambda args: print(
-                server_base.get_installed_version(args.server, config_dir)
+                core_server_actions.get_installed_version(args.server, config_dir)
             ),
             "get-world-name": lambda args: print(
-                server_base.get_world_name(args.server, base_dir)
+                core_server_actions.get_world_name(args.server, base_dir)
             ),
             "check-service-exist": lambda args: print(
                 system_linux.check_service_exist(args.server)
