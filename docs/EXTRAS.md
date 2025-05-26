@@ -1,5 +1,26 @@
 # Extra Configuration & Customization
 
+## Color in the CLI:
+
+Bedrock Server Manager's command-line interface (CLI) supports color coding to enhance readability and user experience. This feature might disabled by default on some installs, but you can enable it with the following command:
+
+```bash
+pip install colorama
+```
+---
+
+### No Color Interface:
+
+<div style="text-align: left;">
+    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/docs/images/cli_no_color.png" alt="CLI Menu (No Color)" width="300" height="200">
+</div>
+
+### Color Interface:
+
+<div style="text-align: left;">
+    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/docs/images/cli_menu.png" alt="CLI Menu (Color)" width="300" height="200">
+</div>
+
 ## Custom Web Server Panorama
 
 You can personalize the background panorama displayed on the main web server page.
