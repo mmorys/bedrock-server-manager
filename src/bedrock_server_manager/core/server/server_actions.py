@@ -599,8 +599,6 @@ def delete_server_data(
                         f"Failed during systemd service interaction for '{service_name}': {e}. Manual cleanup might be needed.",
                         exc_info=True,
                     )
-                    # Optionally add to deletion_errors if this failure should halt the overall process
-                    # deletion_errors.append(f"systemd interaction for '{service_name}' ({e})")
             else:  # systemctl not found, but service file exists
                 logger.warning(
                     f"Systemd service file found for '{service_name}', but 'systemctl' command not found. Attempting to delete file directly."

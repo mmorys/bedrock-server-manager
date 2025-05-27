@@ -200,7 +200,7 @@ def install_world_route(server_name: str) -> Response:
     logger.debug(f"World content directory: {content_dir}")
 
     # API call to list available .mcworld files
-    list_result: Dict[str, Any] = utils_api.list_content_files(content_dir, ["mcworld"])
+    list_result: Dict[str, Any] = utils_api.list_world_content_files()
     logger.debug(f"List content files API result: {list_result}")
 
     world_files: List[str] = []
@@ -519,8 +519,7 @@ def install_addon_route(server_name: str) -> Response:
     logger.debug(f"Addon content directory: {content_dir}")
 
     # API call to list available addon files
-    allowed_extensions = ["mcaddon", "mcpack"]
-    list_result = utils_api.list_content_files(content_dir, allowed_extensions)
+    list_result = utils_api.list_addon_content_files()
     logger.debug(f"List content files API result: {list_result}")
 
     addon_files: List[str] = []

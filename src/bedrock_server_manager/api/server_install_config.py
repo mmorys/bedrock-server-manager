@@ -70,7 +70,7 @@ def configure_allowlist(
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        existing_players = core_server_install_config.configure_allowlist(server_dir)
+        existing_players = core_server_install_config.read_allowlist(server_dir)
         logger.debug(
             f"API: Found {len(existing_players)} players in existing allowlist."
         )
@@ -878,6 +878,13 @@ def update_server(
                 "new_version": installed_version,
                 "message": "Server is already up-to-date.",
             }
+
+        if core_server_actions.check_if_server_is_running(server_name):
+            cmd_res = api_send_command(server_name, "say Installing update...")
+            if cmd_res.get("status") == "error":
+                logger.warning(
+                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                )
 
         # Call the main orchestrator for download and file setup, with is_update=True
         update_result = download_and_install_server(

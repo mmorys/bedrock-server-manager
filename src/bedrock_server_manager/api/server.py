@@ -374,6 +374,13 @@ def stop_server(
                     "message": f"Server '{server_name}' was already stopped.",
                 }
 
+            cmd_res = send_command(server_name, "say Stopping server in 10 seconds...")
+            if cmd_res.get("status") == "error":
+                logger.warning(
+                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                )
+            time.sleep(10)  # Give players time to see message
+
             core_server_actions.stop_server(server_name)
             logger.info(f"Server '{server_name}' stopped successfully.")
 
@@ -451,7 +458,6 @@ def stop_server(
                     "status": "success",
                     "message": f"Server '{server_name}' stopped successfully.",
                 }
-
     except (
         ServerNotFoundError,
         ServerStopError,
@@ -535,33 +541,10 @@ def restart_server(
 
             # --- Send Warning Message (Optional) ---
             if send_message:
-                logger.debug(
-                    f"Attempting to send restart warning message to server '{server_name}'."
-                )
-                try:
-                    # Use core standalone send_server_command
-                    core_server_actions.send_server_command(
-                        server_name, "say Server restarting in 10 seconds..."
-                    )
-                    logger.info(
-                        f"Sent restart warning to server '{server_name}'. Waiting 10s..."
-                    )
-                    time.sleep(10)  # Give players time to see message
-                except (
-                    ServerNotFoundError,
-                    SendCommandError,
-                    ServerNotRunningError,  # Should not happen if is_running was true, but possible race
-                    CommandNotFoundError,
-                    MissingArgumentError,  # from send_server_command
-                ) as msg_err:
+                cmd_res = send_command(server_name, "say Restarting server...")
+                if cmd_res.get("status") == "error":
                     logger.warning(
-                        f"Could not send restart warning message to server '{server_name}': {msg_err}. Proceeding with restart.",
-                        exc_info=True,
-                    )
-                except Exception as msg_err:  # Catch other unexpected errors
-                    logger.warning(
-                        f"Unexpected error sending restart warning message to server '{server_name}': {msg_err}. Proceeding with restart.",
-                        exc_info=True,
+                        f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
                     )
 
             # --- Stop Server ---
@@ -774,6 +757,12 @@ def delete_server_data(
                     logger.info(
                         f"Server '{server_name}' is running. Stopping before deletion..."
                     )
+
+                    cmd_res = send_command(server_name, "say WARNING: Deleting Server...")
+                    if cmd_res.get("status") == "error":
+                        logger.warning(
+                            f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                        )
                     # Call API stop_server function (which calls core stop_server)
                     stop_result = stop_server(server_name, effective_base_dir)
                     if stop_result.get("status") == "error":

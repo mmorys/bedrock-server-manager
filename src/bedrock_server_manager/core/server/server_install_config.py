@@ -34,10 +34,7 @@ from bedrock_server_manager.core import downloader
 logger = logging.getLogger("bedrock_server_manager")
 
 
-# --- Helper function ---
-
-
-def configure_allowlist(server_dir: str) -> list:
+def read_allowlist(server_dir: str) -> list:
     """
     Loads and returns the current content of the server's allowlist.json file.
 

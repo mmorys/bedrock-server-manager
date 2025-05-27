@@ -11,7 +11,9 @@ import logging
 from typing import Dict, Optional
 
 # Local imports
+from bedrock_server_manager.api.server import send_command as api_send_command
 from bedrock_server_manager.core.server import addon as core_addon
+from bedrock_server_manager.core.server.server_actions import check_if_server_is_running
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.error import (
     MissingArgumentError,
@@ -63,8 +65,17 @@ def import_addon(
         raise FileNotFoundError(f"Addon file not found: {addon_file_path}")
 
     try:
+
+        if check_if_server_is_running(server_name):
+            cmd_res = api_send_command(server_name, "say Installing addon...")
+            if cmd_res.get("status") == "error":
+                logger.warning(
+                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                )
         effective_base_dir = get_base_dir(base_dir)
         logger.debug(f"API: Using base directory: {effective_base_dir}")
+
+
 
         # The _server_stop_start_manager will handle stopping the server if stop_start_server is True,
         # and restarting it in its finally block based on was_running and restart_only_on_success.

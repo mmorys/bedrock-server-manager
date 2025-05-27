@@ -9,6 +9,7 @@ from typing import Dict, Optional, Any
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.api import server as api_server_actions
 from bedrock_server_manager.api.utils import _server_stop_start_manager
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -255,6 +256,13 @@ def reset_world(server_name: str):
                 "status": "success",
                 "message": f"World '{world_dir_path}' doesn't exist. Nothing to delete",
             }
+
+        if core_server_actions.check_if_server_is_running(server_name):
+            cmd_res = api_server_actions.send_command(server_name, "say WARNING: Resetting world")
+            if cmd_res.get("status") == "error":
+                logger.warning(
+                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                )
 
         with _server_stop_start_manager(server_name, effective_base_dir, True, True):
             logger.info(

@@ -338,8 +338,6 @@ def backup_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optiona
             f"World backup failed for server '{server_name}': {e}", exc_info=True
         )
         backup_results["world"] = None
-        # Depending on desired atomicity, you might choose to raise BackupWorldError here
-        # and halt, or continue with configs. Current approach: continue.
 
     # 2. Backup Configuration Files
     config_files_to_backup = ["allowlist.json", "permissions.json", "server.properties"]
@@ -410,9 +408,6 @@ def restore_config_file_data(backup_file_path: str, server_dir: str) -> str:
         raise FileNotFoundError(f"Backup file not found: '{backup_file_path}'")
     if not os.path.isdir(server_dir):  # server_dir must exist for restore
         os.makedirs(server_dir, exist_ok=True)  # Create if not exists
-        # raise FileOperationError(
-        #     f"Target server directory does not exist or is not a directory: '{server_dir}'"
-        # )
 
     match = re.match(r"^(.*?)_backup_\d{8}_\d{6}(\..*)$", backup_filename)
     if not match:
@@ -537,7 +532,6 @@ def restore_all_server_data(
             config_backups = glob.glob(pattern)
             # Further filter to ensure the prefix matches correctly before the timestamp part
             # e.g. world_backup_....json should not match permissions_backup_....json
-            # This regex is basic, might need refinement for complex prefixes
             valid_config_backups = [
                 b_path
                 for b_path in config_backups
