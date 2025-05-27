@@ -239,9 +239,7 @@ def reset_world(server_name: str):
             )
 
         # world_name_str is the <level-name> from server.properties, e.g., "Bedrock level"
-        world_name_response = get_world_name(
-            server_name, effective_base_dir
-        )
+        world_name_response = get_world_name(server_name, effective_base_dir)
         if world_name_response.get("status") == "success":
             world_name_from_config = world_name_response.get("world_name")
         else:
@@ -253,10 +251,10 @@ def reset_world(server_name: str):
         )
 
         if not os.path.isdir(world_dir_path):
-                return {
-                    "status": "success",
-                    "message": f"World '{world_dir_path}' doesn't exist. Nothing to delete",
-                }
+            return {
+                "status": "success",
+                "message": f"World '{world_dir_path}' doesn't exist. Nothing to delete",
+            }
 
         with _server_stop_start_manager(server_name, effective_base_dir, True, True):
             logger.info(
