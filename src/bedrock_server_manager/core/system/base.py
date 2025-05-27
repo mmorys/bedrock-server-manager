@@ -33,7 +33,6 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     CommandNotFoundError,
     ResourceMonitorError,
-    FileOperationError,
     MissingPackagesError,
     InternetConnectivityError,
 )
@@ -144,9 +143,9 @@ def set_server_folder_permissions(server_dir: str) -> None:
     Sets appropriate file and directory permissions for the server installation directory.
 
     - Linux: Sets owner/group to current user/group, sets 775 for dirs, 664 for files,
-             and 755 for the 'bedrock_server' executable.
-    - Windows: Attempts to ensure the 'write' permission is set for files and directories
-               (removes read-only attribute).
+             and 775 for the 'bedrock_server' executable.
+    - Windows: Attempts to ensure the 'write' permission (S_IWRITE) is set for all
+               files and directories under server_dir using os.chmod.
 
     Args:
         server_dir: The full path to the server's installation directory.
@@ -171,42 +170,33 @@ def set_server_folder_permissions(server_dir: str) -> None:
     try:
         if os_name == "Linux":
             try:
-                # Get effective UID/GID - use these for ownership
                 current_uid = os.geteuid()
                 current_gid = os.getegid()
                 logger.debug(
                     f"Setting ownership to UID={current_uid}, GID={current_gid}"
                 )
 
-                # Set initial permissions on the base directory
+                # Set initial permissions and ownership on the base directory
                 os.chown(server_dir, current_uid, current_gid)
-                os.chmod(server_dir, 0o775)  # rwxrwxr-x
+                os.chmod(server_dir, 0o775)
 
-                # Walk through directory tree
                 for root, dirs, files in os.walk(server_dir):
-                    # Set ownership and permissions for subdirectories
+                    # For subdirectories (root itself is handled on first iteration or above)
                     for d in dirs:
                         dir_path = os.path.join(root, d)
                         os.chown(dir_path, current_uid, current_gid)
-                        os.chmod(dir_path, 0o775)  # rwxrwxr-x
-                        # logger.debug(f"Set permissions 775 on dir: {dir_path}")
-                    # Set ownership and permissions for files
+                        os.chmod(dir_path, 0o775)
+                    # For files
                     for f in files:
                         file_path = os.path.join(root, f)
                         os.chown(file_path, current_uid, current_gid)
                         if os.path.basename(file_path) == "bedrock_server":
-                            # Executable needs execute permissions
-                            os.chmod(
-                                file_path, 0o775
-                            )  # rwxrwxr-x (or 755 rwxr-xr-x if group write isn't needed)
+                            os.chmod(file_path, 0o775)
                             logger.debug(
                                 f"Set executable permissions (775) on: {file_path}"
                             )
                         else:
-                            # Regular files
-                            os.chmod(file_path, 0o664)  # rw-rw-r--
-                            # logger.debug(f"Set permissions 664 on file: {file_path}")
-
+                            os.chmod(file_path, 0o664)
                 logger.info(f"Successfully set Linux permissions for: {server_dir}")
             except OSError as e:
                 logger.error(
@@ -214,29 +204,75 @@ def set_server_folder_permissions(server_dir: str) -> None:
                     exc_info=True,
                 )
                 raise SetFolderPermissionsError(
-                    f"Failed to set permissions/ownership: {e}"
+                    f"Failed to set Linux permissions/ownership: {e}"
                 ) from e
 
         elif os_name == "Windows":
             logger.debug(
-                "Attempting to ensure write permissions (remove read-only) on Windows..."
+                "Attempting to ensure write permissions (add S_IWRITE) on Windows using os.chmod..."
             )
-            # Use the separate remove_readonly function for clarity
-            remove_readonly(server_dir)  # This function handles walking the tree
-            logger.debug(f"Ensured write permissions for: {server_dir}")
+            try:
+                # Process the top-level directory itself
+                top_dir_mode = os.stat(server_dir).st_mode
+                os.chmod(server_dir, top_dir_mode | stat.S_IWRITE | stat.S_IWUSR)
 
+                # Walk through directory tree
+                for root, dirs, files in os.walk(server_dir):
+                    # Directories (root of this iteration already handled if it's the top server_dir)
+                    # If root is not server_dir, it's a subdir, ensure it's writable too.
+                    if (
+                        root != server_dir
+                    ):  # Avoid re-chmoding top-level if already done
+                        try:
+                            current_root_mode = os.stat(root).st_mode
+                            os.chmod(
+                                root, current_root_mode | stat.S_IWRITE | stat.S_IWUSR
+                            )
+                        except OSError as e_root:
+                            logger.warning(
+                                f"Could not set write permission on dir '{root}': {e_root}. This might affect contained items."
+                            )
+                            # Decide if this is fatal for the whole operation
+
+                    for d_name in dirs:
+                        dir_path = os.path.join(root, d_name)
+                        current_mode = os.stat(dir_path).st_mode
+                        os.chmod(dir_path, current_mode | stat.S_IWRITE | stat.S_IWUSR)
+                    for f_name in files:
+                        file_path = os.path.join(root, f_name)
+                        current_mode = os.stat(file_path).st_mode
+                        os.chmod(file_path, current_mode | stat.S_IWRITE | stat.S_IWUSR)
+                logger.info(
+                    f"Successfully ensured write permissions for: {server_dir} on Windows"
+                )
+            except OSError as e:
+                logger.error(
+                    f"Failed to set Windows write permissions for '{server_dir}': {e}",
+                    exc_info=True,
+                )
+                raise SetFolderPermissionsError(
+                    f"Failed to set Windows write permissions: {e}"
+                ) from e
         else:
             logger.warning(
                 f"Permission setting not implemented for unsupported OS: {os_name}"
             )
 
-    except Exception as e:  # Catch any unexpected errors
+    except MissingArgumentError:  # Re-raise specific known errors
+        raise
+    except DirectoryError:  # Re-raise specific known errors
+        raise
+    except SetFolderPermissionsError:  # Re-raise specific known errors
+        raise
+    except (
+        Exception
+    ) as e:  # Catch any other unexpected errors during initial checks or OS detection
         logger.error(
             f"Unexpected error setting permissions for '{server_dir}': {e}",
             exc_info=True,
         )
         raise SetFolderPermissionsError(
-            f"Unexpected error setting permissions: {e}"
+            f"Unexpected error during permission setup: {e}"
         ) from e
 
 
@@ -364,6 +400,108 @@ def is_server_running(server_name: str, base_dir: str) -> bool:
         logger.error(f"Unsupported operating system for running check: {os_name}")
         return False
 
+
+def _handle_remove_readonly_onerror(func, path, exc_info):
+    """
+    Error handler for shutil.rmtree.
+    If the error is due to a read-only file/dir, it attempts to change
+    its permissions and retry the operation.
+    """
+    # exc_info[1] is the exception instance
+    # Check if the error is PermissionError or similar access-related issue
+    # This check can be made more specific based on common errors on Windows
+    if not os.access(path, os.W_OK):
+        logger.debug(
+            f"Path '{path}' is read-only or access denied. Attempting to make it writable."
+        )
+        try:
+            # Make writable by user/owner. S_IWRITE is often enough.
+            os.chmod(path, stat.S_IWUSR | stat.S_IWRITE)
+            func(
+                path
+            )  # Retry the operation (e.g., os.remove for a file, os.rmdir for a dir)
+        except Exception as e:
+            logger.warning(
+                f"Failed to make '{path}' writable and retry operation: {e}",
+                exc_info=True,
+            )
+            raise exc_info[1]  # Re-raise original error if chmod or retry fails
+    else:
+        # If it's some other error, re-raise it
+        raise exc_info[1]
+
+
+def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
+    """
+    Deletes a given path (file or directory) robustly.
+    Handles read-only attributes on Windows.
+
+    Args:
+        path_to_delete: The full path to the file or directory to delete.
+        item_description: A human-readable description of the item being deleted (for logging).
+        logger_obj: The logger instance to use for logging.
+
+    Returns:
+        True if deletion was successful or path didn't exist, False otherwise.
+    """
+    if not os.path.exists(path_to_delete):
+        logger.debug(
+            f"{item_description.capitalize()} at '{path_to_delete}' not found, skipping deletion."
+        )
+        return True  # Considered success as there's nothing to delete
+
+    logger.info(f"Preparing to delete {item_description}: {path_to_delete}")
+
+    try:
+        if os.path.isdir(path_to_delete):
+            if platform.system() == "Windows":
+                logger.debug(
+                    f"Attempting to ensure writability for directory tree: {path_to_delete}"
+                )
+                shutil.rmtree(
+                    path_to_delete,
+                    onerror=lambda f, p, e: _handle_remove_readonly_onerror(f, p, e),
+                )
+            else:
+                shutil.rmtree(path_to_delete)
+            logger.info(
+                f"Successfully deleted {item_description} directory: {path_to_delete}"
+            )
+        elif os.path.isfile(path_to_delete):
+            if platform.system() == "Windows":
+                if not os.access(path_to_delete, os.W_OK):
+                    logger.debug(f"Attempting to make file writable: {path_to_delete}")
+                    try:
+                        os.chmod(path_to_delete, stat.S_IWRITE | stat.S_IWUSR)
+                    except OSError as e_chmod:
+                        logger.warning(
+                            f"Could not make file '{path_to_delete}' writable: {e_chmod}. Deletion might fail."
+                        )
+            os.remove(path_to_delete)
+            logger.info(
+                f"Successfully deleted {item_description} file: {path_to_delete}"
+            )
+        else:
+            logger.warning(
+                f"Path '{path_to_delete}' is neither a file nor a directory ({item_description}). Skipping."
+            )
+            return False  # Not a type we can handle with os.remove or shutil.rmtree
+        return True
+    except OSError as e:
+        logger.error(
+            f"Failed to delete {item_description} at '{path_to_delete}': {e}",
+            exc_info=True,
+        )
+        return False
+    except Exception as e:
+        logger.error(
+            f"Unexpected error deleting {item_description} at '{path_to_delete}': {e}",
+            exc_info=True,
+        )
+        return False
+
+
+# --- RESOURCE MONITOR ---
 
 # --- Global state for delta CPU calculation ---
 _last_cpu_times: Dict[int, psutil._common.scpustats] = (
@@ -597,125 +735,4 @@ def _get_bedrock_process_info(
         )
         raise ResourceMonitorError(
             f"Unexpected error getting process info for '{server_name}': {e}"
-        ) from e
-
-
-def remove_readonly(path: str) -> None:
-    """
-    Recursively removes the read-only attribute from a file or directory.
-
-    Uses platform-specific methods (`chmod` on Linux, `attrib` on Windows).
-
-    Args:
-        path: The path to the file or directory.
-
-    Raises:
-        SetFolderPermissionsError: If removing the read-only attribute fails due to OS errors.
-        FileOperationError: If an unexpected error occurs, or `attrib.exe` is not found on Windows.
-        CommandNotFoundError: If `attrib.exe` cannot be found on Windows.
-    """
-    if not os.path.exists(path):
-        logger.debug(f"Path '{path}' does not exist. Skipping remove_readonly.")
-        return
-
-    os_name = platform.system()
-    logger.debug(
-        f"Ensuring write permissions (removing read-only) for path: '{path}' (OS: {os_name})"
-    )
-
-    try:
-        if os_name == "Windows":
-            # Use attrib command as it reliably handles ACLs/inheritance issues sometimes missed by os.chmod
-            attrib_cmd = shutil.which("attrib")
-            if not attrib_cmd:
-                # Try finding in System32 explicitly if not in PATH
-                system32_attrib = os.path.join(
-                    os.environ.get("SYSTEMROOT", "C:\\Windows"),
-                    "System32",
-                    "attrib.exe",
-                )
-                if os.path.isfile(system32_attrib):
-                    attrib_cmd = system32_attrib
-                else:
-                    logger.error(
-                        "'attrib.exe' command not found. Cannot remove read-only attribute."
-                    )
-                    raise CommandNotFoundError("attrib.exe")
-
-            # Apply recursively (/S) and also process directories (/D)
-            process = subprocess.run(
-                [attrib_cmd, "-R", path, "/S", "/D"],
-                check=True,
-                capture_output=True,  # Capture output for logging/debugging
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            logger.debug(
-                f"Windows 'attrib -R /S /D' executed for '{path}'. Output: {process.stdout}{process.stderr}"
-            )
-            logger.debug(
-                f"Successfully ensured write permissions for '{path}' on Windows."
-            )
-
-        elif os_name == "Linux":
-            # Set write permission for the owner (u+w) recursively
-            logger.debug(
-                f"Recursively adding write permission for owner on '{path}'..."
-            )
-            if os.path.isdir(path):
-                # Set owner write on the top-level directory first
-                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
-                # Walk and set owner write on all contents
-                for root, dirs, files in os.walk(path):
-                    for name in dirs + files:
-                        item_path = os.path.join(root, name)
-                        try:
-                            current_mode = os.stat(item_path).st_mode
-                            os.chmod(item_path, current_mode | stat.S_IWUSR)
-                        except OSError as chmod_err:
-                            # Log warning but continue if possible
-                            logger.warning(
-                                f"Could not set write permission on '{item_path}': {chmod_err}",
-                                exc_info=True,
-                            )
-            elif os.path.isfile(path):
-                # Set owner write on the single file
-                os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
-            else:
-                logger.warning(
-                    f"Path '{path}' is not a file or directory. Cannot set write permission."
-                )
-
-            logger.debug(
-                f"Successfully ensured owner write permissions for '{path}' on Linux."
-            )
-
-        else:
-            logger.warning(
-                f"Read-only removal not implemented for unsupported OS: {os_name}"
-            )
-
-    except subprocess.CalledProcessError as e:
-        error_msg = f"Failed to remove read-only attribute using 'attrib' for '{path}'. Error: {e.stderr}"
-        logger.error(error_msg, exc_info=True)
-        raise SetFolderPermissionsError(error_msg) from e
-    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        logger.error("'attrib.exe' command not found unexpectedly.")
-        raise CommandNotFoundError("attrib.exe") from None
-    except OSError as e:
-        logger.error(
-            f"OS error while removing read-only attribute for '{path}': {e}",
-            exc_info=True,
-        )
-        raise SetFolderPermissionsError(
-            f"Failed to remove read-only attribute: {e}"
-        ) from e
-    except Exception as e:
-        logger.error(
-            f"Unexpected error removing read-only attribute for '{path}': {e}",
-            exc_info=True,
-        )
-        raise FileOperationError(
-            f"Unexpected error removing read-only attribute: {e}"
         ) from e

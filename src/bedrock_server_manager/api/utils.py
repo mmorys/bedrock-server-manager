@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server_actions as core_server_actions
+from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
@@ -145,10 +146,10 @@ def get_all_servers_status(
                 server_name = item_name
                 try:
                     # Using core_server_actions (core.server.server_actions)
-                    status = core_utils.get_server_status_from_config(
+                    status = core_server_utils.get_server_status_from_config(
                         server_name, effective_config_dir
                     )
-                    version = core_server_actions.get_installed_version(
+                    version = core_server_utils.get_installed_version(
                         server_name, effective_config_dir
                     )
                     servers_data.append(
@@ -214,7 +215,7 @@ def update_server_statuses(
                     is_actually_running = core_system.is_server_running(
                         server_name, effective_base_dir
                     )
-                    config_status = core_utils.get_server_status_from_config(
+                    config_status = core_server_utils.get_server_status_from_config(
                         server_name, effective_config_dir
                     )
 
@@ -238,7 +239,7 @@ def update_server_statuses(
                         new_status = "STOPPED"
 
                     if needs_update:
-                        core_server_actions.manage_server_config(
+                        core_server_utils.manage_server_config(
                             server_name,
                             "status",
                             "write",

@@ -11,7 +11,7 @@ from typing import Optional, Any, Dict
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.server import server_actions as core_server_actions
+from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     ServerNotFoundError,
     InvalidServerNameError,
@@ -35,74 +35,6 @@ logger = logging.getLogger("bedrock_server_manager")
 
 
 # --- Helper function ---
-def _get_server_details(
-    server_name: str, server_path_override: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Gathers and validates server paths and essential details.
-
-    Args:
-        server_name: The name of the server.
-        server_path_override: Optional. The full path to the server executable.
-                              If None, it's inferred based on OS and server_dir.
-
-    Returns:
-        A dictionary containing server details:
-        - server_name (str)
-        - base_dir (str): Base directory for all servers from settings.
-        - server_dir (str): Path to this specific server's installation directory.
-        - server_path (str): Full path to the server executable.
-        - config_dir_base (str): Base directory for all server configs from settings.
-        - server_config_dir (str): Path to this specific server's configuration directory.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        FileOperationError: If BASE_DIR or _config_dir setting is missing.
-        ServerNotFoundError: If the server executable cannot be found.
-    """
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty for server operations.")
-
-    logger.debug(f"Getting details for server '{server_name}'")
-
-    base_dir = settings.get("BASE_DIR")
-    if not base_dir:
-        raise FileOperationError(
-            "BASE_DIR setting is missing or empty in configuration."
-        )
-    server_dir = os.path.join(base_dir, server_name)
-
-    config_dir_base = settings._config_dir
-    if not config_dir_base:
-        raise FileOperationError(
-            "Internal _config_dir setting is missing or empty. Ensure settings are loaded."
-        )
-    server_config_dir = os.path.join(config_dir_base, server_name)
-
-    if server_path_override:
-        server_executable_path = server_path_override
-        logger.debug(f"Using provided server executable path: {server_executable_path}")
-    else:
-        exe_name = (
-            "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
-        )
-        server_executable_path = os.path.join(server_dir, exe_name)
-        logger.debug(f"Using default server executable path: {server_executable_path}")
-
-    # Validate existence of executable immediately
-    if not os.path.isfile(server_executable_path):
-        error_msg = f"Server executable not found at path: {server_executable_path}"
-        logger.error(error_msg)
-        raise ServerNotFoundError(error_msg)
-
-    return {
-        "server_name": server_name,
-        "base_dir": base_dir,
-        "server_dir": server_dir,
-        "server_path": server_executable_path,
-        "config_dir_base": config_dir_base,
-        "server_config_dir": server_config_dir,
-    }
 
 
 def configure_allowlist(server_dir: str) -> list:
@@ -648,7 +580,7 @@ def _write_version_config(
         f"Writing installed_version '{installed_version}' to config for server '{server_name}'."
     )
     try:
-        core_server_actions.manage_server_config(
+        core_server_utils.manage_server_config(
             server_name=server_name,
             key="installed_version",
             operation="write",

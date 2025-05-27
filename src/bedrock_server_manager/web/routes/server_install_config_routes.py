@@ -35,7 +35,7 @@ from bedrock_server_manager.config.settings import (
     settings,
 )
 from bedrock_server_manager.core.server import (
-    server_actions as core_server_actions,
+    server_utils as core_server_utils,
 )
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
@@ -1427,7 +1427,7 @@ def configure_service_route(server_name: str) -> Response:
             logger.debug(
                 f"Reading 'autoupdate' flag from config for Windows server '{server_name}'..."
             )
-            autoupdate_val = core_server_actions.manage_server_config(
+            autoupdate_val = core_server_utils.manage_server_config(
                 server_name, "autoupdate", "read", config_dir=config_dir
             )
             # manage_server_config returns the value directly (or None)

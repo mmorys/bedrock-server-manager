@@ -70,7 +70,7 @@ try:
         server_install_config as api_server_install_config,
     )
     from bedrock_server_manager.error import FileOperationError
-    from bedrock_server_manager.core import downloader, utils as core_utils
+    from bedrock_server_manager.core import downloader
     from bedrock_server_manager.utils.general import (
         startup_checks,
         _INFO_PREFIX,
@@ -81,6 +81,7 @@ try:
     from bedrock_server_manager.core.server import (
         server_actions as core_server_actions,
         server_install_config as core_server_install_config,
+        server_utils as core_server_utils,
     )
     from bedrock_server_manager.core.system import base as system_base
     from bedrock_server_manager.cli import (
@@ -609,6 +610,21 @@ def main() -> None:
         )
         add_server_arg(export_world_parser)
 
+        # reset-world
+        reset_world_parser = subparsers.add_parser(
+            "reset-world",
+            help="Reset server world",
+        )
+        add_server_arg(reset_world_parser)
+        reset_world_parser.add_argument(
+            "-sc",
+            "-skip_confirmation",
+            help="Skip confirmation prompt",
+            action="store_true",
+            default=False,
+            dest="skip_confirmation",
+        )
+
         # validate-server
         validate_server_parser = subparsers.add_parser(
             "validate-server", help="Check if server directory and executable exist"
@@ -698,7 +714,7 @@ def main() -> None:
                 else cli_utils.list_servers_status(base_dir, config_dir)
             ),
             "get-status": lambda args: print(
-                core_utils.get_server_status_from_config(args.server, config_dir)
+                core_server_utils.get_server_status_from_config(args.server, config_dir)
             ),
             "configure-allowlist": lambda args: cli_server_install_config.configure_allowlist(
                 args.server, base_dir
@@ -837,7 +853,7 @@ def main() -> None:
                         else f"{_WARN_PREFIX}Key '{args.key}' not found."
                     )
                 )(
-                    core_server_actions.manage_server_config(
+                    core_server_utils.manage_server_config(
                         args.server, args.key, "read", config_dir=config_dir
                     )
                 )
@@ -847,7 +863,7 @@ def main() -> None:
                 (
                     lambda: (
                         (
-                            core_server_actions.manage_server_config(
+                            core_server_utils.manage_server_config(
                                 args.server,
                                 args.key,
                                 "write",
@@ -886,6 +902,9 @@ def main() -> None:
                 args.server, " ".join(args.command), base_dir
             ),  # Join command parts
             "export-world": lambda args: cli_world.export_world(args.server, base_dir),
+            "reset-world": lambda args: cli_world.reset_world_cli(
+                args.server, args.skip_confirmation
+            ),
             "validate-server": lambda args: print(
                 api_utils.validate_server_exist(args.server, base_dir)
             ),  # Print the result dict

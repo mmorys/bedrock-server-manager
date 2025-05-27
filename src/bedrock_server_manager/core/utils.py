@@ -11,7 +11,7 @@ import shutil
 from typing import List, Tuple, Optional
 
 # Local imports
-from bedrock_server_manager.core.server.server_actions import manage_server_config
+from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
@@ -21,7 +21,9 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 
-# --- Server Name Validation ---
+# --- Server Stuff ---
+
+
 def core_validate_server_name_format(server_name: str) -> None:
     """
     Validates the format of a server name.
@@ -45,9 +47,7 @@ def core_validate_server_name_format(server_name: str) -> None:
     )
 
 
-# --- Server Status Check ---
-
-
+# --- Currently Unused ---
 def check_server_status(
     server_name: str,
     base_dir: str,
@@ -190,7 +190,6 @@ def check_server_status(
     return status
 
 
-# --- Server Config Management ---
 def update_server_status_in_config(
     server_name: str, base_dir: str, config_dir: Optional[str] = None
 ) -> None:
@@ -225,7 +224,9 @@ def update_server_status_in_config(
         checked_status = check_server_status(server_name, base_dir)
 
         # Get the last status recorded in the config
-        current_config_status = get_server_status_from_config(server_name, config_dir)
+        current_config_status = core_server_utils.get_server_status_from_config(
+            server_name, config_dir
+        )
 
         logger.debug(
             f"Server '{server_name}': Status from log='{checked_status}', Status from config='{current_config_status}'"
@@ -236,7 +237,7 @@ def update_server_status_in_config(
             logger.info(
                 f"Status mismatch or update needed for server '{server_name}'. Updating config from '{current_config_status}' to '{checked_status}'."
             )
-            manage_server_config(
+            core_server_utils.manage_server_config(
                 server_name=server_name,
                 key="status",
                 operation="write",
@@ -275,67 +276,7 @@ def update_server_status_in_config(
         ) from e
 
 
-def get_server_status_from_config(
-    server_name: str, config_dir: Optional[str] = None
-) -> str:
-    """
-    Retrieves the last known server status stored in the server's config file.
-
-    Args:
-        server_name: The name of the server.
-        config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
-
-    Returns:
-        The status string stored in the config file ("RUNNING", "STOPPED", etc.),
-        or "UNKNOWN" if the status key is not found or the config cannot be read.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        FileOperationError: If reading the config fails for reasons other than missing key.
-    """
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-
-    logger.debug(
-        f"Getting last known status for server '{server_name}' from its config."
-    )
-
-    try:
-        status = manage_server_config(
-            server_name=server_name,
-            key="status",
-            operation="read",
-            config_dir=config_dir,
-        )
-
-        if status is None:
-            logger.warning(
-                f"Key 'status' not found in config for server '{server_name}'. Returning 'UNKNOWN'."
-            )
-            return "UNKNOWN"
-
-        if not isinstance(status, str):
-            logger.warning(
-                f"Value for 'status' in config for '{server_name}' is not a string ({type(status)}). Returning 'UNKNOWN'."
-            )
-            return "UNKNOWN"
-
-        logger.debug(f"Retrieved status from config for '{server_name}': '{status}'")
-        return status
-
-    except FileOperationError as e:
-        logger.error(
-            f"Could not read status for server '{server_name}' due to config file error: {e}",
-            exc_info=True,
-        )
-        return "UNKNOWN"
-    except Exception as e:
-        logger.error(
-            f"Unexpected error retrieving status for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return "UNKNOWN"
+# ---
 
 
 # --- File Listing ---
@@ -397,10 +338,10 @@ def core_list_files_by_extension(directory: str, extensions: List[str]) -> List[
             f"core.core_list_files_by_extension: OSError during file listing in '{directory}': {e}",
             exc_info=True,
         )
-        raise  # Re-raise for API layer to handle
+        raise
 
 
-# --- Screen Session Interaction ---
+# --- Screen Attach ---
 def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
     """
     Executes the command to attach to a Linux screen session.
@@ -464,6 +405,4 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
         logger.error(f"core.core_execute_screen_attach: {msg}")
         return False, msg
     except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        raise RuntimeError(
-            "'screen' command not found unexpectedly during execution."
-        )  # Should be caught by shutil.which
+        raise RuntimeError("'screen' command not found unexpectedly during execution.")

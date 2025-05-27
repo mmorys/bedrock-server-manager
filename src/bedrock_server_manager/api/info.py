@@ -10,7 +10,9 @@ from typing import Dict, Optional, Any
 # Local imports
 from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.utils import get_server_status_from_config
+from bedrock_server_manager.core.server.server_utils import (
+    get_server_status_from_config,
+)
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.error import (
     InvalidServerNameError,

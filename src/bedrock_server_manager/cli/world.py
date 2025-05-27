@@ -342,3 +342,82 @@ def install_worlds(
         logger.error(
             f"CLI: Unexpected error during world installation setup: {e}", exc_info=True
         )
+
+
+def reset_world_cli(
+    server_name: str,
+    skip_confirmation: bool = False,
+):
+    """
+    CLI handler function to reset the current world of a server.
+    Calls the corresponding API function and prints the result. Controls whether
+    the server is stopped/started based on the `stop_start_server` flag.
+    Args:
+        server_name: The name of the target server.
+        skip_confirmation: If True, skips the confirmation prompt before resetting.
+    Raises:
+        InvalidServerNameError: If `server_name` is empty.
+        # API/Core errors are caught and printed.
+    """
+    if not server_name:
+        raise InvalidServerNameError("Server name cannot be empty.")
+
+        # --- User Interaction: Confirmation ---
+    if not skip_confirmation:
+        print(
+            f"{_WARN_PREFIX}You are about to delete all world data for server '{server_name}'."
+        )
+        print(
+            f"{_WARN_PREFIX}This includes the all player inventories builds, installed content."
+        )
+        confirm = (
+            input(
+                f"{Fore.RED}This action cannot be undone. Are you absolutely sure? (yes/no):{Style.RESET_ALL} "
+            )
+            .strip()
+            .lower()
+        )
+        logger.debug(f"User confirmation input for delete: '{confirm}'")
+
+        if confirm not in ("y", "yes"):
+            print(f"{_INFO_PREFIX}Server deletion canceled by user.")
+            logger.debug(f"Deletion of server '{server_name}' canceled by user.")
+            return
+        logger.warning(f"User confirmed deletion for server '{server_name}'.")
+    else:
+        logger.warning(
+            f"Skipping confirmation prompt for deleting server '{server_name}'."
+        )
+    # --- End User Interaction ---
+
+    logger.debug(f"CLI: Requesting world reset for server '{server_name}'")
+    print(f"{_INFO_PREFIX}Attempting to reset world for server '{server_name}'...")
+    try:
+        # Call the API function
+        logger.debug(f"Calling API: world_api.reset_world for '{server_name}'")
+        response: Dict[str, Any] = world_api.reset_world(server_name)
+        logger.debug(f"API response from reset_world: {response}")
+        # --- User Interaction: Print Result ---
+        if response.get("status") == "error":
+            message = response.get("message", "Unknown error resetting world.")
+            print(f"{_ERROR_PREFIX}{message}")
+            logger.error(f"CLI: World reset failed for '{server_name}': {message}")
+        else:
+            message = response.get(
+                "message", f"World for server '{server_name}' reset successfully."
+            )
+            print(f"{_OK_PREFIX}{message}")
+            logger.debug(f"CLI: World reset successful for '{server_name}'.")
+        # --- End User Interaction ---
+    except InvalidServerNameError as e:
+        print(f"{_ERROR_PREFIX}{e}")
+        logger.error(
+            f"CLI: Failed to call reset world API for '{server_name}': {e}",
+            exc_info=True,
+        )
+    except Exception as e:
+        print(f"{_ERROR_PREFIX}An unexpected error occurred during world reset: {e}")
+        logger.error(
+            f"CLI: Unexpected error resetting world for '{server_name}': {e}",
+            exc_info=True,
+        )

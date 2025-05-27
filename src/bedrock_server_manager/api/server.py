@@ -22,6 +22,7 @@ from bedrock_server_manager.config.settings import settings, EXPATH
 from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import (
     server_actions as core_server_actions,
+    server_utils as core_server_utils,
 )
 from bedrock_server_manager.core.system import (
     base as system_base,
@@ -80,7 +81,7 @@ def write_server_config(
     )
     try:
         # Delegate to core function, which handles file I/O and validation
-        core_server_actions.manage_server_config(
+        core_server_utils.manage_server_config(
             server_name=server_name,
             key=key,
             operation="write",
@@ -139,6 +140,9 @@ def start_server(
     Raises:
         MissingArgumentError, InvalidServerNameError, FileOperationError, InvalidInputError
     """
+
+    mode = mode.lower()
+
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if mode not in ["direct", "detached"]:
@@ -344,6 +348,7 @@ def stop_server(
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
+    mode = mode.lower()
     if mode not in ["direct", "detached", "", None]:
         raise InvalidInputError(
             f"Invalid stop mode '{mode}'. Must be 'direct' or 'detached'."

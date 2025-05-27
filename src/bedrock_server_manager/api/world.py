@@ -22,8 +22,10 @@ from bedrock_server_manager.error import (
     AddonExtractError,
 )
 from bedrock_server_manager.utils.general import get_base_dir, get_timestamp
+from bedrock_server_manager.core.system import base as core_system_base
 from bedrock_server_manager.core.server import (
     server_actions as core_server_actions,
+    server_utils as core_server_utils,
     world as core_world,
 )
 
@@ -40,7 +42,7 @@ def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str
     logger.debug(f"API: Attempting to get world name for server '{server_name}'...")
     try:
         effective_base_dir = get_base_dir(base_dir)
-        world_name_str = core_server_actions.get_world_name(
+        world_name_str = core_server_utils.get_world_name(
             server_name, effective_base_dir
         )
         logger.info(
@@ -212,3 +214,105 @@ def import_world(
             exc_info=True,
         )
         return {"status": "error", "message": f"Unexpected error importing world: {e}"}
+
+
+def reset_world(server_name: str):
+    """
+    Resets the server's world by deleting the current world directory.
+    This function is specifically for Bedrock Dedicated Servers that store
+    their world in a 'worlds/<level-name>' subdirectory.
+    """
+    if not server_name:
+        # This should ideally be an error specific to API input validation if distinct from InvalidServerNameError
+        raise InvalidServerNameError(
+            "Server name cannot be empty for API request."
+        )  # Or a more generic APIArgumentError
+
+    logger.info(f"API: Initiating world reset for Bedrock server '{server_name}'...")
+    try:
+        effective_base_dir = get_base_dir()
+        server_install_dir = os.path.join(effective_base_dir, server_name)
+
+        if not os.path.isdir(server_install_dir):
+            raise DirectoryError(
+                f"Server installation directory not found: {server_install_dir}"
+            )
+
+        # world_name_str is the <level-name> from server.properties, e.g., "Bedrock level"
+        world_name_response = get_world_name(
+            server_name, effective_base_dir
+        )
+        if world_name_response.get("status") == "success":
+            world_name_from_config = world_name_response.get("world_name")
+        else:
+            return {"status": "error", "message": f"Error getting world name..."}
+
+        # Construct the full path to the world directory for BDS
+        world_dir_path = os.path.join(
+            server_install_dir, "worlds", world_name_from_config
+        )
+
+        if not os.path.isdir(world_dir_path):
+                return {
+                    "status": "success",
+                    "message": f"World '{world_dir_path}' doesn't exist. Nothing to delete",
+                }
+
+        with _server_stop_start_manager(server_name, effective_base_dir, True, True):
+            logger.info(
+                f"API: Server '{server_name}' context managed (stopped if running). "
+                f"Attempting to delete world directory: '{world_dir_path}'..."
+            )
+
+            if core_system_base.delete_path_robustly(
+                world_dir_path,
+                f"Bedrock world '{world_name_from_config}' for server '{server_name}'",
+            ):
+                logger.info(
+                    f"API: World '{world_name_from_config}' for server '{server_name}' has been successfully reset."
+                )
+                return {
+                    "status": "success",
+                    "message": f"World '{world_name_from_config}' reset successfully.",
+                }
+            else:
+                # delete_path_robustly would have logged the specific reason for failure.
+                logger.error(
+                    f"API: core_system_base.delete_path_robustly failed to delete world directory '{world_dir_path}'."
+                )
+                return {
+                    "status": "error",
+                    "message": f"Failed to delete world directory '{world_name_from_config}'. "
+                    "The server was stopped (and possibly restarted), but the world files remain. "
+                    "Check system logs for deletion errors.",
+                }
+    # Catch specific, known exceptions first
+    except (
+        InvalidServerNameError
+    ) as e:  # If your get_world_name or stop_manager can raise this
+        logger.warning(
+            f"API: Invalid server name during world reset for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": str(e)}
+    except DirectoryError as e:
+        logger.error(
+            f"API: Directory error during world reset for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": f"Directory error: {e}"}
+    except FileOperationError as e:
+        logger.error(
+            f"API: File operation error during world reset for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": f"File operation error: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error resetting world for Bedrock server '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"An unexpected error occurred while resetting the world: {e}",
+        }

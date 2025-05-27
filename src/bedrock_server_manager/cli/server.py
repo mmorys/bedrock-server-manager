@@ -43,7 +43,7 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.api import server as server_api
-from bedrock_server_manager.core.server.server_actions import manage_server_config
+from bedrock_server_manager.core.server.server_utils import manage_server_config
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,
@@ -279,7 +279,7 @@ def delete_server(
     server_name: str,
     base_dir: Optional[str] = None,
     config_dir: Optional[str] = None,
-    skip_confirmation: bool = False,  # Added flag
+    skip_confirmation: bool = False,
 ) -> None:
     """
     CLI handler function to delete a Bedrock server's data. Includes confirmation prompt.

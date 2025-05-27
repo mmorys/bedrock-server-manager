@@ -23,6 +23,7 @@ from bedrock_server_manager.api.server import (
 from bedrock_server_manager.core.server import (
     server_install_config as core_server_install_config,
     server_actions as core_server_actions,
+    server_utils as core_server_utils,
 )
 from bedrock_server_manager.api.server import send_command as api_send_command
 from bedrock_server_manager.api import player as player_api
@@ -628,7 +629,7 @@ def download_and_install_server(
             )
 
             if not is_update:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -639,7 +640,7 @@ def download_and_install_server(
                 # If it was running, context manager's 'finally' will restart it.
                 # core_server_actions.start_server called by API start will set status to RUNNING.
                 # If it wasn't running, it should remain STOPPED.
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name, "status", "write", "STOPPED", config_dir=app_config_dir
                 )
 
@@ -673,7 +674,7 @@ def download_and_install_server(
         )
         try:
             if app_config_dir:  # Check if app_config_dir was resolved
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
@@ -688,7 +689,7 @@ def download_and_install_server(
         )
         try:
             if app_config_dir:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
@@ -779,7 +780,7 @@ def install_new_server(
         # Attempt to set server status to ERROR in config
         try:
             if effective_app_config_dir:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -798,7 +799,7 @@ def install_new_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -850,10 +851,10 @@ def update_server(
                     f"API: Failed to send update notification to '{server_name}': {cmd_res.get('message')}"
                 )
 
-        installed_version = core_server_actions.get_installed_version(
+        installed_version = core_server_utils.get_installed_version(
             server_name, config_dir=effective_app_config_dir
         )
-        target_version_cfg = core_server_actions.manage_server_config(
+        target_version_cfg = core_server_utils.manage_server_config(
             server_name, "target_version", "read", config_dir=effective_app_config_dir
         )
 
@@ -910,7 +911,7 @@ def update_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name,
                     "status",
                     "write",
@@ -929,7 +930,7 @@ def update_server(
         )
         try:
             if effective_app_config_dir:
-                core_server_actions.manage_server_config(
+                core_server_utils.manage_server_config(
                     server_name,
                     "status",
                     "write",

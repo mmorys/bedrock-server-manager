@@ -23,7 +23,7 @@ from bedrock_server_manager.web.utils.auth_decorators import (
 )
 from bedrock_server_manager.api import server as server_api
 from bedrock_server_manager.api import server_install_config
-from bedrock_server_manager.core.server.server_actions import manage_server_config
+from bedrock_server_manager.core.server.server_utils import manage_server_config
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.error import (
     InvalidServerNameError,
