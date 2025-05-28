@@ -184,7 +184,6 @@ def import_world(
                 f"API: Importing world from '{selected_filename}' into server '{server_name}'..."
             )
             # core_world.import_world handles getting level-name and extraction
-            # It now returns the world_name string on success
             imported_world_name = core_world.import_world(
                 server_name, selected_file_path, effective_base_dir
             )
@@ -239,7 +238,7 @@ def reset_world(server_name: str):
                 f"Server installation directory not found: {server_install_dir}"
             )
 
-        # world_name_str is the <level-name> from server.properties, e.g., "Bedrock level"
+        # World name from server.properties
         world_name_response = get_world_name(server_name, effective_base_dir)
         if world_name_response.get("status") == "success":
             world_name_from_config = world_name_response.get("world_name")
@@ -292,10 +291,9 @@ def reset_world(server_name: str):
                     "The server was stopped (and possibly restarted), but the world files remain. "
                     "Check system logs for deletion errors.",
                 }
-    # Catch specific, known exceptions first
     except (
         InvalidServerNameError
-    ) as e:  # If your get_world_name or stop_manager can raise this
+    ) as e:
         logger.warning(
             f"API: Invalid server name during world reset for '{server_name}': {e}",
             exc_info=True,

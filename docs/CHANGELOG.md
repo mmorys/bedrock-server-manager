@@ -136,7 +136,7 @@
 8. Folder path for download prune in http prune api must now be relative to the download folder
 9. /api/servers/{server_name}/ routes are now /api/server/{server_name}
    - Only the read properties route should be affected
-10. Fixed passing host arument to web server
+10. Fixed passing host argument to web server
 
 ### 3.2.4
 
