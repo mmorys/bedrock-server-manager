@@ -131,7 +131,7 @@ def add_players_to_allowlist(
 
     try:
         # Load existing players first
-        existing_players = configure_allowlist(server_dir)  # Uses the function above
+        existing_players = read_allowlist(server_dir)  # Uses the function above
         existing_names = {
             p.get("name", "").lower()
             for p in existing_players
@@ -231,7 +231,7 @@ def remove_player_from_allowlist(server_dir: str, player_name: str) -> bool:
 
     try:
         # Load existing players using the same robust logic
-        existing_players = configure_allowlist(server_dir)
+        existing_players = read_allowlist(server_dir)
         original_count = len(existing_players)
 
         # Filter out the player to be removed
