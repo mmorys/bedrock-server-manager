@@ -53,7 +53,6 @@ from ...error import (
 logger = logging.getLogger("bedrock_server_manager")
 
 # --- Constants ---
-XML_NAMESPACE = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 BEDROCK_EXECUTABLE_NAME = "bedrock_server.exe"
 PIPE_NAME_TEMPLATE = r"\\.\pipe\BedrockServerPipe_{server_name}"
 
@@ -703,6 +702,130 @@ def _windows_start_server(
         _foreground_server_shutdown_event.clear()
 
 
+def _windows_send_command(server_name: str, command: str) -> None:
+    """
+    Sends a command to a running Bedrock server via its named pipe.
+    (Windows-specific)
+
+    Args:
+        server_name: The name of the server (used for pipe name).
+        command: The command to send to the server.
+
+    Raises:
+        MissingArgumentError: If `server_name` or `command` is empty.
+        SendCommandError: If 'pywin32' is not available, or if a pipe communication
+                          error occurs (e.g., pipe busy, pipe broken, other Windows errors).
+        ServerNotRunningError: If the named pipe for the server is not found (server likely not running).
+    """
+    ERROR_FILE_NOT_FOUND = 2
+    ERROR_PIPE_BUSY = 231
+    ERROR_BROKEN_PIPE = 109
+
+    if not server_name:
+        raise MissingArgumentError("server_name cannot be empty.")
+    if not command:
+        raise MissingArgumentError("command cannot be empty.")
+
+    if not PYWIN32_AVAILABLE:  # Assume PYWIN32_AVAILABLE is defined globally
+        logger.error(
+            "Cannot send command on Windows: Required 'pywin32' module is not installed."
+        )
+        raise SendCommandError(
+            "Cannot send command on Windows: 'pywin32' module not found."
+        )
+
+    pipe_name = rf"\\.\pipe\BedrockServerPipe_{server_name}"
+    handle = win32file.INVALID_HANDLE_VALUE
+
+    try:
+        logger.debug(f"Attempting to connect to named pipe: {pipe_name}")
+        handle = win32file.CreateFile(
+            pipe_name,
+            win32file.GENERIC_WRITE,
+            0,  # No sharing
+            None,  # Default security attributes
+            win32file.OPEN_EXISTING,
+            0,  # Default attributes
+            None,  # No template file
+        )
+
+        if handle == win32file.INVALID_HANDLE_VALUE:
+            last_error = (
+                pywintypes.GetLastError()
+            )  # Use this instead of e.winerror here
+            logger.error(
+                f"Could not open named pipe '{pipe_name}'. Server might not be running or pipe setup failed. "
+                f"Windows Error Code: {last_error}"
+            )
+            if last_error == ERROR_FILE_NOT_FOUND:
+                raise ServerNotRunningError(
+                    f"Could not connect to server: Pipe '{pipe_name}' not found."
+                ) from None  # No underlying pywintypes.error to chain here
+            else:
+                # For other errors from CreateFile (e.g. access denied), raise a more general SendCommandError
+                raise SendCommandError(
+                    f"Failed to open pipe '{pipe_name}'. Windows Error Code: {last_error}"
+                ) from None
+
+        # Set pipe to message mode
+        win32pipe.SetNamedPipeHandleState(
+            handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
+        )
+
+        # Commands to Bedrock server usually expect a newline
+        command_bytes = (command + "\r\n").encode("utf-8")
+        logger.debug(
+            f"Writing {len(command_bytes)} bytes to pipe '{pipe_name}': {command_bytes!r}"
+        )
+        win32file.WriteFile(handle, command_bytes)
+        logger.info(
+            f"Sent command '{command}' to server '{server_name}' via named pipe."
+        )
+
+    except pywintypes.error as e:
+        win_error_code = e.winerror
+        logger.error(
+            f"Windows error during communication with pipe '{pipe_name}': Code {win_error_code} - {e.strerror}",
+            exc_info=True,
+        )
+        if win_error_code == ERROR_FILE_NOT_FOUND:
+            raise ServerNotRunningError(
+                f"Pipe '{pipe_name}' does not exist or was closed. Server likely not running."
+            ) from e
+        elif win_error_code == ERROR_PIPE_BUSY:  # All pipe instances are busy
+            raise SendCommandError(
+                f"All pipe instances for '{pipe_name}' are busy. Try again later."
+            ) from e
+        elif win_error_code == ERROR_BROKEN_PIPE:  # The pipe has been ended.
+            raise SendCommandError(
+                f"Pipe connection to '{pipe_name}' broken (server may have closed it or crashed)."
+            ) from e
+        else:
+            raise SendCommandError(
+                f"Windows error sending command via '{pipe_name}': {e.strerror} (Code: {win_error_code})"
+            ) from e
+    except Exception as e:  # Catch any other unexpected errors
+        logger.error(
+            f"Unexpected error sending command via pipe '{pipe_name}': {e}",
+            exc_info=True,
+        )
+        raise SendCommandError(
+            f"Unexpected error sending command via pipe '{pipe_name}': {e}"
+        ) from e
+    finally:
+        if handle != win32file.INVALID_HANDLE_VALUE:
+            try:
+                win32file.CloseHandle(handle)
+                logger.debug(f"Closed named pipe handle for '{pipe_name}'.")
+            except pywintypes.error as close_err:
+                # Log but don't re-raise, as we don't want to mask an original exception
+                logger.warning(
+                    f"Error closing pipe handle for '{pipe_name}': {close_err.strerror} (Code: {close_err.winerror})",
+                    exc_info=True,  # Good to have stack trace for this warning
+                )
+
+
+# --- UNUSED ---
 def _windows_stop_server(
     server_name: str,
     server_dir_override: Optional[str] = None,
@@ -899,124 +1022,4 @@ def _windows_stop_server(
     logger.info(f"Stop sequence for server '{server_name}' completed.")
 
 
-def _windows_send_command(server_name: str, command: str) -> None:
-    """
-    Sends a command to a running Bedrock server via its named pipe.
-    (Windows-specific)
-
-    Args:
-        server_name: The name of the server (used for pipe name).
-        command: The command to send to the server.
-
-    Raises:
-        MissingArgumentError: If `server_name` or `command` is empty.
-        SendCommandError: If 'pywin32' is not available, or if a pipe communication
-                          error occurs (e.g., pipe busy, pipe broken, other Windows errors).
-        ServerNotRunningError: If the named pipe for the server is not found (server likely not running).
-    """
-    ERROR_FILE_NOT_FOUND = 2
-    ERROR_PIPE_BUSY = 231
-    ERROR_BROKEN_PIPE = 109
-
-    if not server_name:
-        raise MissingArgumentError("server_name cannot be empty.")
-    if not command:
-        raise MissingArgumentError("command cannot be empty.")
-
-    if not PYWIN32_AVAILABLE:  # Assume PYWIN32_AVAILABLE is defined globally
-        logger.error(
-            "Cannot send command on Windows: Required 'pywin32' module is not installed."
-        )
-        raise SendCommandError(
-            "Cannot send command on Windows: 'pywin32' module not found."
-        )
-
-    pipe_name = rf"\\.\pipe\BedrockServerPipe_{server_name}"
-    handle = win32file.INVALID_HANDLE_VALUE
-
-    try:
-        logger.debug(f"Attempting to connect to named pipe: {pipe_name}")
-        handle = win32file.CreateFile(
-            pipe_name,
-            win32file.GENERIC_WRITE,
-            0,  # No sharing
-            None,  # Default security attributes
-            win32file.OPEN_EXISTING,
-            0,  # Default attributes
-            None,  # No template file
-        )
-
-        if handle == win32file.INVALID_HANDLE_VALUE:
-            last_error = (
-                pywintypes.GetLastError()
-            )  # Use this instead of e.winerror here
-            logger.error(
-                f"Could not open named pipe '{pipe_name}'. Server might not be running or pipe setup failed. "
-                f"Windows Error Code: {last_error}"
-            )
-            if last_error == ERROR_FILE_NOT_FOUND:
-                raise ServerNotRunningError(
-                    f"Could not connect to server: Pipe '{pipe_name}' not found."
-                ) from None  # No underlying pywintypes.error to chain here
-            else:
-                # For other errors from CreateFile (e.g. access denied), raise a more general SendCommandError
-                raise SendCommandError(
-                    f"Failed to open pipe '{pipe_name}'. Windows Error Code: {last_error}"
-                ) from None
-
-        # Set pipe to message mode
-        win32pipe.SetNamedPipeHandleState(
-            handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
-        )
-
-        # Commands to Bedrock server usually expect a newline
-        command_bytes = (command + "\r\n").encode("utf-8")
-        logger.debug(
-            f"Writing {len(command_bytes)} bytes to pipe '{pipe_name}': {command_bytes!r}"
-        )
-        win32file.WriteFile(handle, command_bytes)
-        logger.info(
-            f"Sent command '{command}' to server '{server_name}' via named pipe."
-        )
-
-    except pywintypes.error as e:
-        win_error_code = e.winerror
-        logger.error(
-            f"Windows error during communication with pipe '{pipe_name}': Code {win_error_code} - {e.strerror}",
-            exc_info=True,
-        )
-        if win_error_code == ERROR_FILE_NOT_FOUND:
-            raise ServerNotRunningError(
-                f"Pipe '{pipe_name}' does not exist or was closed. Server likely not running."
-            ) from e
-        elif win_error_code == ERROR_PIPE_BUSY:  # All pipe instances are busy
-            raise SendCommandError(
-                f"All pipe instances for '{pipe_name}' are busy. Try again later."
-            ) from e
-        elif win_error_code == ERROR_BROKEN_PIPE:  # The pipe has been ended.
-            raise SendCommandError(
-                f"Pipe connection to '{pipe_name}' broken (server may have closed it or crashed)."
-            ) from e
-        else:
-            raise SendCommandError(
-                f"Windows error sending command via '{pipe_name}': {e.strerror} (Code: {win_error_code})"
-            ) from e
-    except Exception as e:  # Catch any other unexpected errors
-        logger.error(
-            f"Unexpected error sending command via pipe '{pipe_name}': {e}",
-            exc_info=True,
-        )
-        raise SendCommandError(
-            f"Unexpected error sending command via pipe '{pipe_name}': {e}"
-        ) from e
-    finally:
-        if handle != win32file.INVALID_HANDLE_VALUE:
-            try:
-                win32file.CloseHandle(handle)
-                logger.debug(f"Closed named pipe handle for '{pipe_name}'.")
-            except pywintypes.error as close_err:
-                # Log but don't re-raise, as we don't want to mask an original exception
-                logger.warning(
-                    f"Error closing pipe handle for '{pipe_name}': {close_err.strerror} (Code: {close_err.winerror})",
-                    exc_info=True,  # Good to have stack trace for this warning
-                )
+# ---

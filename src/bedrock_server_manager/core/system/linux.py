@@ -14,7 +14,6 @@ import logging
 import subprocess
 import shutil
 from datetime import datetime
-from typing import List, Optional, Tuple, Dict
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
@@ -25,8 +24,6 @@ from bedrock_server_manager.error import (
     SystemdReloadError,
     ServiceError,
     InvalidServerNameError,
-    ScheduleError,
-    InvalidCronJobError,
     ServerStartError,
     ServerStopError,
     MissingArgumentError,
@@ -482,82 +479,6 @@ def _linux_start_server(server_name: str, server_dir: str) -> None:
         raise CommandNotFoundError(e.filename) from e
 
 
-def _linux_stop_server(server_name: str, server_dir: str) -> None:
-    """
-    Stops the Bedrock server running within a 'screen' session.
-
-    This function is typically called by the systemd service file (`ExecStop`).
-    It sends the "stop" command to the server via screen.
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server (used for screen session name).
-        server_dir: The server's installation directory (used for logging/context).
-
-    Raises:
-        MissingArgumentError: If `server_name` or `server_dir` is empty.
-        ServerStopError: If sending the stop command via screen fails unexpectedly.
-        CommandNotFoundError: If the 'screen' command is not found.
-        # Does not raise error if screen session is not found (assumes already stopped).
-    """
-    if platform.system() != "Linux":
-        logger.error("Attempted to use Linux stop method on non-Linux OS.")
-        raise ServerStopError("Cannot use screen stop method on non-Linux OS.")
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-    if not server_dir:
-        raise MissingArgumentError(
-            "Server directory cannot be empty."
-        )  # Although not strictly used here
-
-    screen_cmd = shutil.which("screen")
-    if not screen_cmd:
-        raise CommandNotFoundError("screen")
-
-    screen_session_name = f"bedrock-{server_name}"
-    logger.info(
-        f"Attempting to stop server '{server_name}' by sending 'stop' command to screen session '{screen_session_name}'..."
-    )
-
-    try:
-        # Send the "stop" command, followed by newline, to the screen session
-        # Use 'stuff' to inject the command
-        process = subprocess.run(
-            [screen_cmd, "-S", screen_session_name, "-X", "stuff", "stop\n"],
-            check=False,  # Don't raise if screen session doesn't exist
-            capture_output=True,
-            text=True,
-        )
-
-        if process.returncode == 0:
-            logger.info(
-                f"'stop' command sent successfully to screen session '{screen_session_name}'."
-            )
-            # Note: This only sends the command. The server still needs time to shut down.
-        elif "No screen session found" in process.stderr:
-            logger.info(
-                f"Screen session '{screen_session_name}' not found. Server likely already stopped."
-            )
-            # Not an error in this context
-        else:
-            # Screen command failed for other reasons
-            error_msg = (
-                f"Failed to send 'stop' command via screen. Error: {process.stderr}"
-            )
-            logger.error(error_msg, exc_info=True)
-            raise ServerStopError(error_msg)
-
-    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        logger.error("'screen' command not found unexpectedly during stop.")
-        raise CommandNotFoundError("screen") from None
-    except Exception as e:
-        logger.error(
-            f"An unexpected error occurred while sending stop command via screen: {e}",
-            exc_info=True,
-        )
-        raise ServerStopError(f"Unexpected error sending stop via screen: {e}") from e
-
-
 def _linux_send_command(server_name: str, command: str) -> None:
     """
     Sends a command to a Bedrock server running in a 'screen' session.
@@ -655,3 +576,83 @@ def _linux_send_command(server_name: str, command: str) -> None:
         raise SendCommandError(
             f"Unexpected error sending command to '{server_name}': {e}"
         ) from e
+
+
+# -- UNUSED --
+def _linux_stop_server(server_name: str, server_dir: str) -> None:
+    """
+    Stops the Bedrock server running within a 'screen' session.
+
+    This function is typically called by the systemd service file (`ExecStop`).
+    It sends the "stop" command to the server via screen.
+    (Linux-specific)
+
+    Args:
+        server_name: The name of the server (used for screen session name).
+        server_dir: The server's installation directory (used for logging/context).
+
+    Raises:
+        MissingArgumentError: If `server_name` or `server_dir` is empty.
+        ServerStopError: If sending the stop command via screen fails unexpectedly.
+        CommandNotFoundError: If the 'screen' command is not found.
+        # Does not raise error if screen session is not found (assumes already stopped).
+    """
+    if platform.system() != "Linux":
+        logger.error("Attempted to use Linux stop method on non-Linux OS.")
+        raise ServerStopError("Cannot use screen stop method on non-Linux OS.")
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not server_dir:
+        raise MissingArgumentError(
+            "Server directory cannot be empty."
+        )  # Although not strictly used here
+
+    screen_cmd = shutil.which("screen")
+    if not screen_cmd:
+        raise CommandNotFoundError("screen")
+
+    screen_session_name = f"bedrock-{server_name}"
+    logger.info(
+        f"Attempting to stop server '{server_name}' by sending 'stop' command to screen session '{screen_session_name}'..."
+    )
+
+    try:
+        # Send the "stop" command, followed by newline, to the screen session
+        # Use 'stuff' to inject the command
+        process = subprocess.run(
+            [screen_cmd, "-S", screen_session_name, "-X", "stuff", "stop\n"],
+            check=False,  # Don't raise if screen session doesn't exist
+            capture_output=True,
+            text=True,
+        )
+
+        if process.returncode == 0:
+            logger.info(
+                f"'stop' command sent successfully to screen session '{screen_session_name}'."
+            )
+            # Note: This only sends the command. The server still needs time to shut down.
+        elif "No screen session found" in process.stderr:
+            logger.info(
+                f"Screen session '{screen_session_name}' not found. Server likely already stopped."
+            )
+            # Not an error in this context
+        else:
+            # Screen command failed for other reasons
+            error_msg = (
+                f"Failed to send 'stop' command via screen. Error: {process.stderr}"
+            )
+            logger.error(error_msg, exc_info=True)
+            raise ServerStopError(error_msg)
+
+    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
+        logger.error("'screen' command not found unexpectedly during stop.")
+        raise CommandNotFoundError("screen") from None
+    except Exception as e:
+        logger.error(
+            f"An unexpected error occurred while sending stop command via screen: {e}",
+            exc_info=True,
+        )
+        raise ServerStopError(f"Unexpected error sending stop via screen: {e}") from e
+
+
+# ---

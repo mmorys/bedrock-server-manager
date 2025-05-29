@@ -310,57 +310,7 @@ def stop_server(server_name: str, server_path_override: Optional[str] = None) ->
     os_name = platform.system()
     stop_initiated_by_systemd = False  # Specific to systemd stop path
 
-    if os_name == "Linux":
-        try:
-            logger.info("Sending 'stop' command to server process...")
-            send_server_command(server_name, "stop")  # Uses the new standalone function
-            # If send_server_command succeeds, we consider stop initiated for the wait loop.
-        except (SendCommandError, ServerNotRunningError, CommandNotFoundError) as e:
-            logger.error(
-                f"Failed to send 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
-                exc_info=True,
-            )
-        except Exception as e:  # Catch other errors from send_server_command
-            logger.error(
-                f"Unexpected error sending 'stop' command to server '{server_name}': {e}. Will attempt process termination.",
-                exc_info=True,
-            )
-
-    elif os_name == "Windows":
-        try:
-            system_windows._windows_stop_server(
-                server_name, details["server_dir"], details["server_config_dir"]
-            )
-            # Assume this function either succeeds in initiating stop or raises an error
-        except Exception as e:  # Catch errors from _windows_stop_server
-            logger.error(
-                f"Failed to stop server on Windows for '{server_name}': {e}",
-                exc_info=True,
-            )
-            # Depending on the error, we might want to raise or let the timeout handle it.
-            # For now, let the timeout proceed.
-            manage_server_config(
-                server_name,
-                "status",
-                "write",
-                "ERROR",
-                config_dir=details["config_dir_base"],
-            )
-            raise ServerStopError(
-                f"Failed to initiate stop for server '{server_name}' on Windows: {e}"
-            ) from e
-    else:
-        logger.error(
-            f"Stopping server is not supported on this operating system: {os_name}"
-        )
-        manage_server_config(
-            server_name,
-            "status",
-            "write",
-            "ERROR",
-            config_dir=details["config_dir_base"],
-        )
-        raise ServerStopError(f"Unsupported operating system: {os_name}")
+    send_server_command(server_name, "stop")
 
     attempts = 0
     max_attempts = settings.get("SERVER_STOP_TIMEOUT_SEC", 60) // 2
@@ -623,9 +573,7 @@ def delete_server_data(
 
     for dir_type, dir_path in paths_to_delete_map.items():
         if dir_path:  # Ensure path is not None (e.g. if backup_base_dir was None)
-            if not system_base.delete_path_robustly(
-                dir_path, f"server {dir_type}"
-            ):
+            if not system_base.delete_path_robustly(dir_path, f"server {dir_type}"):
                 deletion_errors.append(f"{dir_type} directory '{dir_path}'")
         else:
             logger.debug(f"Server {dir_type} path is not defined, skipping.")
