@@ -166,8 +166,8 @@ def login() -> Response:
         )
 
         # Retrieve configured credentials securely
-        username_env = f"{env_name}_USERNAME"
-        password_env = f"{env_name}_PASSWORD"
+        username_env = f"{settings._env_name}_USERNAME"
+        password_env = f"{settings._env_name}_PASSWORD"
         expected_username = current_app.config.get(username_env)
         stored_password_hash = current_app.config.get(
             password_env
@@ -283,8 +283,8 @@ def api_login() -> Response:
     )
 
     # Retrieve configured credentials (same as web login)
-    username_env = f"{env_name}_USERNAME"
-    password_env = f"{env_name}_PASSWORD"
+    username_env = f"{settings._env_name}_USERNAME"
+    password_env = f"{settings._env_name}_PASSWORD"
     expected_username = current_app.config.get(username_env)
     stored_password_hash = current_app.config.get(password_env)
 
