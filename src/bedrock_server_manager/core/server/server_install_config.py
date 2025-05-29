@@ -23,6 +23,8 @@ from bedrock_server_manager.error import (
     InternetConnectivityError,
     PermissionsFileNotFoundError,
     PermissionsFileError,
+    PropertiesFileNotFoundError,
+    PropertiesFileReadError,
 )
 from bedrock_server_manager.core.system import (
     base as system_base,
@@ -637,6 +639,63 @@ def modify_server_properties(
         raise FileOperationError(
             f"Unexpected error modifying server.properties: {e}"
         ) from e
+
+
+def parse_properties_file_content(file_path: str) -> Dict[str, str]:
+    """
+    Reads and parses a server.properties-style file.
+
+    Args:
+        file_path: The full path to the properties file.
+
+    Returns:
+        A dictionary of key-value pairs from the properties file.
+
+    Raises:
+        PropertiesFileNotFoundError: If the file does not exist at file_path.
+        PropertiesFileReadError: If an OS error occurs while reading the file.
+                                 Malformed lines are logged and skipped, not raised as errors.
+    """
+    logger.debug(f"Core: Attempting to read and parse properties file: {file_path}")
+
+    if not os.path.isfile(file_path):
+        logger.warning(f"Core: Properties file not found at {file_path}")
+        raise PropertiesFileNotFoundError(f"Properties file not found: {file_path}")
+
+    properties: Dict[str, str] = {}
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line_num, line_content in enumerate(f, 1):
+                line_content = line_content.strip()
+                if not line_content or line_content.startswith("#"):
+                    continue  # Skip empty lines and comments
+
+                parts = line_content.split("=", 1)
+                if len(parts) == 2:
+                    key = parts[0].strip()
+                    value = parts[1].strip()
+                    if key:  # Ensure the key is not empty after stripping
+                        properties[key] = value
+                    else:
+                        logger.warning(
+                            f"Core: Skipping line {line_num} with empty key in '{file_path}': \"{line_content}\""
+                        )
+                else:
+                    logger.warning(
+                        f"Core: Skipping malformed line {line_num} in '{file_path}': \"{line_content}\""
+                    )
+    except OSError as e:
+        logger.error(
+            f"Core: OSError reading properties file '{file_path}': {e}", exc_info=True
+        )
+        raise PropertiesFileReadError(
+            f"Failed to read properties file '{file_path}': {e}"
+        ) from e
+
+    logger.debug(
+        f"Core: Successfully parsed {len(properties)} properties from '{file_path}'."
+    )
+    return properties
 
 
 # --- INSTALL ---

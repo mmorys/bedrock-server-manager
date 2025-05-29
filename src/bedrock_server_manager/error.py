@@ -217,6 +217,14 @@ class PermissionsFileNotFoundError(BedrockManagerError):
     pass
 
 
+class PropertiesFileNotFoundError(BedrockManagerError):
+    pass
+
+
+class PropertiesFileReadError(BedrockManagerError):
+    pass
+
+
 # Linux-specific
 class SystemdReloadError(BedrockManagerError):
     pass

@@ -290,7 +290,7 @@ def configure_properties_route(server_name: str) -> Response:
         logger.debug(
             f"Calling API: server_install_config.read_server_properties for '{server_name}'"
         )
-        properties_response = server_install_config.read_server_properties(
+        properties_response = server_install_config.get_server_properties_api(
             server_name, base_dir
         )
 
@@ -552,7 +552,9 @@ def get_server_properties_route(server_name: str):
     try:
 
         # Call the API layer function
-        result = server_install_config.read_server_properties(server_name=server_name)
+        result = server_install_config.get_server_properties_api(
+            server_name=server_name
+        )
 
         status_code = 200 if result.get("status") == "success" else 500
         if result.get("status") == "error":
@@ -1338,7 +1340,7 @@ def get_server_permissions_data_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
 
-        result_dict = server_install_config.get_server_permissions_data(
+        result_dict = server_install_config.get_server_permissions_api(
             server_name=server_name,
         )
 

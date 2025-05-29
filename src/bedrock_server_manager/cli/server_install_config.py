@@ -571,7 +571,9 @@ def configure_server_properties(
         logger.debug(
             f"Calling API: config_api.read_server_properties for '{server_name}'"
         )
-        properties_response = config_api.read_server_properties(server_name, base_dir)
+        properties_response = config_api.get_server_properties_api(
+            server_name, base_dir
+        )
         logger.debug(f"API response from read_server_properties: {properties_response}")
 
         if properties_response.get("status") == "error":

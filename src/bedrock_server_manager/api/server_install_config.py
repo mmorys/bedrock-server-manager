@@ -42,6 +42,8 @@ from bedrock_server_manager.error import (
     BackupWorldError,
     PermissionsFileNotFoundError,
     PermissionsFileError,
+    PropertiesFileNotFoundError,
+    PropertiesFileReadError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -446,8 +448,10 @@ def get_server_permissions_api(
 
         # 3. Call the core function to get processed permissions
         try:
-            server_permissions_list = core_server_install_config.gread_and_process_permissions_file(
-                server_instance_dir, player_name_map
+            server_permissions_list = (
+                core_server_install_config.gread_and_process_permissions_file(
+                    server_instance_dir, player_name_map
+                )
             )
             message = "Successfully retrieved server permissions."
             if not server_permissions_list and not api_error_messages:
@@ -511,45 +515,76 @@ def get_server_permissions_api(
 # --- Server Properties ---
 
 
-def read_server_properties(
+def get_server_properties_api(
     server_name: str, base_dir: Optional[str] = None
 ) -> Dict[str, Any]:
+    """
+    API endpoint to read and return server.properties for a specific Bedrock server.
+    """
+    # Consistent with original function's behavior for other errors (returning a dict)
+    # If InvalidServerNameError should propagate to a global handler, this could be a direct raise.
     if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    logger.debug(f"API: Reading server.properties for server '{server_name}'...")
-    properties: Dict[str, str] = {}
+        logger.warning("API: Call to get_server_properties_api with empty server name.")
+        return {"status": "error", "message": "Server name cannot be empty."}
+
+    logger.info(f"API: Request to read server.properties for server '{server_name}'.")
+
     try:
         effective_base_dir = get_base_dir(base_dir)
+        server_directory_path = os.path.join(effective_base_dir, server_name)
+
+        # Check if the server instance directory exists first
+        if not os.path.isdir(server_directory_path):
+            message = f"Server directory not found: {server_directory_path}"
+            logger.warning(f"API: {message} for server '{server_name}'.")
+            # This indicates the server itself is not found, a higher-level issue
+            raise InvalidServerNameError(message)
+
         server_properties_path = os.path.join(
-            effective_base_dir, server_name, "server.properties"
+            server_directory_path, "server.properties"
         )
-        if not os.path.isfile(server_properties_path):
-            raise FileNotFoundError(
-                f"server.properties not found: {server_properties_path}"
-            )
-        with open(server_properties_path, "r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    properties[parts[0].strip()] = parts[1].strip()
-                else:
-                    logger.warning(
-                        f"API: Skipping malformed line {line_num} in '{server_properties_path}': {line}"
-                    )
-        return {"status": "success", "properties": properties}
-    except FileNotFoundError as e:
+
+        # Call the core function to parse the file
+        properties_data = core_server_install_config.parse_properties_file_content(
+            server_properties_path
+        )
+
+        return {"status": "success", "properties": properties_data}
+
+    except InvalidServerNameError as e:
+        # Raised if server_name is invalid or server directory doesn't exist
+        logger.error(
+            f"API: Invalid server setup for '{server_name}': {e}", exc_info=False
+        )  # exc_info=False as it's handled
         return {"status": "error", "message": str(e)}
-    except FileOperationError as e:
-        return {"status": "error", "message": f"Configuration error: {e}"}
-    except OSError as e:
+    except PropertiesFileNotFoundError as e:
+        # Raised by core function if server.properties is missing
+        logger.warning(
+            f"API: server.properties not found for server '{server_name}'. Details: {e}"
+        )
+        return {"status": "error", "message": str(e)}  # Original was just str(e)
+    except PropertiesFileReadError as e:
+        # Raised by core function for OS errors during file read
+        logger.error(
+            f"API: Failed to read server.properties for server '{server_name}': {e}",
+            exc_info=True,
+        )
         return {"status": "error", "message": f"Failed to read server.properties: {e}"}
+    except FileOperationError as e:
+        # Potentially raised by get_base_dir or other higher-level file ops
+        logger.error(
+            f"API: Configuration or File Operation error for server '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": f"Configuration error: {e}"}
     except Exception as e:
+        logger.error(
+            f"API: Unexpected error reading properties for server '{server_name}': {e}",
+            exc_info=True,
+        )
         return {
             "status": "error",
-            "message": f"Unexpected error reading properties: {e}",
+            "message": f"Unexpected error reading server properties: {e}",
         }
 
 
