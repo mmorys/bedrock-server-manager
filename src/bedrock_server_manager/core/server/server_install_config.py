@@ -7,13 +7,12 @@ import os
 import logging
 import json
 import platform
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
-    ServerNotFoundError,
     InvalidServerNameError,
     MissingArgumentError,
     FileOperationError,
@@ -22,6 +21,8 @@ from bedrock_server_manager.error import (
     InstallUpdateError,
     DownloadExtractError,
     InternetConnectivityError,
+    PermissionsFileNotFoundError,
+    PermissionsFileError,
 )
 from bedrock_server_manager.core.system import (
     base as system_base,
@@ -442,6 +443,95 @@ def configure_permissions(
             raise FileOperationError(
                 f"Failed to write permissions file: {permissions_file}"
             ) from e
+
+
+def read_and_process_permissions_file(
+    server_instance_dir: str,
+    player_name_map: Dict[str, str],
+) -> List[Dict[str, Any]]:
+    """
+    Reads, parses, and processes the permissions.json file for a server instance.
+
+    Args:
+        server_instance_dir: The full path to the server's instance directory.
+        player_name_map: A dictionary mapping player XUIDs (as strings) to their names.
+
+    Returns:
+        A list of dictionaries, each representing a player's permission entry,
+        enhanced with player names and sorted by name.
+        Example: [{"xuid": "123", "name": "PlayerA", "permission_level": "operator"}]
+
+    Raises:
+        PermissionsFileNotFoundError: If permissions.json does not exist.
+        OSError: If there's an issue reading the file.
+        json.JSONDecodeError: If the file content is not valid JSON.
+        PermissionsFileError: If the JSON structure is not a list or entries are malformed.
+    """
+    if not os.path.isdir(server_instance_dir):
+        # This check might be redundant if the caller ensures it, but good for a core function
+        raise FileNotFoundError(
+            f"Core: Server instance directory not found: {server_instance_dir}"
+        )
+
+    permissions_file_path = os.path.join(server_instance_dir, "permissions.json")
+    logger.debug(f"Core: Attempting to read permissions file: {permissions_file_path}")
+
+    if not os.path.isfile(permissions_file_path):
+        logger.warning(f"Core: Permissions file not found at {permissions_file_path}")
+        raise PermissionsFileNotFoundError(
+            f"Permissions file not found: {permissions_file_path}"
+        )
+
+    try:
+        with open(permissions_file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError as e:
+        logger.error(
+            f"Core: OSError reading permissions file '{permissions_file_path}': {e}",
+            exc_info=True,
+        )
+        raise  # Re-raise to be caught by API layer
+
+    if not content.strip():
+        logger.info(f"Core: Permissions file '{permissions_file_path}' is empty.")
+        return []  # Return empty list for an empty file
+
+    try:
+        permissions_from_file = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.error(
+            f"Core: JSONDecodeError parsing permissions file '{permissions_file_path}': {e}",
+            exc_info=True,
+        )
+        raise  # Re-raise
+
+    if not isinstance(permissions_from_file, list):
+        logger.error(
+            f"Core: Permissions file '{permissions_file_path}' does not contain a JSON list."
+        )
+        raise PermissionsFileError("Permissions file content is not a list.")
+
+    processed_permissions: List[Dict[str, Any]] = []
+    for entry in permissions_from_file:
+        if isinstance(entry, dict) and "xuid" in entry and "permission" in entry:
+            xuid_str = str(entry["xuid"])
+            name = player_name_map.get(xuid_str, f"Unknown (XUID: {xuid_str})")
+            processed_permissions.append(
+                {
+                    "xuid": xuid_str,
+                    "name": name,
+                    "permission_level": str(entry["permission"]),
+                }
+            )
+        else:
+            logger.warning(
+                f"Core: Skipping malformed entry in '{permissions_file_path}': {entry}"
+            )
+
+    # Sort by player name (case-insensitive)
+    processed_permissions.sort(key=lambda p: p.get("name", "").lower())
+    logger.debug(f"Core: Processed {len(processed_permissions)} permission entries.")
+    return processed_permissions
 
 
 # --- SERVER PROPERTIES ---

@@ -209,6 +209,14 @@ class ConfigurationError(WebServerCoreError):
     pass
 
 
+class PermissionsFileError(ValueError):
+    pass
+
+
+class PermissionsFileNotFoundError(BedrockManagerError):
+    pass
+
+
 # Linux-specific
 class SystemdReloadError(BedrockManagerError):
     pass
