@@ -749,7 +749,7 @@ def save_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
         # Call API function (handles base_dir)
-        result = server_install_config.configure_allowlist(
+        result = server_install_config.add_players_to_allowlist_api(
             server_name, new_players_data=new_allowlist_data
         )
         logger.debug(f"API Save Allowlist '{server_name}': Handler response: {result}")
@@ -829,9 +829,7 @@ def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
         # Call API function (read mode)
-        result = server_install_config.configure_allowlist(
-            server_name, new_players_data=None
-        )  # Handles base_dir
+        result = server_install_config.get_server_allowlist_api(server_name)
         logger.debug(f"API Get Allowlist '{server_name}': Handler response: {result}")
 
         if isinstance(result, dict) and result.get("status") == "success":

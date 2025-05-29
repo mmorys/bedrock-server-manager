@@ -42,7 +42,7 @@ def validate_server_exist(
 ) -> Dict[str, Any]:
     """
     Validates if a server installation directory and executable exist.
-    (API wrapper for core_server_actions.validate_server)
+    (API wrapper for core_server_utils.validate_server)
     """
     if not server_name:
         # API level argument validation
@@ -53,7 +53,7 @@ def validate_server_exist(
     logger.debug(f"API.validate_server_exist: Validating '{server_name}'...")
     try:
         effective_base_dir = get_base_dir(base_dir)  # Can raise FileOperationError
-        core_server_actions.validate_server(
+        core_server_utils.validate_server(
             server_name, effective_base_dir
         )  # Can raise ServerNotFoundError (from core)
         logger.debug(

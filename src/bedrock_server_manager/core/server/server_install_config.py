@@ -34,6 +34,9 @@ from bedrock_server_manager.core import downloader
 logger = logging.getLogger("bedrock_server_manager")
 
 
+# --- ALLOWLIST ---
+
+
 def read_allowlist(server_dir: str) -> list:
     """
     Loads and returns the current content of the server's allowlist.json file.
@@ -287,6 +290,9 @@ def remove_player_from_allowlist(server_dir: str, player_name: str) -> bool:
         ) from e
 
 
+# --- PERMISSIONS ---
+
+
 def configure_permissions(
     server_dir: str, xuid: str, player_name: Optional[str], permission: str
 ) -> None:
@@ -438,6 +444,7 @@ def configure_permissions(
             ) from e
 
 
+# --- SERVER PROPERTIES ---
 def modify_server_properties(
     server_properties_path: str, property_name: str, property_value: str
 ) -> None:
@@ -542,6 +549,7 @@ def modify_server_properties(
         ) from e
 
 
+# --- INSTALL ---
 def _write_version_config(
     server_name: str, installed_version: str, config_dir: Optional[str] = None
 ) -> None:

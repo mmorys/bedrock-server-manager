@@ -39,29 +39,41 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     InvalidInputError,
     DirectoryError,
-    DownloadExtractError,
-    InternetConnectivityError,
     BackupWorldError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def configure_allowlist(
+# --- Allowlist ---
+def add_players_to_allowlist_api(
     server_name: str,
+    new_players_data: List[Dict[str, Any]],
     base_dir: Optional[str] = None,
-    new_players_data: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
-    Configures the allowlist for a specific server. Reads the existing list and
-    optionally adds new players if provided.
+    API endpoint to add new players to the allowlist for a specific server.
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-    if new_players_data is not None and not isinstance(new_players_data, list):
-        raise TypeError("If provided, new_players_data must be a list of dictionaries.")
+    if not isinstance(new_players_data, list):
+        # Consider returning an error response if used in web API,
+        # rather than raising TypeError directly to the caller unless it's an internal API.
+        return {
+            "status": "error",
+            "message": "Invalid input: new_players_data must be a list of dictionaries.",
+        }
+    if not new_players_data:
+        return {
+            "status": "success",
+            "message": "No new player data provided. Allowlist remains unchanged.",
+            "added_players": [],
+            "skipped_players": [],
+        }
 
-    logger.info(f"API: Configuring allowlist for server '{server_name}'.")
+    logger.info(
+        f"API: Request to add {len(new_players_data)} player(s) to allowlist for '{server_name}'."
+    )
 
     try:
         effective_base_dir = get_base_dir(base_dir)
@@ -70,35 +82,32 @@ def configure_allowlist(
         if not os.path.isdir(server_dir):
             raise DirectoryError(f"Server directory not found: {server_dir}")
 
-        existing_players = core_server_install_config.read_allowlist(server_dir)
-        logger.debug(
-            f"API: Found {len(existing_players)} players in existing allowlist."
-        )
+        # 1. Read existing allowlist to determine who is new
+        try:
+            existing_players_before_add = core_server_install_config.read_allowlist(
+                server_dir
+            )
+        except (FileOperationError, DirectoryError) as e:
+            logger.error(
+                f"API: Failed to read existing allowlist for '{server_name}' before adding: {e}",
+                exc_info=True,
+            )
+            return {
+                "status": "error",
+                "message": f"Failed to read existing allowlist: {str(e)}",
+            }
 
-    except (FileOperationError, DirectoryError) as e:
-        logger.error(
-            f"API: Failed to access allowlist for '{server_name}': {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"Failed to access allowlist: {e}"}
-    except Exception as e:
-        logger.error(
-            f"API: Unexpected error reading allowlist for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Unexpected error reading allowlist: {e}",
-        }
-
-    added_players_list_final: List[Dict[str, Any]] = []
-    if new_players_data:
-        logger.info(
-            f"API: Processing {len(new_players_data)} new player entries for '{server_name}'..."
-        )
         existing_names_lower = {
-            p.get("name", "").lower() for p in existing_players if isinstance(p, dict)
+            p.get("name", "").lower()
+            for p in existing_players_before_add
+            if isinstance(p, dict)
         }
-        processed_in_batch = set()
+
+        players_to_attempt_add: List[Dict[str, Any]] = []
+        skipped_players_info: List[Dict[str, Any]] = []  # For reporting
+        processed_in_this_batch_lower = (
+            set()
+        )  # To handle duplicates within new_players_data
 
         for player_entry in new_players_data:
             if (
@@ -106,16 +115,31 @@ def configure_allowlist(
                 or not player_entry.get("name")
                 or not isinstance(player_entry.get("name"), str)
             ):
-                logger.warning(f"API: Skipping invalid player entry: {player_entry}")
+                logger.warning(
+                    f"API: Skipping invalid player entry format: {player_entry}"
+                )
+                skipped_players_info.append(
+                    {"entry": player_entry, "reason": "Invalid format"}
+                )
                 continue
+
             player_name = player_entry["name"]
             player_name_lower = player_name.lower()
-            if (
-                player_name_lower in existing_names_lower
-                or player_name_lower in processed_in_batch
-            ):
+
+            if player_name_lower in existing_names_lower:
                 logger.debug(
-                    f"API: Player '{player_name}' already exists or processed. Skipping."
+                    f"API: Player '{player_name}' already in allowlist. Skipping addition."
+                )
+                skipped_players_info.append(
+                    {"name": player_name, "reason": "Already in allowlist"}
+                )
+                continue
+            if player_name_lower in processed_in_this_batch_lower:
+                logger.debug(
+                    f"API: Player '{player_name}' was already processed in this batch. Skipping."
+                )
+                skipped_players_info.append(
+                    {"name": player_name, "reason": "Duplicate in input batch"}
                 )
                 continue
 
@@ -123,56 +147,130 @@ def configure_allowlist(
                 "name": player_name,
                 "ignoresPlayerLimit": player_entry.get("ignoresPlayerLimit", False),
             }
-            added_players_list_final.append(player_obj)
-            processed_in_batch.add(player_name_lower)
+            players_to_attempt_add.append(player_obj)
+            processed_in_this_batch_lower.add(player_name_lower)
             logger.debug(f"API: Prepared player '{player_name}' for addition.")
 
-        if added_players_list_final:
-            logger.info(
-                f"API: Adding {len(added_players_list_final)} new players to allowlist for '{server_name}'..."
-            )
-            try:
-                core_server_install_config.add_players_to_allowlist(
-                    server_dir, added_players_list_final
-                )
-                # Optionally send reload command
-                if core_server_actions.check_if_server_is_running(
-                    server_name
-                ):  # Pass base_dir if needed
-                    cmd_res = api_send_command(server_name, "allowlist reload")
-                    if cmd_res.get("status") == "error":
-                        logger.warning(
-                            f"API: Failed to send 'allowlist reload' to '{server_name}': {cmd_res.get('message')}"
-                        )
-
-                message = f"Successfully added {len(added_players_list_final)} players."
-                return {
-                    "status": "success",
-                    "existing_players": existing_players,
-                    "added_players": added_players_list_final,
-                    "message": message,
-                }
-            except (FileOperationError, TypeError) as e:
-                logger.error(
-                    f"API: Failed to save allowlist for '{server_name}': {e}",
-                    exc_info=True,
-                )
-                return {"status": "error", "message": f"Error saving allowlist: {e}"}
-        else:
-            message = "No new valid players to add."
+        if not players_to_attempt_add:
+            message = "No new valid players to add to the allowlist."
+            if skipped_players_info:
+                message += f" {len(skipped_players_info)} entries were skipped (duplicates or invalid)."
+            logger.info(f"API: {message} For server '{server_name}'.")
             return {
                 "status": "success",
-                "existing_players": existing_players,
-                "added_players": [],
                 "message": message,
+                "added_players": [],
+                "skipped_players": skipped_players_info,
             }
-    else:
-        message = "Read existing allowlist. No new players provided."
+
+        # 2. Call the core function to add the filtered new players
+        core_server_install_config.add_players_to_allowlist(
+            server_dir, players_to_attempt_add
+        )
+        logger.info(
+            f"API: Successfully called core function to add {len(players_to_attempt_add)} players to allowlist for '{server_name}'."
+        )
+
+        # 3. Optionally send reload command
+        reload_status = "Not attempted"
+        if core_server_utils.check_if_server_is_running(
+            server_name, base_dir=effective_base_dir
+        ):
+            logger.info(
+                f"API: Server '{server_name}' is running. Attempting 'allowlist reload'."
+            )
+            cmd_res = api_send_command(
+                server_name, "allowlist reload", base_dir=effective_base_dir
+            )
+            if cmd_res.get("status") == "error":
+                reload_status = f"Failed: {cmd_res.get('message')}"
+                logger.warning(
+                    f"API: Failed to send 'allowlist reload' to '{server_name}': {cmd_res.get('message')}"
+                )
+            else:
+                reload_status = "Success"
+                logger.info(
+                    f"API: 'allowlist reload' command sent successfully to '{server_name}'."
+                )
+        else:
+            reload_status = "Server not running"
+            logger.info(
+                f"API: Server '{server_name}' is not running. 'allowlist reload' not sent."
+            )
+
+        final_message = f"Successfully processed addition request. Added {len(players_to_attempt_add)} players."
+        if skipped_players_info:
+            final_message += f" Skipped {len(skipped_players_info)} entries."
+
         return {
             "status": "success",
-            "existing_players": existing_players,
-            "added_players": [],
-            "message": message,
+            "message": final_message,
+            "added_players": players_to_attempt_add,  # These are the players we attempted to add
+            "skipped_players": skipped_players_info,
+            "reload_status": reload_status,
+        }
+
+    except (
+        FileOperationError,
+        DirectoryError,
+        TypeError,
+    ) as e:  # TypeError from core add_players
+        logger.error(
+            f"API: Failed to update allowlist for '{server_name}': {e}", exc_info=True
+        )
+        return {"status": "error", "message": f"Failed to update allowlist: {str(e)}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error updating allowlist for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error updating allowlist: {str(e)}",
+        }
+
+
+def get_server_allowlist_api(
+    server_name: str,
+    base_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    API endpoint to retrieve the allowlist for a specific server.
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+
+    logger.info(f"API: Request to get allowlist for server '{server_name}'.")
+
+    try:
+        effective_base_dir = get_base_dir(base_dir)
+        server_dir = os.path.join(effective_base_dir, server_name)
+
+        if not os.path.isdir(server_dir):
+            raise DirectoryError(f"Server directory not found: {server_dir}")
+
+        players = core_server_install_config.read_allowlist(server_dir)
+        logger.debug(
+            f"API: Found {len(players)} players in allowlist for '{server_name}'."
+        )
+        return {
+            "status": "success",
+            "players": players,
+            "message": f"Successfully retrieved allowlist with {len(players)} players.",
+        }
+    except (FileOperationError, DirectoryError) as e:
+        logger.error(
+            f"API: Failed to access allowlist for '{server_name}': {e}", exc_info=True
+        )
+        return {"status": "error", "message": f"Failed to access allowlist: {str(e)}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error reading allowlist for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error reading allowlist: {str(e)}",
         }
 
 
@@ -226,6 +324,9 @@ def remove_player_from_allowlist(
             exc_info=True,
         )
         return {"status": "error", "message": f"Unexpected error: {e}"}
+
+
+# --- Player Permissions ---
 
 
 def configure_player_permission(
@@ -380,6 +481,9 @@ def get_server_permissions_data(
         return {"status": "error", "message": str(e)}
     except Exception as e:
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
+
+# --- Server Properties ---
 
 
 def read_server_properties(

@@ -50,54 +50,6 @@ else:
 logger = logging.getLogger("bedrock_server_manager")
 
 
-def validate_server(server_name: str, base_dir: str) -> bool:
-    """
-    Validates if a server installation exists and seems minimally correct.
-
-    Checks for the existence of the server executable within the expected directory.
-
-    Args:
-        server_name: The name of the server.
-        base_dir: The base directory containing the server's folder.
-
-    Returns:
-        True if the server executable exists.
-
-    Raises:
-        MissingArgumentError: If `server_name` or `base_dir` is empty.
-        ServerNotFoundError: If the server directory or the executable file within it
-                             does not exist.
-    """
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-    if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty.")
-
-    server_dir = os.path.join(base_dir, server_name)
-    logger.debug(f"Validating server '{server_name}' in directory: {server_dir}")
-
-    if not os.path.isdir(server_dir):
-        error_msg = f"Server directory not found: {server_dir}"
-        logger.error(error_msg)
-        raise ServerNotFoundError(error_msg)  # Treat missing dir as server not found
-
-    # Determine expected executable name based on OS
-    exe_name = (
-        "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
-    )
-    exe_path = os.path.join(server_dir, exe_name)
-
-    if not os.path.isfile(exe_path):
-        error_msg = (
-            f"Server executable '{exe_name}' not found in directory: {server_dir}"
-        )
-        logger.error(error_msg)
-        raise ServerNotFoundError(error_msg)
-
-    logger.debug(f"Server '{server_name}' validation successful (executable found).")
-    return True
-
-
 def start_server(server_name: str, server_path_override: Optional[str] = None) -> None:
     """
     Starts the Bedrock server process.

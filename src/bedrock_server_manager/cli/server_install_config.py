@@ -87,9 +87,7 @@ def configure_allowlist(server_name: str, base_dir: Optional[str] = None) -> Non
         logger.debug(
             f"Calling API: config_api.configure_allowlist (read mode) for '{server_name}'"
         )
-        response = config_api.configure_allowlist(
-            server_name, base_dir, new_players_data=None
-        )
+        response = config_api.get_server_allowlist_api(server_name, base_dir)
         logger.debug(f"API response from configure_allowlist (read): {response}")
 
         existing_players: List[Dict[str, Any]] = []
@@ -178,8 +176,10 @@ def configure_allowlist(server_name: str, base_dir: Optional[str] = None) -> Non
             logger.debug(
                 f"Calling API: config_api.configure_allowlist with {len(new_players_to_add)} new entries."
             )
-            save_response = config_api.configure_allowlist(
-                server_name, base_dir, new_players_data=new_players_to_add
+            save_response = config_api.add_players_to_allowlist_api(
+                server_name=server_name,
+                base_dir=base_dir,
+                new_players_data=new_players_to_add,
             )
             logger.debug(
                 f"API response from configure_allowlist (save): {save_response}"

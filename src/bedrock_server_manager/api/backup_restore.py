@@ -560,12 +560,6 @@ def prune_old_backups(
                     exc_info=True,
                 )
 
-        # Generic JSON catch-all (if needed, be careful with prefixes)
-        # try:
-        #     core_backup.prune_old_backups(server_backup_dir, effective_backup_keep, file_prefix="", file_extension="json")
-        # except Exception as e:
-        #     pruning_errors.append(f"Generic JSON backups ({type(e).__name__})")
-
         if pruning_errors:
             return {
                 "status": "error",
