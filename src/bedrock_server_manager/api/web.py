@@ -10,7 +10,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 # Local imports
-from bedrock_server_manager.config.settings import settings, EXPATH
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.app import run_web_server
 
 # Core imports
@@ -148,7 +148,7 @@ def start_web_server(
 
             # Use the core_web_ops to launch the detached server
             new_pid = core_web_ops.start_detached_web_server(
-                expath=EXPATH,  # This should be the main application executable,
+                expath=settings._expath,
                 config_dir=config_dir,
                 host_args=host_cmd_args if host_cmd_args else None,
                 debug_flag=debug,
@@ -206,7 +206,7 @@ def stop_web_server() -> Dict[str, str]:
             )
 
         stopped_pid = core_web_ops.stop_running_web_server(
-            config_dir=config_dir, expected_server_executable_path=EXPATH
+            config_dir=config_dir, expected_server_executable_path=settings._expath
         )
 
         if stopped_pid is None:

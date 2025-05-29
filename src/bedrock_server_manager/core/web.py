@@ -1,7 +1,5 @@
 # bedrock-server-manager/bedrock_server_manager/core/web.py
-import os
 import logging
-import sys  # To get sys.executable as the default EXPATH
 from typing import Optional, List
 
 # Import generic process utilities
@@ -9,11 +7,9 @@ from bedrock_server_manager.core.system import process as core_process
 
 # Import specific errors
 from bedrock_server_manager.error import (
-    ConfigurationError,
     ExecutableNotFoundError,
     ProcessManagementError,
     PIDFileError,
-    ProcessVerificationError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -44,8 +40,6 @@ def get_web_pid_file_path(config_dir: str) -> str:
 
 
 def start_detached_web_server(
-    # expath could be an absolute path to a specific python executable
-    # or a compiled binary. If running as `python script.py`, then expath is sys.executable.
     expath: str,
     config_dir: str,  # To determine PID file path
     host_args: Optional[List[str]] = None,  # e.g., ["--host", "0.0.0.0"]

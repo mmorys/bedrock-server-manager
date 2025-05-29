@@ -18,7 +18,7 @@ import subprocess
 
 # Local imports
 from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.config.settings import settings, EXPATH
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import (
     server_actions as core_server_actions,
@@ -183,7 +183,7 @@ def start_server(
 
             if platform.system() == "Windows":
                 cli_command_parts = [
-                    EXPATH,
+                    settings._expath,
                     "start-server",
                     "--server",
                     server_name,
@@ -758,7 +758,9 @@ def delete_server_data(
                         f"Server '{server_name}' is running. Stopping before deletion..."
                     )
 
-                    cmd_res = send_command(server_name, "say WARNING: Deleting Server...")
+                    cmd_res = send_command(
+                        server_name, "say WARNING: Deleting Server..."
+                    )
                     if cmd_res.get("status") == "error":
                         logger.warning(
                             f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"

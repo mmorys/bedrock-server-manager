@@ -125,7 +125,7 @@ def create_systemd_service(
     Raises:
         MissingArgumentError: If `server_name` is empty.
         InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined or EXPATH is invalid.
+        FileOperationError: If `base_dir` cannot be determined or _expath is invalid.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")

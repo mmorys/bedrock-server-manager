@@ -34,9 +34,6 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.config.settings import (
     settings,
 )
-from bedrock_server_manager.config.settings import (
-    EXPATH,
-)
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
@@ -141,12 +138,12 @@ def schedule_tasks_route(server_name: str) -> Response:
     logger.debug(
         f"Rendering 'schedule_tasks.html' for '{server_name}' with {len(table_data)} jobs."
     )
-    # Pass EXPATH for constructing command examples in the template?
+    # Pass _expath for constructing command examples in the template?
     return render_template(
         "schedule_tasks.html",
         server_name=server_name,
         table_data=table_data,  # List of dicts for the table
-        EXPATH=EXPATH,
+        EXPATH=settings._expath,
     )
 
 

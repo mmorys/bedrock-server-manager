@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple, Dict
 
 # Local imports
-from bedrock_server_manager.config.settings import EXPATH
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import (
     CommandNotFoundError,
     ServerNotRunningError,
@@ -91,7 +91,7 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
         ServiceError: If creating the systemd directory or writing the service file fails.
         CommandNotFoundError: If the 'systemctl' command is not found.
         SystemdReloadError: If `systemctl --user daemon-reload` fails.
-        FileOperationError: If EXPATH is not set or invalid.
+        FileOperationError: If _expath is not set or invalid.
     """
     if platform.system() != "Linux":
         logger.warning("Systemd service creation skipped: Not running on Linux.")
@@ -101,9 +101,9 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
         raise InvalidServerNameError("Server name cannot be empty.")
     if not base_dir:
         raise MissingArgumentError("Base directory cannot be empty.")
-    if not EXPATH or not os.path.isfile(EXPATH):
+    if not settings._expath or not os.path.isfile(settings._expath):
         raise FileOperationError(
-            f"Main script executable path (EXPATH) is invalid or not set: {EXPATH}"
+            f"Main script executable path (_expath) is invalid or not set: {settings._expath}"
         )
 
     server_dir = os.path.join(base_dir, server_name)
@@ -133,7 +133,7 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
     if autoupdate:
         # Ensure server_name is quoted if it contains spaces
         autoupdate_line = (
-            f'ExecStartPre={EXPATH} update-server --server "{server_name}"'
+            f'ExecStartPre={settings._expath} update-server --server "{server_name}"'
         )
         logger.debug(f"Autoupdate enabled for service '{service_name}'.")
     else:
@@ -155,11 +155,11 @@ WorkingDirectory={server_dir}
 # Define required environment variables if necessary
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
-# Use absolute path to EXPATH
-ExecStart={EXPATH} start-server --server "{server_name}" --mode direct
-ExecStop={EXPATH} systemd-stop --server "{server_name}"
+# Use absolute path to _expath
+ExecStart={settings._expath} start-server --server "{settings._expath}" --mode direct
+ExecStop={settings._expath} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
-# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} start-server --server "{server_name}" -mode direct
+# ExecReload={settings._expath} systemd-stop --server "{server_name}" && {settings._expath} start-server --server "{server_name}" -mode direct
 # Restart behavior
 Restart=on-failure
 RestartSec=10s

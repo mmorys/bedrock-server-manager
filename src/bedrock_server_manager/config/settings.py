@@ -26,12 +26,12 @@ EXPATH = package_finder.find_executable(package_name, executable_name)
 
 try:
     # Attempt to get the installed package version
-    __version__ = version(package_name)
+    installed_version = version(package_name)
 except PackageNotFoundError:
     # Fallback if the package isn't installed
-    __version__ = "0.0.0"
+    installed_version = "0.0.0"
     logger.warning(
-        f"Could not find package metadata for '{package_name}'. Version set to {__version__}."
+        f"Could not find package metadata for '{package_name}'. Version set to {installed_version}."
     )
 
 
@@ -54,6 +54,10 @@ class Settings:
         logger.debug("Initializing Settings")
         self._config_dir = self._get_app_config_dir()
         self.config_file_name = "script_config.json"
+        self._expath = EXPATH
+        self._app_name = app_name
+        self._env_name = env_name
+        self._version = installed_version
         self.config_path = os.path.join(self._config_dir, self.config_file_name)
         self._settings = {}  # Initialize empty settings dict
         self.load()  # Load settings from file or defaults

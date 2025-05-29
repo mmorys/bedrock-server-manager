@@ -38,7 +38,7 @@ from ..core.system import task_scheduler as core_task
 from bedrock_server_manager.config.settings import (
     settings,
 )
-from bedrock_server_manager.config.settings import EXPATH, app_name
+from bedrock_server_manager.config.settings import settings
 
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -54,7 +54,7 @@ from bedrock_server_manager.utils.general import (
 
 logger = logging.getLogger("bedrock_server_manager")
 
-APP_DISPLAY_NAME = app_name
+APP_DISPLAY_NAME = settings._app_name
 
 
 def task_scheduler(server_name: str, base_dir: Optional[str] = None) -> None:
@@ -276,12 +276,24 @@ def add_cron_job(server_name: str) -> None:
     print(f"{Fore.MAGENTA}Choose the command to schedule:{Style.RESET_ALL}")
     # Command options mapped to the actual commands run by the script
     command_options = {
-        1: ("Update Server", f'{EXPATH} update-server --server "{server_name}"'),
-        2: ("Backup Server (All)", f'{EXPATH} backup-all --server "{server_name}"'),
-        3: ("Start Server", f'{EXPATH} start-server --server "{server_name}"'),
-        4: ("Stop Server", f'{EXPATH} stop-server --server "{server_name}"'),
-        5: ("Restart Server", f'{EXPATH} restart-server --server "{server_name}"'),
-        6: ("Scan Players", f"{EXPATH} scan-players"),
+        1: (
+            "Update Server",
+            f'{settings._expath} update-server --server "{server_name}"',
+        ),
+        2: (
+            "Backup Server (All)",
+            f'{settings._expath} backup-all --server "{server_name}"',
+        ),
+        3: (
+            "Start Server",
+            f'{settings._expath} start-server --server "{server_name}"',
+        ),
+        4: ("Stop Server", f'{settings._expath} stop-server --server "{server_name}"'),
+        5: (
+            "Restart Server",
+            f'{settings._expath} restart-server --server "{server_name}"',
+        ),
+        6: ("Scan Players", f"{settings._expath} scan-players"),
     }
     for idx, (desc, _) in command_options.items():
         print(f"  {idx}) {desc}")

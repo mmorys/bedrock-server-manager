@@ -257,7 +257,9 @@ def reset_world(server_name: str):
             }
 
         if core_server_actions.check_if_server_is_running(server_name):
-            cmd_res = api_server_actions.send_command(server_name, "say WARNING: Resetting world")
+            cmd_res = api_server_actions.send_command(
+                server_name, "say WARNING: Resetting world"
+            )
             if cmd_res.get("status") == "error":
                 logger.warning(
                     f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
@@ -291,9 +293,7 @@ def reset_world(server_name: str):
                     "The server was stopped (and possibly restarted), but the world files remain. "
                     "Check system logs for deletion errors.",
                 }
-    except (
-        InvalidServerNameError
-    ) as e:
+    except InvalidServerNameError as e:
         logger.warning(
             f"API: Invalid server name during world reset for '{server_name}': {e}",
             exc_info=True,

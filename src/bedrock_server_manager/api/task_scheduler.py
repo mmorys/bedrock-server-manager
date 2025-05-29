@@ -470,7 +470,7 @@ def create_windows_task(
     Raises:
         MissingArgumentError: If required arguments are empty.
         TypeError: If `triggers` is not a list.
-        FileOperationError: If `config_dir` cannot be determined or EXPATH is invalid.
+        FileOperationError: If `config_dir` cannot be determined or _expath is invalid.
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
@@ -631,7 +631,7 @@ def modify_windows_task(
     Raises:
         MissingArgumentError: If required arguments are empty.
         TypeError: If `triggers` is not a list.
-        FileOperationError: If `config_dir` cannot be determined or EXPATH invalid.
+        FileOperationError: If `config_dir` cannot be determined or _expath invalid.
     """
     # Validate inputs
     if not old_task_name:

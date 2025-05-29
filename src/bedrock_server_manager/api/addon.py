@@ -75,8 +75,6 @@ def import_addon(
         effective_base_dir = get_base_dir(base_dir)
         logger.debug(f"API: Using base directory: {effective_base_dir}")
 
-
-
         # The _server_stop_start_manager will handle stopping the server if stop_start_server is True,
         # and restarting it in its finally block based on was_running and restart_only_on_success.
         with _server_stop_start_manager(

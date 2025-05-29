@@ -16,7 +16,7 @@ from flask import url_for, current_app
 
 # Local imports
 from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
-from bedrock_server_manager.config.settings import settings, __version__
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import SystemError
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -153,7 +153,7 @@ def _get_app_name() -> str:
         The application name string configured in Flask ('APP_NAME'),
         or a default name if not configured or if called outside a Flask context.
     """
-    default_app_name: str = "Bedrock Server Manager"  # Default name
+    default_app_name: str = settings._config_dir  # Default name
     app_name: str = default_app_name
 
     try:
@@ -192,7 +192,7 @@ def _get_app_version() -> str:
 
     try:
         # Get app version from settings
-        app_version = __version__
+        app_version = settings._version
 
     except Exception as e:
         logger.exception(

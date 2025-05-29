@@ -36,10 +36,7 @@ from wtforms.validators import DataRequired, Length
 from flask_jwt_extended import create_access_token, JWTManager
 
 # Local imports
-from bedrock_server_manager.config.settings import (
-    env_name,
-    app_name,
-)
+from bedrock_server_manager.config.settings import settings
 
 logger = logging.getLogger("bedrock_server_manager")
 
@@ -185,7 +182,10 @@ def login() -> Response:
                 "danger",
             )
             # Return 500 status code as it's a server-side problem
-            return render_template("login.html", app_name=app_name, form=form), 500
+            return (
+                render_template("login.html", app_name=settings._app_name, form=form),
+                500,
+            )
 
         # --- Validate Credentials ---
         # Compare submitted username and check hashed password
@@ -222,7 +222,10 @@ def login() -> Response:
             flash("Invalid username or password provided.", "danger")
             # Re-render login form, WTForms errors (if any) are implicitly passed via form object
             # Return 401 Unauthorized status code
-            return render_template("login.html", app_name=app_name, form=form), 401
+            return (
+                render_template("login.html", app_name=settings._app_name, form=form),
+                401,
+            )
 
     # --- GET Request or Failed POST Validation ---
     # If it's a GET request, or if form.validate_on_submit() returned False (e.g., missing fields)
@@ -230,7 +233,7 @@ def login() -> Response:
     logger.debug(
         f"Rendering login page (GET request or failed POST validation) from {request.remote_addr}"
     )
-    return render_template("login.html", app_name=app_name, form=form)
+    return render_template("login.html", app_name=settings._app_name, form=form)
 
 
 # --- API Login Route ---

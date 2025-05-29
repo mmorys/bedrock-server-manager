@@ -606,7 +606,6 @@ def delete_server_data(
                 if not system_base.delete_path_robustly(
                     service_file_path,
                     f"systemd service file for '{service_name}' (no systemctl)",
-                    logger,
                 ):
                     deletion_errors.append(
                         f"systemd service file '{service_file_path}' (no systemctl)"
@@ -625,7 +624,7 @@ def delete_server_data(
     for dir_type, dir_path in paths_to_delete_map.items():
         if dir_path:  # Ensure path is not None (e.g. if backup_base_dir was None)
             if not system_base.delete_path_robustly(
-                dir_path, f"server {dir_type}", logger
+                dir_path, f"server {dir_type}"
             ):
                 deletion_errors.append(f"{dir_type} directory '{dir_path}'")
         else:

@@ -57,7 +57,7 @@ function fillModifyForm(minute, hour, day, month, weekday, command) {
         // Extract the 'action' part of the command for matching the dropdown value
         // Example: '/path/to/bsm update-server --server MyServer' -> 'update-server'
         let baseCommand = '';
-        // 1. Remove path prefix if present (assuming EXPATH is the prefix)
+        // 1. Remove path prefix if present (assuming _expath is the prefix)
         const expathPrefix = document.getElementById('cron-form')?.dataset?.expath || ''; // Get EXPATH from form data attribute if set
         let commandPart = command.trim();
         if (expathPrefix && commandPart.startsWith(expathPrefix)) {

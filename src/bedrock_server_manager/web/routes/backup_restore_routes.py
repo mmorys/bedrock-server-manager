@@ -24,7 +24,6 @@ from flask import (
 from bedrock_server_manager.api import backup_restore as backup_restore_api
 from bedrock_server_manager.config.settings import (
     settings,
-    app_name,
 )
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.web.utils.auth_decorators import (
@@ -69,7 +68,7 @@ def backup_menu_route(server_name: str) -> Response:
     logger.info(f"User '{identity}' accessed backup menu for server '{server_name}'.")
     # Note: Server existence validation happens globally via before_request handler
     return render_template(
-        "backup_menu.html", server_name=server_name, app_name=app_name
+        "backup_menu.html", server_name=server_name, app_name=settings._app_name
     )
 
 
@@ -174,7 +173,9 @@ def backup_config_select_route(server_name: str) -> Response:
         f"User '{identity}' accessed config backup selection page for server '{server_name}'."
     )
     return render_template(
-        "backup_config_options.html", server_name=server_name, app_name=app_name
+        "backup_config_options.html",
+        server_name=server_name,
+        app_name=settings._app_name,
     )
 
 
@@ -323,7 +324,7 @@ def restore_menu_route(server_name: str) -> Response:
     identity = get_current_identity()  # For logging
     logger.info(f"User '{identity}' accessed restore menu for server '{server_name}'.")
     return render_template(
-        "restore_menu.html", server_name=server_name, app_name=app_name
+        "restore_menu.html", server_name=server_name, app_name=settings._app_name
     )
 
 
@@ -591,7 +592,7 @@ def restore_select_backup_route(server_name: str) -> Response:
                 server_name=server_name,
                 restore_type=restore_type,
                 backups=backup_details,  # Pass list of dicts with path and name
-                app_name=app_name,
+                app_name=settings._app_name,
             )
         else:
             # Error reported by the list_backup_files handler

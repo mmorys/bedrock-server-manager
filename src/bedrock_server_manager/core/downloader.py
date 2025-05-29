@@ -20,7 +20,7 @@ import zipfile
 from typing import Tuple
 
 # Local imports
-from bedrock_server_manager.config.settings import settings, app_name
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
     DownloadExtractError,
@@ -112,7 +112,7 @@ def lookup_bedrock_download_url(target_version: str) -> str:
     # Fetch the download page content
     try:
         headers = {
-            "User-Agent": f"zvortex11325/{app_name}",
+            "User-Agent": f"zvortex11325/{settings._app_name}",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept": "text/html",
         }
@@ -361,7 +361,7 @@ def download_server_zip_file(download_url: str, zip_file: str) -> None:
 
     try:
         headers = {
-            "User-Agent": f"Python Requests/{requests.__version__} ({app_name})"
+            "User-Agent": f"Python Requests/{requests.__version__} ({settings._app_name})"
         }  # Simple UA
         # Use stream=True to download large files efficiently without loading into memory
         with requests.get(

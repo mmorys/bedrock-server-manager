@@ -17,10 +17,10 @@ try:
 
     from .config.settings import (
         settings,
-        app_name,
-        __version__,
     )
     from .logging import setup_logging, log_separator
+
+    __version__ = settings._version
 
     # Configure logging based on settings
     try:
@@ -30,7 +30,7 @@ try:
             log_level=settings.get("LOG_LEVEL"),
         )
         # Log separator after setup
-        log_separator(logger, app_name=app_name, app_version=__version__)
+        log_separator(logger, app_name=settings._app_name, app_version=__version__)
     except Exception as log_e:
         # Fallback basic logging if setup fails
         logging.basicConfig(level=logging.WARNING)
@@ -199,8 +199,10 @@ def main() -> None:
     """
     try:
         # --- Initial Checks ---
-        logger.info(f"Starting {app_name} v{__version__}...")
-        startup_checks(app_name, __version__)  # Handles Python version, creates dirs
+        logger.info(f"Starting {settings._app_name} v{__version__}...")
+        startup_checks(
+            settings._app_name, __version__
+        )  # Handles Python version, creates dirs
         system_base.check_prerequisites()  # Check for screen, systemctl, etc.
 
         # --- Resolve Base/Config Dirs ---
@@ -232,11 +234,14 @@ def main() -> None:
 
         # --- Argument Parsing ---
         parser = argparse.ArgumentParser(
-            description=f"{app_name} - Manage Minecraft Bedrock Servers.",
+            description=f"{settings._app_name} - Manage Minecraft Bedrock Servers.",
             epilog="Run a command with -h for specific help, e.g., 'bedrock-server-manager start-server -h'",
         )
         parser.add_argument(
-            "-v", "--version", action="version", version=f"{app_name} {__version__}"
+            "-v",
+            "--version",
+            action="version",
+            version=f"{settings._app_name} {__version__}",
         )
         subparsers = parser.add_subparsers(
             title="Available Commands",
@@ -658,16 +663,6 @@ def main() -> None:
             help="Override log directory for cleanup (default: from settings)",
         )
 
-        # systemd-stop / systemd-start (Internal use by systemd service file)
-        systemd_stop_parser = subparsers.add_parser(
-            "systemd-stop", help=argparse.SUPPRESS
-        )  # Hide from help
-        add_server_arg(systemd_stop_parser)
-        systemd_start_parser = subparsers.add_parser(
-            "systemd-start", help=argparse.SUPPRESS
-        )  # Hide from help
-        add_server_arg(systemd_start_parser)
-
         # --- Web-Server ---
         web_server_start_parser = subparsers.add_parser(
             "start-web-server", help="Start the web management interface"
@@ -918,12 +913,6 @@ def main() -> None:
                 system_base.check_internet_connectivity()
             ),  # Call core func and print result
             "cleanup": lambda args: run_cleanup(args),
-            "systemd-stop": lambda args: cli_server.systemd_stop_server(
-                args.server, base_dir
-            ),
-            "systemd-start": lambda args: cli_server.systemd_start_server(
-                args.server, base_dir
-            ),
             "start-web-server": lambda args: cli_web.start_web_server(
                 args.host, args.debug, args.mode
             ),

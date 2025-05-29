@@ -39,7 +39,6 @@ from bedrock_server_manager.utils.general import (
 )
 from bedrock_server_manager.utils.get_utils import _get_splash_text
 from bedrock_server_manager.config.settings import (
-    app_name,
     settings,
 )
 from bedrock_server_manager.cli import utils as cli_utils
@@ -81,7 +80,7 @@ def main_menu(base_dir: str, config_dir: Optional[str] = None) -> None:
         try:
             # Clear screen and display header/status
             os.system("cls" if platform.system() == "Windows" else "clear")
-            print(f"\n{Fore.MAGENTA}{app_name} - Main Menu{Style.RESET_ALL}")
+            print(f"\n{Fore.MAGENTA}{settings._app_name} - Main Menu{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
                 base_dir, config_dir
@@ -179,7 +178,7 @@ def manage_server(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{app_name} - Manage Existing Server{Style.RESET_ALL}\n"
+                f"\n{Fore.MAGENTA}{settings._app_name} - Manage Existing Server{Style.RESET_ALL}\n"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
@@ -303,7 +302,9 @@ def install_content(base_dir: str, config_dir: str) -> None:
     while True:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
-            print(f"\n{Fore.MAGENTA}{app_name} - Install Content{Style.RESET_ALL}\n")
+            print(
+                f"\n{Fore.MAGENTA}{settings._app_name} - Install Content{Style.RESET_ALL}\n"
+            )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers
 
@@ -391,7 +392,9 @@ def advanced_menu(base_dir: str, config_dir: str) -> None:
     while True:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
-            print(f"\n{Fore.MAGENTA}{app_name} - Advanced Options{Style.RESET_ALL}\n")
+            print(
+                f"\n{Fore.MAGENTA}{settings._app_name} - Advanced Options{Style.RESET_ALL}\n"
+            )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)
 
@@ -538,7 +541,9 @@ def backup_restore_menu(base_dir: str, config_dir: str) -> None:
     while True:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
-            print(f"\n{Fore.MAGENTA}{app_name} - Backup / Restore{Style.RESET_ALL}\n")
+            print(
+                f"\n{Fore.MAGENTA}{settings._app_name} - Backup / Restore{Style.RESET_ALL}\n"
+            )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers
 
