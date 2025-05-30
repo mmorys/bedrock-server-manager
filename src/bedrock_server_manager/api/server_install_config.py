@@ -449,7 +449,7 @@ def get_server_permissions_api(
         # 3. Call the core function to get processed permissions
         try:
             server_permissions_list = (
-                core_server_install_config.gread_and_process_permissions_file(
+                core_server_install_config.read_and_process_permissions_file(
                     server_instance_dir, player_name_map
                 )
             )
