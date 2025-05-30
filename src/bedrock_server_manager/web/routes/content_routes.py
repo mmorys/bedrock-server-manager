@@ -364,7 +364,7 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
 # --- API Route: Export World ---
 @content_bp.route("/api/server/<string:server_name>/world/export", methods=["POST"])
 @csrf.exempt  # Exempt API endpoint from CSRF protection (using JWT or session auth)
-@auth_required  # Requires session OR JWT authentication
+@auth_required  # Requires session OR JWT
 def export_world_api_route(server_name: str) -> Tuple[Response, int]:
     """
     API endpoint to export the current world of a specified server to a .mcworld file.
@@ -490,6 +490,111 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
         result = {
             "status": "error",
             "message": f"Unexpected error during world export: {e}",
+        }
+
+    return jsonify(result), status_code
+
+
+# --- API Route: Reset World ---
+@content_bp.route("/api/server/<string:server_name>/world/reset", methods=["DELETE"])
+@csrf.exempt  # Exempt API endpoint from CSRF protection (using JWT or session auth)
+@auth_required  # Requires session OR JWT
+def ereset_world_api_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to delete the current world of a specified server.
+
+    Args:
+        server_name: The name of the server whose world should be reset (from URL path).
+
+    Returns:
+        JSON response indicating success or failure of the world export:
+        - 200 OK: {"status": "success", "message": "World '...' reset successfully."}
+        - 400 Bad Request: Invalid server name provided.
+        - 500 Internal Server Error: World reset process failed (e.g., world not found, disk error).
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: World reset requested for server '{server_name}' by user '{identity}'."
+    )
+
+    # --- Input Validation ---
+    # Server name validity is checked within the api_world.reset_world function.
+    # No request body is expected for this action.
+
+    # --- Call API Handler ---
+    result: Dict[str, Any] = {}
+    status_code = 500  # Default to internal server error
+
+    try:
+
+        # --- Call the world reset API function ---
+        logger.debug(
+            f"Calling API handler: api_world.reset_world for '{server_name}'."
+        )
+        result = world_api.reset_world(
+            server_name=server_name,
+        )
+        logger.debug(f"API Reset World '{server_name}': Handler response: {result}")
+
+        if isinstance(result, dict) and result.get("status") == "success":
+            status_code = 200
+            success_msg = f"World for server '{server_name}' reset successfully."
+            logger.info(f"API: {success_msg}")
+            result["message"] = (
+                success_msg  # Update message for better user feedback in response
+            )
+        else:
+            # Handler indicated failure (e.g., couldn't find world name)
+            status_code = (
+                500  # Assume server-side issue if API layer returns error status
+            )
+            error_msg = (
+                result.get("message", "Unknown world reset error.")
+                if isinstance(result, dict)
+                else "Handler returned unexpected response."
+            )
+            logger.error(f"API Reset World '{server_name}' failed: {error_msg}")
+            result = {
+                "status": "error",
+                "message": error_msg,
+            }  # Ensure standard error format
+
+    except InvalidServerNameError as e:
+        # Catch invalid server name specifically for a 400 response
+        logger.warning(
+            f"API Reset World '{server_name}': Invalid input: {e}", exc_info=False
+        )
+        status_code = 400
+        result = {"status": "error", "message": f"Invalid server name provided: {e}"}
+    except FileOperationError as e:
+        # Catch errors related to file operations,
+        # or inability to create the export directory.
+        logger.error(
+            f"API Reset World '{server_name}': Configuration or File system error: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Configuration or file system error: {e}",
+        }
+    except (DirectoryError) as e:
+        # Catch specific, expected errors from the core reset process
+        logger.error(
+            f"API Reset World '{server_name}': Error during reset process: {e}",
+            exc_info=True,
+        )
+        status_code = 500
+        result = {"status": "error", "message": f"World reset process error: {e}"}
+    except Exception as e:
+        # Catch any unexpected errors
+        logger.error(
+            f"API Reset World '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"Unexpected error during world reset: {e}",
         }
 
     return jsonify(result), status_code

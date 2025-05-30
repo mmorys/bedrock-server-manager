@@ -107,6 +107,45 @@ async function triggerWorldExport(buttonElement, serverName) {
     }
 }
 
+/**
+ * Initiates the world reset process by sending an API request.
+ * Assumes 'sendServerActionRequest' is globally available.
+ *
+ * @param {HTMLElement} buttonElement - The button element that was clicked.
+ * @param {string} serverName - The name of the server whose world should be exported.
+ */
+async function triggerWorldReset(buttonElement, serverName) {
+    const functionName = 'triggerWorldReset';
+    console.log(`${functionName}: Triggered for server '${serverName}'`);
+
+    // Confirm reset if desired, though it's not destructive like import
+     if (!confirm(`WARNING: Reset the current world for server '${serverName}'?`)) {
+         console.log(`${functionName}: User cancelled reset.`);
+         showStatusMessage("World export cancelled.", "info");
+         return;
+     }
+
+    console.log(`${functionName}: Sending API request to reset world.`);
+    // Call the generic request handler
+    // Export endpoint doesn't require a request body (body = null)
+    const result = await sendServerActionRequest(
+        serverName,
+        'world/reset', // Relative API path for world export
+        'DELETE',
+        null,           // No request body needed
+        buttonElement
+    );
+
+    // Handle specific responses
+    if (result && result.status === 'success') {
+        console.log(`${functionName}: World reset reported success.`);
+    } else if (result === false) {
+        console.error(`${functionName}: World reset failed (Network/HTTP error or application error reported).`);
+    } else {
+        console.warn(`${functionName}: World reset completed with status: ${result?.status || 'unknown'}`);
+    }
+}
+
 
 /**
  * Handles the user clicking an 'Install Addon' button.

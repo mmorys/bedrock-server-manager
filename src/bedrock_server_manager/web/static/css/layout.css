@@ -165,6 +165,7 @@
 .server-card {
     background-color: #444; /* Card background */
     border: 1px solid #555;
+    justify-content: space-between;
     padding: 10px; /* Reduced padding */
     border-radius: 0;
     display: flex; /* Use flexbox for internal layout */

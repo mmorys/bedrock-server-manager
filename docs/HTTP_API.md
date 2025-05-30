@@ -29,6 +29,7 @@
     - [`POST /api/server/{server_name}/restore/all` - Trigger Restore All](#post-apiserverserver_namerestoreall---trigger-restore-all)
   - [World & Addon Management](#world--addon-management)
     - [`POST /api/server/{server_name}/world/export` - Export World](#post-apiserverserver_nameworldexport---export-world)
+    - [`DELETE /api/server/{server_name}/world/reset` - Reset World](#delete-apiserverserver_nameworldreset---reset-world)
     - [`POST /api/server/{server_name}/world/install` - Install World](#post-apiserverserver_nameworldinstall---install-world)
     - [`POST /api/server/{server_name}/addon/install` - Install Addon](#post-apiserverserver_nameaddoninstall---install-addon)
   - [Player Management](#player-management)
@@ -3074,6 +3075,94 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world/export" -Headers $headers
+```
+
+---
+
+### `DELETE /api/server/{server_name}/world/reset` - Reset World
+
+Resets the currently active world directory associated with the specified server instance.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance whose world should be exported.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returned when the world export process completes successfully and the `.mcworld` file is created in the target directory (`<CONTENT_DIR>/worlds/`).
+
+```json
+{
+    "status": "success",
+    "message": "World for server '<server_name>' reset successfully.",
+}
+```
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is considered invalid (e.g., empty) (`InvalidServerNameError`).
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid server name provided: Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "error": "Unauthorized",
+            "message": "Authentication required."
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the API fails to determine the current world name for the server (e.g., `server.properties` read error, returned as error status by `api_world.reset_world`).
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to reset world: Could not read world name from properties file: /path/to/server/server.properties"
+        }
+        ```
+    *   If the determined world directory does not exist or is not accessible (`DirectoryError`).
+        ```json
+        {
+            "status": "error",
+            "message": "World reset process error: World directory 'MyWorldName' not found at expected location: /path/to/server/worlds/MyWorldName"
+        }
+        ```
+    *   If an unexpected error occurs during the export process.
+        ```json
+        {
+            "status": "error",
+            "message": "Unexpected error during world reset: <original error message>"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/world/reset
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world/reset" -Headers $headers
 ```
 
 ---
