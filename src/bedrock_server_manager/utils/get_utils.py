@@ -153,12 +153,12 @@ def _get_app_name() -> str:
         The application name string configured in Flask ('APP_NAME'),
         or a default name if not configured or if called outside a Flask context.
     """
-    default_app_name: str = settings._config_dir  # Default name
+    default_app_name: str = settings._app_name  # Default name
     app_name: str = default_app_name
 
     try:
         # Requires an active Flask application context
-        app_name = current_app.config.get("APP_NAME", default_app_name)
+        app_name = settings._app_name  # Access the app name from settings
         logger.debug(
             f"Context Helper: Retrieved app name from Flask config: '{app_name}'"
         )

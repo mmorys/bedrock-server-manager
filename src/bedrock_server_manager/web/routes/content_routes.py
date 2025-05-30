@@ -499,7 +499,7 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
 @content_bp.route("/api/server/<string:server_name>/world/reset", methods=["DELETE"])
 @csrf.exempt  # Exempt API endpoint from CSRF protection (using JWT or session auth)
 @auth_required  # Requires session OR JWT
-def ereset_world_api_route(server_name: str) -> Tuple[Response, int]:
+def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
     """
     API endpoint to delete the current world of a specified server.
 
