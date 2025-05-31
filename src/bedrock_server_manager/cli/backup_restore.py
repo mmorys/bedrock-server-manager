@@ -379,7 +379,7 @@ def restore_server(
                 base_dir=base_dir,
                 stop_start_server=change_status,
             )
-        elif restore_type_norm == "config":
+        elif restore_type_norm in ["properties", "allowlist", "permissions"]:
             if not backup_file:
                 raise MissingArgumentError(
                     "Backup file path is required for config restore."
@@ -402,7 +402,7 @@ def restore_server(
             )
         else:
             raise InvalidInputError(
-                f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'config', or 'all'."
+                f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'properties', 'allowlist', 'permissions', or 'all'."
             )
 
         logger.debug(f"API response for restore_{restore_type_norm}: {response}")
@@ -466,8 +466,10 @@ def restore_menu(server_name: str, base_dir: Optional[str] = None) -> None:
             f"\n{Fore.MAGENTA}Restore Options for Server: {server_name}{Style.RESET_ALL}"
         )
         print("  1. Restore World")
-        print("  2. Restore Specific Configuration File")
-        print("  3. Restore Everything (Latest Backups)")
+        print("  2. Restore Properties File")
+        print("  3. Restore Allowlist File")
+        print("  4. Restore Permissions File")
+        print("  5. Restore Everything (Latest Backups)")
         print("  4. Cancel")
         # --- End User Interaction ---
 
@@ -482,8 +484,12 @@ def restore_menu(server_name: str, base_dir: Optional[str] = None) -> None:
         if choice == "1":
             restore_type = "world"
         elif choice == "2":
-            restore_type = "config"
+            restore_type = "properties"
         elif choice == "3":
+            restore_type = "allowlist"
+        elif choice == "4":
+            restore_type = "permissions"
+        elif choice == "5":
             logger.debug("User selected 'Restore Everything'.")
             print(
                 f"{_INFO_PREFIX}Restoring server '{server_name}' from latest backups..."
@@ -526,6 +532,8 @@ def restore_menu(server_name: str, base_dir: Optional[str] = None) -> None:
                 print(f"{_ERROR_PREFIX}{message}")
                 logger.error(f"CLI: Failed to list backups for restore menu: {message}")
                 continue  # Go back to main menu if listing fails
+
+            backup_files = list_response.get(f"{restore_type}_backups", [])
 
             backup_file_paths = list_response.get("backups", [])
             if not backup_file_paths:

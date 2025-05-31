@@ -14,7 +14,7 @@ from typing import Optional, Dict
 # Local imports
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.server import world as core_world
-from bedrock_server_manager.core.server import server_actions as core_server_actions
+from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
@@ -327,7 +327,7 @@ def backup_all_server_data(server_name: str, base_dir: str) -> Dict[str, Optiona
     # 1. Backup World
     try:
         logger.info("Backing up server world...")
-        world_name = core_server_actions.get_world_name(server_name, base_dir)
+        world_name = core_server_utils.get_world_name(server_name, base_dir)
         world_path = os.path.join(base_dir, server_name, "worlds", world_name)
         backup_results["world"] = backup_world_data(
             world_path, server_backup_dir, world_name

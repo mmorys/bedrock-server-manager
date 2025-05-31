@@ -7,13 +7,14 @@ logic, handling server stop/start operations, listing backups, and pruning old b
 Functions typically return a dictionary indicating success or failure status.
 """
 
+from multiprocessing import allow_connection_pickling
 import os
 import logging
 import glob
 from typing import Dict, List, Optional, Any
-from contextlib import contextmanager
 
 # Local imports
+from bedrock_server_manager.api import world
 from bedrock_server_manager.core.server import backup_restore as core_backup
 from bedrock_server_manager.core.server import world as core_world
 from bedrock_server_manager.config.settings import settings
@@ -28,7 +29,6 @@ from bedrock_server_manager.error import (
     DirectoryError,
     BackupWorldError,
     RestoreError,
-    DownloadExtractError,
     InvalidServerNameError,
     AddonExtractError,
 )
@@ -80,24 +80,54 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     try:
         backup_files: List[str] = []
         if backup_type_norm == "world":
-            pattern = os.path.join(
-                server_backup_dir, "*.mcworld"
-            )  # Matches any .mcworld
-            backup_files = glob.glob(pattern)
-        elif backup_type_norm == "config":
-            # Generic pattern for config files (name_backup_timestamp.ext)
-            # This will find all files matching the timestamped backup pattern for configs.
-            json_pattern = os.path.join(server_backup_dir, "*_backup_*.json")
-            props_pattern = os.path.join(server_backup_dir, "*_backup_*.properties")
-            backup_files.extend(glob.glob(json_pattern))
-            backup_files.extend(glob.glob(props_pattern))
+            pattern = os.path.join(server_backup_dir, "*.mcworld")
+            backups_result = glob.glob(pattern)
+        elif backup_type_norm == "properties":
+            pattern = os.path.join(server_backup_dir, "server*.properties")
+            backups_result = glob.glob(pattern)
+        elif backup_type_norm == "allowlist":
+            pattern = os.path.join(server_backup_dir, "allowlist*.json")
+            backups_result = glob.glob(pattern)
+        elif backup_type_norm == "permissions":
+            pattern = os.path.join(server_backup_dir, "permissions*.json")
+            backups_result = glob.glob(pattern)
+        elif backup_type_norm == "all":
+            # For "all" type, we structure the result as a dictionary of categories
+            categorized_backups: Dict[str, List[str]] = {}
+
+            allowlist_pattern = os.path.join(server_backup_dir, "allowlist*.json")
+            permissions_pattern = os.path.join(server_backup_dir, "permissions*.json")
+            properties_pattern = os.path.join(server_backup_dir, "server*.properties")
+            world_pattern = os.path.join(server_backup_dir, "*.mcworld")
+
+            # Collect all matching files and add to dictionary only if non-empty
+            allowlist_files = glob.glob(allowlist_pattern)
+            if allowlist_files:
+                categorized_backups["allowlist_backups"] = sorted(allowlist_files, key=os.path.getmtime, reverse=True)
+
+            permissions_files = glob.glob(permissions_pattern)
+            if permissions_files:
+                categorized_backups["permissions_backups"] = sorted(permissions_files, key=os.path.getmtime, reverse=True)
+
+            properties_files = glob.glob(properties_pattern)
+            if properties_files:
+                categorized_backups["properties_backups"] = sorted(properties_files, key=os.path.getmtime, reverse=True)
+
+            world_files = glob.glob(world_pattern)
+            if world_files:
+                categorized_backups["world_backups"] = sorted(world_files, key=os.path.getmtime, reverse=True)
+
+            backups_result = categorized_backups
         else:
             raise InvalidInputError(
-                f"Invalid backup type: '{backup_type}'. Must be 'world' or 'config'."
+                f"Invalid backup type: '{backup_type}'. Must be 'world', 'properties', 'allowlist', 'permissions', or 'all'."
             )
 
-        backup_files.sort(key=os.path.getmtime, reverse=True)
-        return {"status": "success", "backups": backup_files}
+        # Apply sorting only if `backups_result` is a list (i.e., not "all" type)
+        if isinstance(backups_result, list):
+            backups_result.sort(key=os.path.getmtime, reverse=True)
+
+        return {"status": "success", "backups": backups_result}
 
     except InvalidInputError:  # Re-raise this specific error
         raise
