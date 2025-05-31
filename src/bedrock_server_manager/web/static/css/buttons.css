@@ -184,6 +184,10 @@
     color: #fff;
 }
 
+.nav-action-button.install-server-button {
+    color: white;
+}
+
 
 /* ==========================================================================
    Contextual / Size Overrides
