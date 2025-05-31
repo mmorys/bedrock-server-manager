@@ -68,6 +68,7 @@ try:
     from bedrock_server_manager.api import (
         utils as api_utils,
         server_install_config as api_server_install_config,
+        backup_restore as api_backup_restore,
     )
     from bedrock_server_manager.error import FileOperationError
     from bedrock_server_manager.core import downloader
@@ -467,6 +468,14 @@ def main() -> None:
             help="Attempt restore without stopping the server",
         )
 
+        list_backups_parser = subparsers.add_parser(
+            "list-backups", help="List all backups for a server"
+        )
+        add_server_arg(list_backups_parser)
+        list_backups_parser.add_argument(
+            "-t", "--type", choices=["world", "properties", "allowlist", "permissions", "all"], help="Backup type to list"
+        )
+
         # scan-players
         scan_players_parser = subparsers.add_parser(
             "scan-players",
@@ -816,6 +825,7 @@ def main() -> None:
                 change_status=args.change_status,
                 base_dir=base_dir,
             ),
+            "list-backups": lambda args: print(api_backup_restore.list_backup_files(args.server, args.type)["backups"]),
             "scan-players": lambda args: cli_player.scan_for_players(
                 base_dir, config_dir
             ),
@@ -880,7 +890,7 @@ def main() -> None:
                 core_server_actions.get_installed_version(args.server, config_dir)
             ),
             "get-world-name": lambda args: print(
-                core_server_actions.get_world_name(args.server, base_dir)
+                core_server_utils.get_world_name(args.server, base_dir)
             ),
             "check-service-exist": lambda args: print(
                 system_linux.check_service_exist(args.server)

@@ -42,7 +42,7 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
 
     Args:
         server_name: The name of the server.
-        backup_type: The type of backups to list ("world", "properties", "allowlist", "permissions").
+        backup_type: The type of backups to list ("world", "properties", "allowlist", "permissions", or "all").
 
     Returns:
         A dictionary:

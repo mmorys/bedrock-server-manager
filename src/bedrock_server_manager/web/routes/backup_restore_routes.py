@@ -76,8 +76,8 @@ def backup_menu_route(server_name: str) -> Response:
     "/api/server/<string:server_name>/backups/list/<string:backup_type>",
     methods=["GET"],
 )
-@csrf.exempt
-@auth_required
+@csrf.exempt # Exempt API endpoint from CSRF (uses JWT or session implicitly checked by auth_required)
+@auth_required # Requires session OR JWT
 def list_server_backups_route(
     server_name: str, backup_type: str
 ) -> Tuple[Response, int]:
@@ -86,7 +86,7 @@ def list_server_backups_route(
 
     Args:
         server_name (str): The name of the server, passed in the URL path.
-        backup_type (str): The type of backups to list ("world" or "config"),
+        backup_type (str): The type of backups to list ("world", "properties", "allowlist", "permissions", or "all"),
                            passed in the URL path.
 
     Returns:
@@ -375,7 +375,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
     # Expecting *relative* path from client selection
     relative_backup_file_path = data.get("backup_file")
 
-    valid_types = ["world", "config"]
+    valid_types = ["world", "properties", "allowlist", "permissions"]
     if restore_type not in valid_types:
         msg = f"Missing or invalid 'restore_type'. Must be one of: {valid_types}."
         logger.warning(f"API Restore '{server_name}': {msg}")
@@ -448,7 +448,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
             result = backup_restore_api.restore_world(
                 server_name, full_backup_file_path, base_dir
             )
-        elif restore_type == "config":
+        elif restore_type in ["properties", "allowlist","permissions"]:
             logger.debug(
                 f"Calling API handler: backup_restore_api.restore_config_file for '{server_name}', file '{full_backup_file_path}'"
             )
@@ -553,9 +553,9 @@ def restore_select_backup_route(server_name: str) -> Response:
     logger.debug(f"Restore type selected from form: '{restore_type}'")
 
     # Validate restore type
-    valid_types = ["world", "config"]
+    valid_types = ["world", "properties", "allowlist", "permissions"]
     if restore_type not in valid_types:
-        error_msg = f"Invalid restore type selected: '{restore_type}'. Please go back and select 'world' or 'config'."
+        error_msg = f"Invalid restore type selected: '{restore_type}'. Please go back and select 'world', 'properties', 'allowlist', or 'permissions'."
         logger.warning(f"Restore selection for '{server_name}': {error_msg}")
         flash(error_msg, "warning")
         return redirect(

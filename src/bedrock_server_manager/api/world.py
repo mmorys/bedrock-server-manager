@@ -97,7 +97,7 @@ def export_world(
         os.makedirs(effective_export_dir, exist_ok=True)
 
         # Get world name directly from core
-        world_name_str = core_server_actions.get_world_name(
+        world_name_str = core_server_utils.get_world_name(
             server_name, effective_base_dir
         )
         world_path = os.path.join(

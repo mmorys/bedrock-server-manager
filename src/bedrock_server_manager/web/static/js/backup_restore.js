@@ -36,8 +36,6 @@ function triggerBackup(buttonElement, serverName, backupType) {
         }
         console.log(`${functionName}: User confirmed 'all' backup.`);
     }
-    // Add confirmation for 'world' backup too? It can also take time.
-    // else if (backupType === 'world') { ... confirm(...) ... }
 
     // --- Prepare API Request ---
     const requestBody = {
@@ -79,15 +77,6 @@ function triggerSpecificConfigBackup(buttonElement, serverName, filename) {
     }
     const trimmedFilename = filename.trim();
 
-    // --- Confirmation (Optional but recommended) ---
-    // const confirmationMessage = `Back up the specific configuration file '${trimmedFilename}' for server '${serverName}'?`;
-    // if (!confirm(confirmationMessage)) {
-    //     console.log(`${functionName}: Specific config backup cancelled by user.`);
-    //     showStatusMessage(`Backup for '${trimmedFilename}' cancelled.`, 'info');
-    //     return;
-    // }
-    // console.log(`${functionName}: User confirmed backup for '${trimmedFilename}'.`);
-
     // --- Prepare API Request ---
     const requestBody = {
         backup_type: 'config', // Specify config type
@@ -96,7 +85,7 @@ function triggerSpecificConfigBackup(buttonElement, serverName, filename) {
     console.debug(`${functionName}: Constructed request body:`, requestBody);
 
     // --- Call API Helper ---
-    const apiUrl = `/api/server/${serverName}/backup/action`; // Same endpoint, body specifies action
+    const apiUrl = `/api/server/${serverName}/backup/action`;
     console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for specific config backup ('${trimmedFilename}')...`);
     sendServerActionRequest(serverName, 'backup/action', 'POST', requestBody, buttonElement);
 
@@ -126,7 +115,7 @@ function triggerRestore(buttonElement, serverName, restoreType, backupFilePath) 
     const trimmedBackupFilePath = backupFilePath.trim();
     const backupFilename = trimmedBackupFilePath.split(/[\\/]/).pop(); // Extract filename for messages
 
-    const validTypes = ['world', 'config'];
+    const validTypes = ['world', 'properties', 'allowlist', 'permissions'];
     if (!restoreType || !validTypes.includes(restoreType.toLowerCase())) {
         const errorMsg = `Internal error: Invalid restore type '${restoreType}'.`;
         console.error(`${functionName}: ${errorMsg}`);
