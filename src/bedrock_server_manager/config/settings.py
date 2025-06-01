@@ -148,7 +148,8 @@ class Settings:
             "BACKUP_KEEP": 3,
             "DOWNLOAD_KEEP": 3,
             "LOGS_KEEP": 3,
-            "LOG_LEVEL": logging.INFO,  # Default logging level
+            "FILE_LOG_LEVEL": logging.INFO,  # Default logging level for log file
+            "CLI_LOG_LEVEL": logging.WARN,  # Default logging level for CLI
             "WEB_PORT": 11325,  # Default port for web server
             "TOKEN_EXPIRES_WEEKS": 4,  # Defailt jwt token expire time
         }

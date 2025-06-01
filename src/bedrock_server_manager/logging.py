@@ -23,7 +23,8 @@ def setup_logging(
     log_dir: str = DEFAULT_LOG_DIR,
     log_filename: str = "bedrock_server_manager.log",
     log_keep: int = DEFAULT_LOG_KEEP,
-    log_level: int = logging.INFO,
+    file_log_level: int = logging.INFO,
+    cli_log_level: int = logging.WARN,
     when: str = "midnight",
     interval: int = 1,
 ) -> logging.Logger:
@@ -47,7 +48,7 @@ def setup_logging(
         The configured logger instance for "bedrock_server_manager".
     """
     logger = logging.getLogger("bedrock_server_manager")
-    logger.setLevel(log_level)  # Set the threshold for the logger
+    logger.setLevel(file_log_level)  # Set the threshold for the logger
 
     # Prevent adding handlers multiple times if this function is called again
     if not logger.hasHandlers():
@@ -64,7 +65,7 @@ def setup_logging(
                 console_formatter = logging.Formatter("%(levelname)s: %(message)s")
                 console_handler = logging.StreamHandler(sys.stdout)
                 console_handler.setFormatter(console_formatter)
-                console_handler.setLevel(log_level)
+                console_handler.setLevel(cli_log_level)
                 logger.addHandler(console_handler)
                 logger.warning(
                     f"File logging disabled due to directory error for '{log_dir}'. Using console logging only."
@@ -97,13 +98,15 @@ def setup_logging(
                 backupCount=log_keep,
                 encoding="utf-8",
             )
-            file_handler.setLevel(log_level)  # Handler level also respects the setting
+            file_handler.setLevel(
+                file_log_level
+            )  # Handler level also respects the setting
             file_handler.setFormatter(file_formatter)  # Use detailed formatter
             logger.addHandler(file_handler)
 
             # --- Console Handler ---
             console_handler = logging.StreamHandler(sys.stdout)
-            console_handler.setLevel(log_level)
+            console_handler.setLevel(cli_log_level)
             console_handler.setFormatter(console_formatter)  # Use simple formatter
             logger.addHandler(console_handler)
 
@@ -119,7 +122,7 @@ def setup_logging(
                     console_formatter = logging.Formatter("%(levelname)s: %(message)s")
                     console_handler = logging.StreamHandler(sys.stdout)
                     console_handler.setFormatter(console_formatter)
-                    console_handler.setLevel(log_level)
+                    console_handler.setLevel(file_log_level)
                     logger.addHandler(console_handler)
                     logger.warning(
                         "Using basic console logging due to configuration error."
@@ -132,7 +135,7 @@ def setup_logging(
 
         # Log initial setup message using the configured handlers
         logger.debug(
-            f"Logging setup complete. Log path: '{log_path}', Level: {logging.getLevelName(log_level)}, Rotation: {when} (interval {interval}), Keep: {log_keep}"
+            f"Logging setup complete. CLI Level: '{logging.getLevelName(cli_log_level)}', File Log path: '{log_path}', File Level: {logging.getLevelName(file_log_level)}, Rotation: {when} (interval {interval}), Keep: {log_keep}"
         )
     else:
         logger.debug("Logging already configured. Skipping setup.")

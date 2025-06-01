@@ -27,7 +27,8 @@ try:
         logger = setup_logging(
             log_dir=settings.get("LOG_DIR"),
             log_keep=settings.get("LOGS_KEEP"),
-            log_level=settings.get("LOG_LEVEL"),
+            file_log_level=settings.get("FILE_LOG_LEVEL"),
+            cli_log_level=settings.get("CLI_LOG_LEVEL"),
         )
         # Log separator after setup
         log_separator(logger, app_name=settings._app_name, app_version=__version__)
@@ -473,7 +474,10 @@ def main() -> None:
         )
         add_server_arg(list_backups_parser)
         list_backups_parser.add_argument(
-            "-t", "--type", choices=["world", "properties", "allowlist", "permissions", "all"], help="Backup type to list"
+            "-t",
+            "--type",
+            choices=["world", "properties", "allowlist", "permissions", "all"],
+            help="Backup type to list",
         )
 
         # scan-players
@@ -825,7 +829,9 @@ def main() -> None:
                 change_status=args.change_status,
                 base_dir=base_dir,
             ),
-            "list-backups": lambda args: print(api_backup_restore.list_backup_files(args.server, args.type)["backups"]),
+            "list-backups": lambda args: print(
+                api_backup_restore.list_backup_files(args.server, args.type)["backups"]
+            ),
             "scan-players": lambda args: cli_player.scan_for_players(
                 base_dir, config_dir
             ),
