@@ -178,7 +178,7 @@ def add_players_to_allowlist_api(
         # 3. Optionally send reload command
         reload_status = "Not attempted"
         if core_server_utils.check_if_server_is_running(
-            server_name, base_dir=effective_base_dir
+            server_name
         ):
             logger.info(
                 f"API: Server '{server_name}' is running. Attempting 'allowlist reload'."
