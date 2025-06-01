@@ -103,19 +103,27 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
             # Collect all matching files and add to dictionary only if non-empty
             allowlist_files = glob.glob(allowlist_pattern)
             if allowlist_files:
-                categorized_backups["allowlist_backups"] = sorted(allowlist_files, key=os.path.getmtime, reverse=True)
+                categorized_backups["allowlist_backups"] = sorted(
+                    allowlist_files, key=os.path.getmtime, reverse=True
+                )
 
             permissions_files = glob.glob(permissions_pattern)
             if permissions_files:
-                categorized_backups["permissions_backups"] = sorted(permissions_files, key=os.path.getmtime, reverse=True)
+                categorized_backups["permissions_backups"] = sorted(
+                    permissions_files, key=os.path.getmtime, reverse=True
+                )
 
             properties_files = glob.glob(properties_pattern)
             if properties_files:
-                categorized_backups["properties_backups"] = sorted(properties_files, key=os.path.getmtime, reverse=True)
+                categorized_backups["properties_backups"] = sorted(
+                    properties_files, key=os.path.getmtime, reverse=True
+                )
 
             world_files = glob.glob(world_pattern)
             if world_files:
-                categorized_backups["world_backups"] = sorted(world_files, key=os.path.getmtime, reverse=True)
+                categorized_backups["world_backups"] = sorted(
+                    world_files, key=os.path.getmtime, reverse=True
+                )
 
             backups_result = categorized_backups
         else:

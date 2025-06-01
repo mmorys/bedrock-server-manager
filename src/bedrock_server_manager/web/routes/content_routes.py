@@ -528,9 +528,7 @@ def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
     try:
 
         # --- Call the world reset API function ---
-        logger.debug(
-            f"Calling API handler: api_world.reset_world for '{server_name}'."
-        )
+        logger.debug(f"Calling API handler: api_world.reset_world for '{server_name}'.")
         result = world_api.reset_world(
             server_name=server_name,
         )
@@ -578,7 +576,7 @@ def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
             "status": "error",
             "message": f"Configuration or file system error: {e}",
         }
-    except (DirectoryError) as e:
+    except DirectoryError as e:
         # Catch specific, expected errors from the core reset process
         logger.error(
             f"API Reset World '{server_name}': Error during reset process: {e}",

@@ -76,8 +76,8 @@ def backup_menu_route(server_name: str) -> Response:
     "/api/server/<string:server_name>/backups/list/<string:backup_type>",
     methods=["GET"],
 )
-@csrf.exempt # Exempt API endpoint from CSRF (uses JWT or session implicitly checked by auth_required)
-@auth_required # Requires session OR JWT
+@csrf.exempt  # Exempt API endpoint from CSRF (uses JWT or session implicitly checked by auth_required)
+@auth_required  # Requires session OR JWT
 def list_server_backups_route(
     server_name: str, backup_type: str
 ) -> Tuple[Response, int]:
@@ -448,7 +448,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
             result = backup_restore_api.restore_world(
                 server_name, full_backup_file_path, base_dir
             )
-        elif restore_type in ["properties", "allowlist","permissions"]:
+        elif restore_type in ["properties", "allowlist", "permissions"]:
             logger.debug(
                 f"Calling API handler: backup_restore_api.restore_config_file for '{server_name}', file '{full_backup_file_path}'"
             )

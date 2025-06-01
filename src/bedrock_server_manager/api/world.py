@@ -224,9 +224,7 @@ def reset_world(server_name: str):
     """
     if not server_name:
         # This should ideally be an error specific to API input validation if distinct from InvalidServerNameError
-        raise InvalidServerNameError(
-            "Server name cannot be empty for API request."
-        )
+        raise InvalidServerNameError("Server name cannot be empty for API request.")
 
     logger.info(f"API: Initiating world reset for Bedrock server '{server_name}'...")
     try:
