@@ -10,6 +10,7 @@ authors = [
 ]
 description = "A manager for Minecraft Bedrock Dedicated Servers"
 readme = "README.md"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
