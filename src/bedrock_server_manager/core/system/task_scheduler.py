@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/system/task_scheduler.py
+# bedrock-server-manager/src/bedrock_server_manager/core/system/task_scheduler.py
 """
 Provides scheduling tasks related to Bedrock servers.
 """
@@ -47,7 +47,7 @@ logger = logging.getLogger("bedrock_server_manager.core.system.windows")
 # --- Constants ---
 XML_NAMESPACE = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Cron Job Management ---
 

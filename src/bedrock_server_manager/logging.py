@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/logging.py
+# bedrock-server-manager/src/bedrock_server_manager/logging.py
 """
 Configures and manages logging for the bedrock-server-manager application.
 
@@ -84,7 +84,7 @@ def setup_logging(
             # --- Define Log Formats ---
             # Detailed format for the file
             file_formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(pathname)s:%(lineno)d - %(message)s"
+                "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
             )
             # Simple format for the console
             console_formatter = logging.Formatter("%(levelname)s: %(message)s")

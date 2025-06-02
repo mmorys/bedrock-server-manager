@@ -1,4 +1,4 @@
-// bedrock-server-manager/bedrock_server_manager/web/static/js/server_actions.js
+// bedrock-server-manager/src/bedrock_server_manager/web/static/js/server_actions.js
 /**
  * @fileoverview Frontend JavaScript functions for triggering common server actions
  * like start, stop, restart, delete, update, and sending commands via API calls.

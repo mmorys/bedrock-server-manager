@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/server.py
+# bedrock-server-manager/src/bedrock_server_manager/api/server.py
 """
 Provides API-level functions for managing Bedrock server instances.
 
@@ -43,7 +43,7 @@ from bedrock_server_manager.error import (
     BlockedCommandError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def write_server_config(

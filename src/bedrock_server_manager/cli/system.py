@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/system.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/system.py
 """
 Command-line interface functions for system-level operations related to servers.
 
@@ -45,7 +45,7 @@ from bedrock_server_manager.utils.general import (
     _ERROR_PREFIX,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def configure_service(server_name: str, base_dir: Optional[str] = None) -> None:

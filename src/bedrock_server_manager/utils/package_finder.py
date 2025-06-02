@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/utils/package_finder.py
+# bedrock-server-manager/src/bedrock_server_manager/utils/package_finder.py
 """
 Utility function to locate the installed executable path for a given package.
 
@@ -14,7 +14,7 @@ import site
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def find_executable(

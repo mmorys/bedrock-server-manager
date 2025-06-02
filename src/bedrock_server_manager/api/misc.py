@@ -18,7 +18,7 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def prune_download_cache(

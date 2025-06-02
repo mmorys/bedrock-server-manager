@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/world.py
+# bedrock-server-manager/src/bedrock_server_manager/api/world.py
 """
 Provides API-level functions for managing Bedrock server worlds.
 """
@@ -30,7 +30,7 @@ from bedrock_server_manager.core.server import (
     world as core_world,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str, Any]:

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/world.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/world.py
 """
 Handles operations related to Minecraft Bedrock worlds, specifically
 extracting worlds from .mcworld archives and exporting world directories
@@ -22,7 +22,7 @@ from bedrock_server_manager.error import (
 )
 from bedrock_server_manager.core.server import server_utils as core_server_utils
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def extract_world(mcworld_file_path: str, target_extract_dir: str) -> None:

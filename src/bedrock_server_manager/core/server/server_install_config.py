@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/server_install_config.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/server_install_config.py
 """
 Core module for managing Bedrock server instances.
 """
@@ -34,7 +34,7 @@ from bedrock_server_manager.core.system import (
 from bedrock_server_manager.core.downloader import BedrockDownloader
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- ALLOWLIST ---

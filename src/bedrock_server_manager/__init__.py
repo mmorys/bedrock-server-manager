@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/__init__.py
+# bedrock-server-manager/src/bedrock_server_manager/__init__.py
 """
 Main entry point for the Bedrock Server Manager command-line interface (CLI).
 

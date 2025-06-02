@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/utils/variable_inject.py
+# bedrock-server-manager/src/bedrock_server_manager/web/utils/variable_inject.py
 """
 Defines Flask context processors.
 
@@ -13,7 +13,7 @@ from typing import Dict, Any
 from bedrock_server_manager.utils import get_utils
 from bedrock_server_manager.config import settings
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def inject_global_variables() -> Dict[str, Any]:

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/player.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/player.py
 """
 Command-line interface functions for managing player data.
 
@@ -24,7 +24,7 @@ from bedrock_server_manager.error import (
     TypeError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def scan_for_players(

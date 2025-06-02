@@ -30,7 +30,7 @@ except ImportError:
         pass
 
     COLORAMA_AVAILABLE = False
-    logging.getLogger("bedrock_server_manager").warning(
+    logging.getLogger(__name__).warning(
         "colorama package not found. Console output will lack color."
     )
 
@@ -39,7 +39,7 @@ except ImportError:
 from bedrock_server_manager.config.settings import settings
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Constants for colored console output ---
 # Using _ prefix suggests these are primarily for internal use within utils/CLI

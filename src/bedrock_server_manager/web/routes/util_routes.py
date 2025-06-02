@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/util_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/util_routes.py
 """
 Flask Blueprint for utility routes within the web application.
 
@@ -30,7 +30,7 @@ from bedrock_server_manager.web.utils.auth_decorators import get_current_identit
 from bedrock_server_manager.error import FileOperationError
 
 # Initialize logger
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Create Blueprint
 util_bp = Blueprint(

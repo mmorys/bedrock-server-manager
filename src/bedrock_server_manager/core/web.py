@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/web.py
+# bedrock-server-manager/src/bedrock_server_manager/core/web.py
 import logging
 from typing import Optional, List
 
@@ -12,7 +12,7 @@ from bedrock_server_manager.error import (
     PIDFileError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- Web Server Specific Constants ---

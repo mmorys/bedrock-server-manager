@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/action_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/action_routes.py
 """
 Flask Blueprint defining API endpoints for controlling Bedrock server instances.
 
@@ -35,7 +35,7 @@ from bedrock_server_manager.error import (
 )
 
 # Initialize logger
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Create Blueprint
 server_actions_bp = Blueprint("action_routes", __name__)

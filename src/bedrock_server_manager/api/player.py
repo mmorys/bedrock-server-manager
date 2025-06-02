@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/player.py
+# bedrock-server-manager/src/bedrock_server_manager/api/player.py
 """
 Provides API-level functions for managing player data.
 
@@ -25,7 +25,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def scan_for_players(

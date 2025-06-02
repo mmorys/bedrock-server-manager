@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/doc_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/doc_routes.py
 """
 Flask Blueprint for serving docs.
 """

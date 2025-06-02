@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/auth_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/auth_routes.py
 """
 Flask Blueprint for handling user authentication.
 
@@ -38,7 +38,7 @@ from flask_jwt_extended import create_access_token, JWTManager
 # Local imports
 from bedrock_server_manager.config.settings import settings
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Blueprint and Extension Setup ---
 # Blueprint for authentication routes

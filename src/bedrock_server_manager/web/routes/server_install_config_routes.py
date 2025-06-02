@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/server_install_config_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/server_install_config_routes.py
 """
 Flask Blueprint handling web routes and API endpoints related to new server
 installation and the configuration of existing servers (properties, allowlist,
@@ -57,7 +57,7 @@ from bedrock_server_manager.error import (
 )
 
 # Initialize logger
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Create Blueprint
 server_install_config_bp = Blueprint(

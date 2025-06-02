@@ -13,7 +13,7 @@ from typing import Optional
 from bedrock_server_manager.core import SCRIPT_DIR
 from bedrock_server_manager.config.settings import settings
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def cleanup_cache() -> int:

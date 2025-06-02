@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/backup_restore.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/backup_restore.py
 """
 Provides functions for creating and managing backups of Bedrock server worlds
 and configuration files, as well as restoring from these backups.
@@ -26,7 +26,7 @@ from bedrock_server_manager.error import (
 )
 from bedrock_server_manager.utils import general
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def prune_old_backups(

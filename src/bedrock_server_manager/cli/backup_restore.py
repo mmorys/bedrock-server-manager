@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/backup_restore.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/backup_restore.py
 """
 Command-line interface functions for handling server backup and restore operations.
 
@@ -45,7 +45,7 @@ from bedrock_server_manager.error import (
     FileOperationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def prune_old_backups(

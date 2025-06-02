@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/system.py
+# bedrock-server-manager/src/bedrock_server_manager/api/system.py
 """
 Provides API-level functions for interacting with system-level information
 and configurations related to Bedrock servers.
@@ -31,7 +31,7 @@ from bedrock_server_manager.error import (
 )
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def get_bedrock_process_info(

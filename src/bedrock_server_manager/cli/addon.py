@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/addon.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/addon.py
 """
 Command-line interface functions for managing server addons (worlds, packs).
 
@@ -47,7 +47,7 @@ from bedrock_server_manager.utils.general import (
     _ERROR_PREFIX,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def import_addon(

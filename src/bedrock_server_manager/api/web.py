@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/web.py
+# bedrock-server-manager/src/bedrock_server_manager/api/web.py
 import logging
 from typing import Dict, Optional, Any, List, Union
 
@@ -25,7 +25,7 @@ from bedrock_server_manager.error import (
     WebServerCoreError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def start_web_server(

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/server_actions.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/server_actions.py
 """
 Core module for managing Bedrock server instances.
 """
@@ -20,7 +20,7 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.core.system import base as system_base
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def validate_server(server_name: str, base_dir: str) -> bool:

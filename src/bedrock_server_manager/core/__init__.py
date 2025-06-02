@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/__init__.py
+# bedrock-server-manager/src/bedrock_server_manager/core/__init__.py
 import os
 
 # Determine the absolute path to the package directory

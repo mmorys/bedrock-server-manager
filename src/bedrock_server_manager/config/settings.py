@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/config/settings.py
+# bedrock-server-manager/src/bedrock_server_manager/config/settings.py
 """
 Manages application configuration settings.
 
@@ -13,7 +13,7 @@ from importlib.metadata import version, PackageNotFoundError
 from bedrock_server_manager.error import ConfigError
 from bedrock_server_manager.utils import package_finder
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Package Constants ---
 package_name = "bedrock-server-manager"

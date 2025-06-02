@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/task_scheduler.py
+# bedrock-server-manager/src/bedrock_server_manager/api/task_scheduler.py
 """
 Provides API-level functions for managing scheduled tasks across platforms.
 
@@ -30,7 +30,7 @@ from bedrock_server_manager.error import (
     InvalidServerNameError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Linux Cron Functions ---
 

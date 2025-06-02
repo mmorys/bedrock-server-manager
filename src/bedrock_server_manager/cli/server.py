@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/server.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/server.py
 """
 Command-line interface functions for direct server management actions.
 
@@ -57,7 +57,7 @@ from bedrock_server_manager.utils.general import (
     _WARN_PREFIX,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def start_server(

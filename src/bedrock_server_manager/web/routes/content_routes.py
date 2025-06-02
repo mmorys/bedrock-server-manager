@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/content_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/content_routes.py
 """
 Flask Blueprint for handling web routes and API endpoints related to
 server content management (Worlds, Addons).
@@ -41,7 +41,7 @@ from bedrock_server_manager.error import (
     BackupWorldError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Blueprint for content management routes
 content_bp = Blueprint(

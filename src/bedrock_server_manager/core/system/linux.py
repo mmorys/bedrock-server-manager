@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/system/linux.py
+# bedrock-server-manager/src/bedrock_server_manager/core/system/linux.py
 """
 Provides Linux-specific implementations for system interactions.
 
@@ -31,7 +31,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- Systemd Service Management ---

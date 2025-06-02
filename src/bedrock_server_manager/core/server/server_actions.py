@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/server_actions.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/server_actions.py
 """
 Core module for managing Bedrock server instances.
 """
@@ -47,7 +47,7 @@ else:
     system_windows = None
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def start_server(server_name: str, server_path_override: Optional[str] = None) -> None:

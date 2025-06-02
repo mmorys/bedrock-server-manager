@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/main_menus.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/main_menus.py
 """
 Defines the main interactive menu flows for the Bedrock Server Manager CLI.
 
@@ -54,7 +54,7 @@ from bedrock_server_manager.cli import (
 )
 from bedrock_server_manager.cli import backup_restore as cli_backup_restore
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def main_menu(base_dir: str, config_dir: Optional[str] = None) -> None:

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/player/player.py
+# bedrock-server-manager/src/bedrock_server_manager/core/player/player.py
 """
 Manages player information for the Bedrock server.
 
@@ -16,7 +16,7 @@ from typing import List, Dict
 # Local imports
 from bedrock_server_manager.error import FileOperationError, InvalidInputError
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def parse_player_argument(player_string: str) -> List[Dict[str, str]]:

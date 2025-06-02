@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/system/process.py
+# bedrock-server-manager/src/bedrock_server_manager/core/system/process.py
 import os
 import logging
 import subprocess
@@ -21,7 +21,7 @@ from ...error import (
     ConfigurationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def get_pid_file_path(config_dir: str, pid_filename: str) -> str:

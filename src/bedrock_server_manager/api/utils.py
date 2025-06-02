@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/utils.py
+# bedrock-server-manager/src/bedrock_server_manager/api/utils.py
 import os
 import logging
 from typing import Dict, List, Optional, Any
@@ -34,7 +34,7 @@ from bedrock_server_manager.core import utils as core_utils
 from bedrock_server_manager.utils import get_utils
 
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def validate_server_exist(

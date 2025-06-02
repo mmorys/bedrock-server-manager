@@ -1,1 +1,1 @@
-# bedrock-server-manager/bedrock_server_manager/api/__init__.py
+# bedrock-server-manager/src/bedrock_server_manager/api/__init__.py

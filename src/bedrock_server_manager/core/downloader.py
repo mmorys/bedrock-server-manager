@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/download/downloader.py
+# bedrock-server-manager/src/bedrock_server_manager/core/download/downloader.py
 """
 Handles downloading, extracting, and managing Minecraft Bedrock Server files.
 
@@ -27,7 +27,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- Standalone Pruning Function ---
@@ -103,9 +103,7 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
                     f"Core: Failed to delete all required old downloads ({num_to_delete - deleted_count} failed). Check logs."
                 )
 
-            logger.info(
-                f"Core: Successfully deleted {deleted_count} old download(s)."
-            )
+            logger.info(f"Core: Successfully deleted {deleted_count} old download(s).")
         else:
             logger.info(
                 f"Core: Found {num_files} download(s), which is not more than the {download_keep} to keep. No files deleted."
@@ -172,7 +170,7 @@ class BedrockDownloader:
         self.settings = settings_obj
         self.server_dir: str = os.path.abspath(server_dir)  # Normalize server_dir
         self.input_target_version: str = target_version.strip()
-        self.logger = logging.getLogger("bedrock_server_manager")  # Instance logger
+        self.logger = logging.getLogger(__name__)  # Instance logger
 
         self.os_name: str = platform.system()
         self.base_download_dir: Optional[str] = self.settings.get("DOWNLOAD_DIR")

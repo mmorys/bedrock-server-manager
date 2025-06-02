@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/utils.py
+# bedrock-server-manager/src/bedrock_server_manager/core/utils.py
 
 import os
 import re
@@ -18,7 +18,7 @@ from bedrock_server_manager.error import (
     InvalidServerNameError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- Server Stuff ---

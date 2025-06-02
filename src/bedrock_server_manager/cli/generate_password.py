@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/generate_password.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/generate_password.py
 """
 Utility script to generate a secure password hash for the web interface.
 

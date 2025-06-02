@@ -1,4 +1,4 @@
-// bedrock-server-manager/bedrock_server_manager/web/static/js/allowlist.js
+// bedrock-server-manager/src/bedrock_server_manager/web/static/js/allowlist.js
 /**
  * @fileoverview Frontend JavaScript for managing the server allowlist.
  * Handles user input, interacts with the allowlist API endpoints, and updates the UI.

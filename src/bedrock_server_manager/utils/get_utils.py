@@ -19,7 +19,7 @@ from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import SystemError
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Template Context Helper Functions ---
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/system/windows.py
+# bedrock-server-manager/src/bedrock_server_manager/core/system/windows.py
 """
 Provides Windows-specific implementations for system interactions.
 
@@ -50,7 +50,7 @@ from ...error import (
     ServerNotRunningError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
 BEDROCK_EXECUTABLE_NAME = "bedrock_server.exe"

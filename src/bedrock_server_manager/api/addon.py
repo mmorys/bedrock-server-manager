@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/addon.py
+# bedrock-server-manager/src/bedrock_server_manager/api/addon.py
 """
 Provides API-level functions for managing addons on Bedrock servers.
 
@@ -27,7 +27,7 @@ from bedrock_server_manager.error import (
 )
 from bedrock_server_manager.api.utils import _server_stop_start_manager
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def import_addon(

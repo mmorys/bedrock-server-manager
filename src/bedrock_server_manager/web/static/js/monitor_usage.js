@@ -1,4 +1,4 @@
-// bedrock-server-manager/bedrock_server_manager/web/static/js/monitor_usage.js
+// bedrock-server-manager/src/bedrock_server_manager/web/static/js/monitor_usage.js
 /**
  * @fileoverview Frontend JavaScript for the server resource usage monitor page.
  * Periodically fetches status (CPU, Memory, Uptime, PID) for a specific server

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/web.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/web.py
 """
 Command-line interface functions for managing the application's web server process.
 
@@ -39,7 +39,7 @@ from bedrock_server_manager.api import web as web_api
 # Import errors that might be raised by API layer
 from bedrock_server_manager.error import FileOperationError
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def start_web_server(

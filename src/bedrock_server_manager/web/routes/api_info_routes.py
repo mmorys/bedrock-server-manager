@@ -34,7 +34,7 @@ from bedrock_server_manager.error import (
     InvalidInputError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Create Blueprint
 api_info_bp = Blueprint("api_info_routes", __name__)

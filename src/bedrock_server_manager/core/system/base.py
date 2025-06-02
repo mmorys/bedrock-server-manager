@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/system/base.py
+# bedrock-server-manager/src/bedrock_server_manager/core/system/base.py
 """
 Provides base system utilities and cross-platform functionalities.
 
@@ -37,7 +37,7 @@ from bedrock_server_manager.error import (
     InternetConnectivityError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def check_prerequisites() -> None:

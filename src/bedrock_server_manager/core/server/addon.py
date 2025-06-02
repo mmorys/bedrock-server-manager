@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/core/server/addon.py
+# bedrock-server-manager/src/bedrock_server_manager/core/server/addon.py
 """
 Manages the processing and installation of Minecraft addons for Bedrock servers.
 
@@ -30,7 +30,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def process_addon(addon_file: str, server_name: str, base_dir: str) -> None:

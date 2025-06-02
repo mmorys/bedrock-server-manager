@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/backup_restore.py
+# bedrock-server-manager/src/bedrock_server_manager/api/backup_restore.py
 """
 Provides API-level functions for managing server backups and restores.
 
@@ -33,7 +33,7 @@ from bedrock_server_manager.error import (
     AddonExtractError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:

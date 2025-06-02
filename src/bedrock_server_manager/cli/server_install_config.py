@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/server_install_config.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/server_install_config.py
 """
 Command-line interface functions for server installation and configuration workflows.
 
@@ -58,7 +58,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def configure_allowlist(server_name: str, base_dir: Optional[str] = None) -> None:

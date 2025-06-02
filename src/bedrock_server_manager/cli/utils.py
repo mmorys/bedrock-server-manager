@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/cli/utils.py
+# bedrock-server-manager/src/bedrock_server_manager/cli/utils.py
 """
 Provides utility functions specifically for the command-line interface (CLI).
 
@@ -43,7 +43,7 @@ from bedrock_server_manager.error import (
     FileOperationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def get_server_name(base_dir: Optional[str] = None) -> Optional[str]:

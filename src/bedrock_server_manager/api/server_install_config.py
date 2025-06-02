@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/server_install_config.py
+# bedrock-server-manager/src/bedrock_server_manager/api/server_install_config.py
 """
 Provides API-level functions for installing new Bedrock servers and configuring
 existing ones (allowlist, player permissions, server properties).
@@ -48,7 +48,7 @@ from bedrock_server_manager.error import (
     InternetConnectivityError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 # --- Allowlist ---
@@ -63,8 +63,6 @@ def add_players_to_allowlist_api(
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
     if not isinstance(new_players_data, list):
-        # Consider returning an error response if used in web API,
-        # rather than raising TypeError directly to the caller unless it's an internal API.
         return {
             "status": "error",
             "message": "Invalid input: new_players_data must be a list of dictionaries.",
@@ -879,7 +877,7 @@ def install_new_server(
     if not server_name:
         raise MissingArgumentError(
             "Server name cannot be empty."
-        )  # Or return error dict
+        )
     logger.info(
         f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
@@ -898,11 +896,11 @@ def install_new_server(
         effective_base_dir = get_base_dir(base_dir)
         server_dir_check = os.path.join(
             effective_base_dir, server_name
-        )  # Used for pre-check only
+        )
 
         validation_result = validate_server_name_format(server_name)
         if validation_result.get("status") == "error":
-            return validation_result  # Assuming validation_result is Dict[str, str]
+            return validation_result
 
         if os.path.exists(server_dir_check):
             return {
@@ -911,12 +909,11 @@ def install_new_server(
             }
 
         init_configs = {
-            "server_name": server_name,  # Though server name is part of the config file name
+            "server_name": server_name,
             "target_version": target_version,
             "status": "INSTALLING",
         }
         for key, value in init_configs.items():
-            # Assuming api_write_server_config is robust or its errors are caught
             cfg_res = api_write_server_config(
                 server_name, key, value, config_dir=app_config_dir
             )
@@ -1032,9 +1029,9 @@ def update_server(
 
         # Use the refactored no_update_needed
         if core_server_install_config.no_update_needed(
-            settings_obj=settings,  # Pass settings
+            settings_obj=settings,
             server_name=server_name,
-            server_dir=server_dir,  # Pass server_dir
+            server_dir=server_dir,
             installed_version=installed_version,
             target_version_spec=target_version_to_use,
         ):
@@ -1090,7 +1087,7 @@ def update_server(
         DirectoryError,
         InternetConnectivityError,
         DownloadExtractError,
-        OSError,  # From no_update_needed or downloader
+        OSError,
     ) as e:
         logger.error(
             f"API: Setup error for server update '{server_name}': {e}", exc_info=True

@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/utils/auth_decorators.py
+# bedrock-server-manager/src/bedrock_server_manager/web/utils/auth_decorators.py
 """
 Decorators for handling authentication and authorization in the Flask web application.
 
@@ -27,7 +27,7 @@ from flask_jwt_extended import (
 )
 from flask_wtf.csrf import validate_csrf, CSRFError
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def auth_required(view: Callable) -> Callable:

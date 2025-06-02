@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/web/routes/backup_restore_routes.py
+# bedrock-server-manager/src/bedrock_server_manager/web/routes/backup_restore_routes.py
 """
 Flask Blueprint handling web routes and API endpoints for server backup
 and restore operations.
@@ -40,7 +40,7 @@ from bedrock_server_manager.error import (
 )
 
 # Initialize logger
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 # Create Blueprint
 backup_restore_bp = Blueprint(

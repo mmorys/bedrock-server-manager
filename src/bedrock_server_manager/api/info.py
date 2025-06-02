@@ -1,4 +1,4 @@
-# bedrock-server-manager/bedrock_server_manager/api/info.py
+# bedrock-server-manager/src/bedrock_server_manager/api/info.py
 """
 Provides API-level functions for retrieving specific server information or status.
 These typically wrap core functions to provide consistent dictionary outputs.
@@ -19,7 +19,7 @@ from bedrock_server_manager.error import (
     FileOperationError,
 )
 
-logger = logging.getLogger("bedrock_server_manager")
+logger = logging.getLogger(__name__)
 
 
 def get_server_running_status(
