@@ -917,7 +917,7 @@ def install_new_server(
         )
         logger.debug(f"Calling API: config_api.install_new_server for '{server_name}'")
         install_result = config_api.install_new_server(
-            server_name, target_version, effective_base_dir, effective_config_dir
+            server_name, target_version, effective_base_dir
         )
         logger.debug(f"API response from install_new_server: {install_result}")
 

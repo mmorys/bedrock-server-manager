@@ -72,7 +72,7 @@ try:
         backup_restore as api_backup_restore,
     )
     from bedrock_server_manager.error import FileOperationError
-    from bedrock_server_manager.core import downloader
+    from bedrock_server_manager.api import misc as api_misc
     from bedrock_server_manager.utils.general import (
         startup_checks,
         _INFO_PREFIX,
@@ -847,7 +847,7 @@ def main() -> None:
                 backup_keep=args.keep,
                 base_dir=base_dir,
             ),
-            "prune-old-downloads": lambda args: downloader.prune_old_downloads(
+            "prune-old-downloads": lambda args: api_misc.prune_old_downloads(
                 args.download_dir, args.keep
             ),
             "manage-script-config": lambda args: (

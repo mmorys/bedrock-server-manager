@@ -14,7 +14,7 @@ import re
 from typing import Dict, List, Optional, Any
 
 # Local imports
-from bedrock_server_manager.core import downloader as core_downloader
+from bedrock_server_manager.core.downloader import BedrockDownloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.api.server import (
@@ -44,6 +44,8 @@ from bedrock_server_manager.error import (
     PermissionsFileError,
     PropertiesFileNotFoundError,
     PropertiesFileReadError,
+    DownloadExtractError,
+    InternetConnectivityError,
 )
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -177,9 +179,7 @@ def add_players_to_allowlist_api(
 
         # 3. Optionally send reload command
         reload_status = "Not attempted"
-        if core_server_utils.check_if_server_is_running(
-            server_name
-        ):
+        if core_server_utils.check_if_server_is_running(server_name):
             logger.info(
                 f"API: Server '{server_name}' is running. Attempting 'allowlist reload'."
             )
@@ -731,56 +731,70 @@ def download_and_install_server(
     This function orchestrates the entire process including stop/start for updates.
     """
     if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+        raise InvalidServerNameError(
+            "Server name cannot be empty."
+        )  # Or return error dict
     action = "Updating" if is_update else "Installing"
     logger.info(
         f"API: Starting server {action.lower()} process for '{server_name}', target version '{target_version}'."
     )
 
-    # Define app_config_dir early for use in error handlers if needed
     app_config_dir = settings._config_dir
     if not app_config_dir:
-        # This is a critical configuration error
         logger.critical(
-            "API: Application configuration directory (_config_dir) not set in settings. Cannot proceed."
+            "API: Application configuration directory (_config_dir) not set. Cannot proceed."
         )
         return {
             "status": "error",
             "message": "Application configuration error: _config_dir not set.",
         }
 
+    downloader_instance: Optional[BedrockDownloader] = None  # To hold the instance
+
     try:
         effective_base_dir = get_base_dir(base_dir)
         server_dir = os.path.join(effective_base_dir, server_name)
 
-        # --- 1. Download Phase ---
-        logger.info("API: Step 1 - Downloading server software...")
-        actual_version, zip_file_path, _ = core_downloader.download_bedrock_server(
-            server_dir=server_dir, target_version=target_version
+        # --- 1. Initialize Downloader and Prepare Assets ---
+        logger.info(
+            f"API: Step 1 - Preparing download for server '{server_name}' target '{target_version}'..."
         )
+        downloader_instance = BedrockDownloader(
+            settings_obj=settings,  # Pass the global settings
+            server_dir=server_dir,
+            target_version=target_version,
+        )
+        actual_version, zip_file_path, _ = downloader_instance.prepare_download_assets()
         logger.debug(
-            f"API: Download complete. Version: {actual_version}, ZIP: {zip_file_path}"
+            f"API: Download assets prepared. Actual Version: {actual_version}, ZIP: {zip_file_path}"
         )
 
         # --- 2. Orchestrate Stop, Backup (if update), File Setup, Start ---
+        # _server_stop_start_manager needs to be robust or this logic might need adjustment
+        # It's assumed it correctly handles stopping the server if is_update is True.
         with _server_stop_start_manager(
             server_name,
             effective_base_dir,
             stop_start_flag=is_update,
-            restart_on_success_only=True,  # Only restart if backup & setup are fine
+            restart_on_success_only=True,
         ):
             if is_update:
                 logger.info(
                     f"API: Step 2a - Backing up server '{server_name}' before update..."
                 )
-                core_backup.backup_all_server_data(server_name, effective_base_dir)
+                # Assuming backup_all_server_data doesn't need downloader_instance
+                core_backup.backup_all_server_data(
+                    server_name, effective_base_dir, config_dir=app_config_dir
+                )
                 logger.info(f"API: Pre-update backup for '{server_name}' successful.")
 
             logger.info(
                 f"API: Step 2b - Setting up server files from '{os.path.basename(zip_file_path)}'..."
             )
+            # Pass the downloader_instance to setup_server_files
             core_server_install_config.setup_server_files(
-                zip_file_path=zip_file_path, server_dir=server_dir, is_update=is_update
+                downloader_instance=downloader_instance,  # Key change here
+                is_update=is_update,
             )
             logger.info("API: Server file setup successful.")
 
@@ -788,27 +802,17 @@ def download_and_install_server(
             logger.info(
                 f"API: Step 3 - Writing version '{actual_version}' and status for '{server_name}'."
             )
-            core_server_install_config._write_version_config(
+            core_server_install_config._write_version_config(  # Assuming this function exists
                 server_name, actual_version, config_dir=app_config_dir
             )
 
-            if not is_update:
-                core_server_utils.manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "INSTALLED",
-                    config_dir=app_config_dir,
-                )
-            else:  # For updates, server is currently stopped by context manager.
-                # If it was running, context manager's 'finally' will restart it.
-                # core_server_actions.start_server called by API start will set status to RUNNING.
-                # If it wasn't running, it should remain STOPPED.
-                core_server_utils.manage_server_config(
-                    server_name, "status", "write", "STOPPED", config_dir=app_config_dir
-                )
+            status_to_set = (
+                "INSTALLED" if not is_update else "STOPPED"
+            )  # STOPPED because context manager handles restart
+            core_server_utils.manage_server_config(
+                server_name, "status", "write", status_to_set, config_dir=app_config_dir
+            )
 
-        # Message after context manager, reflecting potential restart
         final_message = f"Server '{server_name}' {action.lower()} to version {actual_version} successful."
         if is_update:
             final_message += " Server restart handled if it was previously running."
@@ -823,21 +827,22 @@ def download_and_install_server(
         }
 
     except (
-        core_downloader.DownloadExtractError,
-        core_downloader.InternetConnectivityError,
-        InstallUpdateError,
-        DirectoryError,
-        FileOperationError,
-        BackupWorldError,
-        MissingArgumentError,
+        DownloadExtractError,  # From BedrockDownloader
+        InternetConnectivityError,  # From BedrockDownloader
+        InstallUpdateError,  # From setup_server_files
+        DirectoryError,  # From BedrockDownloader or path utils
+        FileOperationError,  # From BedrockDownloader, setup_server_files, backup
+        BackupWorldError,  # From core_backup
+        MissingArgumentError,  # From BedrockDownloader or other core functions
         InvalidServerNameError,
+        OSError,  # Can be from BedrockDownloader's network/file ops
     ) as e:
         logger.error(
             f"API: Server {action.lower()} process failed for '{server_name}': {e}",
             exc_info=True,
         )
         try:
-            if app_config_dir:  # Check if app_config_dir was resolved
+            if app_config_dir:
                 core_server_utils.manage_server_config(
                     server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
@@ -846,7 +851,7 @@ def download_and_install_server(
                 f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
             )
         return {"status": "error", "message": f"Server {action.lower()} failed: {e}"}
-    except Exception as e:  # Catch-all for truly unexpected issues
+    except Exception as e:
         logger.critical(
             f"API: CRITICAL UNEXPECTED error during server {action.lower()} for '{server_name}': {e}",
             exc_info=True,
@@ -870,21 +875,19 @@ def install_new_server(
     server_name: str,
     target_version: str = "LATEST",
     base_dir: Optional[str] = None,
-    config_dir: Optional[str] = None,
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
+        raise MissingArgumentError(
+            "Server name cannot be empty."
+        )  # Or return error dict
     logger.info(
         f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
 
-    # Define app_config_dir early for consistent use
-    effective_app_config_dir = (
-        config_dir if config_dir is not None else settings._config_dir
-    )
-    if not effective_app_config_dir:
+    app_config_dir = settings._config_dir
+    if not app_config_dir:
         logger.critical(
-            "API: Application configuration directory (_config_dir) not set. Cannot install new server."
+            "API: Application configuration directory (_config_dir) not set. Cannot install."
         )
         return {
             "status": "error",
@@ -893,28 +896,29 @@ def install_new_server(
 
     try:
         effective_base_dir = get_base_dir(base_dir)
+        server_dir_check = os.path.join(
+            effective_base_dir, server_name
+        )  # Used for pre-check only
 
         validation_result = validate_server_name_format(server_name)
         if validation_result.get("status") == "error":
-            return validation_result
+            return validation_result  # Assuming validation_result is Dict[str, str]
 
-        server_dir_check = os.path.join(effective_base_dir, server_name)
         if os.path.exists(server_dir_check):
             return {
                 "status": "error",
                 "message": f"Directory '{server_dir_check}' already exists.",
             }
 
-        # Write initial config (name, target version, initial status)
-        # Use api_write_server_config as it returns dicts, easy to check status
         init_configs = {
-            "server_name": server_name,
+            "server_name": server_name,  # Though server name is part of the config file name
             "target_version": target_version,
-            "status": "INSTALLING",  # Initial status before download
+            "status": "INSTALLING",
         }
         for key, value in init_configs.items():
+            # Assuming api_write_server_config is robust or its errors are caught
             cfg_res = api_write_server_config(
-                server_name, key, value, config_dir=effective_app_config_dir
+                server_name, key, value, config_dir=app_config_dir
             )
             if cfg_res.get("status") == "error":
                 logger.error(
@@ -925,50 +929,46 @@ def install_new_server(
                     "message": f"Initial config write failed for '{key}': {cfg_res.get('message')}",
                 }
 
-        # Call the main orchestrator for download and file setup
-        # is_update=False means _server_stop_start_manager will effectively be a no-op for stop/start
+        # Call the main orchestrator
         install_result = download_and_install_server(
             server_name=server_name,
-            base_dir=effective_base_dir,
+            base_dir=effective_base_dir,  # Pass the resolved base_dir
             target_version=target_version,
-            is_update=False,
+            is_update=False,  # Explicitly False for new install
         )
+        return install_result
 
-        # download_and_install_server will set status to "INSTALLED" on success for new install.
-        return install_result  # Return the result from the main orchestrator
-
-    except (MissingArgumentError, FileOperationError, InvalidServerNameError) as e:
+    except (
+        MissingArgumentError,
+        FileOperationError,
+        InvalidServerNameError,
+        DirectoryError,
+    ) as e:
         logger.error(
             f"API: Setup error for new server '{server_name}': {e}", exc_info=True
         )
-        # Attempt to set server status to ERROR in config
         try:
-            if effective_app_config_dir:
+            if app_config_dir:
                 core_server_utils.manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=effective_app_config_dir,
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
             logger.error(
                 f"API: Additionally failed to set error status for '{server_name}': {e_cfg}"
             )
-        return {"status": "error", "message": f"Setup error for new server: {e}"}
+        return {
+            "status": "error",
+            "message": f"Setup error for new server: {e}",
+        }  # Return type Dict[str, Any]
     except Exception as e:
         logger.critical(
             f"API: CRITICAL UNEXPECTED error installing new server '{server_name}': {e}",
             exc_info=True,
         )
         try:
-            if effective_app_config_dir:
+            if app_config_dir:
                 core_server_utils.manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=effective_app_config_dir,
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
             logger.error(
@@ -984,14 +984,15 @@ def update_server(
     server_name: str, base_dir: Optional[str] = None, send_message: bool = True
 ) -> Dict[str, Any]:
     if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+        raise InvalidServerNameError(
+            "Server name cannot be empty."
+        )  # Or return error dict
     logger.info(f"API: Updating server '{server_name}'. Send message: {send_message}")
 
-    # Define app_config_dir early
-    effective_app_config_dir = settings._config_dir
-    if not effective_app_config_dir:
+    app_config_dir = settings._config_dir
+    if not app_config_dir:
         logger.critical(
-            "API: Application configuration directory (_config_dir) not set. Cannot update server."
+            "API: Application configuration directory (_config_dir) not set. Cannot update."
         )
         return {
             "status": "error",
@@ -1000,28 +1001,27 @@ def update_server(
 
     try:
         effective_base_dir = get_base_dir(base_dir)
+        server_dir = os.path.join(
+            effective_base_dir, server_name
+        )  # Needed for no_update_needed
 
+        # Send initial message if server is running
         if send_message and core_server_actions.check_if_server_is_running(
-            server_name
-        ):  # Pass base_dir if core func needs it
+            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
+        ):
             logger.info(
                 f"API: Server '{server_name}' running. Sending update check notification..."
             )
-            cmd_res = api_send_command(
+            api_send_command(
                 server_name, "say Checking for server updates..."
-            )
-            if cmd_res.get("status") == "error":
-                logger.warning(
-                    f"API: Failed to send update notification to '{server_name}': {cmd_res.get('message')}"
-                )
+            )  # Fire and forget for notification
 
         installed_version = core_server_utils.get_installed_version(
-            server_name, config_dir=effective_app_config_dir
+            server_name, config_dir=app_config_dir
         )
         target_version_cfg = core_server_utils.manage_server_config(
-            server_name, "target_version", "read", config_dir=effective_app_config_dir
+            server_name, "target_version", "read", config_dir=app_config_dir
         )
-
         target_version_to_use = (
             str(target_version_cfg) if target_version_cfg is not None else "LATEST"
         )
@@ -1030,8 +1030,13 @@ def update_server(
                 f"API: Target version not set for '{server_name}', defaulting to 'LATEST'."
             )
 
+        # Use the refactored no_update_needed
         if core_server_install_config.no_update_needed(
-            server_name, installed_version, target_version_to_use
+            settings_obj=settings,  # Pass settings
+            server_name=server_name,
+            server_dir=server_dir,  # Pass server_dir
+            installed_version=installed_version,
+            target_version_spec=target_version_to_use,
         ):
             logger.info(
                 f"API: Server '{server_name}' (v{installed_version}) is already up-to-date with target '{target_version_to_use}'."
@@ -1043,14 +1048,15 @@ def update_server(
                 "message": "Server is already up-to-date.",
             }
 
-        if core_server_actions.check_if_server_is_running(server_name):
-            cmd_res = api_send_command(server_name, "say Installing update...")
-            if cmd_res.get("status") == "error":
-                logger.warning(
-                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
-                )
+        # Send "installing update" message if running
+        if send_message and core_server_actions.check_if_server_is_running(
+            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
+        ):
+            api_send_command(
+                server_name, "say Server is updating now..."
+            )  # Fire and forget
 
-        # Call the main orchestrator for download and file setup, with is_update=True
+        # Call the main orchestrator with is_update=True
         update_result = download_and_install_server(
             server_name=server_name,
             base_dir=effective_base_dir,
@@ -1058,11 +1064,10 @@ def update_server(
             is_update=True,
         )
 
-        # download_and_install_server's message already reflects success and version.
-        # We just need to adjust the 'updated' flag logic if needed, but it's better if
-        # download_and_install_server's response is comprehensive.
         if update_result.get("status") == "success":
-            new_actual_version = update_result.get("version", "UNKNOWN")
+            new_actual_version = update_result.get(
+                "version", "UNKNOWN"
+            )  # Get version from result
             return {
                 "status": "success",
                 "updated": installed_version
@@ -1070,24 +1075,30 @@ def update_server(
                 "new_version": new_actual_version,
                 "message": update_result.get(
                     "message",
-                    f"Server '{server_name}' update process completed. New version: {new_actual_version}.",
+                    f"Server '{server_name}' updated to {new_actual_version}.",
                 ),
             }
         else:
-            return update_result
+            return (
+                update_result  # Propagate error result from download_and_install_server
+            )
 
-    except (FileOperationError, InvalidServerNameError, MissingArgumentError) as e:
+    except (
+        FileOperationError,
+        InvalidServerNameError,
+        MissingArgumentError,
+        DirectoryError,
+        InternetConnectivityError,
+        DownloadExtractError,
+        OSError,  # From no_update_needed or downloader
+    ) as e:
         logger.error(
             f"API: Setup error for server update '{server_name}': {e}", exc_info=True
         )
         try:
-            if effective_app_config_dir:
+            if app_config_dir:
                 core_server_utils.manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=effective_app_config_dir,
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
             logger.error(
@@ -1100,13 +1111,9 @@ def update_server(
             exc_info=True,
         )
         try:
-            if effective_app_config_dir:
+            if app_config_dir:
                 core_server_utils.manage_server_config(
-                    server_name,
-                    "status",
-                    "write",
-                    "ERROR",
-                    config_dir=effective_app_config_dir,
+                    server_name, "status", "write", "ERROR", config_dir=app_config_dir
                 )
         except Exception as e_cfg:
             logger.error(

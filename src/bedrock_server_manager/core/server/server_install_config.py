@@ -31,7 +31,7 @@ from bedrock_server_manager.core.system import (
     linux as system_linux,
     windows as system_windows,
 )
-from bedrock_server_manager.core import downloader
+from bedrock_server_manager.core.downloader import BedrockDownloader
 
 
 logger = logging.getLogger("bedrock_server_manager")
@@ -758,46 +758,59 @@ def _write_version_config(
         ) from e
 
 
-def setup_server_files(zip_file_path: str, server_dir: str, is_update: bool) -> None:
+def setup_server_files(downloader_instance: BedrockDownloader, is_update: bool) -> None:
     """
-    CORE: Extracts server files from a ZIP archive into the server directory
-    and sets appropriate file permissions. This is a focused part of the
-    installation/update process.
+    CORE: Extracts server files using the BedrockDownloader instance
+    and sets appropriate file permissions.
 
     Args:
-        zip_file_path: Path to the downloaded server ZIP file.
-        server_dir: The target directory for the server installation.
+        downloader_instance: An initialized BedrockDownloader instance that has
+                             successfully prepared download assets (i.e., zip_file_path is set).
         is_update: True if this is an update (preserves some files), False for fresh install.
 
     Raises:
         InstallUpdateError: If extraction or permission setting fails.
-        MissingArgumentError, FileNotFoundError, DownloadExtractError, FileOperationError: from downloader.
+        MissingArgumentError, FileNotFoundError, DownloadExtractError, FileOperationError:
+                             Propagated from downloader_instance.extract_server_files().
     """
-    logger.info(
-        f"CORE: Setting up server files in '{server_dir}' from '{os.path.basename(zip_file_path)}'. Update: {is_update}"
+    if not downloader_instance:
+        raise MissingArgumentError(
+            "BedrockDownloader instance cannot be None for setup_server_files."
+        )
+    if (
+        downloader_instance.get_zip_file_path() is None
+    ):  # Or self.zip_file_path directly
+        raise MissingArgumentError(
+            "Downloader instance has no ZIP file path set. Call prepare_download_assets() first."
+        )
+
+    server_dir = downloader_instance.server_dir
+    zip_file_name = os.path.basename(
+        downloader_instance.get_zip_file_path() or "Unknown.zip"
     )
 
-    # 1. Extract server files (using the function from the downloader module)
+    logger.info(
+        f"CORE: Setting up server files in '{server_dir}' from '{zip_file_name}'. Update: {is_update}"
+    )
+
+    # 1. Extract server files using the BedrockDownloader instance's method
     try:
-        # This function resides in core.downloader and handles the actual extraction logic,
-        # including preserving files during an update.
-        downloader.extract_server_files_from_zip(zip_file_path, server_dir, is_update)
+        downloader_instance.extract_server_files(is_update)
         logger.info("CORE: Server file extraction completed successfully.")
     except (
         DownloadExtractError,
         FileOperationError,
-        MissingArgumentError,
-        FileNotFoundError,
+        MissingArgumentError,  # From extract_server_files if its prereqs not met
+        FileNotFoundError,  # If zip_file_path points to non-existent file
     ) as e:
         logger.error(
             f"CORE: Failed to extract server files into '{server_dir}': {e}",
             exc_info=True,
         )
-        # Wrap in InstallUpdateError to signify failure at this stage of installation
         raise InstallUpdateError(
             f"Extraction phase failed for server setup in '{server_dir}'."
         ) from e
-    except Exception as e:
+    except Exception as e:  # Catch other unexpected errors from extraction
         logger.error(
             f"CORE: Unexpected error during server file extraction into '{server_dir}': {e}",
             exc_info=True,
@@ -812,81 +825,134 @@ def setup_server_files(zip_file_path: str, server_dir: str, is_update: bool) -> 
         system_base.set_server_folder_permissions(server_dir)
         logger.debug("CORE: Server folder permissions set successfully.")
     except Exception as e:
-        # Log warning, but don't necessarily fail the whole install if permissions fail.
-        # However, for consistency, an InstallUpdateError could be raised if permissions are critical.
         logger.warning(
             f"CORE: Failed to set server folder permissions for '{server_dir}': {e}. "
             "Manual adjustment might be needed.",
             exc_info=True,
         )
-        # Optionally raise:
+        # Depending on strictness, you might raise InstallUpdateError here too:
         # raise InstallUpdateError(f"Failed to set permissions for '{server_dir}'.") from e
+
     logger.info(f"CORE: Server file setup completed for '{server_dir}'.")
 
 
 def no_update_needed(
-    server_name: str, installed_version: str, target_version_spec: str
+    settings_obj,  # Pass the global settings object or instance
+    server_name: str,
+    server_dir: str,  # Directory of the server being checked, for downloader instantiation
+    installed_version: str,
+    target_version_spec: str,
 ) -> bool:
     """
     Checks if the installed server version matches the latest available version
-    based on the target specification ("LATEST" or "PREVIEW").
+    based on the target specification or a specific version.
 
     Args:
-        server_name: The name of the server.
+        settings_obj: The application's settings object.
+        server_name: The name of the server (for logging).
+        server_dir: The directory of the server installation (can be a placeholder
+                    if only doing a remote version check for LATEST/PREVIEW, but
+                    BedrockDownloader requires it).
         installed_version: The currently installed version string (e.g., "1.20.1.2").
-        target_version_spec: The desired version specification ("LATEST", "PREVIEW").
-                             If a specific version number is passed, this function
-                             assumes an update *is* needed (returns False).
+        target_version_spec: The desired version specification ("LATEST", "PREVIEW",
+                             or a specific version like "X.Y.Z.W" or "X.Y.Z.W-PREVIEW").
 
     Returns:
-        True if the installed version matches the latest available for the spec,
-        False otherwise (or if the latest version cannot be determined).
+        True if no update is needed, False otherwise.
 
     Raises:
-        MissingArgumentError: If `server_name` is empty.
+        MissingArgumentError: If required arguments are missing.
         InvalidServerNameError: If `server_name` is invalid.
-        # Exceptions from downloader.lookup_bedrock_download_url / get_version_from_url may propagate
-        # (InternetConnectivityError, DownloadExtractError, OSError)
+        DirectoryError: If DOWNLOAD_DIR setting is missing (from BedrockDownloader).
+        # Exceptions from BedrockDownloader.get_version_for_target_spec may propagate
+        # (InternetConnectivityError, DownloadExtractError, OSError).
     """
+    if not settings_obj:
+        raise MissingArgumentError(
+            "Settings object cannot be None for no_update_needed."
+        )
     if not server_name:
         raise InvalidServerNameError(
-            "Server name cannot be empty."
-        )  # Or MissingArgumentError
-
-    target_upper = target_version_spec.upper()
-
-    # If a specific version is requested, we treat it as needing an "update"
-    # unless the specific version matches exactly what's installed.
-    # However, the primary use case here is checking against LATEST/PREVIEW.
-    if target_upper not in ("LATEST", "PREVIEW"):
-        logger.debug(
-            f"Target version '{target_version_spec}' is specific. Assuming update check is not applicable in this context (always attempt install/update)."
+            "Server name cannot be empty for no_update_needed."
         )
-        return False  # Assume 'update' needed if specific version given
+    if not server_dir:
+        # BedrockDownloader requires server_dir. If it's truly optional for this check,
+        # the downloader class would need adjustment. Assume it's available.
+        raise MissingArgumentError(
+            "Server directory cannot be empty for no_update_needed."
+        )
+    if not target_version_spec:
+        raise MissingArgumentError("Target version specification cannot be empty.")
 
+    target_upper = target_version_spec.strip().upper()
+    is_latest_or_preview_spec = target_upper in ("LATEST", "PREVIEW")
+
+    if not is_latest_or_preview_spec:
+        # Target is a specific version (e.g., "1.20.1.2" or "1.20.1.2-PREVIEW")
+        # We need to compare the numeric part of target_version_spec with installed_version.
+        # The BedrockDownloader can parse this for us.
+        try:
+            downloader_for_spec_parse = BedrockDownloader(
+                settings_obj=settings_obj,
+                server_dir=server_dir,  # Placeholder or actual, not used for file ops here
+                target_version=target_version_spec,
+            )
+            # _custom_version_number holds the "X.Y.Z.W" part from "X.Y.Z.W" or "X.Y.Z.W-PREVIEW"
+            specific_target_numeric_version = (
+                downloader_for_spec_parse._custom_version_number
+            )
+            if (
+                not specific_target_numeric_version
+            ):  # Should be set if not LATEST/PREVIEW
+                logger.error(
+                    f"Could not parse numeric version from specific target '{target_version_spec}'."
+                )
+                return False  # Cannot compare, assume update needed
+
+            if installed_version == specific_target_numeric_version:
+                logger.debug(
+                    f"Server '{server_name}' installed version '{installed_version}' matches specific target '{target_version_spec}' (numeric: {specific_target_numeric_version}). No update needed."
+                )
+                return True
+            else:
+                logger.info(
+                    f"Update needed for server '{server_name}'. Installed: {installed_version}, Specific Target: {target_version_spec} (numeric: {specific_target_numeric_version})"
+                )
+                return False
+        except Exception as e:  # Catch errors from BedrockDownloader init or logic
+            logger.warning(
+                f"Error determining numeric version for specific target '{target_version_spec}': {e}. Assuming update might be needed.",
+                exc_info=True,
+            )
+            return False
+
+    # For LATEST or PREVIEW specification
     if not installed_version or installed_version == "UNKNOWN":
         logger.info(
-            f"Installed version for server '{server_name}' is '{installed_version}'. Update check requires a known installed version. Assuming update needed."
+            f"Installed version for server '{server_name}' is '{installed_version}'. Cannot compare with '{target_upper}'. Assuming update needed."
         )
-        return False  # Cannot compare if installed version is unknown
+        return False
 
     logger.debug(
-        f"Checking if update is needed for server '{server_name}': Installed='{installed_version}', Target='{target_upper}'"
+        f"Checking if update is needed for server '{server_name}': Installed='{installed_version}', Target Spec='{target_upper}'"
     )
 
     try:
-        # Find the download URL for the target spec (LATEST or PREVIEW)
-        latest_download_url = downloader.lookup_bedrock_download_url(target_upper)
-        # Extract the actual version number from that URL
-        latest_available_version = downloader.get_version_from_url(latest_download_url)
+        # Create a BedrockDownloader instance to check the latest version for LATEST/PREVIEW
+        downloader_for_check = BedrockDownloader(
+            settings_obj=settings_obj,
+            server_dir=server_dir,  # Actual server_dir or a valid placeholder path
+            target_version=target_upper,  # "LATEST" or "PREVIEW"
+        )
+
+        latest_available_version = downloader_for_check.get_version_for_target_spec()
         logger.debug(
             f"Latest available version for '{target_upper}' spec found: '{latest_available_version}'"
         )
 
-        # Compare installed version with the latest available
         if installed_version == latest_available_version:
             logger.debug(
-                f"Server '{server_name}' is already up-to-date (Version: {installed_version}). No update needed."
+                f"Server '{server_name}' is already up-to-date (Version: {installed_version} matches latest for {target_upper}). No update needed."
             )
             return True
         else:
@@ -895,16 +961,21 @@ def no_update_needed(
             )
             return False
 
-    except (InternetConnectivityError, DownloadExtractError, OSError) as e:
-        # If we fail to get the latest version info, log warning and assume update needed
+    except (
+        InternetConnectivityError,
+        DownloadExtractError,
+        OSError,
+        DirectoryError,
+        MissingArgumentError,
+    ) as e:
         logger.warning(
             f"Could not determine the latest available version for '{target_upper}' due to an error: {e}. Assuming update might be needed.",
             exc_info=True,
         )
         return False
-    except Exception as e:
+    except Exception as e:  # Catch any other unexpected error
         logger.error(
-            f"Unexpected error during update check for server '{server_name}': {e}",
+            f"Unexpected error during update check for server '{server_name}' against '{target_upper}': {e}",
             exc_info=True,
         )
         return False
