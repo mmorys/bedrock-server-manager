@@ -519,8 +519,6 @@ def get_server_properties_api(
     """
     API endpoint to read and return server.properties for a specific Bedrock server.
     """
-    # Consistent with original function's behavior for other errors (returning a dict)
-    # If InvalidServerNameError should propagate to a global handler, this could be a direct raise.
     if not server_name:
         logger.warning("API: Call to get_server_properties_api with empty server name.")
         return {"status": "error", "message": "Server name cannot be empty."}
@@ -768,8 +766,6 @@ def download_and_install_server(
         )
 
         # --- 2. Orchestrate Stop, Backup (if update), File Setup, Start ---
-        # _server_stop_start_manager needs to be robust or this logic might need adjustment
-        # It's assumed it correctly handles stopping the server if is_update is True.
         with _server_stop_start_manager(
             server_name,
             effective_base_dir,
@@ -780,7 +776,7 @@ def download_and_install_server(
                 logger.info(
                     f"API: Step 2a - Backing up server '{server_name}' before update..."
                 )
-                # Assuming backup_all_server_data doesn't need downloader_instance
+
                 core_backup.backup_all_server_data(
                     server_name, effective_base_dir, config_dir=app_config_dir
                 )
@@ -800,7 +796,7 @@ def download_and_install_server(
             logger.info(
                 f"API: Step 3 - Writing version '{actual_version}' and status for '{server_name}'."
             )
-            core_server_install_config._write_version_config(  # Assuming this function exists
+            core_server_install_config._write_version_config(
                 server_name, actual_version, config_dir=app_config_dir
             )
 
