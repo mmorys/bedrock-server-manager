@@ -153,7 +153,7 @@ def _get_app_name() -> str:
         The application name string configured in Flask ('APP_NAME'),
         or a default name if not configured or if called outside a Flask context.
     """
-    default_app_name: str = settings.app_name_title  # Default name 
+    default_app_name: str = settings.app_name_title  # Default name
     app_name: str = default_app_name
 
     try:
