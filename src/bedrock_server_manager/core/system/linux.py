@@ -153,6 +153,7 @@ WorkingDirectory={server_dir}
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
 # Use absolute path to _expath
+ExecStart={settings.expath} start-server --server "{server_name}" --mode direct
 ExecStop={settings.expath} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
 # ExecReload={settings.expath} systemd-stop --server "{server_name}" && {settings.expath} start-server --server "{server_name}" -mode direct
