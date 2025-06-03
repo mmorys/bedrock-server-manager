@@ -871,9 +871,7 @@ def install_new_server(
     base_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not server_name:
-        raise MissingArgumentError(
-            "Server name cannot be empty."
-        )
+        raise MissingArgumentError("Server name cannot be empty.")
     logger.info(
         f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
@@ -890,9 +888,7 @@ def install_new_server(
 
     try:
         effective_base_dir = get_base_dir(base_dir)
-        server_dir_check = os.path.join(
-            effective_base_dir, server_name
-        )
+        server_dir_check = os.path.join(effective_base_dir, server_name)
 
         validation_result = validate_server_name_format(server_name)
         if validation_result.get("status") == "error":
