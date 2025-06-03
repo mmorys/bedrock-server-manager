@@ -378,9 +378,9 @@ def select_player_for_permission(
     )
     try:
         # API call to get known players (requires config_dir)
-        logger.debug("Calling API: player_api.get_players_from_json")
-        player_response = player_api.get_players_from_json(config_dir=config_dir)
-        logger.debug(f"API response from get_players_from_json: {player_response}")
+        logger.debug("Calling API: player_api.get_all_known_players_api")
+        player_response = player_api.get_all_known_players_api()
+        logger.debug(f"API response from get_all_known_players_api: {player_response}")
 
         if player_response.get("status") == "error":
             message = player_response.get(
@@ -828,7 +828,7 @@ def install_new_server(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError("Base configuration directory not set.")

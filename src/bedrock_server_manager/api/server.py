@@ -183,7 +183,7 @@ def start_server(
 
             if platform.system() == "Windows":
                 cli_command_parts = [
-                    settings._expath,
+                    settings.expath,
                     "start-server",
                     "--server",
                     server_name,
@@ -196,7 +196,7 @@ def start_server(
                     f"API: Preparing to launch detached starter for '{server_name}' with command: {' '.join(cli_command_str_list)}"
                 )
 
-                app_config_dir = settings._config_dir
+                app_config_dir = settings.config_dir
                 if not app_config_dir:
                     raise FileOperationError(
                         "Application configuration directory (_config_dir) not set in settings for detached start."

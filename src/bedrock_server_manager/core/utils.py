@@ -203,7 +203,7 @@ def update_server_status_in_config(
         server_name: The name of the server.
         base_dir: The base directory containing the server's folder (for log file path).
         config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
+                    Defaults to `settings.config_dir` if None.
 
     Raises:
         MissingArgumentError: If `server_name` or `base_dir` is empty.

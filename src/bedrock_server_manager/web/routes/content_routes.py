@@ -73,7 +73,7 @@ def list_worlds_route() -> Tuple[Response, int]:
     response_dict: Dict[str, Any]
 
     try:
-        api_result = utils_api.list_world_content_files()
+        api_result = utils_api.list_available_worlds_api()
 
         if api_result.get("status") == "success":
             status_code = 200
@@ -137,7 +137,7 @@ def list_addons_route() -> Tuple[Response, int]:
     response_dict: Dict[str, Any]
 
     try:
-        api_result = utils_api.list_addon_content_files()
+        api_result = utils_api.list_available_addons_api()
 
         if api_result.get("status") == "success":
             status_code = 200
@@ -200,7 +200,7 @@ def install_world_route(server_name: str) -> Response:
     logger.debug(f"World content directory: {content_dir}")
 
     # API call to list available .mcworld files
-    list_result: Dict[str, Any] = utils_api.list_world_content_files()
+    list_result: Dict[str, Any] = utils_api.list_available_worlds_api()
     logger.debug(f"List content files API result: {list_result}")
 
     world_files: List[str] = []
@@ -222,7 +222,7 @@ def install_world_route(server_name: str) -> Response:
         "select_world.html",
         server_name=server_name,
         world_files=world_files,  # List of full paths to .mcworld files
-        app_name=settings._app_name,
+        app_name=settings.app_name_title,
     )
 
 
@@ -622,7 +622,7 @@ def install_addon_route(server_name: str) -> Response:
     logger.debug(f"Addon content directory: {content_dir}")
 
     # API call to list available addon files
-    list_result = utils_api.list_addon_content_files()
+    list_result = utils_api.list_available_addons_api()
     logger.debug(f"List content files API result: {list_result}")
 
     addon_files: List[str] = []
@@ -644,7 +644,7 @@ def install_addon_route(server_name: str) -> Response:
         "select_addon.html",
         server_name=server_name,
         addon_files=addon_files,  # List of full paths to addon files
-        app_name=settings._app_name,
+        app_name=settings.app_name_title,
     )
 
 

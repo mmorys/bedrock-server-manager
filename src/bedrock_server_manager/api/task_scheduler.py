@@ -371,7 +371,7 @@ def get_server_task_names(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError(
@@ -493,7 +493,7 @@ def create_windows_task(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError(
@@ -658,7 +658,7 @@ def modify_windows_task(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError(

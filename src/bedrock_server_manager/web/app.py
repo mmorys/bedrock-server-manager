@@ -94,7 +94,7 @@ def create_app() -> Flask:
         raise FileOperationError("Essential setting BASE_DIR is not configured.")
 
     # --- Configure Secret Key (CSRF, Session) ---
-    secret_key_env = f"{settings._env_name}_SECRET"
+    secret_key_env = f"{settings.env_name}_SECRET"
     secret_key_value = os.environ.get(secret_key_env)
     if secret_key_value:
         app.config["SECRET_KEY"] = secret_key_value
@@ -124,7 +124,7 @@ def create_app() -> Flask:
     logger.debug("Initialized Flask-WTF CSRF Protection.")
 
     # --- Configure JWT ---
-    jwt_secret_key_env = f"{settings._env_name}_TOKEN"
+    jwt_secret_key_env = f"{settings.env_name}_TOKEN"
     jwt_secret_key_value = os.environ.get(jwt_secret_key_env)
     if jwt_secret_key_value:
         app.config["JWT_SECRET_KEY"] = jwt_secret_key_value
@@ -169,8 +169,8 @@ def create_app() -> Flask:
     logger.debug("Initialized Flask-JWT-Extended.")
 
     # --- Load Web UI Authentication Credentials ---
-    username_env = f"{settings._env_name}_USERNAME"
-    password_env = f"{settings._env_name}_PASSWORD"
+    username_env = f"{settings.env_name}_USERNAME"
+    password_env = f"{settings.env_name}_PASSWORD"
     # Store them in app.config for access within views (e.g., auth route)
     app.config[username_env] = os.environ.get(username_env)
     app.config[password_env] = os.environ.get(password_env)
@@ -236,8 +236,8 @@ def run_web_server(
     """
     app = create_app()
 
-    username_env = f"{settings._env_name}_USERNAME"
-    password_env = f"{settings._env_name}_PASSWORD"
+    username_env = f"{settings.env_name}_USERNAME"
+    password_env = f"{settings.env_name}_PASSWORD"
     if not app.config.get(username_env) or not app.config.get(password_env):
         error_msg = (
             f"Cannot start web server: Required authentication environment variables "

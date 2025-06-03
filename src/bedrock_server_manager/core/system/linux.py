@@ -98,9 +98,9 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
         raise InvalidServerNameError("Server name cannot be empty.")
     if not base_dir:
         raise MissingArgumentError("Base directory cannot be empty.")
-    if not settings._expath or not os.path.isfile(settings._expath):
+    if not settings.expath or not os.path.isfile(settings.expath):
         raise FileOperationError(
-            f"Main script executable path (_expath) is invalid or not set: {settings._expath}"
+            f"Main script executable path (_expath) is invalid or not set: {settings.expath}"
         )
 
     server_dir = os.path.join(base_dir, server_name)
@@ -130,7 +130,7 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
     if autoupdate:
         # Ensure server_name is quoted if it contains spaces
         autoupdate_line = (
-            f'ExecStartPre={settings._expath} update-server --server "{server_name}"'
+            f'ExecStartPre={settings.expath} update-server --server "{server_name}"'
         )
         logger.debug(f"Autoupdate enabled for service '{service_name}'.")
     else:
@@ -153,10 +153,9 @@ WorkingDirectory={server_dir}
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
 # Use absolute path to _expath
-ExecStart={settings._expath} start-server --server "{settings._expath}" --mode direct
-ExecStop={settings._expath} systemd-stop --server "{server_name}"
+ExecStop={settings.expath} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
-# ExecReload={settings._expath} systemd-stop --server "{server_name}" && {settings._expath} start-server --server "{server_name}" -mode direct
+# ExecReload={settings.expath} systemd-stop --server "{server_name}" && {settings.expath} start-server --server "{server_name}" -mode direct
 # Restart behavior
 Restart=on-failure
 RestartSec=10s

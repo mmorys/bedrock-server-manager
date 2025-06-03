@@ -387,7 +387,7 @@ def delete_server_data(
         )  # Replace with MissingArgumentError
 
     effective_config_dir = (
-        config_dir if config_dir is not None else getattr(settings, "_config_dir", None)
+        config_dir if config_dir is not None else getattr(settings, "config_dir", None)
     )
     if not effective_config_dir:
         # Assuming FileOperationError is defined

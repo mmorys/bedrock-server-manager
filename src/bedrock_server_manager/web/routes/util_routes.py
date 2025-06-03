@@ -154,7 +154,7 @@ def serve_custom_panorama() -> Response:
     logger.debug("Request received to serve custom panorama background.")
     try:
         # Use the potentially private attribute for now, assuming it's reliable
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir or not os.path.isdir(config_dir):
             # Config dir doesn't exist or isn't set, definitely use default
             logger.warning(

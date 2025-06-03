@@ -9,6 +9,9 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.core.server import server_utils as core_server_utils
+from bedrock_server_manager.core import utils as core_utils
+from bedrock_server_manager.utils import get_utils
+from bedrock_server_manager.manager import BedrockServerManager
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
@@ -29,12 +32,10 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.core.system import (
     base as core_system,
 )
-from bedrock_server_manager.core import utils as core_utils
-
-from bedrock_server_manager.utils import get_utils
 
 
 logger = logging.getLogger(__name__)
+bsm = BedrockServerManager()
 
 
 def validate_server_exist(
@@ -129,7 +130,7 @@ def get_all_servers_status(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError(
@@ -198,7 +199,7 @@ def update_server_statuses(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError("Base configuration directory not set.")
@@ -279,85 +280,69 @@ def update_server_statuses(
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
-def list_content_files_api_wrapper(
-    content_type_name: str, sub_folder: str, extensions: List[str]
-) -> Dict[str, Any]:
-    """Generic API wrapper for listing content files using core_utils."""
-    logger.info(f"API: Listing {content_type_name} content files.")
+def list_available_worlds_api() -> Dict[str, Any]:  # Renamed for clarity (API function)
+    """
+    API endpoint to list available world files (e.g., .mcworld)
+    from the configured content directory.
+    """
+    logger.debug("API: Requesting list of available worlds.")
     try:
-        base_content_dir = settings.get("CONTENT_DIR")
-        if not base_content_dir:
-            # Use API Level error
-            raise FileOperationError(
-                "CONTENT_DIR setting is missing or empty in configuration."
-            )
+        # Call the BSM method directly
+        world_files = bsm.list_available_worlds()
 
-        target_dir = os.path.join(base_content_dir, sub_folder)
-
-        # Ensure the target directory exists before calling core, or let core handle it
-        # For API, better to pre-check for a clearer error message if base content dir is setup wrong
-        if not os.path.isdir(target_dir):
-            # Check if base_content_dir itself exists to differentiate
-            if not os.path.isdir(base_content_dir):
-                raise DirectoryError(
-                    f"Base content directory '{base_content_dir}' not found."
-                )
-            # If base exists but subfolder doesn't, it might be intentional (no content of this type yet)
-            # In this case, core_list_files_by_extension will return an empty list, which is fine.
-            # However, if the API contract implies the folder should always exist, this check is good.
-            # For now, let's assume the folder might not exist and it means no files.
-            logger.warning(
-                f"API: Content sub-directory '{target_dir}' not found. Assuming no files."
-            )
-
-        found_files = core_utils.core_list_files_by_extension(
-            directory=target_dir, extensions=extensions
-        )
-
-        if not found_files:
+        if not world_files:
             return {
                 "status": "success",
                 "files": [],
-                "message": f"No matching {content_type_name} files found in '{target_dir}'.",
+                "message": "No world files found in the content directory.",
             }
-        return {"status": "success", "files": found_files}
-
-    except (
-        FileOperationError,
-        DirectoryError,
-        MissingArgumentError,
-        TypeError,
-        ValueError,
-    ) as e:  # Catch API/config errors and core's ValueError
-        logger.error(
-            f"API Error listing {content_type_name} content: {e}", exc_info=True
-        )
+        return {
+            "status": "success",
+            "files": world_files,  # BSM method already returns List[str] of basenames
+        }
+    except (DirectoryError, FileOperationError) as e:
+        # These are exceptions that bsm.list_available_worlds might raise if
+        # CONTENT_DIR is misconfigured or inaccessible.
+        logger.error(f"API Error listing worlds: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
-    except OSError as e:  # From core_list_files_by_extension
-        logger.error(
-            f"API OSError listing {content_type_name} content: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"File system error listing files: {e}"}
     except Exception as e:
+        # Catch any other unexpected errors from BSM or this layer
         logger.error(
-            f"API Unexpected error listing {content_type_name} content: {e}",
-            exc_info=True,
+            f"API: Unexpected error listing available worlds: {e}", exc_info=True
         )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
-def list_world_content_files() -> Dict[str, Any]:
-    """Lists available world files (e.g., .mcworld)."""
-    return list_content_files_api_wrapper(
-        content_type_name="world", sub_folder="worlds", extensions=["mcworld"]
-    )
+def list_available_addons_api() -> Dict[str, Any]:  # Renamed for clarity (API function)
+    """
+    API endpoint to list available addon files (e.g., .mcpack, .mcaddon)
+    from the configured content directory.
+    """
+    logger.debug("API: Requesting list of available addons.")
+    try:
+        # Call the BSM method directly
+        addon_files = bsm.list_available_addons()
 
-
-def list_addon_content_files() -> Dict[str, Any]:
-    """Lists available addon files (e.g., .mcpack, .mcaddon)."""
-    return list_content_files_api_wrapper(
-        content_type_name="addon", sub_folder="addons", extensions=["mcpack", "mcaddon"]
-    )
+        if not addon_files:
+            return {
+                "status": "success",
+                "files": [],
+                "message": "No addon files found in the content directory.",
+            }
+        return {
+            "status": "success",
+            "files": addon_files,  # BSM method already returns List[str] of basenames
+        }
+    except (DirectoryError, FileOperationError) as e:
+        # These are exceptions that bsm.list_available_addons might raise
+        logger.error(f"API Error listing addons: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        # Catch any other unexpected errors from BSM or this layer
+        logger.error(
+            f"API: Unexpected error listing available addons: {e}", exc_info=True
+        )
+        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:

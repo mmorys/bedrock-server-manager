@@ -153,8 +153,8 @@ def install_addons(
         logger.debug(f"Using addon content directory: {effective_content_dir}")
 
         # Use API to list files
-        logger.debug("Calling API: api_utils.list_addon_content_files for addons")
-        list_response = api_utils.list_addon_content_files()
+        logger.debug("Calling API: api_utils.list_available_addons_api for addons")
+        list_response = api_utils.list_available_addons_api()
         logger.debug(f"List content files API response: {list_response}")
 
         if list_response.get("status") == "error":

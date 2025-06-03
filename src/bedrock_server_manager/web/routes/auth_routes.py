@@ -166,8 +166,8 @@ def login() -> Response:
         )
 
         # Retrieve configured credentials securely
-        username_env = f"{settings._env_name}_USERNAME"
-        password_env = f"{settings._env_name}_PASSWORD"
+        username_env = f"{settings.env_name}_USERNAME"
+        password_env = f"{settings.env_name}_PASSWORD"
         expected_username = current_app.config.get(username_env)
         stored_password_hash = current_app.config.get(
             password_env
@@ -183,7 +183,9 @@ def login() -> Response:
             )
             # Return 500 status code as it's a server-side problem
             return (
-                render_template("login.html", app_name=settings._app_name, form=form),
+                render_template(
+                    "login.html", app_name=settings.app_name_title, form=form
+                ),
                 500,
             )
 
@@ -223,7 +225,9 @@ def login() -> Response:
             # Re-render login form, WTForms errors (if any) are implicitly passed via form object
             # Return 401 Unauthorized status code
             return (
-                render_template("login.html", app_name=settings._app_name, form=form),
+                render_template(
+                    "login.html", app_name=settings.app_name_title, form=form
+                ),
                 401,
             )
 
@@ -233,7 +237,7 @@ def login() -> Response:
     logger.debug(
         f"Rendering login page (GET request or failed POST validation) from {request.remote_addr}"
     )
-    return render_template("login.html", app_name=settings._app_name, form=form)
+    return render_template("login.html", app_name=settings.app_name_title, form=form)
 
 
 # --- API Login Route ---
@@ -283,8 +287,8 @@ def api_login() -> Response:
     )
 
     # Retrieve configured credentials (same as web login)
-    username_env = f"{settings._env_name}_USERNAME"
-    password_env = f"{settings._env_name}_PASSWORD"
+    username_env = f"{settings.env_name}_USERNAME"
+    password_env = f"{settings.env_name}_PASSWORD"
     expected_username = current_app.config.get(username_env)
     stored_password_hash = current_app.config.get(password_env)
 

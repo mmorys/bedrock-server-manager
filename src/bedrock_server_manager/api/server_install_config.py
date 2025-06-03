@@ -415,7 +415,7 @@ def get_server_permissions_api(
         effective_app_config_dir = (
             config_dir_override
             if config_dir_override is not None
-            else getattr(settings, "_config_dir", None)  # Safely get _config_dir
+            else getattr(settings, "config_dir", None)  # Safely get _config_dir
         )
 
         if effective_app_config_dir:
@@ -735,7 +735,7 @@ def download_and_install_server(
         f"API: Starting server {action.lower()} process for '{server_name}', target version '{target_version}'."
     )
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot proceed."
@@ -876,7 +876,7 @@ def install_new_server(
         f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot install."
@@ -978,7 +978,7 @@ def update_server(
         )  # Or return error dict
     logger.info(f"API: Updating server '{server_name}'. Send message: {send_message}")
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot update."

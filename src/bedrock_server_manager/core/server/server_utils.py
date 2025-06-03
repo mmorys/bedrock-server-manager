@@ -90,7 +90,7 @@ def manage_server_config(
         value: The value to write (required for "write" operation). Can be any
                JSON-serializable type. Defaults to None.
         config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
+                    Defaults to `settings.config_dir` if None.
 
     Returns:
         The value read for the key if `operation` is "read", otherwise None.
@@ -106,7 +106,7 @@ def manage_server_config(
     """
     # Use default config dir from settings if not provided
     effective_config_dir = (
-        config_dir if config_dir is not None else getattr(settings, "_config_dir", None)
+        config_dir if config_dir is not None else getattr(settings, "config_dir", None)
     )
     if not effective_config_dir:
         # Handle case where settings object might not have _config_dir yet or it's None/empty
@@ -284,7 +284,7 @@ def _get_server_details(
         )
     server_dir = os.path.join(base_dir, server_name)
 
-    config_dir_base = settings._config_dir
+    config_dir_base = settings.config_dir
     if not config_dir_base:
         raise FileOperationError(
             "Internal _config_dir setting is missing or empty. Ensure settings are loaded."
@@ -324,7 +324,7 @@ def get_installed_version(server_name: str, config_dir: Optional[str] = None) ->
     Args:
         server_name: The name of the server.
         config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
+                    Defaults to `settings.config_dir` if None.
 
     Returns:
         The installed version string, or "UNKNOWN" if the version key is not found
@@ -493,7 +493,7 @@ def get_server_status_from_config(
     Args:
         server_name: The name of the server.
         config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
+                    Defaults to `settings.config_dir` if None.
 
     Returns:
         The status string stored in the config file ("RUNNING", "STOPPED", etc.),
