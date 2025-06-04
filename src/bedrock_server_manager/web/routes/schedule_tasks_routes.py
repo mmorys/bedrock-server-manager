@@ -34,6 +34,7 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.config.settings import (
     settings,
 )
+from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
@@ -143,7 +144,7 @@ def schedule_tasks_route(server_name: str) -> Response:
         "schedule_tasks.html",
         server_name=server_name,
         table_data=table_data,  # List of dicts for the table
-        EXPATH=settings._expath,
+        EXPATH=EXPATH,
     )
 
 
@@ -500,7 +501,7 @@ def schedule_tasks_windows_route(server_name: str) -> Response:
 
     tasks = []  # Default empty list
     try:
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 
@@ -663,7 +664,7 @@ def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
     status_code = 500
     try:
         config_dir = getattr(
-            settings, "_config_dir", None
+            settings, "config_dir", None
         )  # Get config dir for saving XML
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
@@ -796,7 +797,7 @@ def get_windows_task_details_api_post(server_name: str) -> Tuple[Response, int]:
     result: Dict[str, Any] = {}
     status_code = 500
     try:
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 
@@ -954,7 +955,7 @@ def modify_windows_task_api(server_name: str, task_name: str) -> Tuple[Response,
     result: Dict[str, Any] = {}
     status_code = 500
     try:
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 
@@ -1072,7 +1073,7 @@ def delete_windows_task_api(server_name: str, task_name: str) -> Tuple[Response,
     result: Dict[str, Any] = {}
     status_code = 500
     try:
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 

@@ -32,7 +32,10 @@ except ImportError:
 
 
 # Local imports
-from bedrock_server_manager.api import utils as api_utils
+from bedrock_server_manager.api import (
+    utils as api_utils,
+    application as api_application,
+)
 from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
     _ERROR_PREFIX,
@@ -142,11 +145,11 @@ def list_servers_status(
     logger.debug("CLI: Requesting list of all server statuses.")
     try:
         # Call API function to get status data
-        logger.debug("Calling API: api_utils.get_all_servers_status")
-        response: Dict[str, Any] = api_utils.get_all_servers_status(
-            base_dir, config_dir
+        logger.debug("Calling API: api_application.get_servers_data")
+        response: Dict[str, Any] = (
+            api_application.get_all_servers_data()
         )  # Returns dict
-        logger.debug(f"API response from get_all_servers_status: {response}")
+        logger.debug(f"API response from get_all_servers_data: {response}")
 
         # --- User Interaction: Print Table ---
         print(f"\n{Fore.MAGENTA}Detected Servers Status:{Style.RESET_ALL}")

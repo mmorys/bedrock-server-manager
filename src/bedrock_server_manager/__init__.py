@@ -18,9 +18,13 @@ try:
     from .config.settings import (
         settings,
     )
-    from .logging import setup_logging, log_separator
+    from bedrock_server_manager.logging import setup_logging, log_separator
+    from bedrock_server_manager.config.const import (
+        get_installed_version,
+        app_name_title,
+    )
 
-    __version__ = settings._version
+    __version__ = get_installed_version()
 
     # Configure logging based on settings
     try:
@@ -31,7 +35,7 @@ try:
             cli_log_level=settings.get("CLI_LOG_LEVEL"),
         )
         # Log separator after setup
-        log_separator(logger, app_name=settings._app_name, app_version=__version__)
+        log_separator(logger, app_name=app_name_title, app_version=__version__)
     except Exception as log_e:
         # Fallback basic logging if setup fails
         logging.basicConfig(level=logging.WARNING)
@@ -201,15 +205,15 @@ def main() -> None:
     """
     try:
         # --- Initial Checks ---
-        logger.info(f"Starting {settings._app_name} v{__version__}...")
+        logger.info(f"Starting {app_name_title} v{__version__}...")
         startup_checks(
-            settings._app_name, __version__
+            app_name_title, __version__
         )  # Handles Python version, creates dirs
         system_base.check_prerequisites()  # Check for screen, systemctl, etc.
 
         # --- Resolve Base/Config Dirs ---
         base_dir = settings.get("BASE_DIR")
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = settings.config_dir
         if not base_dir:
             # Base dir is essential, exit if not set
             raise FileOperationError(
@@ -236,14 +240,14 @@ def main() -> None:
 
         # --- Argument Parsing ---
         parser = argparse.ArgumentParser(
-            description=f"{settings._app_name} - Manage Minecraft Bedrock Servers.",
+            description=f"{app_name_title} - Manage Minecraft Bedrock Servers.",
             epilog="Run a command with -h for specific help, e.g., 'bedrock-server-manager start-server -h'",
         )
         parser.add_argument(
             "-v",
             "--version",
             action="version",
-            version=f"{settings._app_name} {__version__}",
+            version=f"{app_name_title} {__version__}",
         )
         subparsers = parser.add_subparsers(
             title="Available Commands",

@@ -23,9 +23,7 @@ except ImportError:
 
 # Local imports
 try:
-    from bedrock_server_manager.config.settings import settings
-
-    env_name = settings._env_name
+    from bedrock_server_manager.config.const import env_name
 except ImportError:
     # Fallback if run outside the package structure
     env_name = "BEDROCK_SERVER_MANAGER"  # Use a default prefix

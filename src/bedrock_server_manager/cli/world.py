@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any
 
 # Third-party imports
 try:
-    from colorama import Fore, Style, init
+    from colorama import Fore, Style
 
     COLORAMA_AVAILABLE = True
 except ImportError:
@@ -30,7 +30,7 @@ except ImportError:
 
 
 # Local imports
-from bedrock_server_manager.api import utils as api_utils
+from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import world as world_api
 from bedrock_server_manager.config.settings import (
     settings,
@@ -244,8 +244,10 @@ def install_worlds(
         logger.debug(f"Using world content directory: {effective_content_dir}")
 
         # API call to list available .mcworld files
-        logger.debug("Calling API: api_utils.list_world_content_files for worlds")
-        list_response = api_utils.list_world_content_files()
+        logger.debug(
+            "Calling API: api_application.list_available_worlds_api for worlds"
+        )
+        list_response = api_application.list_available_worlds_api()
         logger.debug(f"API list_content_files response: {list_response}")
 
         if list_response.get("status") == "error":

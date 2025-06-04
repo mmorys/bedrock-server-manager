@@ -19,6 +19,7 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api import backup_restore as backup_restore_api
 from bedrock_server_manager.api import world as api_world
 from bedrock_server_manager.api import utils as utils_api
+from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import misc as misc_api
 from bedrock_server_manager.web.routes.auth_routes import csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
@@ -482,13 +483,13 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
 def get_servers_list_api():
     """
     API Endpoint to retrieve the list of all managed servers and their status.
-    Calls the internal api_utils.get_all_servers_status function.
+    Calls the internal api_application.get_all_servers_data function.
     """
     logger.debug(f"API request received for GET /api/servers")
     try:
         # Call the existing function from api/utils.py
         # It doesn't need base_dir/config_dir if defaults are okay
-        result = utils_api.get_all_servers_status()
+        result = api_application.get_all_servers_data()
 
         # The function returns a dict with 'status' and 'servers' or 'message'
         status_code = 200 if result.get("status") == "success" else 500

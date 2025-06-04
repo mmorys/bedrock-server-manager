@@ -68,7 +68,8 @@ def backup_menu_route(server_name: str) -> Response:
     logger.info(f"User '{identity}' accessed backup menu for server '{server_name}'.")
     # Note: Server existence validation happens globally via before_request handler
     return render_template(
-        "backup_menu.html", server_name=server_name, app_name=settings._app_name
+        "backup_menu.html",
+        server_name=server_name,
     )
 
 
@@ -175,7 +176,6 @@ def backup_config_select_route(server_name: str) -> Response:
     return render_template(
         "backup_config_options.html",
         server_name=server_name,
-        app_name=settings._app_name,
     )
 
 
@@ -324,7 +324,8 @@ def restore_menu_route(server_name: str) -> Response:
     identity = get_current_identity()  # For logging
     logger.info(f"User '{identity}' accessed restore menu for server '{server_name}'.")
     return render_template(
-        "restore_menu.html", server_name=server_name, app_name=settings._app_name
+        "restore_menu.html",
+        server_name=server_name,
     )
 
 
@@ -591,8 +592,7 @@ def restore_select_backup_route(server_name: str) -> Response:
                 "restore_select_backup.html",
                 server_name=server_name,
                 restore_type=restore_type,
-                backups=backup_details,  # Pass list of dicts with path and name
-                app_name=settings._app_name,
+                backups=backup_details,
             )
         else:
             # Error reported by the list_backup_files handler

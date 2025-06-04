@@ -415,7 +415,7 @@ def get_server_permissions_api(
         effective_app_config_dir = (
             config_dir_override
             if config_dir_override is not None
-            else getattr(settings, "_config_dir", None)  # Safely get _config_dir
+            else getattr(settings, "config_dir", None)  # Safely get _config_dir
         )
 
         if effective_app_config_dir:
@@ -602,7 +602,7 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
                 "message": "server-name is too long (max 100 chars).",
             }
     elif property_name == "level-name":
-        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", value):
+        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", value.replace(" ", "_")):
             return {
                 "status": "error",
                 "message": "level-name: use letters, numbers, underscore, hyphen.",
@@ -735,7 +735,7 @@ def download_and_install_server(
         f"API: Starting server {action.lower()} process for '{server_name}', target version '{target_version}'."
     )
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot proceed."
@@ -871,14 +871,12 @@ def install_new_server(
     base_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not server_name:
-        raise MissingArgumentError(
-            "Server name cannot be empty."
-        )
+        raise MissingArgumentError("Server name cannot be empty.")
     logger.info(
         f"API: Installing new server '{server_name}', target version '{target_version}'."
     )
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot install."
@@ -890,9 +888,7 @@ def install_new_server(
 
     try:
         effective_base_dir = get_base_dir(base_dir)
-        server_dir_check = os.path.join(
-            effective_base_dir, server_name
-        )
+        server_dir_check = os.path.join(effective_base_dir, server_name)
 
         validation_result = validate_server_name_format(server_name)
         if validation_result.get("status") == "error":
@@ -982,7 +978,7 @@ def update_server(
         )  # Or return error dict
     logger.info(f"API: Updating server '{server_name}'. Send message: {send_message}")
 
-    app_config_dir = settings._config_dir
+    app_config_dir = settings.config_dir
     if not app_config_dir:
         logger.critical(
             "API: Application configuration directory (_config_dir) not set. Cannot update."
@@ -999,9 +995,7 @@ def update_server(
         )  # Needed for no_update_needed
 
         # Send initial message if server is running
-        if send_message and core_server_actions.check_if_server_is_running(
-            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
-        ):
+        if send_message and core_server_actions.check_if_server_is_running(server_name):
             logger.info(
                 f"API: Server '{server_name}' running. Sending update check notification..."
             )
@@ -1042,9 +1036,7 @@ def update_server(
             }
 
         # Send "installing update" message if running
-        if send_message and core_server_actions.check_if_server_is_running(
-            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
-        ):
+        if send_message and core_server_actions.check_if_server_is_running(server_name):
             api_send_command(
                 server_name, "say Server is updating now..."
             )  # Fire and forget

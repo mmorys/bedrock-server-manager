@@ -69,7 +69,7 @@ def start_web_server(
         )
         # The `host` argument passed here is now Optional[Union[str, List[str]]],
         # matching the updated signature of web_api.start_web_server
-        response: Dict[str, Any] = web_api.start_web_server(host, debug, mode)
+        response: Dict[str, Any] = web_api.start_web_server_api(host, debug, mode)
         logger.debug(f"API response from start_web_server: {response}")
 
         if response.get("status") == "error":
@@ -120,7 +120,7 @@ def stop_web_server() -> None:
     try:
         # Call the API function
         logger.debug("Calling API: web_api.stop_web_server")
-        response: Dict[str, str] = web_api.stop_web_server()  # Returns dict
+        response: Dict[str, str] = web_api.stop_web_server_api()  # Returns dict
         logger.debug(f"API response from stop_web_server: {response}")
 
         # --- User Interaction: Print Result ---

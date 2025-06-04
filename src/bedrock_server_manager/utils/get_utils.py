@@ -12,10 +12,11 @@ import random
 from typing import Optional
 
 # Third-party imports
-from flask import url_for, current_app
+from flask import url_for
 
 # Local imports
-from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
+from bedrock_server_manager.config.splash_text import SPLASH_TEXTS
+from bedrock_server_manager.config.const import app_name_title, get_installed_version
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import SystemError
 
@@ -38,7 +39,7 @@ def _get_panorama_url() -> Optional[str]:
     panorama_url: Optional[str] = None
     try:
         # Accessing _config_dir directly; consider adding a public getter to Settings class
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if config_dir:
             # Construct the expected path to the panorama file
             panorama_fs_path = os.path.join(config_dir, "panorama.jpeg")
@@ -153,12 +154,12 @@ def _get_app_name() -> str:
         The application name string configured in Flask ('APP_NAME'),
         or a default name if not configured or if called outside a Flask context.
     """
-    default_app_name: str = settings._app_name  # Default name
+    default_app_name: str = app_name_title  # Default name
     app_name: str = default_app_name
 
     try:
         # Requires an active Flask application context
-        app_name = settings._app_name  # Access the app name from settings
+        app_name = app_name_title  # Access the app name from settings
         logger.debug(
             f"Context Helper: Retrieved app name from Flask config: '{app_name}'"
         )
@@ -192,7 +193,7 @@ def _get_app_version() -> str:
 
     try:
         # Get app version from settings
-        app_version = settings._version
+        app_version = settings.version
 
     except Exception as e:
         logger.exception(

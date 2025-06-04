@@ -145,7 +145,7 @@ def install_server_api_route() -> Tuple[Response, int]:
 
     try:
         base_dir = get_base_dir()  # May raise FileOperationError
-        config_dir = getattr(settings, "_config_dir", None)  # Get default config dir
+        config_dir = getattr(settings, "config_dir", None)  # Get default config dir
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 
@@ -1026,7 +1026,7 @@ def configure_permissions_route(server_name: str) -> Response:
     try:
         base_dir = get_base_dir()
         effective_config_dir = getattr(
-            settings, "_config_dir", None
+            settings, "config_dir", None
         )  # Needed for players.json
         if not effective_config_dir:
             raise FileOperationError("Base configuration directory not set.")
@@ -1408,7 +1408,7 @@ def configure_service_route(server_name: str) -> Response:
     logger.debug(f"Initial template data: {template_data}")
 
     try:
-        config_dir = getattr(settings, "_config_dir", None)
+        config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
             raise FileOperationError("Base configuration directory not set.")
 

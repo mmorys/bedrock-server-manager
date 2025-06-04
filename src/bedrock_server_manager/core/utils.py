@@ -8,7 +8,7 @@ import platform
 import subprocess
 import time
 import shutil
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 # Local imports
 from bedrock_server_manager.core.server import server_utils as core_server_utils
@@ -16,6 +16,8 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
     InvalidServerNameError,
+    DirectoryError,
+    ConfigurationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,7 +205,7 @@ def update_server_status_in_config(
         server_name: The name of the server.
         base_dir: The base directory containing the server's folder (for log file path).
         config_dir: Optional. The base directory containing server config folders.
-                    Defaults to `settings._config_dir` if None.
+                    Defaults to `settings.config_dir` if None.
 
     Raises:
         MissingArgumentError: If `server_name` or `base_dir` is empty.
@@ -279,66 +281,62 @@ def update_server_status_in_config(
 # ---
 
 
-# --- File Listing ---
-def core_list_files_by_extension(directory: str, extensions: List[str]) -> List[str]:
+# --- Server Listing ---
+def _core_get_all_servers_data(
+    effective_base_dir: str, effective_config_dir: str
+) -> Tuple[List[Dict[str, str]], List[str]]:
     """
-    Lists all files within a specified directory that match a list of extensions.
-
-    Args:
-        directory: The full path to the directory to search.
-        extensions: A list of file extensions (strings, without the leading dot).
-
-    Returns:
-        A list of full paths of found files, sorted alphabetically.
-        Returns an empty list if no files are found or if directory doesn't exist.
-
-    Raises:
-        ValueError: If directory or extensions are empty/invalid.
-        OSError: If underlying file system operations fail (e.g., permission issues).
+    Core logic to retrieve status and version for all servers.
+    Collects data for successfully processed servers and error messages for failures.
+    Raises DirectoryError if effective_base_dir is invalid.
     """
-    if not directory:
-        raise ValueError("Directory path cannot be empty.")
-    if not extensions or not isinstance(extensions, list):
-        raise ValueError("Extensions must be a non-empty list of strings.")
-    if not all(isinstance(ext, str) for ext in extensions):
-        raise ValueError("All items in extensions list must be strings.")
+    servers_data: List[Dict[str, str]] = []
+    error_messages: List[str] = []
 
-    logger.debug(
-        f"core.core_list_files_by_extension: Listing in '{directory}' for extensions: {extensions}"
-    )
-
-    if not os.path.isdir(directory):
-        logger.warning(
-            f"core.core_list_files_by_extension: Directory not found: {directory}"
+    if not os.path.isdir(effective_base_dir):
+        # This is a fundamental setup error for the core operation
+        raise DirectoryError(
+            f"Server base directory does not exist or is not a directory: {effective_base_dir}"
         )
-        return []  # Consistent with glob.glob behavior for non-existent paths
 
-    found_files: List[str] = []
-    try:
-        for ext in extensions:
-            clean_ext = ext.lstrip(".").strip()
-            if not clean_ext:
-                logger.debug(
-                    f"core.core_list_files_by_extension: Skipping empty extension string."
+    # Ensure config_dir exists, as core_server_utils might rely on it.
+    # Or, let core_server_utils handle this if its contract specifies.
+    # For this example, let's assume core_server_utils will raise if config_dir is bad for a specific server.
+    # if not os.path.isdir(effective_config_dir):
+    #     raise DirectoryError(
+    #         f"Server configuration directory does not exist or is not a directory: {effective_config_dir}"
+    #     )
+
+    for item_name in os.listdir(effective_base_dir):
+        item_path = os.path.join(effective_base_dir, item_name)
+        if os.path.isdir(item_path):
+            server_name = item_name
+            try:
+                # These utils functions are expected to raise their specific exceptions
+                # (FileOperationError, InvalidServerNameError, ConfigurationError etc.) on failure.
+                status = core_server_utils.get_server_status_from_config(
+                    server_name, effective_config_dir
                 )
-                continue
-            pattern = os.path.join(directory, f"*.{clean_ext}")
-            logger.debug(
-                f"core.core_list_files_by_extension: Searching with pattern: {pattern}"
-            )
-            matched_files = glob.glob(pattern)
-            found_files.extend(matched_files)
-        found_files.sort()
-        logger.debug(
-            f"core.core_list_files_by_extension: Found {len(found_files)} file(s)."
-        )
-        return found_files
-    except OSError as e:  # Catch issues from glob or os.path.join if they occur
-        logger.error(
-            f"core.core_list_files_by_extension: OSError during file listing in '{directory}': {e}",
-            exc_info=True,
-        )
-        raise
+                version = core_server_utils.get_installed_version(
+                    server_name, effective_config_dir
+                )
+                servers_data.append(
+                    {"name": server_name, "status": status, "version": version}
+                )
+            except (
+                FileOperationError,
+                InvalidServerNameError,
+                ConfigurationError,  # Catching a broader range of core-level issues
+            ) as e:
+                # Collect error message for this specific server
+                msg = f"Could not get info for server '{server_name}': {e}"
+                # Core layer might have its own, more detailed/debug logging if needed
+                # logger.debug(f"Core._core_get_all_servers_data: {msg}", exc_info=True)
+                error_messages.append(msg)
+            # Any other unexpected exceptions within the loop for a specific server would propagate
+            # and be caught by the API layer's generic Exception handler.
+
+    return servers_data, error_messages
 
 
 # --- Screen Attach ---

@@ -9,6 +9,9 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.core.server import server_actions as core_server_actions
 from bedrock_server_manager.core.server import server_utils as core_server_utils
+from bedrock_server_manager.core import utils as core_utils
+from bedrock_server_manager.utils import get_utils
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
@@ -29,12 +32,10 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.core.system import (
     base as core_system,
 )
-from bedrock_server_manager.core import utils as core_utils
-
-from bedrock_server_manager.utils import get_utils
 
 
 logger = logging.getLogger(__name__)
+bsm = BedrockServerManager()
 
 
 def validate_server_exist(
@@ -113,75 +114,6 @@ def validate_server_name_format(server_name: str) -> Dict[str, str]:
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
-def get_all_servers_status(
-    base_dir: Optional[str] = None, config_dir: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Retrieves the last known status and installed version for all detected servers.
-    (API orchestrator using core_server_actions functions)
-    """
-    servers_data: List[Dict[str, str]] = []
-    error_messages = []
-    logger.debug("API.get_all_servers_status: Getting status for all servers...")
-
-    try:
-        effective_base_dir = get_base_dir(base_dir)
-        effective_config_dir = (
-            config_dir
-            if config_dir is not None
-            else getattr(settings, "_config_dir", None)
-        )
-        if not effective_config_dir:
-            raise FileOperationError(
-                "Base configuration directory not set in settings."
-            )
-        if not os.path.isdir(effective_base_dir):
-            raise DirectoryError(
-                f"Server base directory does not exist: {effective_base_dir}"
-            )
-
-        for item_name in os.listdir(effective_base_dir):
-            item_path = os.path.join(effective_base_dir, item_name)
-            if os.path.isdir(item_path):
-                server_name = item_name
-                try:
-                    # Using core_server_actions (core.server.server_actions)
-                    status = core_server_utils.get_server_status_from_config(
-                        server_name, effective_config_dir
-                    )
-                    version = core_server_utils.get_installed_version(
-                        server_name, effective_config_dir
-                    )
-                    servers_data.append(
-                        {"name": server_name, "status": status, "version": version}
-                    )
-                except (
-                    FileOperationError,
-                    InvalidServerNameError,
-                ) as e:  # API level errors
-                    msg = f"Could not get info for server '{server_name}': {e}"
-                    logger.error(f"API.get_all_servers_status: {msg}", exc_info=True)
-                    error_messages.append(msg)
-                # Core functions might raise their own errors if not caught here, e.g. core.ConfigurationError
-
-        if error_messages:
-            return {
-                "status": "success",  # Partial success
-                "servers": servers_data,
-                "message": f"Completed with errors: {'; '.join(error_messages)}",
-            }
-        return {"status": "success", "servers": servers_data}
-
-    except (FileOperationError, DirectoryError) as e:  # API level setup errors
-        logger.error(f"API.get_all_servers_status: Setup error: {e}", exc_info=True)
-        return {"status": "error", "message": f"Error accessing directories: {e}"}
-    except Exception as e:
-        logger.error(
-            f"API.get_all_servers_status: Unexpected error: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
 def update_server_statuses(
     base_dir: Optional[str] = None, config_dir: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -198,7 +130,7 @@ def update_server_statuses(
         effective_config_dir = (
             config_dir
             if config_dir is not None
-            else getattr(settings, "_config_dir", None)
+            else getattr(settings, "config_dir", None)
         )
         if not effective_config_dir:
             raise FileOperationError("Base configuration directory not set.")
@@ -277,87 +209,6 @@ def update_server_statuses(
             f"API.update_server_statuses: Unexpected error: {e}", exc_info=True
         )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
-def list_content_files_api_wrapper(
-    content_type_name: str, sub_folder: str, extensions: List[str]
-) -> Dict[str, Any]:
-    """Generic API wrapper for listing content files using core_utils."""
-    logger.info(f"API: Listing {content_type_name} content files.")
-    try:
-        base_content_dir = settings.get("CONTENT_DIR")
-        if not base_content_dir:
-            # Use API Level error
-            raise FileOperationError(
-                "CONTENT_DIR setting is missing or empty in configuration."
-            )
-
-        target_dir = os.path.join(base_content_dir, sub_folder)
-
-        # Ensure the target directory exists before calling core, or let core handle it
-        # For API, better to pre-check for a clearer error message if base content dir is setup wrong
-        if not os.path.isdir(target_dir):
-            # Check if base_content_dir itself exists to differentiate
-            if not os.path.isdir(base_content_dir):
-                raise DirectoryError(
-                    f"Base content directory '{base_content_dir}' not found."
-                )
-            # If base exists but subfolder doesn't, it might be intentional (no content of this type yet)
-            # In this case, core_list_files_by_extension will return an empty list, which is fine.
-            # However, if the API contract implies the folder should always exist, this check is good.
-            # For now, let's assume the folder might not exist and it means no files.
-            logger.warning(
-                f"API: Content sub-directory '{target_dir}' not found. Assuming no files."
-            )
-
-        found_files = core_utils.core_list_files_by_extension(
-            directory=target_dir, extensions=extensions
-        )
-
-        if not found_files:
-            return {
-                "status": "success",
-                "files": [],
-                "message": f"No matching {content_type_name} files found in '{target_dir}'.",
-            }
-        return {"status": "success", "files": found_files}
-
-    except (
-        FileOperationError,
-        DirectoryError,
-        MissingArgumentError,
-        TypeError,
-        ValueError,
-    ) as e:  # Catch API/config errors and core's ValueError
-        logger.error(
-            f"API Error listing {content_type_name} content: {e}", exc_info=True
-        )
-        return {"status": "error", "message": str(e)}
-    except OSError as e:  # From core_list_files_by_extension
-        logger.error(
-            f"API OSError listing {content_type_name} content: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"File system error listing files: {e}"}
-    except Exception as e:
-        logger.error(
-            f"API Unexpected error listing {content_type_name} content: {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
-def list_world_content_files() -> Dict[str, Any]:
-    """Lists available world files (e.g., .mcworld)."""
-    return list_content_files_api_wrapper(
-        content_type_name="world", sub_folder="worlds", extensions=["mcworld"]
-    )
-
-
-def list_addon_content_files() -> Dict[str, Any]:
-    """Lists available addon files (e.g., .mcpack, .mcaddon)."""
-    return list_content_files_api_wrapper(
-        content_type_name="addon", sub_folder="addons", extensions=["mcpack", "mcaddon"]
-    )
 
 
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:

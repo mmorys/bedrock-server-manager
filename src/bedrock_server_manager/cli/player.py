@@ -47,11 +47,11 @@ def scan_for_players(
 
     try:
         # Call the API function
-        logger.debug("Calling API: player_api.scan_for_players")
-        response: Dict[str, Any] = player_api.scan_for_players(
-            base_dir, config_dir
-        )  # Returns dict
-        logger.debug(f"API response from scan_for_players: {response}")
+        logger.debug("Calling API: player_api.scan_and_update_player_db_api")
+        response: Dict[str, Any] = player_api.scan_and_update_player_db_api()
+        logger.debug(
+            f"API response from player_api.scan_and_update_player_db_api: {response}"
+        )
 
         # --- User Interaction: Print Result ---
         if response.get("status") == "error":
@@ -109,11 +109,11 @@ def add_players(players: List[str], config_dir: Optional[str] = None) -> None:
 
     try:
         # Call the API function
-        logger.debug("Calling API: player_api.add_players")
-        response: Dict[str, str] = player_api.add_players(
-            players, config_dir
+        logger.debug("Calling API: player_api.add_players_manually_api")
+        response: Dict[str, str] = player_api.add_players_manually_api(
+            players
         )  # Returns dict
-        logger.debug(f"API response from add_players: {response}")
+        logger.debug(f"API response from add_players_manually_api: {response}")
 
         # --- User Interaction: Print Result ---
         if response.get("status") == "error":
