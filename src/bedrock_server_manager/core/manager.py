@@ -7,12 +7,9 @@ import logging
 import platform
 from typing import Optional, List, Dict, Any, Union, Tuple
 
-from itsdangerous import exc
-
 # Local imports
 from bedrock_server_manager.config.settings import Settings, settings as global_settings
 from bedrock_server_manager.core.server import server_utils as core_server_utils
-from bedrock_server_manager.core.server.server_utils import validate_server
 from bedrock_server_manager.error import (
     ConfigError,
     FileOperationError,
