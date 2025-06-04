@@ -602,7 +602,7 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
                 "message": "server-name is too long (max 100 chars).",
             }
     elif property_name == "level-name":
-        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", value):
+        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", value.replace(" ", "_")):
             return {
                 "status": "error",
                 "message": "level-name: use letters, numbers, underscore, hyphen.",

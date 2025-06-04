@@ -19,7 +19,8 @@ import subprocess
 # Local imports
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.utils.blocked_commands import API_COMMAND_BLACKLIST
+from bedrock_server_manager.config.const import EXPATH
+from bedrock_server_manager.config.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.server import (
     server_actions as core_server_actions,
     server_utils as core_server_utils,
@@ -183,7 +184,7 @@ def start_server(
 
             if platform.system() == "Windows":
                 cli_command_parts = [
-                    settings.expath,
+                    EXPATH,
                     "start-server",
                     "--server",
                     server_name,

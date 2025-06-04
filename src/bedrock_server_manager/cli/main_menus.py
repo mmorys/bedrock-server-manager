@@ -15,7 +15,7 @@ from typing import Optional
 
 # Third-party imports
 try:
-    from colorama import Fore, Style, init
+    from colorama import Fore, Style
 
     COLORAMA_AVAILABLE = True
 except ImportError:
@@ -38,9 +38,8 @@ from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
 )
 from bedrock_server_manager.utils.get_utils import _get_splash_text
-from bedrock_server_manager.config.settings import (
-    settings,
-)
+from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import app_name_title
 from bedrock_server_manager.cli import utils as cli_utils
 from bedrock_server_manager.cli import (
     server_install_config as cli_server_install_config,
@@ -81,7 +80,7 @@ def main_menu(base_dir: str, config_dir: Optional[str] = None) -> None:
             # Clear screen and display header/status
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{settings.app_name_title} - Main Menu{Style.RESET_ALL}"
+                f"\n{Fore.MAGENTA}{app_name_title} - Main Menu{Style.RESET_ALL}"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
@@ -180,7 +179,7 @@ def manage_server(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{settings.app_name_title} - Manage Existing Server{Style.RESET_ALL}\n"
+                f"\n{Fore.MAGENTA}{app_name_title} - Manage Existing Server{Style.RESET_ALL}\n"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
@@ -305,7 +304,7 @@ def install_content(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{settings.app_name_title} - Install Content{Style.RESET_ALL}\n"
+                f"\n{Fore.MAGENTA}{app_name_title} - Install Content{Style.RESET_ALL}\n"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers
@@ -395,7 +394,7 @@ def advanced_menu(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{settings.app_name_title} - Advanced Options{Style.RESET_ALL}\n"
+                f"\n{Fore.MAGENTA}{app_name_title} - Advanced Options{Style.RESET_ALL}\n"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)
@@ -544,7 +543,7 @@ def backup_restore_menu(base_dir: str, config_dir: str) -> None:
         try:
             os.system("cls" if platform.system() == "Windows" else "clear")
             print(
-                f"\n{Fore.MAGENTA}{settings.app_name_title} - Backup / Restore{Style.RESET_ALL}\n"
+                f"\n{Fore.MAGENTA}{app_name_title} - Backup / Restore{Style.RESET_ALL}\n"
             )
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(base_dir, config_dir)  # Show servers

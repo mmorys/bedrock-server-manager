@@ -12,10 +12,11 @@ import random
 from typing import Optional
 
 # Third-party imports
-from flask import url_for, current_app
+from flask import url_for
 
 # Local imports
-from bedrock_server_manager.utils.splash_text import SPLASH_TEXTS
+from bedrock_server_manager.config.splash_text import SPLASH_TEXTS
+from bedrock_server_manager.config.const import app_name_title, get_installed_version
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import SystemError
 
@@ -153,12 +154,12 @@ def _get_app_name() -> str:
         The application name string configured in Flask ('APP_NAME'),
         or a default name if not configured or if called outside a Flask context.
     """
-    default_app_name: str = settings.app_name_title  # Default name
+    default_app_name: str = app_name_title  # Default name
     app_name: str = default_app_name
 
     try:
         # Requires an active Flask application context
-        app_name = settings.app_name_title  # Access the app name from settings
+        app_name = app_name_title  # Access the app name from settings
         logger.debug(
             f"Context Helper: Retrieved app name from Flask config: '{app_name}'"
         )

@@ -143,7 +143,7 @@ def schedule_tasks_route(server_name: str) -> Response:
         "schedule_tasks.html",
         server_name=server_name,
         table_data=table_data,  # List of dicts for the table
-        EXPATH=settings.expath,
+        EXPATH=EXPATH,
     )
 
 

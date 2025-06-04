@@ -36,7 +36,7 @@ from wtforms.validators import DataRequired, Length
 from flask_jwt_extended import create_access_token, JWTManager
 
 # Local imports
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import env_name, app_name_title
 
 logger = logging.getLogger(__name__)
 
@@ -166,8 +166,8 @@ def login() -> Response:
         )
 
         # Retrieve configured credentials securely
-        username_env = f"{settings.env_name}_USERNAME"
-        password_env = f"{settings.env_name}_PASSWORD"
+        username_env = f"{env_name}_USERNAME"
+        password_env = f"{env_name}_PASSWORD"
         expected_username = current_app.config.get(username_env)
         stored_password_hash = current_app.config.get(
             password_env
@@ -184,7 +184,7 @@ def login() -> Response:
             # Return 500 status code as it's a server-side problem
             return (
                 render_template(
-                    "login.html", app_name=settings.app_name_title, form=form
+                    "login.html", app_name_title, form=form
                 ),
                 500,
             )
@@ -226,7 +226,7 @@ def login() -> Response:
             # Return 401 Unauthorized status code
             return (
                 render_template(
-                    "login.html", app_name=settings.app_name_title, form=form
+                    "login.html", app_name=app_name_title, form=form
                 ),
                 401,
             )
@@ -237,7 +237,7 @@ def login() -> Response:
     logger.debug(
         f"Rendering login page (GET request or failed POST validation) from {request.remote_addr}"
     )
-    return render_template("login.html", app_name=settings.app_name_title, form=form)
+    return render_template("login.html", app_name=app_name_title, form=form)
 
 
 # --- API Login Route ---
@@ -287,8 +287,8 @@ def api_login() -> Response:
     )
 
     # Retrieve configured credentials (same as web login)
-    username_env = f"{settings.env_name}_USERNAME"
-    password_env = f"{settings.env_name}_PASSWORD"
+    username_env = f"{env_name}_USERNAME"
+    password_env = f"{env_name}_PASSWORD"
     expected_username = current_app.config.get(username_env)
     stored_password_hash = current_app.config.get(password_env)
 

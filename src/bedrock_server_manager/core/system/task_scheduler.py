@@ -15,7 +15,7 @@ import re
 
 
 # Local imports
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import (
     CommandNotFoundError,
     SystemdReloadError,
@@ -200,7 +200,7 @@ def get_server_cron_jobs(server_name: str) -> List[str]:
         # Filter the jobs
         filtered_jobs: List[str] = []
         server_arg_pattern = f'--server "{server_name}"'  # Basic filter
-        # command_pattern = f"{settings.expath} backup"
+        # command_pattern = f"{EXPATH} backup"
 
         for line in all_jobs.splitlines():
             line = line.strip()
@@ -267,7 +267,7 @@ def _format_cron_command(command_string: str) -> str:
     """
     try:
         command = command_string.strip()
-        script_path_str = str(settings.expath)  # Ensure it's a string
+        script_path_str = str(EXPATH)  # Ensure it's a string
 
         # Remove potential prefixes like the absolute path to the script
         if command.startswith(script_path_str):
@@ -1137,7 +1137,7 @@ def create_windows_task_xml(
     Args:
         server_name: The name of the server (used for storing the XML).
         command: The command to be run by the task (e.g., "start-server", "backup-all").
-                 This will be passed as the first argument to the main script (settings.expath).
+                 This will be passed as the first argument to the main script (EXPATH).
         command_args: Additional arguments to pass to the main script (e.g., "--server-name MyServer").
         task_name: The desired name for the task in Task Scheduler (e.g., "BedrockManager\\MyServer Backup").
         config_dir: The base configuration directory where the XML file will be saved
@@ -1165,8 +1165,8 @@ def create_windows_task_xml(
         raise MissingArgumentError("Config directory cannot be empty.")
     if not isinstance(triggers, list):
         raise TypeError("Triggers must be a list.")
-    if not settings.expath or not os.path.exists(settings.expath):
-        error_msg = f"Main script executable path (_expath) is not configured or does not exist: {settings.expath}"
+    if not EXPATH or not os.path.exists(EXPATH):
+        error_msg = f"Main script executable path (_expath) is not configured or does not exist: {EXPATH}"
         logger.error(error_msg)
         raise FileOperationError(error_msg)
 
@@ -1309,7 +1309,7 @@ def create_windows_task_xml(
         actions = ET.SubElement(task, f"{XML_NAMESPACE}Actions", Context="Author")
         exec_action = ET.SubElement(actions, f"{XML_NAMESPACE}Exec")
         ET.SubElement(exec_action, f"{XML_NAMESPACE}Command").text = str(
-            settings.expath
+            EXPATH
         )  # Full path to the main script executable
         # Combine command and args correctly
         full_command_args = f"{command} {command_args}".strip()

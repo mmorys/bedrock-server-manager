@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 
 # Local imports
 from bedrock_server_manager.config.settings import Settings, settings as global_settings
+from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
 from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     ConfigError,
@@ -36,9 +37,9 @@ class BedrockServerManager:
         try:
             self._config_dir = self.settings.config_dir
             self._app_data_dir = self.settings.app_data_dir
-            self._expath = self.settings.expath
-            self._app_name_title = self.settings.app_name_title
-            self._package_name = self.settings.package_name
+            self._expath = EXPATH
+            self._app_name_title = app_name_title
+            self._package_name = package_name
         except AttributeError as e:
             # This happens if Settings class is missing the @property getters
             logger.error(

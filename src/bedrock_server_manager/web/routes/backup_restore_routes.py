@@ -31,6 +31,7 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     get_current_identity,
 )
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.config.const import app_name_title
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileNotFoundError,
@@ -70,7 +71,7 @@ def backup_menu_route(server_name: str) -> Response:
     return render_template(
         "backup_menu.html",
         server_name=server_name,
-        app_name=settings.app_name_title,
+        app_name=app_name_title,
     )
 
 
@@ -177,7 +178,7 @@ def backup_config_select_route(server_name: str) -> Response:
     return render_template(
         "backup_config_options.html",
         server_name=server_name,
-        app_name=settings.app_name_title,
+        app_name=app_name_title,
     )
 
 
@@ -328,7 +329,7 @@ def restore_menu_route(server_name: str) -> Response:
     return render_template(
         "restore_menu.html",
         server_name=server_name,
-        app_name=settings.app_name_title,
+        app_name=app_name_title,
     )
 
 
@@ -596,7 +597,7 @@ def restore_select_backup_route(server_name: str) -> Response:
                 server_name=server_name,
                 restore_type=restore_type,
                 backups=backup_details,  # Pass list of dicts with path and name
-                app_name=settings.app_name_title,
+                app_name=app_name_title,
             )
         else:
             # Error reported by the list_backup_files handler

@@ -22,6 +22,7 @@ from flask import (
 from bedrock_server_manager.api import world as world_api
 from bedrock_server_manager.api import addon as addon_api
 from bedrock_server_manager.api import application as api_application
+from bedrock_server_manager.config.const import app_name_title
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
@@ -222,7 +223,7 @@ def install_world_route(server_name: str) -> Response:
         "select_world.html",
         server_name=server_name,
         world_files=world_files,  # List of full paths to .mcworld files
-        app_name=settings.app_name_title,
+        app_name=app_name_title,
     )
 
 
@@ -644,7 +645,7 @@ def install_addon_route(server_name: str) -> Response:
         "select_addon.html",
         server_name=server_name,
         addon_files=addon_files,  # List of full paths to addon files
-        app_name=settings.app_name_title,
+        app_name=app_name_title,
     )
 
 

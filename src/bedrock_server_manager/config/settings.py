@@ -9,29 +9,15 @@ saving changes, and determining appropriate application directories.
 import os
 import json
 import logging
-from importlib.metadata import version, PackageNotFoundError
 from bedrock_server_manager.error import ConfigError
-from bedrock_server_manager.utils import package_finder
+from bedrock_server_manager.config.const import (
+    package_name,
+    env_name,
+    get_installed_version,
+)
+
 
 logger = logging.getLogger(__name__)
-
-# --- Package Constants ---
-package_name = "bedrock-server-manager"
-executable_name = package_name
-app_name_title = package_name.replace("-", " ").title()
-env_name = package_name.replace("-", "_").upper()
-
-# --- Package Information ---
-EXPATH = package_finder.find_executable(package_name, executable_name)
-
-
-try:
-    installed_version = version(package_name)
-except PackageNotFoundError:
-    installed_version = "0.0.0"
-    logger.warning(
-        f"Could not find package metadata for '{package_name}'. Version set to {installed_version}."
-    )
 
 
 class Settings:
@@ -42,11 +28,7 @@ class Settings:
         self.config_file_name = "script_config.json"
         self.config_path = os.path.join(self._config_dir_path, self.config_file_name)
 
-        self._expath_val = EXPATH
-        self._env_name_val = env_name
-        self._app_name_title_val = app_name_title
-        self._package_name_val = package_name
-        self._version_val = installed_version
+        self._version_val = get_installed_version()
 
         self._settings = {}
         self.load()
@@ -141,24 +123,8 @@ class Settings:
         return self._app_data_dir_path
 
     @property
-    def expath(self) -> str:
-        return self._expath_val
-
-    @property
-    def app_name_title(self) -> str:
-        return self._app_name_title_val
-
-    @property
-    def package_name(self) -> str:
-        return self._package_name_val
-
-    @property
     def version(self) -> str:
         return self._version_val
-
-    @property
-    def env_name(self) -> str:
-        return self._env_name_val
 
 
 settings = Settings()

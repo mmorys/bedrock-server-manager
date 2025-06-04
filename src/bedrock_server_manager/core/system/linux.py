@@ -16,7 +16,7 @@ import shutil
 from datetime import datetime
 
 # Local imports
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import (
     CommandNotFoundError,
     ServerNotRunningError,
@@ -98,9 +98,9 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
         raise InvalidServerNameError("Server name cannot be empty.")
     if not base_dir:
         raise MissingArgumentError("Base directory cannot be empty.")
-    if not settings.expath or not os.path.isfile(settings.expath):
+    if not EXPATH or not os.path.isfile(EXPATH):
         raise FileOperationError(
-            f"Main script executable path (_expath) is invalid or not set: {settings.expath}"
+            f"Main script executable path (EXPATH) is invalid or not set: {EXPATH}"
         )
 
     server_dir = os.path.join(base_dir, server_name)
@@ -130,7 +130,7 @@ def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -
     if autoupdate:
         # Ensure server_name is quoted if it contains spaces
         autoupdate_line = (
-            f'ExecStartPre={settings.expath} update-server --server "{server_name}"'
+            f'ExecStartPre={EXPATH} update-server --server "{server_name}"'
         )
         logger.debug(f"Autoupdate enabled for service '{service_name}'.")
     else:
@@ -153,10 +153,10 @@ WorkingDirectory={server_dir}
 # Environment="LD_LIBRARY_PATH=."
 {autoupdate_line}
 # Use absolute path to _expath
-ExecStart={settings.expath} start-server --server "{server_name}" --mode direct
-ExecStop={settings.expath} systemd-stop --server "{server_name}"
+ExecStart={EXPATH} start-server --server "{server_name}" --mode direct
+ExecStop={EXPATH} systemd-stop --server "{server_name}"
 # ExecReload might not be necessary if stop/start works reliably
-# ExecReload={settings.expath} systemd-stop --server "{server_name}" && {settings.expath} start-server --server "{server_name}" -mode direct
+# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} start-server --server "{server_name}" -mode direct
 # Restart behavior
 Restart=on-failure
 RestartSec=10s

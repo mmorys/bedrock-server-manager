@@ -34,11 +34,9 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
-from ..core.system import task_scheduler as core_task
-from bedrock_server_manager.config.settings import (
-    settings,
-)
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import EXPATH, app_name_title
+from bedrock_server_manager.config import settings
+from bedrock_server_manager.core.system import task_scheduler as core_task
 
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -54,7 +52,7 @@ from bedrock_server_manager.utils.general import (
 
 logger = logging.getLogger(__name__)
 
-APP_DISPLAY_NAME = settings.app_name_title
+APP_DISPLAY_NAME = app_name_title
 
 
 def task_scheduler(server_name: str, base_dir: Optional[str] = None) -> None:
@@ -278,25 +276,25 @@ def add_cron_job(server_name: str) -> None:
     command_options = {
         1: (
             "Update Server",
-            f'{settings.expath} update-server --server "{server_name}"',
+            f'{EXPATH} update-server --server "{server_name}"',
         ),
         2: (
             "Backup Server (All)",
-            f'{settings.expath} backup-all --server "{server_name}"',
+            f'{EXPATH} backup-all --server "{server_name}"',
         ),
         3: (
             "Start Server",
-            f'{settings.expath} start-server --server "{server_name}"',
+            f'{EXPATH} start-server --server "{server_name}"',
         ),
         4: (
             "Stop Server",
-            f'{settings.expath} stop-server --server "{server_name}"',
+            f'{EXPATH} stop-server --server "{server_name}"',
         ),
         5: (
             "Restart Server",
-            f'{settings.expath} restart-server --server "{server_name}"',
+            f'{EXPATH} restart-server --server "{server_name}"',
         ),
-        6: ("Scan Players", f"{settings.expath} scan-players"),
+        6: ("Scan Players", f"{EXPATH} scan-players"),
     }
     for idx, (desc, _) in command_options.items():
         print(f"  {idx}) {desc}")
