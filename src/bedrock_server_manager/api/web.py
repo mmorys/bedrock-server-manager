@@ -11,7 +11,7 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 
-from bedrock_server_manager.manager import BedrockServerManager
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core.system import process as system_process_utils
 from bedrock_server_manager.error import (
     ConfigError,

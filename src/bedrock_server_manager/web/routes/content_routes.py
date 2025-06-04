@@ -21,7 +21,7 @@ from flask import (
 # Local imports
 from bedrock_server_manager.api import world as world_api
 from bedrock_server_manager.api import addon as addon_api
-from bedrock_server_manager.api import utils as utils_api
+from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
@@ -73,7 +73,7 @@ def list_worlds_route() -> Tuple[Response, int]:
     response_dict: Dict[str, Any]
 
     try:
-        api_result = utils_api.list_available_worlds_api()
+        api_result = api_application.list_available_worlds_api()
 
         if api_result.get("status") == "success":
             status_code = 200
@@ -137,7 +137,7 @@ def list_addons_route() -> Tuple[Response, int]:
     response_dict: Dict[str, Any]
 
     try:
-        api_result = utils_api.list_available_addons_api()
+        api_result = api_application.list_available_addons_api()
 
         if api_result.get("status") == "success":
             status_code = 200
@@ -200,7 +200,7 @@ def install_world_route(server_name: str) -> Response:
     logger.debug(f"World content directory: {content_dir}")
 
     # API call to list available .mcworld files
-    list_result: Dict[str, Any] = utils_api.list_available_worlds_api()
+    list_result: Dict[str, Any] = api_application.list_available_worlds_api()
     logger.debug(f"List content files API result: {list_result}")
 
     world_files: List[str] = []
@@ -622,7 +622,7 @@ def install_addon_route(server_name: str) -> Response:
     logger.debug(f"Addon content directory: {content_dir}")
 
     # API call to list available addon files
-    list_result = utils_api.list_available_addons_api()
+    list_result = api_application.list_available_addons_api()
     logger.debug(f"List content files API result: {list_result}")
 
     addon_files: List[str] = []

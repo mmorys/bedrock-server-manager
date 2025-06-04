@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Optional
 from flask import Blueprint, render_template, redirect, url_for, flash, Response
 
 # Local imports
-from bedrock_server_manager.api import utils as api_utils
+from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import world as api_world
 from bedrock_server_manager.utils.general import get_base_dir
 from bedrock_server_manager.web.routes.auth_routes import login_required
@@ -47,8 +47,8 @@ def index() -> Response:
         logger.debug(f"Using base directory: {base_dir}")
 
         # API call to get status for all servers
-        logger.debug("Calling API: api_utils.get_all_servers_status")
-        status_response = api_utils.get_all_servers_status(
+        logger.debug("Calling API: api_application.get_all_servers_status")
+        status_response = api_application.get_all_servers_data(
             base_dir=base_dir
         )  # Returns dict
 

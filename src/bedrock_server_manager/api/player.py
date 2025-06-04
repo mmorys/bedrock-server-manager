@@ -11,7 +11,7 @@ Functions typically return a dictionary indicating success or failure status.
 import logging
 from typing import Dict, List, Optional, Any
 
-from bedrock_server_manager.manager import BedrockServerManager
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import (
     FileOperationError,
     InvalidInputError,

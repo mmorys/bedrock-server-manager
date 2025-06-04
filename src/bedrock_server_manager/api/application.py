@@ -1,8 +1,8 @@
 # bedrock-server-manager/src/bedrock_server_manager/api/application.py
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 
-from bedrock_server_manager.manager import BedrockServerManager
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import DirectoryError, FileOperationError
 
 logger = logging.getLogger(__name__)
@@ -50,29 +50,45 @@ def list_available_addons_api() -> Dict[str, Any]:
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
 
-def list_potential_servers_api() -> Dict[str, Any]:
-    logger.debug("API: Requesting list of potential server directories.")
+def get_all_servers_data() -> Dict[str, Any]:
+    """
+    Retrieves the last known status and installed version for all detected servers.
+    (API orchestrator using core_server_actions functions)
+    """
+    logger.debug("API.get_all_servers_data: Getting status for all servers...")
+
     try:
-        server_dirs = bsm.list_potential_server_dirs()
-        return {"status": "success", "server_directories": server_dirs}
-    except DirectoryError as e:
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(f"API: Unexpected error listing server dirs: {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
+        # Call the core function
+        servers_data, bsm_error_messages = bsm.get_servers_data()
 
-def validate_server_name_format_api(server_name: str) -> Dict[str, str]:
-    logger.debug(f"API: Validating server name format for '{server_name}'.")
-    if not server_name or not isinstance(server_name, str):
-        return {"status": "error", "message": "Server name must be a non-empty string."}
+        if bsm_error_messages:
+            # Log all individual errors that the core layer collected
+            for err_msg in bsm_error_messages:
+                logger.error(
+                    f"API.get_all_servers_data: Individual server error: {err_msg}"
+                )
+            return {
+                "status": "success",  # Partial success
+                "servers": servers_data,
+                "message": f"Completed with errors: {'; '.join(bsm_error_messages)}",
+            }
 
-    if bsm.is_valid_server_name_format(server_name):
-        return {"status": "success", "message": "Server name format is valid."}
-    else:
-        # BSM's method is boolean, so API provides a more descriptive error.
-        # Could enhance BSM's method to return reason or raise InvalidInputError.
+        return {"status": "success", "servers": servers_data}
+
+    except (
+        FileOperationError,
+        DirectoryError,
+    ) as e:  # Catch setup/IO errors from API or Core
+        logger.error(f"API.get_all_servers_data: Setup or IO error: {e}", exc_info=True)
         return {
             "status": "error",
-            "message": "Server name format is invalid (e.g., contains spaces, special characters, or is empty).",
+            "message": f"Error accessing directories or configuration: {e}",
         }
+    except (
+        Exception
+    ) as e:  # Catch any other unexpected errors (e.g., from core_server_utils if not caught in get_all_servers_data)
+        logger.error(
+            f"API.get_all_servers_status: Unexpected error: {e}", exc_info=True
+        )
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}

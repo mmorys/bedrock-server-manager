@@ -11,7 +11,7 @@ from bedrock_server_manager.core.server import server_actions as core_server_act
 from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.core import utils as core_utils
 from bedrock_server_manager.utils import get_utils
-from bedrock_server_manager.manager import BedrockServerManager
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
@@ -114,75 +114,6 @@ def validate_server_name_format(server_name: str) -> Dict[str, str]:
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
-def get_all_servers_status(
-    base_dir: Optional[str] = None, config_dir: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Retrieves the last known status and installed version for all detected servers.
-    (API orchestrator using core_server_actions functions)
-    """
-    servers_data: List[Dict[str, str]] = []
-    error_messages = []
-    logger.debug("API.get_all_servers_status: Getting status for all servers...")
-
-    try:
-        effective_base_dir = get_base_dir(base_dir)
-        effective_config_dir = (
-            config_dir
-            if config_dir is not None
-            else getattr(settings, "config_dir", None)
-        )
-        if not effective_config_dir:
-            raise FileOperationError(
-                "Base configuration directory not set in settings."
-            )
-        if not os.path.isdir(effective_base_dir):
-            raise DirectoryError(
-                f"Server base directory does not exist: {effective_base_dir}"
-            )
-
-        for item_name in os.listdir(effective_base_dir):
-            item_path = os.path.join(effective_base_dir, item_name)
-            if os.path.isdir(item_path):
-                server_name = item_name
-                try:
-                    # Using core_server_actions (core.server.server_actions)
-                    status = core_server_utils.get_server_status_from_config(
-                        server_name, effective_config_dir
-                    )
-                    version = core_server_utils.get_installed_version(
-                        server_name, effective_config_dir
-                    )
-                    servers_data.append(
-                        {"name": server_name, "status": status, "version": version}
-                    )
-                except (
-                    FileOperationError,
-                    InvalidServerNameError,
-                ) as e:  # API level errors
-                    msg = f"Could not get info for server '{server_name}': {e}"
-                    logger.error(f"API.get_all_servers_status: {msg}", exc_info=True)
-                    error_messages.append(msg)
-                # Core functions might raise their own errors if not caught here, e.g. core.ConfigurationError
-
-        if error_messages:
-            return {
-                "status": "success",  # Partial success
-                "servers": servers_data,
-                "message": f"Completed with errors: {'; '.join(error_messages)}",
-            }
-        return {"status": "success", "servers": servers_data}
-
-    except (FileOperationError, DirectoryError) as e:  # API level setup errors
-        logger.error(f"API.get_all_servers_status: Setup error: {e}", exc_info=True)
-        return {"status": "error", "message": f"Error accessing directories: {e}"}
-    except Exception as e:
-        logger.error(
-            f"API.get_all_servers_status: Unexpected error: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
 def update_server_statuses(
     base_dir: Optional[str] = None, config_dir: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -278,71 +209,6 @@ def update_server_statuses(
             f"API.update_server_statuses: Unexpected error: {e}", exc_info=True
         )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
-def list_available_worlds_api() -> Dict[str, Any]:  # Renamed for clarity (API function)
-    """
-    API endpoint to list available world files (e.g., .mcworld)
-    from the configured content directory.
-    """
-    logger.debug("API: Requesting list of available worlds.")
-    try:
-        # Call the BSM method directly
-        world_files = bsm.list_available_worlds()
-
-        if not world_files:
-            return {
-                "status": "success",
-                "files": [],
-                "message": "No world files found in the content directory.",
-            }
-        return {
-            "status": "success",
-            "files": world_files,  # BSM method already returns List[str] of basenames
-        }
-    except (DirectoryError, FileOperationError) as e:
-        # These are exceptions that bsm.list_available_worlds might raise if
-        # CONTENT_DIR is misconfigured or inaccessible.
-        logger.error(f"API Error listing worlds: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        # Catch any other unexpected errors from BSM or this layer
-        logger.error(
-            f"API: Unexpected error listing available worlds: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
-
-
-def list_available_addons_api() -> Dict[str, Any]:  # Renamed for clarity (API function)
-    """
-    API endpoint to list available addon files (e.g., .mcpack, .mcaddon)
-    from the configured content directory.
-    """
-    logger.debug("API: Requesting list of available addons.")
-    try:
-        # Call the BSM method directly
-        addon_files = bsm.list_available_addons()
-
-        if not addon_files:
-            return {
-                "status": "success",
-                "files": [],
-                "message": "No addon files found in the content directory.",
-            }
-        return {
-            "status": "success",
-            "files": addon_files,  # BSM method already returns List[str] of basenames
-        }
-    except (DirectoryError, FileOperationError) as e:
-        # These are exceptions that bsm.list_available_addons might raise
-        logger.error(f"API Error listing addons: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        # Catch any other unexpected errors from BSM or this layer
-        logger.error(
-            f"API: Unexpected error listing available addons: {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
 
 
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:

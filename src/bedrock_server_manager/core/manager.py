@@ -1,20 +1,25 @@
-# bedrock-server-manager/src/bedrock_server_manager/manager.py
+# bedrock-server-manager/src/bedrock_server_manager/core/manager.py
 import os
 import json
 import re
 import glob
 import logging
 import platform
-from typing import Optional, List, Dict, Any, Union
-from importlib.metadata import version as get_package_version, PackageNotFoundError
+from typing import Optional, List, Dict, Any, Union, Tuple
+
+from itsdangerous import exc
 
 # Local imports
-from .config.settings import Settings, settings as global_settings
-from .error import (
+from bedrock_server_manager.config.settings import Settings, settings as global_settings
+from bedrock_server_manager.core.server import server_utils as core_server_utils
+from bedrock_server_manager.core.server.server_utils import validate_server
+from bedrock_server_manager.error import (
     ConfigError,
     FileOperationError,
     InvalidInputError,
     DirectoryError,
+    InvalidServerNameError,
+    ConfigurationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,9 +56,9 @@ class BedrockServerManager:
         self._WEB_SERVER_START_ARG = "start-web-server"
 
         try:
-            self._app_version = get_package_version(self._package_name)
-        except PackageNotFoundError:
             self._app_version = self.settings.version
+        except Exception:
+            self._app_version = "0.0.0"
 
         if not self._base_dir:
             raise ConfigError("BASE_DIR not configured in settings.")
@@ -279,7 +284,9 @@ class BedrockServerManager:
     ) -> None:
         logger.info("BSM: Starting web application in direct mode (blocking)...")
         try:
-            from .web.app import run_web_server as run_bsm_web_application
+            from bedrock_server_manager.web.app import (
+                run_web_server as run_bsm_web_application,
+            )
 
             run_bsm_web_application(host, debug)  # This blocks
             logger.info("BSM: Web application (direct mode) shut down.")
@@ -354,47 +361,48 @@ class BedrockServerManager:
         return platform.system()
 
     # --- Server Discovery (Passive - just lists directories) ---
-    def list_potential_server_dirs(self) -> List[str]:
-        """Lists subdirectories in BASE_DIR, considered potential server installations."""
-        if not self._base_dir or not os.path.isdir(self._base_dir):
-            logger.warning(
-                f"BSM: Base directory '{self._base_dir}' not found or not a directory."
-            )
-            return []
+    def get_servers_data(self) -> Tuple[List[Dict[str, str]], List[str]]:
+        """
+        Logic to retrieve status and version for all servers.
+        Collects data for successfully processed servers and error messages for failures.
+        Raises DirectoryError if self._base_dir is invalid.
+        """
+        servers_data: List[Dict[str, str]] = []
+        error_messages: List[str] = []
 
-        server_dirs = []
-        try:
-            for item_name in os.listdir(self._base_dir):
-                if os.path.isdir(os.path.join(self._base_dir, item_name)):
-                    server_dirs.append(item_name)
-        except OSError as e:
+        if not os.path.isdir(self._base_dir):
+            # This is a fundamental setup error for the core operation
             raise DirectoryError(
-                f"Error listing server directories in '{self._base_dir}': {e}"
-            ) from e
-        return sorted(server_dirs)
+                f"Server base directory does not exist or is not a directory: {self._base_dir}"
+            )
 
-    # --- Validation (Stateless format check) ---
-    @staticmethod
-    def is_valid_server_name_format(server_name: str) -> bool:
-        """
-        Validates the format of a server name.
-        - Cannot be empty or just whitespace.
-        - Should not contain problematic characters for directory names (e.g., /, \\, :, *, ?, ", <, >, |).
-        - Should not start or end with a dot or space.
-        """
-        if not server_name or not server_name.strip():
-            return False
-        if (
-            server_name.startswith(".")
-            or server_name.endswith(".")
-            or server_name.startswith(" ")
-            or server_name.endswith(" ")
-        ):
-            return False
+        for item_name in os.listdir(self._base_dir):
+            item_path = os.path.join(self._base_dir, item_name)
+            if os.path.isdir(item_path):
+                server_name = item_name
+                try:
+                    # These utils functions are expected to raise their specific exceptions
+                    # (FileOperationError, InvalidServerNameError, ConfigurationError etc.) on failure.
+                    status = core_server_utils.get_server_status_from_config(
+                        server_name, self._config_dir
+                    )
+                    version = core_server_utils.get_installed_version(
+                        server_name, self._config_dir
+                    )
+                    servers_data.append(
+                        {"name": server_name, "status": status, "version": version}
+                    )
+                except (
+                    FileOperationError,
+                    InvalidServerNameError,
+                    ConfigurationError,  # Catching a broader range of core-level issues
+                ) as e:
+                    # Collect error message for this specific server
+                    msg = f"Could not get info for server '{server_name}': {e}"
+                    # Core layer might have its own, more detailed/debug logging if needed
+                    # logger.debug(f"Core._core_get_all_servers_data: {msg}", exc_info=True)
+                    error_messages.append(msg)
+                # Any other unexpected exceptions within the loop for a specific server would propagate
+                # and be caught by the API layer's generic Exception handler.
 
-        # Basic check for common problematic characters. This can be expanded.
-        # Python's os.makedirs would fail anyway, but good to pre-validate.
-        problem_chars = re.compile(r'[<>:"/\\|?*\x00-\x1f]')  # Control chars too
-        if problem_chars.search(server_name):
-            return False
-        return True
+        return servers_data, error_messages
