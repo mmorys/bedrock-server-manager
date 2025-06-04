@@ -48,9 +48,7 @@ def index() -> Response:
 
         # API call to get status for all servers
         logger.debug("Calling API: api_application.get_all_servers_status")
-        status_response = api_application.get_all_servers_data(
-            base_dir=base_dir
-        )  # Returns dict
+        status_response = api_application.get_all_servers_data()
 
         if status_response.get("status") == "error":
             error_msg = f"Error retrieving server statuses: {status_response.get('message', 'Unknown error')}"
