@@ -79,9 +79,7 @@ def main_menu(base_dir: str, config_dir: Optional[str] = None) -> None:
         try:
             # Clear screen and display header/status
             os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"\n{Fore.MAGENTA}{app_name_title} - Main Menu{Style.RESET_ALL}"
-            )
+            print(f"\n{Fore.MAGENTA}{app_name_title} - Main Menu{Style.RESET_ALL}")
             print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
             cli_utils.list_servers_status(
                 base_dir, config_dir
