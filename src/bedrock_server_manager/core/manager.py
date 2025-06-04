@@ -8,7 +8,7 @@ import platform
 from typing import Optional, List, Dict, Any, Union, Tuple
 
 # Local imports
-from bedrock_server_manager.config.settings import Settings, settings as global_settings
+from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
 from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
@@ -18,6 +18,7 @@ from bedrock_server_manager.error import (
     DirectoryError,
     InvalidServerNameError,
     ConfigurationError,
+    MissingArgumentError,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class BedrockServerManager:
         if settings_instance:
             self.settings = settings_instance
         else:
-            self.settings = global_settings
+            self.settings = Settings()
         logger.debug(
             f"BedrockServerManager initialized using settings from: {self.settings.config_path}"
         )
@@ -37,11 +38,10 @@ class BedrockServerManager:
         try:
             self._config_dir = self.settings.config_dir
             self._app_data_dir = self.settings.app_data_dir
-            self._expath = EXPATH
             self._app_name_title = app_name_title
             self._package_name = package_name
-        except AttributeError as e:
-            # This happens if Settings class is missing the @property getters
+            self._expath = EXPATH
+        except Exception as e:
             logger.error(
                 f"BSM Init Error: Settings object missing expected property. Details: {e}"
             )
@@ -358,7 +358,52 @@ class BedrockServerManager:
     def get_os_type(self) -> str:
         return platform.system()
 
-    # --- Server Discovery (Passive - just lists directories) ---
+    # --- Server Discovery ---
+
+    def validate_server(self, server_name: str) -> bool:
+        """
+        Validates if a server installation exists and seems minimally correct.
+
+        Checks for the existence of the server executable within the expected directory.
+
+        Args:
+            server_name: The name of the server.
+
+        Returns:
+            True if the server executable exists.
+            False if directory or executable don't exist
+
+        Raises:
+            MissingArgumentError: If `server_name` is empty.
+
+        """
+        if not server_name:
+            raise MissingArgumentError("Server name cannot be empty.")
+
+        server_dir = os.path.join(self._base_dir, server_name)
+        logger.debug(f"Validating server '{server_name}' in directory: {server_dir}")
+
+        if not os.path.isdir(server_dir):
+            error_msg = f"Server directory not found: {server_dir}"
+            logger.debug(error_msg)
+            return False
+
+        # Determine expected executable name based on OS
+        exe_name = (
+            "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
+        )
+        exe_path = os.path.join(server_dir, exe_name)
+
+        if not os.path.isfile(exe_path):
+            error_msg = (
+                f"Server executable '{exe_name}' not found in directory: {server_dir}"
+            )
+            logger.debug(error_msg)
+            return False
+
+        logger.debug(f"Server '{server_name}' validation successful (executable found).")
+        return True
+
     def get_servers_data(self) -> Tuple[List[Dict[str, str]], List[str]]:
         """
         Logic to retrieve status and version for all servers.
@@ -376,7 +421,7 @@ class BedrockServerManager:
 
         for item_name in os.listdir(self._base_dir):
             item_path = os.path.join(self._base_dir, item_name)
-            if os.path.isdir(item_path):
+            if self.validate_server(item_path):
                 server_name = item_name
                 try:
                     # These utils functions are expected to raise their specific exceptions
