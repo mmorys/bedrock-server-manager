@@ -995,9 +995,7 @@ def update_server(
         )  # Needed for no_update_needed
 
         # Send initial message if server is running
-        if send_message and core_server_actions.check_if_server_is_running(
-            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
-        ):
+        if send_message and core_server_actions.check_if_server_is_running(server_name):
             logger.info(
                 f"API: Server '{server_name}' running. Sending update check notification..."
             )
@@ -1038,9 +1036,7 @@ def update_server(
             }
 
         # Send "installing update" message if running
-        if send_message and core_server_actions.check_if_server_is_running(
-            server_name, base_dir=effective_base_dir, config_dir=app_config_dir
-        ):
+        if send_message and core_server_actions.check_if_server_is_running(server_name):
             api_send_command(
                 server_name, "say Server is updating now..."
             )  # Fire and forget
