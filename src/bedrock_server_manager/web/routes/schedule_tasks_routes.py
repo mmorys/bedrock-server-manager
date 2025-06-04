@@ -34,6 +34,7 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.config.settings import (
     settings,
 )
+from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
