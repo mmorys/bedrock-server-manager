@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/backup_restore.py
+# bedrock_server_manager/api/backup_restore.py
 """
 Provides API-level functions for managing server backups and restores.
 

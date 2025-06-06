@@ -1,4 +1,4 @@
-// bedrock-server-manager/src/bedrock_server_manager/web/static/js/utils.js
+// bedrock_server_manager/web/static/js/utils.js
 /**
  * @fileoverview Utility functions for the Bedrock Server Manager web interface,
  * including status message display and asynchronous API request handling.

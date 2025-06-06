@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/server/server_install_config.py
+# bedrock_server_manager/core/server/server_install_config.py
 """
 Core module for managing Bedrock server instances.
 """

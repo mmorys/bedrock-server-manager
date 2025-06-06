@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/player/player.py
+# bedrock_server_manager/core/player/player.py
 """
 Manages player information for the Bedrock server.
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/addon.py
+# bedrock_server_manager/cli/addon.py
 """
 Command-line interface functions for managing server addons (worlds, packs).
 

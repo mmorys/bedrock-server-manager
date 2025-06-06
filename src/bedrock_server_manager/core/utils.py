@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/utils.py
+# bedrock_server_manager/core/utils.py
 
 import os
 import re

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/world.py
+# bedrock_server_manager/cli/world.py
 """
 Command-line interface functions for managing server worlds.
 

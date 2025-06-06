@@ -1,4 +1,4 @@
-// bedrock-server-manager/src/bedrock_server_manager/web/static/js/windows_task.js
+// bedrock_server_manager/web/static/js/windows_task.js
 /**
  * @fileoverview Frontend JavaScript for managing Windows Scheduled Tasks via the web UI.
  * Handles dynamic form creation for triggers, populating the form for modification,

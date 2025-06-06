@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/utils.py
+# bedrock_server_manager/cli/utils.py
 """
 Provides utility functions specifically for the command-line interface (CLI).
 

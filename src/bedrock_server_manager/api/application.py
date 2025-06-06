@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/application.py
+# bedrock_server_manager/api/application.py
 import logging
 from typing import Dict, Any
 

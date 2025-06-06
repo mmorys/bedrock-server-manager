@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/main_menus.py
+# bedrock_server_manager/cli/main_menus.py
 """
 Defines the main interactive menu flows for the Bedrock Server Manager CLI.
 

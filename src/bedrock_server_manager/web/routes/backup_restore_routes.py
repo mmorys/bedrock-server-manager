@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/backup_restore_routes.py
+# bedrock_server_manager/web/routes/backup_restore_routes.py
 """
 Flask Blueprint handling web routes and API endpoints for server backup
 and restore operations.

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/app.py
+# bedrock_server_manager/web/app.py
 """
 Initializes and configures the Flask web application instance.
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/auth_routes.py
+# bedrock_server_manager/web/routes/auth_routes.py
 """
 Flask Blueprint for handling user authentication.
 

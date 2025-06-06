@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/config/const.py
+# bedrock_server_manager/config/const.py
 from importlib.metadata import version, PackageNotFoundError
 
 # Local imports

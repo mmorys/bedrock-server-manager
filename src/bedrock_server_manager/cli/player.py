@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/player.py
+# bedrock_server_manager/cli/player.py
 """
 Command-line interface functions for managing player data.
 

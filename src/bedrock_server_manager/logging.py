@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/logging.py
+# bedrock_server_manager/logging.py
 """
 Configures and manages logging for the bedrock-server-manager application.
 

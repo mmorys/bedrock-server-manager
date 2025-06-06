@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/manager.py
+# bedrock_server_manager/core/manager.py
 import os
 import json
 import re

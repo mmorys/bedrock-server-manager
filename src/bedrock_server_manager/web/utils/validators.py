@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/validators.py
+# bedrock_server_manager/web/validators.py
 """
 Registers Flask request preprocessors for validation tasks.
 

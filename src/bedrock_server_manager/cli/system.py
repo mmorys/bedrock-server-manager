@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/system.py
+# bedrock_server_manager/cli/system.py
 """
 Command-line interface functions for system-level operations related to servers.
 

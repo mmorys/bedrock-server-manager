@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/system/linux.py
+# bedrock_server_manager/core/system/linux.py
 """
 Provides Linux-specific implementations for system interactions.
 

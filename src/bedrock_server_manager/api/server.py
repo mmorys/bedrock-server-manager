@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/server.py
+# bedrock_server_manager/api/server.py
 """
 Provides API-level functions for managing Bedrock server instances.
 

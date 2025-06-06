@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/system/task_scheduler.py
+# bedrock_server_manager/core/system/task_scheduler.py
 """
 Provides scheduling tasks related to Bedrock servers.
 """

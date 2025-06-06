@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/action_routes.py
+# bedrock_server_manager/web/routes/action_routes.py
 """
 Flask Blueprint defining API endpoints for controlling Bedrock server instances.
 

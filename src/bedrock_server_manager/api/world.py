@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/world.py
+# bedrock_server_manager/api/world.py
 """
 Provides API-level functions for managing Bedrock server worlds.
 """

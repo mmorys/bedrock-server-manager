@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/system/base.py
+# bedrock_server_manager/core/system/base.py
 """
 Provides base system utilities and cross-platform functionalities.
 

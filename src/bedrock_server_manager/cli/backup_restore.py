@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/backup_restore.py
+# bedrock_server_manager/cli/backup_restore.py
 """
 Command-line interface functions for handling server backup and restore operations.
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/config/settings.py
+# bedrock_server_manager/config/settings.py
 """
 Manages application configuration settings.
 

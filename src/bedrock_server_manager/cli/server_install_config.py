@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/server_install_config.py
+# bedrock_server_manager/cli/server_install_config.py
 """
 Command-line interface functions for server installation and configuration workflows.
 

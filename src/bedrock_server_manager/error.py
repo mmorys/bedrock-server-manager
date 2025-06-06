@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/error.py
+# bedrock_server_manager/core/error.py
 class BedrockManagerError(Exception):
     """Base class for all custom exceptions in this project."""
 

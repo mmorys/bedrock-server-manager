@@ -1,4 +1,4 @@
-// bedrock-server-manager/src/bedrock_server_manager/web/static/js/content_management.js
+// bedrock_server_manager/web/static/js/content_management.js
 /**
  * @fileoverview Frontend JavaScript functions for triggering content installation
  * (worlds and addons) via API calls based on user interaction.

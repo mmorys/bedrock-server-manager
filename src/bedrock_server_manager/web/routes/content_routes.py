@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/content_routes.py
+# bedrock_server_manager/web/routes/content_routes.py
 """
 Flask Blueprint for handling web routes and API endpoints related to
 server content management (Worlds, Addons).

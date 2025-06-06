@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/util_routes.py
+# bedrock_server_manager/web/routes/util_routes.py
 """
 Flask Blueprint for utility routes within the web application.
 

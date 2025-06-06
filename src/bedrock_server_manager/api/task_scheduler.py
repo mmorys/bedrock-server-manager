@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/task_scheduler.py
+# bedrock_server_manager/api/task_scheduler.py
 """
 Provides API-level functions for managing scheduled tasks across platforms.
 

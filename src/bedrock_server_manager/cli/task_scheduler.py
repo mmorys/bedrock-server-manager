@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/task_scheduler.py
+# bedrock_server_manager/cli/task_scheduler.py
 """
 Command-line interface functions for managing scheduled tasks.
 

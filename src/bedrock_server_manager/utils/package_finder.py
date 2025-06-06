@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/utils/package_finder.py
+# bedrock_server_manager/utils/package_finder.py
 """
 Utility function to locate the installed executable path for a given package.
 

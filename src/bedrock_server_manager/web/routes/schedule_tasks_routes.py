@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/schedule_tasks_routes.py
+# bedrock_server_manager/web/routes/schedule_tasks_routes.py
 """
 Flask Blueprint handling web routes and API endpoints for managing scheduled tasks
 (Linux cron jobs and Windows Task Scheduler tasks) related to server operations.

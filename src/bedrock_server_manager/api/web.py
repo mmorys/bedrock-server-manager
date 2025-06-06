@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/web.py
+# bedrock_server_manager/api/web.py
 import logging
 from typing import Dict, Optional, Any, List, Union
 import os

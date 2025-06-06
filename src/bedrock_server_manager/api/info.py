@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/info.py
+# bedrock_server_manager/api/info.py
 """
 Provides API-level functions for retrieving specific server information or status.
 These typically wrap core functions to provide consistent dictionary outputs.

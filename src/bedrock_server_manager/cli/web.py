@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/cli/web.py
+# bedrock_server_manager/cli/web.py
 """
 Command-line interface functions for managing the application's web server process.
 

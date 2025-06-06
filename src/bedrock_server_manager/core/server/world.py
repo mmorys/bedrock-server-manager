@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/server/world.py
+# bedrock_server_manager/core/server/world.py
 """
 Handles operations related to Minecraft Bedrock worlds, specifically
 extracting worlds from .mcworld archives and exporting world directories

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/web.py
+# bedrock_server_manager/core/web.py
 import logging
 from typing import Optional, List
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/server/addon.py
+# bedrock_server_manager/core/server/addon.py
 """
 Manages the processing and installation of Minecraft addons for Bedrock servers.
 

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/server_install_config.py
+# bedrock_server_manager/api/server_install_config.py
 """
 Provides API-level functions for installing new Bedrock servers and configuring
 existing ones (allowlist, player permissions, server properties).

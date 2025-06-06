@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/server_install_config_routes.py
+# bedrock_server_manager/web/routes/server_install_config_routes.py
 """
 Flask Blueprint handling web routes and API endpoints related to new server
 installation and the configuration of existing servers (properties, allowlist,

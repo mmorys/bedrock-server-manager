@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/system/windows.py
+# bedrock_server_manager/core/system/windows.py
 """
 Provides Windows-specific implementations for system interactions.
 

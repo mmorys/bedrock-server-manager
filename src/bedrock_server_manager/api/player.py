@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/player.py
+# bedrock_server_manager/api/player.py
 """
 Provides API-level functions for managing player data.
 

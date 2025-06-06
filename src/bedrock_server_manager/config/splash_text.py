@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/config/splash_text.py
+# bedrock_server_manager/config/splash_text.py
 # --- User Interface (UI) Related ---
 SPLASH_TEXTS_UI = [
     "Based on Ore UI!",

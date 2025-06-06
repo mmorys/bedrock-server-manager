@@ -1,4 +1,4 @@
-// bedrock-server-manager/src/bedrock_server_manager/web/static/js/install_config.js
+// bedrock_server_manager/web/static/js/install_config.js
 /**
  * @fileoverview Frontend JavaScript for handling the multi-step server installation
  * and configuration process (Properties, Allowlist, Permissions, Service).

@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/api/addon.py
+# bedrock_server_manager/api/addon.py
 """
 Provides API-level functions for managing addons on Bedrock servers.
 

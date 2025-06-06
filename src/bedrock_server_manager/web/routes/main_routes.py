@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/routes/main_routes.py
+# bedrock_server_manager/web/routes/main_routes.py
 """
 Flask Blueprint for the main user interface routes of the application,
 primarily the server dashboard.

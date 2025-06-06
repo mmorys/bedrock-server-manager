@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/core/system/process.py
+# bedrock_server_manager/core/system/process.py
 import os
 import logging
 import subprocess

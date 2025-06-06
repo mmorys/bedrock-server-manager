@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/utils/auth_decorators.py
+# bedrock_server_manager/web/utils/auth_decorators.py
 """
 Decorators for handling authentication and authorization in the Flask web application.
 

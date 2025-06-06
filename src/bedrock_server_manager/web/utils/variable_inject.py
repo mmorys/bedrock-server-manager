@@ -1,4 +1,4 @@
-# bedrock-server-manager/src/bedrock_server_manager/web/utils/variable_inject.py
+# bedrock_server_manager/web/utils/variable_inject.py
 """
 Defines Flask context processors.
 
