@@ -2,6 +2,7 @@
 from bedrock_server_manager.config.const import get_installed_version
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core.downloader import BedrockDownloader
-#from bedrock_server_manager.core.bedrock_server import BedrockServer
+
+# from bedrock_server_manager.core.bedrock_server import BedrockServer
 
 __version__ = get_installed_version()

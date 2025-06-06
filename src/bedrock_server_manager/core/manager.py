@@ -401,7 +401,9 @@ class BedrockServerManager:
             logger.debug(error_msg)
             return False
 
-        logger.debug(f"Server '{server_name}' validation successful (executable found).")
+        logger.debug(
+            f"Server '{server_name}' validation successful (executable found)."
+        )
         return True
 
     def get_servers_data(self) -> Tuple[List[Dict[str, str]], List[str]]:
