@@ -1,4 +1,5 @@
 # bedrock_server_manager/config/const.py
+import os
 from importlib.metadata import version, PackageNotFoundError
 
 # Local imports
@@ -12,6 +13,8 @@ env_name = package_name.replace("-", "_").upper()
 
 # --- Package Information ---
 EXPATH = package_finder.find_executable(package_name, executable_name)
+
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 def get_installed_version() -> str:
