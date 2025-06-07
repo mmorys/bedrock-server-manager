@@ -15,16 +15,15 @@ import platform
 # --- Initialize Settings and Logger ---
 try:
 
-    from .config.settings import (
-        settings,
-    )
+    from bedrock_server_manager import __version__
+    from bedrock_server_manager import Settings
     from bedrock_server_manager.logging import setup_logging, log_separator
     from bedrock_server_manager.config.const import (
         get_installed_version,
         app_name_title,
     )
 
-    __version__ = get_installed_version()
+    settings = Settings()
 
     # Configure logging based on settings
     try:
