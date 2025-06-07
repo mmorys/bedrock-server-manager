@@ -38,118 +38,40 @@ logger = logging.getLogger(__name__)
 
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     """
-    Lists available backup files for a specific server and type.
+    API endpoint to list available backup files for a specific server and type.
+
+    This function handles exceptions from the core logic and formats them into a
+    standard API response dictionary.
 
     Args:
         server_name: The name of the server.
         backup_type: The type of backups to list ("world", "properties", "allowlist", "permissions", or "all").
 
     Returns:
-        A dictionary:
-        - {"status": "success", "backups": List[str]} containing a list of full backup file paths.
-        - {"status": "error", "message": str} if an error occurs or no backups found.
-
-    Raises:
-        MissingArgumentError: If `server_name` or `backup_type` is empty.
-        InvalidInputError: If `backup_type` is invalid.
-        FileOperationError: If BACKUP_DIR setting is missing.
+        A dictionary with the API response:
+        - {"status": "success", "backups": List[str] | Dict[str, List[str]]} on success.
+        - {"status": "error", "message": str} on failure.
     """
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-    if not backup_type:
-        raise MissingArgumentError("Backup type cannot be empty.")
-
-    backup_base_dir = settings.get("BACKUP_DIR")
-    if not backup_base_dir:
-        raise FileOperationError(
-            "BACKUP_DIR setting is missing or empty in configuration."
-        )
-
-    server_backup_dir = os.path.join(backup_base_dir, server_name)
-    backup_type_norm = backup_type.lower()
-    logger.info(
-        f"Listing '{backup_type_norm}' backups for server '{server_name}' in '{server_backup_dir}'..."
-    )
-
-    if not os.path.isdir(server_backup_dir):
-        logger.warning(
-            f"Backup directory not found: '{server_backup_dir}'. Returning empty list."
-        )
-        return {"status": "success", "backups": []}
-
     try:
-        backup_files: List[str] = []
-        if backup_type_norm == "world":
-            pattern = os.path.join(server_backup_dir, "*.mcworld")
-            backups_result = glob.glob(pattern)
-        elif backup_type_norm == "properties":
-            pattern = os.path.join(server_backup_dir, "server*.properties")
-            backups_result = glob.glob(pattern)
-        elif backup_type_norm == "allowlist":
-            pattern = os.path.join(server_backup_dir, "allowlist*.json")
-            backups_result = glob.glob(pattern)
-        elif backup_type_norm == "permissions":
-            pattern = os.path.join(server_backup_dir, "permissions*.json")
-            backups_result = glob.glob(pattern)
-        elif backup_type_norm == "all":
-            # For "all" type, we structure the result as a dictionary of categories
-            categorized_backups: Dict[str, List[str]] = {}
+        # 1. Call the core logic function to get the data
+        backup_data = core_backup._get_backup_files(server_name, backup_type)
 
-            allowlist_pattern = os.path.join(server_backup_dir, "allowlist*.json")
-            permissions_pattern = os.path.join(server_backup_dir, "permissions*.json")
-            properties_pattern = os.path.join(server_backup_dir, "server*.properties")
-            world_pattern = os.path.join(server_backup_dir, "*.mcworld")
+        # 2. Format the successful response
+        return {"status": "success", "backups": backup_data}
 
-            # Collect all matching files and add to dictionary only if non-empty
-            allowlist_files = glob.glob(allowlist_pattern)
-            if allowlist_files:
-                categorized_backups["allowlist_backups"] = sorted(
-                    allowlist_files, key=os.path.getmtime, reverse=True
-                )
+    except (MissingArgumentError, InvalidInputError, FileOperationError) as e:
+        # 3. Handle known, expected errors (e.g., bad user input)
+        logger.warning(f"Client error listing backups for server '{server_name}': {e}")
+        return {"status": "error", "message": str(e)}
 
-            permissions_files = glob.glob(permissions_pattern)
-            if permissions_files:
-                categorized_backups["permissions_backups"] = sorted(
-                    permissions_files, key=os.path.getmtime, reverse=True
-                )
-
-            properties_files = glob.glob(properties_pattern)
-            if properties_files:
-                categorized_backups["properties_backups"] = sorted(
-                    properties_files, key=os.path.getmtime, reverse=True
-                )
-
-            world_files = glob.glob(world_pattern)
-            if world_files:
-                categorized_backups["world_backups"] = sorted(
-                    world_files, key=os.path.getmtime, reverse=True
-                )
-
-            backups_result = categorized_backups
-        else:
-            raise InvalidInputError(
-                f"Invalid backup type: '{backup_type}'. Must be 'world', 'properties', 'allowlist', 'permissions', or 'all'."
-            )
-
-        # Apply sorting only if `backups_result` is a list (i.e., not "all" type)
-        if isinstance(backups_result, list):
-            backups_result.sort(key=os.path.getmtime, reverse=True)
-
-        return {"status": "success", "backups": backups_result}
-
-    except InvalidInputError:  # Re-raise this specific error
-        raise
-    except OSError as e:
+    except Exception as e:
+        # 4. Handle unexpected server errors
         logger.error(
-            f"Error accessing backup directory '{server_backup_dir}': {e}",
+            f"Unexpected error listing backups for '{server_name}': {e}",
             exc_info=True,
         )
-        return {"status": "error", "message": f"Error listing backups: {e}"}
-    except Exception as e:
-        logger.error(
-            f"Unexpected error listing backups for '{server_name}': {e}", exc_info=True
-        )
-        return {"status": "error", "message": f"Unexpected error listing backups: {e}"}
+        # Avoid leaking internal implementation details in the message
+        return {"status": "error", "message": "An unexpected server error occurred."}
 
 
 def backup_world(

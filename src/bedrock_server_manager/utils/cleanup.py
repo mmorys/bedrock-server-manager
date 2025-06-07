@@ -10,8 +10,8 @@ import logging
 from typing import Optional
 
 # Local imports
-from bedrock_server_manager.core import SCRIPT_DIR
 from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.config.const import SCRIPT_DIR
 
 logger = logging.getLogger(__name__)
 

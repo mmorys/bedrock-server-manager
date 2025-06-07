@@ -9,7 +9,7 @@ import glob
 import re
 import shutil
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Union
 
 # Local imports
 from bedrock_server_manager.config.settings import settings
@@ -27,6 +27,94 @@ from bedrock_server_manager.error import (
 from bedrock_server_manager.utils import general
 
 logger = logging.getLogger(__name__)
+
+
+def _find_and_sort_backups(pattern: str) -> List[str]:
+    """Finds files using a glob pattern and sorts them by modification time (newest first)."""
+    files = glob.glob(pattern)
+    if not files:
+        return []
+    # Sort by modification time, descending
+    return sorted(files, key=os.path.getmtime, reverse=True)
+
+
+def _get_backup_files(
+    server_name: str, backup_type: str
+) -> Union[List[str], Dict[str, List[str]]]:
+    """
+    Core logic to retrieve a list of backup files for a specific server and type.
+
+    Args:
+        server_name: The name of the server.
+        backup_type: The type of backups to list ("world", "properties", "allowlist", "permissions", or "all").
+
+    Returns:
+        - A list of backup file paths, sorted newest first.
+        - OR a dictionary of categorized backup file lists for the "all" type.
+        - Returns an empty list/dict if the backup directory doesn't exist.
+
+    Raises:
+        MissingArgumentError: If `server_name` or `backup_type` is empty.
+        InvalidInputError: If `backup_type` is invalid.
+        FileOperationError: If BACKUP_DIR setting is missing or a filesystem error occurs.
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not backup_type:
+        raise MissingArgumentError("Backup type cannot be empty.")
+
+    backup_base_dir = settings.get("BACKUP_DIR")
+    if not backup_base_dir:
+        raise FileOperationError(
+            "BACKUP_DIR setting is missing or empty in configuration."
+        )
+
+    server_backup_dir = os.path.join(backup_base_dir, server_name)
+    backup_type_norm = backup_type.lower()
+    logger.info(
+        f"Searching for '{backup_type_norm}' backups for server '{server_name}' in '{server_backup_dir}'."
+    )
+
+    if not os.path.isdir(server_backup_dir):
+        logger.warning(
+            f"Backup directory not found: '{server_backup_dir}'. Returning empty result."
+        )
+        return {} if backup_type_norm == "all" else []
+
+    try:
+        patterns = {
+            "world": os.path.join(server_backup_dir, "*.mcworld"),
+            "properties": os.path.join(server_backup_dir, "server*.properties"),
+            "allowlist": os.path.join(server_backup_dir, "allowlist*.json"),
+            "permissions": os.path.join(server_backup_dir, "permissions*.json"),
+        }
+
+        if backup_type_norm in patterns:
+            return _find_and_sort_backups(patterns[backup_type_norm])
+
+        elif backup_type_norm == "all":
+            categorized_backups: Dict[str, List[str]] = {}
+            for key, pattern in patterns.items():
+                files = _find_and_sort_backups(pattern)
+                if files:
+                    categorized_backups[f"{key}_backups"] = files
+            return categorized_backups
+
+        else:
+            valid_types = list(patterns.keys()) + ["all"]
+            raise InvalidInputError(
+                f"Invalid backup type: '{backup_type}'. Must be one of {valid_types}."
+            )
+
+    except OSError as e:
+        logger.error(
+            f"Filesystem error accessing backup directory '{server_backup_dir}': {e}",
+            exc_info=True,
+        )
+        # Re-raise as a custom, more abstract exception
+        raise FileOperationError(
+            f"Error listing backups due to a filesystem issue: {e}"
+        ) from e
 
 
 def prune_old_backups(
