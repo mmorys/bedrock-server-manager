@@ -39,10 +39,6 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# --- Constants ---
-# Moved platform-specific constants into their respective classes.
-XML_NAMESPACE = "{http://schemas.microsoft.com/windows/2004/02/mit/task}"
-
 
 def get_task_scheduler() -> Optional[Any]:
     """
