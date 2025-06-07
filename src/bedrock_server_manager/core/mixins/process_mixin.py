@@ -1,0 +1,761 @@
+# bedrock_server_manager/core/mixins/process_mixin.py
+import time
+import os
+import psutil
+from datetime import timedelta
+import shutil
+import subprocess
+from typing import Optional, Dict, Any, TYPE_CHECKING
+
+# Third-party imports
+try:
+    import psutil
+
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None
+
+if TYPE_CHECKING:
+    import psutil as psutil_for_types
+
+
+# Local imports
+from bedrock_server_manager.core.system import linux as system_linux_proc
+from bedrock_server_manager.core.system import windows as system_windows_proc
+from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.system import base as system_base
+from bedrock_server_manager.error import (
+    ConfigurationError,
+    MissingArgumentError,
+    CommandNotFoundError,
+    ResourceMonitorError,
+    ServerNotRunningError,
+    ServerStopError,
+    SendCommandError,
+    PIDFileError,
+    ProcessManagementError,
+    ServerStartError,
+    MissingPackagesError,
+)
+
+
+class ServerProcessMixin(BedrockServerBaseMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Attributes: self.server_name, self.base_dir, self.logger, self.settings
+
+    def is_running(self) -> bool:
+        """
+        Checks if the Bedrock server process for this server is currently running.
+        Uses platform-specific checks from system_base.is_server_running.
+        Does NOT update stored config status here; that's handled by get_status in StateMixin.
+        """
+        self.logger.debug(f"Checking if server '{self.server_name}' is running.")
+
+        if not self.base_dir:
+            self.logger.error(
+                "is_running check failed: self.base_dir (from BASE_DIR setting) is not configured."
+            )
+            raise ConfigurationError(
+                "BASE_DIR not configured, cannot check server running status."
+            )
+
+        try:
+            is_running_flag = system_base.is_server_running(
+                self.server_name, self.base_dir
+            )
+            self.logger.debug(
+                f"system_base.is_server_running for '{self.server_name}' returned: {is_running_flag}"
+            )
+            return is_running_flag
+        except (
+            MissingArgumentError,
+            CommandNotFoundError,
+            ResourceMonitorError,
+        ) as e_check:
+            self.logger.warning(
+                f"Error during system_base.is_server_running for '{self.server_name}': {e_check}"
+            )
+            return False  # Treat check failures as "not running" for safety.
+        except ConfigurationError:  # Re-raise if it's from our own check
+            raise
+        except (
+            Exception
+        ) as e_unexp:  # Catch any other unexpected error from system_base.is_server_running
+            self.logger.error(
+                f"Unexpected error in system_base.is_server_running for '{self.server_name}': {e_unexp}",
+                exc_info=True,
+            )
+            return False
+
+    def send_command(self, command: str) -> None:
+        """
+        Sends a command string to the running server process.
+        Implementation is platform-specific (screen on Linux, named pipes on Windows).
+
+        Args:
+            command: The command string to send to the server console.
+
+        Raises: (as per original function, adapted for class context)
+        """
+        if not command:
+            raise MissingArgumentError("Command cannot be empty.")
+
+        if not self.is_running():
+            self.logger.error(
+                f"Cannot send command to server '{self.server_name}': Server is not running."
+            )
+            raise ServerNotRunningError(f"Server '{self.server_name}' is not running.")
+
+        self.logger.info(
+            f"Sending command '{command}' to server '{self.server_name}' on {self.os_type}..."
+        )
+
+        try:
+            if self.os_type == "Linux":
+                if not system_linux_proc:  # Should have been imported conditionally
+                    raise NotImplementedError("Linux system module not available.")
+                system_linux_proc._linux_send_command(self.server_name, command)
+            elif self.os_type == "Windows":
+                if not system_windows_proc:  # Should have been imported conditionally
+                    raise NotImplementedError("Windows system module not available.")
+                system_windows_proc._windows_send_command(self.server_name, command)
+            else:
+                self.logger.error(
+                    f"Sending commands is not supported on this operating system: {self.os_type}"
+                )
+                raise NotImplementedError(
+                    f"Sending commands not supported on {self.os_type}"
+                )
+
+            self.logger.info(
+                f"Command '{command}' sent successfully to '{self.server_name}'."
+            )
+
+        except (
+            MissingArgumentError,
+            ServerNotRunningError,
+            SendCommandError,
+            CommandNotFoundError,
+            NotImplementedError,
+            MissingPackagesError,
+        ) as e:
+            # MissingPackagesError for pywin32 from _windows_send_command
+            self.logger.error(
+                f"Failed to send command '{command}' to server '{self.server_name}': {e}"
+            )
+            raise  # Re-raise known errors
+        except Exception as e_unexp:
+            self.logger.error(
+                f"Unexpected error sending command '{command}' to '{self.server_name}': {e_unexp}",
+                exc_info=True,
+            )
+            raise SendCommandError(
+                f"Unexpected error sending command to '{self.server_name}': {e_unexp}"
+            ) from e_unexp
+
+    def start(self) -> None:
+        """
+        Starts the Bedrock server process.
+        Uses systemd-compatible screen on Linux or starts directly on Windows (blocking call).
+        Manages persistent status and waits for confirmation on Linux.
+
+        Args:
+            server_path_override: Optional. If provided, attempts to use this path for the
+                                  server executable. Primarily for legacy compatibility or
+                                  very specific use cases. Generally, the instance's
+                                  self.bedrock_executable_path should be used.
+
+        Raises: (as per original function, adapted for class context)
+        """
+
+        if (
+            not self.is_installed()
+        ):  # If using instance path, check standard installation
+            raise ServerStartError(
+                f"Cannot start server '{self.server_name}': Not installed or invalid installation at {self.server_dir}."
+            )
+
+        # is_running() will be self.is_running()
+        if self.is_running():
+            self.logger.warning(
+                f"Attempted to start server '{self.server_name}' but it is already running."
+            )
+            raise ServerStartError(f"Server '{self.server_name}' is already running.")
+
+        # manage_server_config for status is self.set_status_in_config (from StateMixin)
+        try:
+            self.set_status_in_config("STARTING")
+        except Exception as e_stat:
+            # Log but don't fail the start yet, process might still launch.
+            self.logger.error(
+                f"Failed to set status to STARTING for '{self.server_name}': {e_stat}"
+            )
+
+        self.logger.info(
+            f"Attempting to start server '{self.server_name}' on {self.os_type}..."
+        )
+
+        start_successful = False
+
+        if self.os_type == "Linux":
+            screen_cmd = shutil.which("screen")
+            if not screen_cmd:
+                self.logger.error(
+                    "'screen' command not found. Cannot start server on Linux."
+                )
+                self.set_status_in_config("ERROR")
+                raise CommandNotFoundError(
+                    "screen", message="'screen' command not found. Cannot start server."
+                )
+
+            try:
+                # system_linux_proc._linux_start_server uses self.server_name and self.server_dir
+                system_linux_proc._linux_start_server(self.server_name, self.server_dir)
+                self.logger.info(
+                    f"Linux server '{self.server_name}' start process initiated via screen."
+                )
+
+                # Wait for confirmation
+                attempts = 0
+                max_attempts = (
+                    self.settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
+                )  # Default 60s, check every 2s
+                sleep_interval = 2
+                self.logger.info(
+                    f"Waiting up to {max_attempts * sleep_interval}s for '{self.server_name}' to confirm running..."
+                )
+
+                while attempts < max_attempts:
+                    if self.is_running():
+                        self.set_status_in_config("RUNNING")
+                        self.logger.info(
+                            f"Server '{self.server_name}' started successfully and confirmed running."
+                        )
+                        start_successful = True
+                        break
+                    self.logger.debug(
+                        f"Waiting for '{self.server_name}' to start... (Attempt {attempts + 1}/{max_attempts})"
+                    )
+                    time.sleep(sleep_interval)
+                    attempts += 1
+
+                if not start_successful:
+                    self.logger.error(
+                        f"Server '{self.server_name}' failed to confirm running status after {max_attempts * sleep_interval}s."
+                    )
+                    self.set_status_in_config("ERROR")
+                    raise ServerStartError(
+                        f"Server '{self.server_name}' failed to start within timeout."
+                    )
+
+            except (
+                CommandNotFoundError,
+                ServerStartError,
+            ) as e_start_linux:  # From _linux_start_server or our checks
+                self.logger.error(
+                    f"Failed to start server '{self.server_name}' on Linux: {e_start_linux}",
+                    exc_info=True,
+                )
+                self.set_status_in_config("ERROR")  # Ensure status is ERROR
+                raise
+            except Exception as e_unexp_linux:  # Other unexpected errors
+                self.logger.error(
+                    f"Unexpected error starting server '{self.server_name}' on Linux: {e_unexp_linux}",
+                    exc_info=True,
+                )
+                self.set_status_in_config("ERROR")
+                raise ServerStartError(
+                    f"Unexpected error starting Linux server '{self.server_name}': {e_unexp_linux}"
+                ) from e_unexp_linux
+
+        elif self.os_type == "Windows":
+            self.logger.debug(
+                f"Attempting to start server '{self.server_name}' via Windows process creation (foreground blocking call)."
+            )
+            try:
+                system_windows_proc._windows_start_server(
+                    self.server_name, self.server_dir, self.app_config_dir
+                )
+                self.logger.info(
+                    f"Foreground Windows server session for '{self.server_name}' has ended."
+                )
+                # Check final status from config, as _windows_start_server might have set it.
+                final_status = self.get_status_from_config()
+                if (
+                    final_status == "RUNNING"
+                ):  # Should have been set to STOPPED by _windows_start_server on exit
+                    self.logger.warning(
+                        f"Windows server '{self.server_name}' ended, but status still RUNNING. Setting to STOPPED."
+                    )
+                    self.set_status_in_config("STOPPED")
+                start_successful = (
+                    final_status != "ERROR" and final_status != "STARTING"
+                )  # Consider it "handled"
+
+            except (
+                MissingPackagesError
+            ) as e_mp:  # From pywin32 check in _windows_start_server
+                self.logger.error(f"Missing packages for Windows server start: {e_mp}")
+                self.set_status_in_config("ERROR")
+                raise
+            except (
+                ServerStartError
+            ) as e_start_win:  # Raised by _windows_start_server on failure
+                self.logger.error(
+                    f"Failed to start server '{self.server_name}' on Windows: {e_start_win}",
+                    exc_info=True,
+                )
+                self.set_status_in_config("ERROR")  # Ensure status is ERROR
+                raise
+            except Exception as e_unexp_win:  # Other unexpected errors
+                self.logger.error(
+                    f"Unexpected error during Windows server start for '{self.server_name}': {e_unexp_win}",
+                    exc_info=True,
+                )
+                self.set_status_in_config("ERROR")
+                raise ServerStartError(
+                    f"Unexpected error starting Windows server '{self.server_name}': {e_unexp_win}"
+                ) from e_unexp_win
+        else:
+            self.logger.error(
+                f"Starting server is not supported on this operating system: {self.os_type}"
+            )
+            self.set_status_in_config("ERROR")
+            raise ServerStartError(
+                f"Unsupported operating system for start: {self.os_type}"
+            )
+
+        if (
+            not start_successful and self.os_type != "Windows"
+        ):  # Windows start is blocking, so success is implied if no error
+            if (
+                self.get_status_from_config() != "RUNNING"
+            ):  # Check if it somehow became RUNNING
+                self.set_status_in_config(
+                    "ERROR"
+                )  # Fallback to ERROR if not explicitly successful
+                raise ServerStartError(
+                    f"Server '{self.server_name}' start did not complete successfully."
+                )
+
+    def stop(self) -> None:
+        """
+        Stops the Bedrock server process gracefully.
+        Sends a 'stop' command, waits for the process to terminate.
+
+        Args:
+            server_path_override: Optional. Used if underlying checks need an explicit path.
+                                  Generally, instance paths are used.
+
+        Raises: (as per original function, adapted for class context)
+        """
+
+        if not self.is_running():
+            self.logger.info(
+                f"Attempted to stop server '{self.server_name}', but it is not currently running."
+            )
+            if self.get_status_from_config() != "STOPPED":
+                try:
+                    self.set_status_in_config("STOPPED")
+                except Exception as e_stat:
+                    self.logger.warning(
+                        f"Failed to set status to STOPPED for non-running server '{self.server_name}': {e_stat}"
+                    )
+            return
+
+        try:
+            self.set_status_in_config("STOPPING")
+        except Exception as e_stat:
+            self.logger.error(
+                f"Failed to set status to STOPPING for '{self.server_name}': {e_stat}"
+            )
+
+        self.logger.info(f"Attempting to stop server '{self.server_name}'...")
+
+        # Attempt graceful shutdown by sending "stop" command
+        try:
+            if not hasattr(self, "send_command"):
+                self.logger.warning(
+                    "send_command method not found on self. Cannot send graceful stop command."
+                )
+            else:
+                self.send_command("stop")  # send_command will handle platform specifics
+                self.logger.info(f"Sent 'stop' command to server '{self.server_name}'.")
+        except (
+            ServerNotRunningError,
+            SendCommandError,
+            NotImplementedError,
+            CommandNotFoundError,
+        ) as e_cmd:
+            # If server died just before command, or send command failed, log and proceed to check/force stop
+            self.logger.warning(
+                f"Failed to send 'stop' command to '{self.server_name}': {e_cmd}. Will check process status."
+            )
+        except Exception as e_unexp_cmd:
+            self.logger.error(
+                f"Unexpected error sending 'stop' command to '{self.server_name}': {e_unexp_cmd}",
+                exc_info=True,
+            )
+
+        # Wait for process to terminate
+        attempts = 0
+        # Use SERVER_STOP_TIMEOUT_SEC from settings
+        max_attempts = self.settings.get("SERVER_STOP_TIMEOUT_SEC", 60) // 2
+        sleep_interval = 2
+        self.logger.info(
+            f"Waiting up to {max_attempts * sleep_interval}s for '{self.server_name}' process to terminate..."
+        )
+
+        while attempts < max_attempts:
+            if not self.is_running():
+                self.set_status_in_config("STOPPED")
+                self.logger.info(f"Server '{self.server_name}' stopped successfully.")
+
+                # Original Linux screen cleanup logic
+                if self.os_type == "Linux":
+                    screen_session_name = f"bedrock-{self.server_name}"
+                    screen_cmd = shutil.which("screen")
+                    if screen_cmd:
+                        try:
+                            subprocess.run(
+                                [screen_cmd, "-S", screen_session_name, "-X", "quit"],
+                                check=False,
+                                capture_output=True,
+                                text=True,
+                                encoding="utf-8",
+                                errors="replace",
+                            )
+                            self.logger.debug(
+                                f"Attempted to quit screen session '{screen_session_name}' for '{self.server_name}'."
+                            )
+                        except FileNotFoundError:  # Should be caught by shutil.which
+                            pass
+                        except Exception as e_screen_quit:
+                            self.logger.warning(
+                                f"Error quitting screen session '{screen_session_name}': {e_screen_quit}"
+                            )
+                return  # Successfully stopped
+
+            self.logger.debug(
+                f"Waiting for '{self.server_name}' to stop... (Attempt {attempts + 1}/{max_attempts})"
+            )
+            time.sleep(sleep_interval)
+            attempts += 1
+
+        # If loop finishes, server hasn't stopped gracefully via command
+        self.logger.error(
+            f"Server '{self.server_name}' failed to stop after command and wait ({max_attempts * sleep_interval}s)."
+        )
+
+        # Additional step: If still running, attempt PID-based termination
+        if self.is_running():
+            self.logger.info(
+                f"Server '{self.server_name}' still running. Attempting forceful PID-based termination."
+            )
+            pid_file_path = self.get_pid_file_path()  # From BaseMixin
+            pid_to_terminate = None
+            try:
+                # system_process_utils is from bedrock_server_manager.core.system.process
+                from bedrock_server_manager.core.system import (
+                    process as system_process_utils,
+                )
+
+                pid_to_terminate = system_process_utils.read_pid_from_file(
+                    pid_file_path
+                )
+                if pid_to_terminate and system_process_utils.is_process_running(
+                    pid_to_terminate
+                ):
+                    self.logger.info(
+                        f"Terminating PID {pid_to_terminate} for '{self.server_name}'."
+                    )
+                    system_process_utils.terminate_process_by_pid(pid_to_terminate)
+
+                    # Short wait for termination to take effect
+                    time.sleep(sleep_interval)
+                    if not self.is_running():
+                        self.set_status_in_config("STOPPED")
+                        self.logger.info(
+                            f"Server '{self.server_name}' (PID {pid_to_terminate}) forcefully terminated and confirmed stopped."
+                        )
+                        return  # Successfully stopped
+                    else:
+                        self.logger.error(
+                            f"Server '{self.server_name}' (PID {pid_to_terminate}) STILL RUNNING after forceful termination attempt."
+                        )
+                elif pid_to_terminate:
+                    self.logger.info(
+                        f"PID {pid_to_terminate} from file for '{self.server_name}' not running (stale at force stop stage)."
+                    )
+                    if not self.is_running():  # Double check main is_running
+                        self.set_status_in_config("STOPPED")
+                        return
+            except PIDFileError as e_pid:
+                self.logger.warning(
+                    f"PID file error for '{self.server_name}' during force stop: {e_pid}. Cannot perform PID-based stop."
+                )
+            except ProcessManagementError as e_pm:
+                self.logger.error(
+                    f"Error during forceful termination of PID {pid_to_terminate} for '{self.server_name}': {e_pm}"
+                )
+            except Exception as e_force:
+                self.logger.error(
+                    f"Unexpected error during forceful termination of '{self.server_name}': {e_force}",
+                    exc_info=True,
+                )
+
+        # Final status update if not already set to STOPPED
+        if self.get_status_from_config() != "STOPPED":
+            self.set_status_in_config("ERROR")  # If it's not stopped, it's an error.
+
+        # If we reach here, server did not stop cleanly after all attempts
+        if self.is_running():  # Final check
+            raise ServerStopError(
+                f"Server '{self.server_name}' failed to stop within timeout and after forceful attempts. Manual intervention may be required."
+            )
+        else:  # It did stop, but maybe not cleanly (e.g. only after PID kill)
+            self.logger.warning(
+                f"Server '{self.server_name}' stopped, but possibly not gracefully (e.g., required PID termination). Status set accordingly."
+            )
+            if (
+                self.get_status_from_config() != "STOPPED"
+            ):  # Ensure it's STOPPED if truly not running
+                self.set_status_in_config("STOPPED")
+
+    def get_process_info(self) -> Optional[Dict[str, Any]]:
+        """
+        Gets resource usage information (PID, CPU%, Mem MB, Uptime) for the running server process.
+        CPU% is delta-calculated using instance-specific state and requires psutil.
+        The first call after (re)start or a long pause in monitoring for this server instance
+        will report 0.0% CPU for this instance.
+
+        Returns:
+            A dictionary with process info, or None if server not running or psutil unavailable.
+
+        Raises:
+            ResourceMonitorError: If psutil is required but unavailable (though typically returns None),
+                                  or for unexpected errors during psutil operations.
+        """
+        if not PSUTIL_AVAILABLE:
+            self.logger.warning(
+                "'psutil' package not found. Cannot get detailed process info."
+            )
+            raise ResourceMonitorError("'psutil' is required for get_process_info.")
+
+        self.logger.debug(
+            f"Attempting to get process info for server '{self.server_name}' (using delta CPU)..."
+        )
+
+        bedrock_psutil_process: Optional["psutil_for_types.Process"] = None
+        pid: Optional[int] = None
+        # Normalized path to the server's directory (used for CWD check on Linux)
+        target_server_dir_norm = os.path.normpath(os.path.abspath(self.server_dir))
+
+        try:
+            # --- Find the target Bedrock Process ---
+            if self.os_type == "Linux":
+                screen_session_name = f"bedrock-{self.server_name}"
+                parent_screen_pid: Optional[int] = None
+                for proc_iter in psutil.process_iter(["pid", "name", "cmdline"]):
+                    try:
+                        if proc_iter.info[
+                            "name"
+                        ] == "screen" and screen_session_name in " ".join(
+                            proc_iter.info.get("cmdline", [])
+                        ):
+                            parent_screen_pid = proc_iter.info["pid"]
+                            break
+                    except (
+                        psutil.Error,
+                        TypeError,
+                    ):  # psutil.Error covers NoSuchProcess, AccessDenied, ZombieProcess
+                        continue
+                if not parent_screen_pid:
+                    self.logger.debug(
+                        f"Screen session '{screen_session_name}' not found for '{self.server_name}'."
+                    )
+                    return None
+
+                # Find the bedrock_server child of the screen session
+                found_child = False
+                for proc_iter in psutil.process_iter(
+                    ["pid", "ppid", "name", "cwd", "status"]
+                ):
+                    try:
+                        proc_info = proc_iter.info
+                        if (
+                            proc_info["name"] == self.bedrock_executable_name
+                            and proc_info["status"]
+                            != psutil.STATUS_ZOMBIE  # type: ignore # psutil.STATUS_ZOMBIE exists
+                            and proc_info.get("ppid") == parent_screen_pid
+                            and proc_info.get("cwd")
+                        ):
+                            proc_cwd_normalized = os.path.normpath(
+                                os.path.abspath(proc_info["cwd"])
+                            )
+                            if proc_cwd_normalized == target_server_dir_norm:
+                                pid = proc_info["pid"]
+                                bedrock_psutil_process = psutil.Process(pid)
+                                found_child = True
+                                break
+                    except (psutil.Error, TypeError):
+                        continue
+                if not found_child:
+                    self.logger.debug(
+                        f"bedrock_server process not found as child of screen '{screen_session_name}' in CWD '{target_server_dir_norm}'."
+                    )
+                    return None
+
+            elif self.os_type == "Windows":
+                # bedrock_executable_path is from BaseMixin
+                normalized_expected_exe = os.path.normcase(
+                    os.path.abspath(self.bedrock_executable_path)
+                )
+                found_proc = False
+                for proc_iter in psutil.process_iter(["pid", "name", "exe"]):
+                    try:
+                        proc_info = proc_iter.info
+                        if (
+                            proc_info["name"] == self.bedrock_executable_name
+                        ):  # e.g., "bedrock_server.exe"
+                            proc_exe_path = proc_info.get("exe")
+                            if proc_exe_path:
+                                normalized_proc_exe = os.path.normcase(
+                                    os.path.abspath(proc_exe_path)
+                                )
+                                if normalized_proc_exe == normalized_expected_exe:
+                                    pid = proc_info["pid"]
+                                    bedrock_psutil_process = psutil.Process(pid)
+                                    found_proc = True
+                                    break
+                    except (psutil.Error, TypeError):
+                        continue
+                if not found_proc:
+                    self.logger.debug(
+                        f"Windows process for '{self.bedrock_executable_path}' not found."
+                    )
+                    return None
+            else:
+                self.logger.error(
+                    f"Process info retrieval not supported on OS: {self.os_type}"
+                )
+                return None  # Or raise NotImplementedError
+
+            # --- Get Process Details using psutil AND Calculate Delta CPU ---
+            if bedrock_psutil_process and pid:
+                try:
+                    with bedrock_psutil_process.oneshot():
+                        # --- CPU Delta Calculation ---
+                        current_proc_cpu_times = (
+                            bedrock_psutil_process.cpu_times()
+                        )  # psutil._common.scpustats
+                        current_sample_time = time.time()
+                        cpu_percent = 0.0
+
+                        if (
+                            self._last_proc_cpu_times_stats is not None
+                            and self._last_proc_sample_time is not None
+                        ):
+                            time_interval = (
+                                current_sample_time - self._last_proc_sample_time
+                            )
+                            if (
+                                time_interval > 0.01
+                            ):  # Avoid division by zero or tiny intervals
+                                prev_proc_cpu_times = self._last_proc_cpu_times_stats
+
+                                # Calculate total CPU time used (user + system) by this process since last measurement
+                                process_cpu_time_delta = (
+                                    current_proc_cpu_times.user
+                                    - prev_proc_cpu_times.user
+                                ) + (
+                                    current_proc_cpu_times.system
+                                    - prev_proc_cpu_times.system
+                                )
+
+                                # Calculate percentage over the elapsed time window
+                                cpu_percent = (
+                                    process_cpu_time_delta / time_interval
+                                ) * 100
+                                self.logger.debug(
+                                    f"Delta CPU Calc for '{self.server_name}' (PID={pid}): "
+                                    f"TimeInterval={time_interval:.3f}s, CPUTimeDelta={process_cpu_time_delta:.4f}, CPU%={cpu_percent:.1f}"
+                                )
+                            else:
+                                self.logger.debug(
+                                    f"Delta CPU Calc for '{self.server_name}' (PID={pid}): Interval too small ({time_interval:.3f}s). Reporting previous or 0%."
+                                )
+                        else:
+                            self.logger.debug(
+                                f"Delta CPU Calc for '{self.server_name}' (PID={pid}): No previous data. Reporting 0.0% CPU for first measurement."
+                            )
+
+                        # Update instance state for the next call for this server
+                        self._last_proc_cpu_times_stats = current_proc_cpu_times
+                        self._last_proc_sample_time = current_sample_time
+                        # --- End CPU Delta Calculation ---
+
+                        memory_info = bedrock_psutil_process.memory_info()
+                        memory_mb = memory_info.rss / (
+                            1024 * 1024
+                        )  # Resident Set Size in MB
+
+                        create_time = bedrock_psutil_process.create_time()
+                        uptime_seconds = current_sample_time - create_time
+                        uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
+                        process_info_dict = {
+                            "pid": pid,
+                            "cpu_percent": round(cpu_percent, 1),
+                            "memory_mb": round(memory_mb, 1),
+                            "uptime": uptime_str,
+                        }
+                        self.logger.debug(
+                            f"Retrieved process info for '{self.server_name}': {process_info_dict}"
+                        )
+                        return process_info_dict
+
+                except (
+                    psutil.NoSuchProcess,
+                    psutil.AccessDenied,
+                    psutil.ZombieProcess,
+                ) as e_ps_detail:
+                    self.logger.warning(
+                        f"Process PID {pid} for '{self.server_name}' disappeared or access denied during detail retrieval: {e_ps_detail}"
+                    )
+                    # Clean up stale PID specific CPU times if process disappears
+                    self._last_proc_cpu_times_stats = None
+                    self._last_proc_sample_time = None
+                    return None  # Consistent with original behavior
+                except Exception as detail_err:  # Other psutil errors or unexpected
+                    self.logger.error(
+                        f"Error getting details for process PID {pid} ('{self.server_name}'): {detail_err}",
+                        exc_info=True,
+                    )
+                    # Original _get_bedrock_process_info raised ResourceMonitorError here.
+                    raise ResourceMonitorError(
+                        f"Error getting process details for '{self.server_name}' (PID {pid}): {detail_err}"
+                    ) from detail_err
+            else:  # bedrock_psutil_process or pid is None after search
+                self.logger.debug(
+                    f"Bedrock process object not obtained for '{self.server_name}'. Cannot get info."
+                )
+                return None
+
+        except (
+            ResourceMonitorError
+        ):  # Re-raise if explicitly raised by us (e.g. psutil not available)
+            raise
+        except (
+            Exception
+        ) as e_find:  # Catch unexpected errors during the process finding stage
+            self.logger.error(
+                f"Unexpected error finding process for '{self.server_name}': {e_find}",
+                exc_info=True,
+            )
+            # Original _get_bedrock_process_info raised ResourceMonitorError here.
+            raise ResourceMonitorError(
+                f"Unexpected error finding process info for '{self.server_name}': {e_find}"
+            ) from e_find
