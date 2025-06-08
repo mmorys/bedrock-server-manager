@@ -142,7 +142,7 @@ def start_server(
 
         # --- Detached Mode ---
         elif mode == "detached":
-            server.set_json_config("start_method", "detached")
+            server.set_custom_config_value("start_method", "detached")
 
             if platform.system() == "Windows":
                 # Launch a new instance of the manager to run the blocking start command.
@@ -265,7 +265,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
 
     try:
         server = BedrockServer(server_name)
-        server.set_json_config("start_method", "")
+        server.set_custom_config_value("start_method", "")
 
         if not server.is_running():
             logger.warning(
