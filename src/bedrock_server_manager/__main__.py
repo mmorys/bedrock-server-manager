@@ -156,7 +156,7 @@ def main() -> None:
         startup_checks(app_name_title, __version__)
         system_base.check_prerequisites()
 
-        # Update server statuses on startup, now without path arguments
+        # Update server statuses on startup
         try:
             logger.debug("Performing initial update of server statuses...")
             api_utils.update_server_statuses()
@@ -644,7 +644,7 @@ def main() -> None:
             help="Interactive flow to generate a password hash for the web server",
         )
 
-        # --- Command Dispatch Dictionary (REFACTORED) ---
+        # --- Command Dispatch Dictionary ---
         commands = {
             "main": lambda args: main_menus.main_menu(),
             "list-servers": lambda args: (

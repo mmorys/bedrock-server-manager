@@ -196,7 +196,6 @@ def _monitor_loop(server_name: str) -> None:
         print(f"\n{_ERROR_PREFIX}An unexpected error occurred during monitoring: {e}")
 
 
-
 def monitor_service_usage(server_name: str) -> None:
     """
     CLI handler to continuously monitor and display the CPU and memory usage of a server.

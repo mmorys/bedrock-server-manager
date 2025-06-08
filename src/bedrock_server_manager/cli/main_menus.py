@@ -157,9 +157,7 @@ def manage_server() -> None:
             elif choice == "5":
                 backup_restore_menu()
             elif choice == "6":
-                cli_server.delete_server(
-                    server_name
-                )
+                cli_server.delete_server(server_name)
             else:
                 if choice != "7":
                     print(f"{_WARN_PREFIX}Invalid selection '{choice}'.")

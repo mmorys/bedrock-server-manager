@@ -53,7 +53,6 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
     status_code: int
 
     try:
-        # The API function now handles start mode logic internally
         result = server_api.start_server(server_name, mode="detached")
 
         if result.get("status") == "success":
