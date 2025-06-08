@@ -1,4 +1,4 @@
-# bedrock_server_manager/core/mixins/process_mixin.py
+# bedrock_server_manager/core/server/process_mixin.py
 import time
 import os
 import psutil
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 # Local imports
 from bedrock_server_manager.core.system import linux as system_linux_proc
 from bedrock_server_manager.core.system import windows as system_windows_proc
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
     ConfigurationError,

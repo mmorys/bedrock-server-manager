@@ -1,10 +1,10 @@
-# bedrock_server_manager/core/mixins/installation_mixin.py
+# bedrock_server_manager/core/server/installation_mixin.py
 import os
 import shutil
 import subprocess
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
     ServerNotFoundError,

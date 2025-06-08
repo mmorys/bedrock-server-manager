@@ -11,7 +11,6 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
-from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     ConfigError,
     FileOperationError,

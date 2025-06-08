@@ -28,15 +28,12 @@ except ImportError:
 # Local imports
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import world as world_api
-
-# - REMOVED: settings is no longer needed for directory resolution.
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,
     FileOperationError,
 )
 from bedrock_server_manager.utils.general import (
-    # - REMOVED: get_base_dir is no longer needed.
     _INFO_PREFIX,
     _OK_PREFIX,
     _WARN_PREFIX,
@@ -46,7 +43,6 @@ from bedrock_server_manager.utils.general import (
 logger = logging.getLogger(__name__)
 
 
-# REFACTORED: Removed base_dir parameter
 def import_world_cli(
     server_name: str,
     selected_file_path: str,
@@ -69,7 +65,6 @@ def import_world_cli(
     logger.debug(f"CLI: Requesting world import for '{server_name}' from '{filename}'.")
 
     try:
-        # UPDATED: API call is simplified, no base_dir.
         response: Dict[str, Any] = world_api.import_world(
             server_name,
             selected_file_path,
@@ -94,7 +89,6 @@ def import_world_cli(
         )
 
 
-# REFACTORED: Removed base_dir parameter and default directory logic
 def export_world(server_name: str, export_dir: Optional[str] = None) -> None:
     """
     CLI handler to export the current world of a server to a .mcworld file.
@@ -110,7 +104,6 @@ def export_world(server_name: str, export_dir: Optional[str] = None) -> None:
     print(f"{_INFO_PREFIX}Attempting to export world for server '{server_name}'...")
 
     try:
-        # UPDATED: API call is simplified. Let the API handle the default export_dir.
         response: Dict[str, Any] = world_api.export_world(server_name, export_dir)
         logger.debug(f"API response from export_world: {response}")
 
@@ -132,7 +125,6 @@ def export_world(server_name: str, export_dir: Optional[str] = None) -> None:
         )
 
 
-# REFACTORED: Removed path parameters and simplified logic
 def install_worlds(server_name: str) -> None:
     """
     CLI handler to present a menu for selecting and installing a .mcworld file.
@@ -144,7 +136,6 @@ def install_worlds(server_name: str) -> None:
         f"CLI: Starting interactive world installation for server '{server_name}'."
     )
     try:
-        # UPDATED: No need to resolve directories in the CLI. API handles it.
         logger.debug("Calling API: api_application.list_available_worlds_api")
         list_response = api_application.list_available_worlds_api()
         logger.debug(f"API list_available_worlds_api response: {list_response}")
@@ -208,7 +199,6 @@ def install_worlds(server_name: str) -> None:
             return
 
         print(f"{_INFO_PREFIX}Installing selected world...")
-        # UPDATED: Call to the refactored CLI handler, no base_dir needed.
         import_world_cli(server_name, selected_file_path)
 
     except Exception as e:
@@ -221,7 +211,6 @@ def install_worlds(server_name: str) -> None:
         )
 
 
-# NO CHANGES NEEDED: This function's signature and API call are already clean.
 def reset_world_cli(server_name: str, skip_confirmation: bool = False) -> None:
     """
     CLI handler function to reset the current world of a server.

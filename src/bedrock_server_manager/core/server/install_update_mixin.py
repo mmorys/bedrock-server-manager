@@ -1,10 +1,10 @@
-# bedrock_server_manager/core/mixins/install_update_mixin.py
+# bedrock_server_manager/core/server/install_update_mixin.py
 import os
 import logging  # self.logger from BaseMixin
 from typing import TYPE_CHECKING, Optional
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.downloader import (
     BedrockDownloader,
 )

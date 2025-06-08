@@ -1,10 +1,10 @@
-# bedrock_server_manager/core/mixins/state_mixin.py
+# bedrock_server_manager/core/server/state_mixin.py
 import os
 import json
 from typing import Optional, Any, Dict, TYPE_CHECKING
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     MissingArgumentError,
     InvalidInputError,

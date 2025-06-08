@@ -24,6 +24,7 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     ServerNotFoundError,
     BlockedCommandError,
+    ServerNotRunningError,
 )
 
 # Initialize logger

@@ -1,4 +1,4 @@
-# bedrock_server_manager/core/mixins/backup_restore_mixin.py
+# bedrock_server_manager/core/server/backup_restore_mixin.py
 import os
 import glob
 import re
@@ -7,7 +7,7 @@ import logging
 from typing import Optional, Dict, TYPE_CHECKING, List, Union
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     FileOperationError,
     DirectoryError,

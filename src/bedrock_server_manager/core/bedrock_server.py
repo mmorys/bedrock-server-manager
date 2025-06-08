@@ -6,21 +6,21 @@ if TYPE_CHECKING:
     from bedrock_server_manager.config.settings import Settings
 
 # Import Mixins
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
-from bedrock_server_manager.core.mixins.installation_mixin import (
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.installation_mixin import (
     ServerInstallationMixin,
 )
-from bedrock_server_manager.core.mixins.state_mixin import ServerStateMixin
-from bedrock_server_manager.core.mixins.process_mixin import ServerProcessMixin
-from bedrock_server_manager.core.mixins.world_mixin import ServerWorldMixin
-from bedrock_server_manager.core.mixins.addon_mixin import ServerAddonMixin
-from bedrock_server_manager.core.mixins.backup_restore_mixin import ServerBackupMixin
-from bedrock_server_manager.core.mixins.systemd_mixin import ServerSystemdMixin
-from bedrock_server_manager.core.mixins.player_mixin import ServerPlayerMixin
-from bedrock_server_manager.core.mixins.config_management_mixin import (
+from bedrock_server_manager.core.server.state_mixin import ServerStateMixin
+from bedrock_server_manager.core.server.process_mixin import ServerProcessMixin
+from bedrock_server_manager.core.server.world_mixin import ServerWorldMixin
+from bedrock_server_manager.core.server.addon_mixin import ServerAddonMixin
+from bedrock_server_manager.core.server.backup_restore_mixin import ServerBackupMixin
+from bedrock_server_manager.core.server.systemd_mixin import ServerSystemdMixin
+from bedrock_server_manager.core.server.player_mixin import ServerPlayerMixin
+from bedrock_server_manager.core.server.config_management_mixin import (
     ServerConfigManagementMixin,
 )
-from bedrock_server_manager.core.mixins.install_update_mixin import (
+from bedrock_server_manager.core.server.install_update_mixin import (
     ServerInstallUpdateMixin,
 )
 from bedrock_server_manager.error import FileOperationError

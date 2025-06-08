@@ -1,4 +1,4 @@
-# bedrock_server_manager/core/mixins/base_server_mixin.py
+# bedrock_server_manager/core/server/base_server_mixin.py
 import os
 import platform
 import logging

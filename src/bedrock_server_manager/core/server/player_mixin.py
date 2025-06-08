@@ -1,11 +1,11 @@
-# bedrock_server_manager/core/mixins/player_mixin.py
+# bedrock_server_manager/core/server/player_mixin.py
 import os
 import re
 import logging  # self.logger from BaseMixin
 from typing import List, Dict, TYPE_CHECKING
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import FileOperationError
 
 if TYPE_CHECKING:

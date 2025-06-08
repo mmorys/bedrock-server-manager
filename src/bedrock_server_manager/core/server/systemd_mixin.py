@@ -1,4 +1,4 @@
-# bedrock_server_manager/core/mixins/systemd_mixin.py
+# bedrock_server_manager/core/server/systemd_mixin.py
 import os
 import platform
 import shutil
@@ -6,7 +6,7 @@ import subprocess
 import logging
 
 # Local imports
-from bedrock_server_manager.core.mixins.base_server_mixin import BedrockServerBaseMixin
+from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import linux as system_linux_utils
 from bedrock_server_manager.error import (
     ServiceError,
