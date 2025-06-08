@@ -2,19 +2,16 @@
 """
 Provides API-level functions for managing addons on Bedrock servers.
 
-This acts as an interface layer, orchestrating calls to core addon processing
-functions and handling potential server stop/start operations during installation.
+This acts as an interface layer, orchestrating calls to the BedrockServer's
+addon processing methods and handling the server lifecycle during installation.
 """
-
 import os
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 # Local imports
-from bedrock_server_manager.api.server import send_command as api_send_command
-from bedrock_server_manager.core.server import addon as core_addon
-from bedrock_server_manager.core.server.server_actions import check_if_server_is_running
-from bedrock_server_manager.utils.general import get_base_dir
+from bedrock_server_manager.core.bedrock_server import BedrockServer
+from bedrock_server_manager.api.utils import server_lifecycle_manager
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
@@ -23,9 +20,9 @@ from bedrock_server_manager.error import (
     AddonExtractError,
     DirectoryError,
     InvalidServerNameError,
-    RestoreError,
+    SendCommandError,
+    ServerNotRunningError,
 )
-from bedrock_server_manager.api.utils import _server_stop_start_manager
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +30,6 @@ logger = logging.getLogger(__name__)
 def import_addon(
     server_name: str,
     addon_file_path: str,
-    base_dir: Optional[str] = None,
     stop_start_server: bool = True,
     restart_only_on_success: bool = True,
 ) -> Dict[str, str]:
@@ -43,10 +39,8 @@ def import_addon(
     Args:
         server_name: The name of the target server.
         addon_file_path: The full path to the addon file to install.
-        base_dir: Optional. Base directory for server installations.
-        stop_start_server: If True, attempts to stop/start server around addon processing.
-        restart_only_on_success: If stop_start_server is True, only restart if addon
-                                 processing itself was successful.
+        stop_start_server: If True, stops the server before installation and restarts it after.
+        restart_only_on_success: If True, only restarts the server if the addon installation succeeds.
 
     Returns:
         A dictionary indicating the outcome.
@@ -65,51 +59,43 @@ def import_addon(
         raise FileNotFoundError(f"Addon file not found: {addon_file_path}")
 
     try:
+        server = BedrockServer(server_name)
 
-        if check_if_server_is_running(server_name):
-            cmd_res = api_send_command(server_name, "say Installing addon...")
-            if cmd_res.get("status") == "error":
+        if server.is_running():
+            try:
+                server.send_command("say Installing addon...")
+            except (SendCommandError, ServerNotRunningError) as e:
                 logger.warning(
-                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                    f"API: Failed to send addon installation warning to '{server_name}': {e}"
                 )
-        effective_base_dir = get_base_dir(base_dir)
-        logger.debug(f"API: Using base directory: {effective_base_dir}")
 
-        # The _server_stop_start_manager will handle stopping the server if stop_start_server is True,
-        # and restarting it in its finally block based on was_running and restart_only_on_success.
-        with _server_stop_start_manager(
+        # Use the lifecycle manager to handle stopping and restarting the server.
+        with server_lifecycle_manager(
             server_name,
-            effective_base_dir,
-            stop_start_flag=stop_start_server,
+            stop_before=stop_start_server,
+            start_after=stop_start_server,  # Ensure start_after is also controlled by this flag
             restart_on_success_only=restart_only_on_success,
         ):
             logger.info(
                 f"API: Processing addon file '{addon_filename}' for server '{server_name}'..."
             )
-            # Delegate to the core addon processing function.
-            # This function will raise specific errors (AddonExtractError, FileOperationError, etc.) on failure.
-            core_addon.process_addon(addon_file_path, server_name, effective_base_dir)
+            server.process_addon_file(addon_file_path)
             logger.info(
                 f"API: Core addon processing completed for '{addon_filename}' on '{server_name}'."
             )
 
-        # If the 'with' block completed without an exception, the main operation was successful.
-        # The context manager handles the restart if needed.
         message = f"Addon '{addon_filename}' installed successfully for server '{server_name}'."
         if stop_start_server:
             message += " Server stop/start cycle handled."
         return {"status": "success", "message": message}
 
-    # Catch specific errors that can be raised by core_addon.process_addon or the context manager
     except (
-        MissingArgumentError,
         FileNotFoundError,
         FileOperationError,
         AddonExtractError,
         InvalidAddonPackTypeError,
         DirectoryError,
         InvalidServerNameError,
-        RestoreError,
     ) as e:
         logger.error(
             f"API: Addon import failed for '{addon_filename}' on '{server_name}': {e}",
@@ -119,9 +105,7 @@ def import_addon(
             "status": "error",
             "message": f"Error installing addon '{addon_filename}': {e}",
         }
-    except (
-        Exception
-    ) as e:  # Catch any other unexpected errors, including from _server_stop_start_manager's finally block
+    except Exception as e:
         logger.error(
             f"API: Unexpected error during addon import for '{server_name}': {e}",
             exc_info=True,
