@@ -129,6 +129,6 @@ class BedrockServerBaseMixin:
         Gets the full path to this server's PID file, stored in the global application config directory.
         """
         pid_filename = self._get_server_pid_filename_default()
-        server_config_dir = self._server_specific_config_dir()
+        server_config_dir = self._server_specific_config_dir
 
         return os.path.join(server_config_dir, pid_filename)
