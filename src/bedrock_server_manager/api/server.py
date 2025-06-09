@@ -586,6 +586,8 @@ def delete_server_data(
                 error_msg = f"Failed to stop server '{server_name}' before deletion: {stop_result.get('message')}. Deletion aborted."
                 logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
+
+            time.sleep(3)  # Allow time for the server to stop gracefully
             logger.info(f"API: Server '{server_name}' stopped.")
 
         logger.debug(
