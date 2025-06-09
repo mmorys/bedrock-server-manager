@@ -89,7 +89,7 @@ def install_server_api_route() -> Tuple[Response, int]:
 
     try:
         # Check for existence and handle overwrite logic
-        if not overwrite and server_api.check_server_exists(server_name):
+        if not overwrite and utils_api.validate_server_exist(server_name):
             return (
                 jsonify(
                     status="confirm_needed",
@@ -99,7 +99,7 @@ def install_server_api_route() -> Tuple[Response, int]:
             )
 
         # If overwriting, delete first
-        if overwrite and server_api.check_server_exists(server_name):
+        if overwrite and utils_api.validate_server_exist(server_name):
             delete_result = server_api.delete_server_data(server_name)
             if delete_result.get("status") == "error":
                 return (
@@ -406,10 +406,13 @@ def configure_permissions_route(server_name: str) -> Response:
         # The API returns a list of dicts, which is what the template needs
         permissions_data = permissions_response.get("data", {}).get("permissions", [])
 
+        permissions_map = {p["xuid"]: p["permission_level"] for p in permissions_data}
+
         return render_template(
             "configure_permissions.html",
             server_name=server_name,
-            players_with_perms=permissions_data,  # Pass the direct API response
+            players=permissions_data,  # Pass the direct API response
+            permissions=permissions_map,
             new_install=request.args.get("new_install", "false").lower() == "true",
         )
     except Exception as e:
@@ -419,7 +422,11 @@ def configure_permissions_route(server_name: str) -> Response:
             exc_info=True,
         )
         return render_template(
-            "configure_permissions.html", server_name=server_name, players_with_perms=[]
+            "configure_permissions.html",
+            server_name=server_name,
+            players=[],
+            permissions=permissions_map,
+            new_install=request.args.get("new_install", "false").lower() == "true",
         )
 
 
@@ -537,7 +544,9 @@ def configure_service_route(server_name: str) -> Response:
             exc_info=True,
         )
         return render_template(
-            "configure_service.html", server_name=server_name, os=platform.system()
+            "configure_service.html",
+            os=platform.system(),
+            new_install=request.args.get("new_install", "false").lower() == "true",
         )
 
 

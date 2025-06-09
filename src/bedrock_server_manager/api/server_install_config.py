@@ -207,7 +207,7 @@ def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
         player_name_map: Dict[str, str] = {}
 
         # Fetch global player data for XUID-to-name mapping
-        players_response = player_api.get_players_from_json()
+        players_response = player_api.get_all_known_players_api()
         if players_response.get("status") == "success":
             for p_data in players_response.get("players", []):
                 if p_data.get("xuid") and p_data.get("name"):

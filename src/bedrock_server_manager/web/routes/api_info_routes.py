@@ -218,7 +218,7 @@ def scan_players_api_route() -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = player_api.scan_for_players()
+        result = player_api.scan_and_update_player_db_api()
         status_code = 200 if result.get("status") == "success" else 500
     except (
         FileOperationError,
@@ -554,7 +554,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
     status_code = 500  # Default to internal server error
     try:
-        result_dict = player_api.get_players_from_json()
+        result_dict = player_api.get_all_known_players_api()
 
         if result_dict.get("status") == "success":
             status_code = 200
@@ -570,7 +570,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
     except Exception as e:
         # This catch block is for truly unexpected errors *within the API route itself*
-        # or if get_players_from_json were to raise an unhandled exception (which it aims not to).
+        # or if get_all_known_players_api were to raise an unhandled exception (which it aims not to).
         logger.error(
             f"API Get All Players: Unexpected critical error in route: {e}",
             exc_info=True,
