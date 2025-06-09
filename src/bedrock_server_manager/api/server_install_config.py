@@ -260,7 +260,6 @@ def get_server_properties_api(server_name: str) -> Dict[str, Any]:
 
 def validate_server_property_value(property_name: str, value: str) -> Dict[str, str]:
     """Validates a server property value. This is a stateless helper function."""
-    # This function remains unchanged as it has no dependencies on a server instance.
     logger.debug(
         f"API: Validating server property: '{property_name}', Value: '{value}'"
     )
@@ -298,15 +297,23 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
                 "status": "error",
                 "message": f"{property_name}: must be a number 1024-65535.",
             }
-    elif property_name == "max-players":
+    elif property_name in ("max-players", "view-distance", "tick-distance"):
         try:
-            if int(value) < 1:
-                raise ValueError()
+            num_val = int(value)
+            if property_name == "max-players" and num_val < 1:
+                raise ValueError("Must be >= 1")
+            if property_name == "view-distance" and num_val < 5:
+                raise ValueError("Must be >= 5")
+            if property_name == "tick-distance" and not (4 <= num_val <= 12):
+                raise ValueError("Must be between 4-12")
         except (ValueError, TypeError):
-            return {
-                "status": "error",
-                "message": "max-players: must be a positive number.",
-            }
+            range_msg = "a positive number"
+            if property_name == "view-distance":
+                range_msg = "a number >= 5"
+            if property_name == "tick-distance":
+                range_msg = "a number between 4 and 12"
+            msg = f"Invalid value for '{property_name}'. Must be {range_msg}."
+            return {"status": "error", "message": msg}
     return {"status": "success"}
 
 
