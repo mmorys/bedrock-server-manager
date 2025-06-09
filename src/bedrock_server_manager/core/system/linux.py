@@ -326,7 +326,6 @@ def disable_systemd_service(service_name_full: str) -> None:
         ) from e
 
 
-
 def _linux_start_server(server_name: str, server_dir: str) -> None:
     """
     Starts the Bedrock server process within a detached 'screen' session.

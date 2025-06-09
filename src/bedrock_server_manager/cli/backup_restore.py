@@ -397,7 +397,12 @@ def restore_menu(server_name: str) -> None:
             print(f"{_INFO_PREFIX}Restore operation canceled.")
             return
 
-        restore_map = {"1": "world", "2": "allowlist", "3": "permissions", "4": "properties"}
+        restore_map = {
+            "1": "world",
+            "2": "allowlist",
+            "3": "permissions",
+            "4": "properties",
+        }
         restore_type = restore_map.get(choice)
 
         if not restore_type:
