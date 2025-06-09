@@ -548,42 +548,79 @@ def configure_service_route(server_name: str) -> Response:
 @csrf.exempt
 @auth_required
 def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to configure OS-specific service settings."""
+    """
+    API endpoint to configure OS-specific service settings.
+    Accepts a JSON body with optional 'autoupdate' and 'autostart' booleans.
+    """
     identity = get_current_identity() or "Unknown"
     logger.info(
         f"API: Configure service request for '{server_name}' by user '{identity}'."
     )
     current_os = platform.system()
 
+    # --- Validate Input ---
     data = request.get_json()
     if not isinstance(data, dict):
         return jsonify(status="error", message="Invalid JSON body."), 400
 
-    autoupdate = data.get("autoupdate", False)
-    autostart = data.get("autostart", False)
+    # Use .get() with a default of None to see if the key was provided at all
+    autoupdate = data.get("autoupdate")
+    autostart = data.get("autostart")
+
+    if autoupdate is None and autostart is None:
+        return (
+            jsonify(status="error", message="No configuration options provided."),
+            400,
+        )
 
     try:
-        if current_os == "Linux":
-            result = system_api.create_systemd_service(
-                server_name, autoupdate=autoupdate, autostart=autostart
-            )
-        elif current_os == "Windows":
-            result = system_api.set_windows_autoupdate(
-                server_name, "true" if autoupdate else "false"
-            )
-        else:
-            return (
-                jsonify(
-                    status="error",
-                    message=f"Service configuration not supported on {current_os}.",
-                ),
-                403,
-            )
+        # --- Action 1: Handle Autoupdate (Common to Windows & Linux) ---
+        if autoupdate is not None:
+            if not isinstance(autoupdate, bool):
+                return (
+                    jsonify(status="error", message="'autoupdate' must be a boolean."),
+                    400,
+                )
 
-        if result.get("status") == "success":
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
+            logger.info(f"API: Setting autoupdate to {autoupdate} for '{server_name}'.")
+            result = system_api.set_autoupdate(server_name, autoupdate)
+
+            if result.get("status") != "success":
+                # Fail fast: if this fails, don't proceed.
+                return jsonify(result), 500
+
+        # --- Action 2: Handle Autostart (Linux-specific) ---
+        if autostart is not None:
+            if not isinstance(autostart, bool):
+                return (
+                    jsonify(status="error", message="'autostart' must be a boolean."),
+                    400,
+                )
+
+            if current_os == "Linux":
+                logger.info(
+                    f"API: Setting autostart to {autostart} for '{server_name}'."
+                )
+                result = system_api.create_systemd_service(
+                    server_name, autostart=autostart
+                )
+
+                if result.get("status") != "success":
+                    return jsonify(result), 500
+            else:
+                # Explicitly inform client that autostart is not supported on this OS
+                logger.warning(
+                    f"API: 'autostart' parameter ignored for '{server_name}': unsupported OS ({current_os})."
+                )
+
+        # If we've reached this point, all requested operations were successful.
+        return (
+            jsonify(
+                {"status": "success", "message": "Configuration applied successfully."}
+            ),
+            200,
+        )
+
     except (InvalidServerNameError, InvalidInputError) as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
@@ -592,6 +629,8 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
             exc_info=True,
         )
         return (
-            jsonify({"status": "error", "message": "An unexpected error occurred."}),
+            jsonify(
+                {"status": "error", "message": "An unexpected server error occurred."}
+            ),
             500,
         )

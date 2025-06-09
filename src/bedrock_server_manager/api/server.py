@@ -33,6 +33,10 @@ from bedrock_server_manager.error import (
     DirectoryError,
     BlockedCommandError,
     ServerNotFoundError,
+    InstallUpdateError,
+    DownloadExtractError,
+    InternetConnectivityError,
+    BackupWorldError,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,6 +93,62 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
         }
 
 
+def _handle_autoupdate(server: "BedrockServer", logger: Any) -> Dict[str, Any]:
+    """
+    Handles the server autoupdate process if enabled.
+
+    Args:
+        server: The BedrockServer instance.
+        logger: The logger instance for logging messages.
+
+    Returns:
+        A dictionary indicating the outcome.
+        {"status": "success"} if the process should continue (even if update fails with a known error).
+        {"status": "error", "message": ...} if an unexpected error occurs that should halt the server start.
+    """
+    try:
+        # Determine if autoupdate is enabled for the start mode
+        autoupdate = server.get_custom_config_value("autoupdate")
+        if not autoupdate:
+            return {"status": "success"}  # Autoupdate is disabled, continue normally.
+
+        logger.info(
+            f"API: Autoupdate enabled for server '{server.server_name}'. Checking for updates..."
+        )
+        target_version = server.get_target_version()
+        server.install_or_update(target_version)
+        logger.info(
+            f"API: Autoupdate check completed for server '{server.server_name}'."
+        )
+
+    except (
+        InstallUpdateError,
+        DownloadExtractError,
+        InternetConnectivityError,
+        FileOperationError,
+        BackupWorldError,
+    ) as e:  # Catch specific, non-critical exceptions
+        logger.error(
+            f"API: Autoupdate failed for server '{server.server_name}'. Continuing with start.",
+            exc_info=True,
+        )
+        # Non-fatal error, we can still attempt to start the server.
+        return {"status": "success"}
+
+    except Exception as e:  # Catch unexpected, critical exceptions
+        logger.error(
+            f"API: Unexpected error during autoupdate for server '{server.server_name}': {e}",
+            exc_info=True,
+        )
+        # This is a fatal error, we should not attempt to start the server.
+        return {
+            "status": "error",
+            "message": f"Unexpected error during autoupdate: {e}",
+        }
+
+    return {"status": "success"}
+
+
 def start_server(
     server_name: str,
     mode: str = "direct",
@@ -117,6 +177,12 @@ def start_server(
 
     try:
         server = BedrockServer(server_name)
+        server.start_method = mode  # Pass mode to the server object
+
+        # --- Call the new autoupdate handler ---
+        update_result = _handle_autoupdate(server, logger)
+        if update_result["status"] == "error":
+            return update_result  # Propagate critical update errors and stop
 
         if server.is_running():
             logger.warning(

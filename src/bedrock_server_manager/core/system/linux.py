@@ -14,9 +14,9 @@ import logging
 import subprocess
 import shutil
 from datetime import datetime
+from typing import Optional
 
 # Local imports
-from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import (
     CommandNotFoundError,
     ServerNotRunningError,
@@ -37,306 +37,265 @@ logger = logging.getLogger(__name__)
 # --- Systemd Service Management ---
 
 
-def check_service_exist(server_name: str) -> bool:
-    """
-    Checks if a systemd user service file exists for the given server name.
+# --- Systemd Service Management ---
 
+
+def get_systemd_user_service_file_path(service_name_full: str) -> str:
+    """
+    Generates the standard path for a given systemd user service file.
     Args:
-        server_name: The name of the server (used to construct service name `bedrock-{server_name}`).
-
-    Returns:
-        True if the corresponding systemd user service file exists, False otherwise
-        (including if not on Linux).
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
+        service_name_full: The full name of the service (e.g., "my-app.service" or "my-app" - .service will be appended if missing).
     """
-    if platform.system() != "Linux":
-        logger.debug("Systemd check skipped: Not running on Linux.")
-        return False
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty for service check.")
+    if not service_name_full:
+        raise MissingArgumentError("Full service name cannot be empty.")
 
-    service_name = f"bedrock-{server_name}"
-    # Standard path for user systemd services
-    service_file_path = os.path.join(
-        os.path.expanduser("~"), ".config", "systemd", "user", f"{service_name}.service"
+    name_to_use = (
+        service_name_full
+        if service_name_full.endswith(".service")
+        else f"{service_name_full}.service"
     )
+    return os.path.join(
+        os.path.expanduser("~"), ".config", "systemd", "user", name_to_use
+    )
+
+
+def check_service_exists(service_name_full: str) -> bool:
+    """Checks if a systemd user service file exists for the given full service name."""
+    if platform.system() != "Linux":
+        return False
+    if not service_name_full:
+        raise MissingArgumentError(
+            "Full service name cannot be empty for service file check."
+        )
+
+    service_file_path = get_systemd_user_service_file_path(service_name_full)
     logger.debug(
         f"Checking for systemd user service file existence: '{service_file_path}'"
     )
-    exists = os.path.isfile(service_file_path)  # Check if it's specifically a file
-    logger.debug(f"Service file exists: {exists}")
-    return exists
+    return os.path.isfile(service_file_path)
 
 
-def _create_systemd_service(server_name: str, base_dir: str, autoupdate: bool) -> None:
+def create_systemd_service_file(
+    service_name_full: str,
+    description: str,
+    working_directory: str,
+    exec_start_command: str,
+    exec_stop_command: Optional[str] = None,
+    exec_start_pre_command: Optional[str] = None,
+    service_type: str = "forking",  # Common types: simple, forking, oneshot
+    restart_policy: str = "on-failure",
+    restart_sec: int = 10,
+    after_targets: str = "network.target",  # Comma-separated string if multiple
+) -> None:
     """
-    Creates or updates a systemd user service file for managing a Bedrock server.
-
-    (Linux-specific)
+    Creates or updates a generic systemd user service file.
 
     Args:
-        server_name: The name of the server.
-        base_dir: The base directory containing the server's installation folder.
-        autoupdate: If True, adds an `ExecStartPre` command to update the server
-                    before starting.
+        service_name_full: The full name of the service (e.g., "my-app.service" or "my-app").
+        description: Description for the service unit.
+        working_directory: The WorkingDirectory for the service.
+        exec_start_command: The command for ExecStart.
+        exec_stop_command: Optional. The command for ExecStop.
+        exec_start_pre_command: Optional. The command for ExecStartPre.
+        service_type: Systemd service type (e.g., "simple", "forking").
+        restart_policy: Systemd Restart policy (e.g., "no", "on-success", "on-failure").
+        restart_sec: Seconds to wait before restarting.
+        after_targets: Space-separated list of targets this service should start after.
 
     Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        MissingArgumentError: If `base_dir` is empty.
-        ServiceError: If creating the systemd directory or writing the service file fails.
-        CommandNotFoundError: If the 'systemctl' command is not found.
-        SystemdReloadError: If `systemctl --user daemon-reload` fails.
-        FileOperationError: If _expath is not set or invalid.
+        MissingArgumentError, ServiceError, CommandNotFoundError, SystemdReloadError, FileOperationError
     """
     if platform.system() != "Linux":
-        logger.warning("Systemd service creation skipped: Not running on Linux.")
+        logger.warning(
+            f"Generic systemd service creation skipped: Not Linux. Service: '{service_name_full}'"
+        )
         return
 
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not base_dir:
-        raise MissingArgumentError("Base directory cannot be empty.")
-    if not EXPATH or not os.path.isfile(EXPATH):
+    if not all([service_name_full, description, working_directory, exec_start_command]):
+        raise MissingArgumentError(
+            "service_name_full, description, working_directory, and exec_start_command are required."
+        )
+    if not os.path.isdir(working_directory):  # Ensure working directory exists
         raise FileOperationError(
-            f"Main script executable path (EXPATH) is invalid or not set: {EXPATH}"
+            f"WorkingDirectory '{working_directory}' does not exist or is not a directory."
         )
 
-    server_dir = os.path.join(base_dir, server_name)
-    service_name = f"bedrock-{server_name}"
+    name_to_use = (
+        service_name_full
+        if service_name_full.endswith(".service")
+        else f"{service_name_full}.service"
+    )
     systemd_user_dir = os.path.join(
         os.path.expanduser("~"), ".config", "systemd", "user"
     )
-    service_file_path = os.path.join(systemd_user_dir, f"{service_name}.service")
+    service_file_path = os.path.join(systemd_user_dir, name_to_use)
 
-    logger.info(f"Creating/Updating systemd user service file: '{service_file_path}'")
+    logger.info(
+        f"Creating/Updating generic systemd user service file: '{service_file_path}'"
+    )
 
-    # Ensure the systemd user directory exists
     try:
         os.makedirs(systemd_user_dir, exist_ok=True)
-        logger.debug(f"Ensured systemd user directory exists: {systemd_user_dir}")
     except OSError as e:
-        logger.error(
-            f"Failed to create systemd user directory '{systemd_user_dir}': {e}",
-            exc_info=True,
-        )
         raise ServiceError(
-            f"Failed to create systemd directory '{systemd_user_dir}': {e}"
+            f"Failed to create systemd user directory '{systemd_user_dir}': {e}"
         ) from e
 
-    # Prepare service file content
-    autoupdate_line = ""
-    if autoupdate:
-        # Ensure server_name is quoted if it contains spaces
-        autoupdate_line = (
-            f'ExecStartPre={EXPATH} update-server --server "{server_name}"'
-        )
-        logger.debug(f"Autoupdate enabled for service '{service_name}'.")
-    else:
-        logger.debug(f"Autoupdate disabled for service '{service_name}'.")
+    exec_start_pre_line = (
+        f"ExecStartPre={exec_start_pre_command}" if exec_start_pre_command else ""
+    )
+    exec_stop_line = f"ExecStop={exec_stop_command}" if exec_stop_command else ""
 
-    # Using Type=forking assumes the systemd-start script detaches correctly (e.g., via screen -dm)
-    # Consider Type=simple or Type=exec if the script runs the server in the foreground.
     service_content = f"""[Unit]
-Description=Minecraft Bedrock Server: {server_name}
-# Ensure it starts after network is up, adjust if other dependencies exist
-After=network.target
+Description={description}
+After={after_targets}
 
 [Service]
-# Type=forking requires the ExecStart process to exit after setup, while the main service continues.
-# If systemd-start runs 'screen -dmS', this is appropriate.
-# If systemd-start runs the server directly in the foreground, use Type=simple or Type=exec.
-Type=forking
-WorkingDirectory={server_dir}
-# Define required environment variables if necessary
-# Environment="LD_LIBRARY_PATH=."
-{autoupdate_line}
-# Use absolute path to _expath
-ExecStart={EXPATH} start-server --server "{server_name}" --mode direct
-ExecStop={EXPATH} systemd-stop --server "{server_name}"
-# ExecReload might not be necessary if stop/start works reliably
-# ExecReload={EXPATH} systemd-stop --server "{server_name}" && {EXPATH} start-server --server "{server_name}" -mode direct
-# Restart behavior
-Restart=on-failure
-RestartSec=10s
-# Limit restarts to prevent rapid looping on persistent failure
-StartLimitIntervalSec=300s
-StartLimitBurst=5
+Type={service_type}
+WorkingDirectory={working_directory}
+{exec_start_pre_line}
+ExecStart={exec_start_command}
+{exec_stop_line}
+Restart={restart_policy}
+RestartSec={restart_sec}s
 
 [Install]
 WantedBy=default.target
 """
+    # Remove empty lines from service_content that might occur if optional commands are not provided
+    service_content = "\n".join(
+        [line for line in service_content.splitlines() if line.strip()]
+    )
 
-    # Write the service file
     try:
         with open(service_file_path, "w", encoding="utf-8") as f:
             f.write(service_content)
-        logger.info(f"Successfully wrote systemd service file: {service_file_path}")
-    except OSError as e:
-        logger.error(
-            f"Failed to write systemd service file '{service_file_path}': {e}",
-            exc_info=True,
+        logger.info(
+            f"Successfully wrote generic systemd service file: {service_file_path}"
         )
+    except OSError as e:
         raise ServiceError(
             f"Failed to write service file '{service_file_path}': {e}"
         ) from e
 
-    # Reload systemd daemon to recognize the new/changed file
+    # Reload systemd daemon
     systemctl_cmd = shutil.which("systemctl")
     if not systemctl_cmd:
-        logger.error("'systemctl' command not found. Cannot reload systemd daemon.")
         raise CommandNotFoundError("systemctl")
-
-    logger.debug("Reloading systemd user daemon...")
     try:
-        process = subprocess.run(
+        subprocess.run(
             [systemctl_cmd, "--user", "daemon-reload"],
             check=True,
             capture_output=True,
             text=True,
         )
-        logger.info("Systemd user daemon reloaded successfully.")
-        logger.debug(f"systemctl output: {process.stdout}{process.stderr}")
+        logger.info(
+            f"Systemd user daemon reloaded successfully for service '{name_to_use}'."
+        )
     except subprocess.CalledProcessError as e:
-        error_msg = f"Failed to reload systemd user daemon. Error: {e.stderr}"
-        logger.error(error_msg, exc_info=True)
-        raise SystemdReloadError(error_msg) from e
-    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        logger.error("'systemctl' command not found unexpectedly.")
-        raise CommandNotFoundError("systemctl") from None
+        raise SystemdReloadError(
+            f"Failed to reload systemd user daemon. Error: {e.stderr}"
+        ) from e
 
 
-def _enable_systemd_service(server_name: str) -> None:
-    """
-    Enables a systemd user service to start on login.
-
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        ServiceError: If the service file does not exist or enabling fails.
-        CommandNotFoundError: If the 'systemctl' command is not found.
-    """
+def enable_systemd_service(service_name_full: str) -> None:
+    """Enables a generic systemd user service to start on login."""
     if platform.system() != "Linux":
-        logger.warning("Systemd service enabling skipped: Not running on Linux.")
         return
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    service_name = f"bedrock-{server_name}"
-    logger.info(
-        f"Enabling systemd user service '{service_name}' for autostart on login..."
+    if not service_name_full:
+        raise MissingArgumentError("Full service name cannot be empty.")
+    name_to_use = (
+        service_name_full
+        if service_name_full.endswith(".service")
+        else f"{service_name_full}.service"
     )
+    logger.info(f"Enabling systemd user service '{name_to_use}'...")
 
     systemctl_cmd = shutil.which("systemctl")
     if not systemctl_cmd:
-        logger.error("'systemctl' command not found. Cannot enable service.")
         raise CommandNotFoundError("systemctl")
 
-    # Check if service file exists before attempting to enable
-    if not check_service_exist(server_name):
-        error_msg = f"Cannot enable service: Systemd service file for '{service_name}' does not exist."
-        logger.error(error_msg)
-        raise ServiceError(error_msg)
+    if not check_service_exists(name_to_use):  # Check with .service suffix
+        raise ServiceError(
+            f"Cannot enable: Systemd service file for '{name_to_use}' does not exist."
+        )
 
-    # Check if already enabled
     try:
         # `is-enabled` returns 0 if enabled, non-zero otherwise (including not found, masked, static)
         process = subprocess.run(
-            [systemctl_cmd, "--user", "is-enabled", service_name],
+            [systemctl_cmd, "--user", "is-enabled", name_to_use],
             capture_output=True,
             text=True,
             check=False,  # Don't check, just examine return code/output
         )
         status_output = process.stdout.strip()
         logger.debug(
-            f"'systemctl is-enabled {service_name}' status: {status_output}, return code: {process.returncode}"
+            f"'systemctl is-enabled {name_to_use}' status: {status_output}, return code: {process.returncode}"
         )
         if status_output == "enabled":
-            logger.info(f"Service '{service_name}' is already enabled.")
+            logger.info(f"Service '{name_to_use}' is already enabled.")
             return  # Already enabled
     except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
         logger.error("'systemctl' command not found unexpectedly.")
         raise CommandNotFoundError("systemctl") from None
     except Exception as e:
         logger.warning(
-            f"Could not reliably determine if service '{service_name}' is enabled: {e}. Attempting enable anyway.",
+            f"Could not reliably determine if service '{name_to_use}' is enabled: {e}. Attempting enable anyway.",
             exc_info=True,
         )
 
-    # Attempt to enable the service
     try:
-        process = subprocess.run(
-            [systemctl_cmd, "--user", "enable", service_name],
+        subprocess.run(
+            [systemctl_cmd, "--user", "enable", name_to_use],
             check=True,
             capture_output=True,
             text=True,
         )
-        logger.info(f"Systemd service '{service_name}' enabled successfully.")
-        logger.debug(f"systemctl output: {process.stdout}{process.stderr}")
+        logger.info(f"Systemd service '{name_to_use}' enabled successfully.")
     except subprocess.CalledProcessError as e:
-        error_msg = (
-            f"Failed to enable systemd service '{service_name}'. Error: {e.stderr}"
-        )
-        logger.error(error_msg, exc_info=True)
-        raise ServiceError(error_msg) from e
+        raise ServiceError(
+            f"Failed to enable systemd service '{name_to_use}'. Error: {e.stderr}"
+        ) from e
 
 
-def _disable_systemd_service(server_name: str) -> None:
-    """
-    Disables a systemd user service from starting on login.
-
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        ServiceError: If disabling the service fails.
-        CommandNotFoundError: If the 'systemctl' command is not found.
-    """
+def disable_systemd_service(service_name_full: str) -> None:
+    """Disables a generic systemd user service from starting on login."""
     if platform.system() != "Linux":
-        logger.warning("Systemd service disabling skipped: Not running on Linux.")
         return
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    service_name = f"bedrock-{server_name}"
-    logger.info(f"Disabling systemd user service '{service_name}'...")
+    if not service_name_full:
+        raise MissingArgumentError("Full service name cannot be empty.")
+    name_to_use = (
+        service_name_full
+        if service_name_full.endswith(".service")
+        else f"{service_name_full}.service"
+    )
+    logger.info(f"Disabling systemd user service '{name_to_use}'...")
 
     systemctl_cmd = shutil.which("systemctl")
     if not systemctl_cmd:
-        logger.error("'systemctl' command not found. Cannot disable service.")
         raise CommandNotFoundError("systemctl")
 
-    # Check if service file exists first. If not, nothing to disable.
-    if not check_service_exist(server_name):
+    if not check_service_exists(name_to_use):
         logger.debug(
-            f"Service file for '{service_name}' does not exist. Assuming already disabled or removed."
+            f"Service file for '{name_to_use}' does not exist. Assuming already disabled/removed."
         )
         return
 
-    # Check if already disabled
     try:
         process = subprocess.run(
-            [systemctl_cmd, "--user", "is-enabled", service_name],
+            [systemctl_cmd, "--user", "is-enabled", name_to_use],
             capture_output=True,
             text=True,
             check=False,
         )
         status_output = process.stdout.strip()
         logger.debug(
-            f"'systemctl is-enabled {service_name}' status: {status_output}, return code: {process.returncode}"
+            f"'systemctl is-enabled {name_to_use}' status: {status_output}, return code: {process.returncode}"
         )
         # is-enabled returns non-zero for disabled, static, masked, not-found
         if status_output != "enabled":  # Check if it's *not* enabled
             logger.info(
-                f"Service '{service_name}' is already disabled or not in an enabled state."
+                f"Service '{name_to_use}' is already disabled or not in an enabled state."
             )
             return  # Already disabled or in a state where disable won't work/isn't needed
     except FileNotFoundError:  # Safeguard
@@ -344,34 +303,28 @@ def _disable_systemd_service(server_name: str) -> None:
         raise CommandNotFoundError("systemctl") from None
     except Exception as e:
         logger.warning(
-            f"Could not reliably determine if service '{service_name}' is enabled: {e}. Attempting disable anyway.",
+            f"Could not reliably determine if service '{name_to_use}' is enabled: {e}. Attempting disable anyway.",
             exc_info=True,
         )
 
-    # Attempt to disable the service
     try:
-        process = subprocess.run(
-            [systemctl_cmd, "--user", "disable", service_name],
+        subprocess.run(
+            [systemctl_cmd, "--user", "disable", name_to_use],
             check=True,
             capture_output=True,
             text=True,
         )
-        logger.info(f"Systemd service '{service_name}' disabled successfully.")
-        logger.debug(f"systemctl output: {process.stdout}{process.stderr}")
+        logger.info(f"Systemd service '{name_to_use}' disabled successfully.")
     except subprocess.CalledProcessError as e:
-        # Check if error was because service was already static/masked etc.
-        stderr_lower = (e.stderr or "").lower()
-        if "static" in stderr_lower or "masked" in stderr_lower:
+        if "static" in (e.stderr or "").lower() or "masked" in (e.stderr or "").lower():
             logger.info(
-                f"Service '{service_name}' is static or masked, cannot be disabled via 'disable' command."
+                f"Service '{name_to_use}' is static or masked, cannot be disabled via 'disable'."
             )
-            # This isn't strictly a failure of the *disable* action's intent
             return
-        error_msg = (
-            f"Failed to disable systemd service '{service_name}'. Error: {e.stderr}"
-        )
-        logger.error(error_msg, exc_info=True)
-        raise ServiceError(error_msg) from e
+        raise ServiceError(
+            f"Failed to disable systemd service '{name_to_use}'. Error: {e.stderr}"
+        ) from e
+
 
 
 def _linux_start_server(server_name: str, server_dir: str) -> None:

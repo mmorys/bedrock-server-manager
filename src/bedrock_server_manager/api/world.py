@@ -82,14 +82,12 @@ def export_world(
         if export_dir:
             effective_export_dir = export_dir
         else:
-            backup_base_dir = settings.get("BACKUP_DIR")
-            if not backup_base_dir:
+            content_base_dir = settings.get("CONTENT_DIR")
+            if not content_base_dir:
                 raise FileOperationError(
                     "BACKUP_DIR setting missing for default export directory."
                 )
-            effective_export_dir = (
-                server.server_backup_directory
-            )  # Use property from mixin if it exists
+            effective_export_dir = os.path.join(content_base_dir, "worlds")
         os.makedirs(effective_export_dir, exist_ok=True)
 
         world_name_str = server.get_world_name()

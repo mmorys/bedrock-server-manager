@@ -112,7 +112,7 @@ def create_systemd_service(
         }
 
 
-def set_windows_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
+def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
     """Sets the 'autoupdate' flag in the server's specific JSON configuration file."""
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -124,18 +124,11 @@ def set_windows_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str,
         raise InvalidInputError("Autoupdate value must be 'true' or 'false'.")
     value_bool = value_lower == "true"
 
-    if platform.system() != "Windows":
-        return {
-            "status": "error",
-            "message": "This autoupdate setting is only applicable on Windows.",
-        }
-
     logger.info(
         f"API: Setting 'autoupdate' config for server '{server_name}' to {value_bool}..."
     )
     try:
         server = BedrockServer(server_name)
-        # Using a generic config setter is cleaner
         server.set_custom_config_value("autoupdate", str(value_bool))
         return {
             "status": "success",

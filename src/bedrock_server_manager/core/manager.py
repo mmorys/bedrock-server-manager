@@ -353,7 +353,8 @@ class BedrockServerManager:
                     if os.path.isfile(
                         filepath
                     ):  # Ensure it's a file, not a dir ending with ext
-                        found_files.append(os.path.basename(filepath))
+                        found_files.append(os.path.abspath(filepath))
+                        
             except OSError as e:
                 raise FileOperationError(
                     f"Error scanning content directory {target_dir}: {e}"

@@ -89,13 +89,12 @@ def import_world_cli(
         )
 
 
-def export_world(server_name: str, export_dir: Optional[str] = None) -> None:
+def export_world(server_name: str) -> None:
     """
     CLI handler to export the current world of a server to a .mcworld file.
 
     Args:
         server_name: The name of the server whose world to export.
-        export_dir: Optional. Directory to save the exported file. API uses a default if None.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -104,7 +103,7 @@ def export_world(server_name: str, export_dir: Optional[str] = None) -> None:
     print(f"{_INFO_PREFIX}Attempting to export world for server '{server_name}'...")
 
     try:
-        response: Dict[str, Any] = world_api.export_world(server_name, export_dir)
+        response: Dict[str, Any] = world_api.export_world(server_name)
         logger.debug(f"API response from export_world: {response}")
 
         if response.get("status") == "error":

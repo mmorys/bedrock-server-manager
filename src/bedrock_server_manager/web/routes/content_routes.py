@@ -228,16 +228,9 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
     status_code: int
 
     try:
-        content_dir = settings.get("CONTENT_DIR")
-        if not content_dir:
-            raise FileOperationError("Required setting 'CONTENT_DIR' is missing.")
-
-        # This route exports to the shared content folder, not the server's backup folder.
-        export_target_dir = os.path.join(content_dir, "worlds")
-        os.makedirs(export_target_dir, exist_ok=True)
 
         # Call the API function with the explicit export directory
-        result = world_api.export_world(server_name, export_dir=export_target_dir)
+        result = world_api.export_world(server_name)
 
         if result.get("status") == "success":
             status_code = 200

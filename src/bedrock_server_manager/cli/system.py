@@ -64,67 +64,86 @@ def configure_service(server_name: str) -> None:
     os_name = platform.system()
 
     try:
-        api_response = None
-        if os_name == "Linux":
-            print(
-                f"\n{_INFO_PREFIX}Configuring systemd service for '{server_name}' (Linux)..."
-            )
-            autoupdate = (
-                select_option("Enable auto-update on server start?", "n", "y", "n")
-                == "y"
-            )
-            autostart = (
-                select_option(
-                    "Enable service to start automatically on login?", "n", "y", "n"
-                )
-                == "y"
-            )
-
-            logger.debug(
-                f"Calling API: system_api.create_systemd_service (Update={autoupdate}, Start={autostart})"
-            )
-            api_response = system_api.create_systemd_service(
-                server_name, autoupdate, autostart
-            )
-
-        elif os_name == "Windows":
-            print(
-                f"\n{_INFO_PREFIX}Configuring autoupdate setting for '{server_name}' (Windows)..."
-            )
-            autoupdate_value = (
-                "true"
-                if select_option(
-                    "Enable check for updates on server start?", "n", "y", "n"
-                )
-                == "y"
-                else "false"
-            )
-
-            logger.debug(
-                f"Calling API: system_api.set_windows_autoupdate (Value={autoupdate_value})"
-            )
-            api_response = system_api.set_windows_autoupdate(
-                server_name, autoupdate_value
-            )
-
-        else:
+        # Check for supported operating systems first.
+        if os_name not in ("Windows", "Linux"):
             print(
                 f"{_ERROR_PREFIX}Automated service configuration is not supported on this OS ({os_name})."
             )
             return
 
-        # --- Process API Response ---
-        if api_response and api_response.get("status") == "error":
-            message = api_response.get("message", "Unknown error configuring service.")
-            print(f"{_ERROR_PREFIX}{message}")
-        elif api_response:
-            message = api_response.get("message", "Service configured successfully.")
-            print(f"{_OK_PREFIX}{message}")
+        # --- Section 1: Autoupdate (Common to Windows & Linux) ---
+        print(f"\n{_INFO_PREFIX}Configuring autoupdate setting for '{server_name}'...")
+        enable_autoupdate = (
+            select_option("Enable check for updates on server start?", "n", "y", "n")
+            == "y"
+        )
+        autoupdate_value = "true" if enable_autoupdate else "false"
+
+        logger.debug(
+            f"Calling API: system_api.set_autoupdate (Value={autoupdate_value})"
+        )
+        autoupdate_response = system_api.set_autoupdate(server_name, autoupdate_value)
+
+        # Process API response for autoupdate
+        if autoupdate_response:
+            if autoupdate_response.get("status") == "error":
+                message = autoupdate_response.get(
+                    "message", "Unknown error configuring autoupdate."
+                )
+                print(f"{_ERROR_PREFIX}{message}")
+            else:
+                message = autoupdate_response.get(
+                    "message", "Autoupdate configured successfully."
+                )
+                print(f"{_OK_PREFIX}{message}")
+        else:
+            print(
+                f"{_ERROR_PREFIX}Failed to configure autoupdate: No response from API."
+            )
+
+        # --- Section 2: Autostart (Linux-specific) ---
+        if os_name == "Linux":
+            print(
+                f"\n{_INFO_PREFIX}Configuring systemd service for '{server_name}' (Linux)..."
+            )
+            enable_autostart = (
+                select_option(
+                    "Enable service to start automatically on system boot?",
+                    "n",
+                    "y",
+                    "n",
+                )
+                == "y"
+            )
+
+            logger.debug(
+                f"Calling API: system_api.create_systemd_service (Start={enable_autostart})"
+            )
+            autostart_response = system_api.create_systemd_service(
+                server_name, enable_autostart
+            )
+
+            # Process API response for autostart
+            if autostart_response:
+                if autostart_response.get("status") == "error":
+                    message = autostart_response.get(
+                        "message", "Unknown error configuring systemd service."
+                    )
+                    print(f"{_ERROR_PREFIX}{message}")
+                else:
+                    message = autostart_response.get(
+                        "message", "Systemd service configured successfully."
+                    )
+                    print(f"{_OK_PREFIX}{message}")
+            else:
+                print(
+                    f"{_ERROR_PREFIX}Failed to configure systemd service: No response from API."
+                )
 
     except (InvalidServerNameError, FileOperationError) as e:
         print(f"{_ERROR_PREFIX}{e}")
     except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
+        print(f"{_ERROR_PREFIX}An unexpected error occurred during configuration: {e}")
 
 
 def enable_service(server_name: str) -> None:
