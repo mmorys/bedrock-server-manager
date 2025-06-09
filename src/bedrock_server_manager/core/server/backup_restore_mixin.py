@@ -94,7 +94,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             patterns = {
                 "world": os.path.join(server_bck_dir, "*.mcworld"),
                 "properties": os.path.join(
-                    server_bck_dir, "server.properties_backup_*"
+                    server_bck_dir, "server_backup_*.properties"
                 ),
                 "allowlist": os.path.join(server_bck_dir, "allowlist_backup_*.json"),
                 "permissions": os.path.join(

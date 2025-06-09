@@ -304,7 +304,7 @@ def restore_server(
                 backup_file_path=backup_file,
                 stop_start_server=change_status,
             )
-        elif restore_type_norm == "config":
+        elif restore_type_norm in ["allowlist", "permissions", "properties"]:
             if not backup_file:
                 raise MissingArgumentError(
                     "Backup file path is required for config restore."
@@ -326,7 +326,7 @@ def restore_server(
             )
         else:
             raise InvalidInputError(
-                f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'config', or 'all'."
+                f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'allowlist', 'permissions', 'properties', or 'all'."
             )
 
         logger.debug(f"API response for restore_{restore_type_norm}: {response}")
@@ -376,26 +376,28 @@ def restore_menu(server_name: str) -> None:
             f"\n{Fore.MAGENTA}Restore Options for Server: {server_name}{Style.RESET_ALL}"
         )
         print("  1. Restore World")
-        print("  2. Restore Configuration File")
-        print("  3. Restore Everything (from latest backups)")
-        print("  4. Cancel")
+        print("  2. Restore Allowlist")
+        print("  3. Restore Permissions")
+        print("  4. Restore Properties")
+        print("  5. Restore Everything (from latest backups)")
+        print("  6. Cancel")
 
         choice = input(
             f"{Fore.CYAN}Select restore option (1-4):{Style.RESET_ALL} "
         ).strip()
         logger.debug(f"User entered main restore menu choice: '{choice}'")
 
-        if choice == "3":
+        if choice == "5":
             print(
                 f"{_INFO_PREFIX}Restoring server '{server_name}' from latest backups..."
             )
             restore_server(server_name=server_name, restore_type="all")
             return
-        elif choice == "4":
+        elif choice == "6":
             print(f"{_INFO_PREFIX}Restore operation canceled.")
             return
 
-        restore_map = {"1": "world", "2": "config"}
+        restore_map = {"1": "world", "2": "allowlist", "3": "permissions", "4": "properties"}
         restore_type = restore_map.get(choice)
 
         if not restore_type:
