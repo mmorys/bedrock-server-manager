@@ -186,7 +186,10 @@ def remove_allowlist_players(server_name: str, players_to_remove: List[str]) -> 
 
 
 def select_player_for_permission(server_name: str) -> None:
-    """CLI handler to interactively select a known player and assign a permission level."""
+    """
+    CLI handler to interactively select a known player and assign a permission level.
+    Uses a manual input loop for player selection.
+    """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
@@ -194,62 +197,117 @@ def select_player_for_permission(server_name: str) -> None:
         f"CLI: Starting interactive permission configuration for server '{server_name}'."
     )
     try:
-        player_response = player_api.get_players_from_json()
+        # 1. Get player data from the API
+        player_response = player_api.get_all_known_players_api()
         if player_response.get("status") == "error" or not player_response.get(
             "players"
         ):
             print(
                 f"{_INFO_PREFIX}No players found in the global player list (players.json)."
             )
-            return
-
-        player_map = {
-            str(i + 1): p
-            for i, p in enumerate(player_response["players"])
-            if p.get("name") and p.get("xuid")
-        }
-        if not player_map:
-            print(f"{_ERROR_PREFIX}No valid players (with name and XUID) found.")
-            return
-
-        print(f"\n{_INFO_PREFIX}Select a player to configure permissions:")
-        for key, p_data in player_map.items():
-            print(f"  {key}. {p_data['name']} (XUID: {p_data['xuid']})")
-
-        choice = select_option("Select player:", None, *player_map.keys())
-        if not choice:
-            return  # User canceled
-
-        selected_player = player_map[choice]
-        selected_name, selected_xuid = selected_player["name"], selected_player["xuid"]
-
-        print(f"\n{_INFO_PREFIX}Selected player: {selected_name}")
-        permission = select_option(
-            f"Select permission level for {selected_name}:",
-            "member",
-            "operator",
-            "visitor",
-            "member",
-        )
-
-        perm_response = config_api.configure_player_permission(
-            server_name=server_name,
-            xuid=selected_xuid,
-            player_name=selected_name,
-            permission=permission,
-        )
-
-        if perm_response.get("status") == "error":
-            message = perm_response.get("message", "Unknown error setting permission.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = perm_response.get(
-                "message", f"Permission updated for {selected_name}."
+            print(
+                f"{_INFO_PREFIX}Run the 'scan-players' command or add players manually first."
             )
-            print(f"{_OK_PREFIX}{message}")
+            return
+
+        # 2. Build the menu data structure exactly as requested
+        player_menu_options: Dict[int, Dict[str, str]] = {}
+        display_index = 1
+        for player_dict in player_response["players"]:
+            name = player_dict.get("name")
+            xuid = player_dict.get("xuid")
+            if name and xuid:
+                player_menu_options[display_index] = {"name": name, "xuid": xuid}
+                display_index += 1
+            else:
+                logger.warning(
+                    f"Skipping invalid player entry from global list: {player_dict}"
+                )
+
+        if not player_menu_options:
+            print(
+                f"{_ERROR_PREFIX}No valid players (with name and XUID) found in the global list."
+            )
+            return
+
+        cancel_option_num = len(player_menu_options) + 1
+
+        # 3. Print the user-friendly menu
+        print(f"\n{_INFO_PREFIX}Select a player to configure permissions:")
+        for i, p_data in player_menu_options.items():
+            print(
+                f"  {i}. {p_data['name']} {Fore.CYAN}(XUID: {p_data['xuid']}){Style.RESET_ALL}"
+            )
+        print(f"  {cancel_option_num}. Cancel")
+
+        # 4. Use the requested manual input loop for player selection
+        selected_player_info: Optional[Dict[str, str]] = None
+        while True:
+            try:
+                choice_str = input(
+                    f"{Fore.CYAN}Select player (1-{cancel_option_num}):{Style.RESET_ALL} "
+                ).strip()
+                choice = int(choice_str)
+                logger.debug(f"User entered player selection choice: {choice}")
+
+                if 1 <= choice <= len(player_menu_options):
+                    selected_player_info = player_menu_options[choice]
+                    logger.debug(f"User selected player: {selected_player_info}")
+                    break  # Valid choice, exit loop
+                elif choice == cancel_option_num:
+                    print(f"{_INFO_PREFIX}Permission configuration canceled.")
+                    logger.debug("User canceled permission configuration.")
+                    return  # Exit function
+                else:
+                    print(
+                        f"{_WARN_PREFIX}Invalid choice '{choice}'. Please choose a valid number."
+                    )
+            except ValueError:
+                print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
+                logger.debug(
+                    f"User entered non-numeric input for player selection: '{choice_str}'"
+                )
+
+        # 5. Proceed with the logic using the selected player
+        if selected_player_info:
+            selected_name = selected_player_info["name"]
+            selected_xuid = selected_player_info["xuid"]
+
+            print(f"\n{_INFO_PREFIX}Selected player: {selected_name}")
+
+            # The rest of the function remains the same, using select_option for permission level
+            permission = select_option(
+                f"Select permission level for {selected_name}:",
+                "member",  # Default value for this prompt
+                "member",
+                "operator",
+                "visitor",
+            )
+
+            perm_response = config_api.configure_player_permission(
+                server_name=server_name,
+                xuid=selected_xuid,
+                player_name=selected_name,
+                permission=permission,
+            )
+
+            if perm_response.get("status") == "error":
+                message = perm_response.get(
+                    "message", "Unknown error setting permission."
+                )
+                print(f"{_ERROR_PREFIX}{message}")
+            else:
+                message = perm_response.get(
+                    "message", f"Permission updated for {selected_name}."
+                )
+                print(f"{_OK_PREFIX}{message}")
 
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
+        logger.error(
+            f"Error in select_player_for_permission for '{server_name}': {e}",
+            exc_info=True,
+        )
 
 
 def configure_server_properties(server_name: str) -> None:
