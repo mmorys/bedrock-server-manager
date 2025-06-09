@@ -136,7 +136,7 @@ def set_windows_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str,
     try:
         server = BedrockServer(server_name)
         # Using a generic config setter is cleaner
-        server.set_custom_config_value("autoupdate", value_bool)
+        server.set_custom_config_value("autoupdate", str(value_bool))
         return {
             "status": "success",
             "message": f"Autoupdate setting for '{server_name}' updated to {value_bool}.",
