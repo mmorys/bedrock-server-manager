@@ -388,12 +388,20 @@ def restore_select_backup_route(server_name: str) -> Response:
                 return redirect(url_for(".restore_menu_route", server_name=server_name))
 
             # Pass basenames to the template for user selection
-            backup_files = [os.path.basename(p) for p in full_paths]
+            backups_for_template = []
+            for p in full_paths:
+                basename = os.path.basename(p)
+                backups_for_template.append(
+                    {
+                        "name": basename,  # For display in the table
+                        "path": basename,  # For the JavaScript function
+                    }
+                )
             return render_template(
                 "restore_select_backup.html",
                 server_name=server_name,
                 restore_type=restore_type,
-                backups=backup_files,  # Template will use these basenames
+                backups=backups_for_template,  # Template will use these basenames
             )
         else:
             # Handle error reported by the API function
