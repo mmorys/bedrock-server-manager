@@ -24,6 +24,7 @@ from flask import (
 # Local imports
 from bedrock_server_manager.api import server_install_config
 from bedrock_server_manager.api import server as server_api
+from bedrock_server_manager.api import player as player_api
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.api import utils as utils_api
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
@@ -387,47 +388,83 @@ def remove_allowlist_player_api_route(
 )
 @login_required
 def configure_permissions_route(server_name: str) -> Response:
-    """Renders the page for configuring player permission levels."""
+    """
+    Renders the page for configuring player permission levels.
+    """
     identity = get_current_identity()
     logger.info(
         f"User '{identity}' accessed configure permissions for server '{server_name}'."
     )
 
+    all_players: list = []
+    permissions_map: dict = {}
+
     try:
-        permissions_response = server_install_config.get_server_permissions_api(
-            server_name
-        )
-        if permissions_response.get("status") == "error":
+        # --- STEP 1: Fetch ALL known players from the global player list ---
+        logger.debug("Calling Player API to get all known players...")
+        players_response = player_api.get_all_known_players_api()
+
+        if players_response.get("status") == "success":
+            all_players = players_response.get("players", [])
+            logger.info(f"Loaded {len(all_players)} players from global player API.")
+        else:
             flash(
-                f"Could not load permissions data: {permissions_response.get('message')}",
+                f"Warning: Could not load global player list: {players_response.get('message')}",
                 "warning",
             )
 
-        # The API returns a list of dicts, which is what the template needs
-        permissions_data = permissions_response.get("data", {}).get("permissions", [])
-
-        permissions_map = {p["xuid"]: p["permission_level"] for p in permissions_data}
-
-        return render_template(
-            "configure_permissions.html",
-            server_name=server_name,
-            players=permissions_data,  # Pass the direct API response
-            permissions=permissions_map,
-            new_install=request.args.get("new_install", "false").lower() == "true",
+        # --- STEP 2: Fetch permissions for server ---
+        logger.debug(f"Calling Server API to get permissions for '{server_name}'...")
+        permissions_response = server_install_config.get_server_permissions_api(
+            server_name
         )
+        server_permissions_list = permissions_response.get("data", {}).get(
+            "permissions", []
+        )
+
+        # --- STEP 3: MERGE the two data sources ---
+        permissions_map = {
+            str(p.get("xuid")): str(p.get("permission_level"))
+            for p in server_permissions_list
+            if p.get("xuid")
+        }
+        logger.debug(
+            f"Created permissions map with {len(permissions_map)} entries for '{server_name}'."
+        )
+
+        known_player_xuids = {str(p.get("xuid")) for p in all_players if p.get("xuid")}
+        xuids_only_in_permissions = set(permissions_map.keys()) - known_player_xuids
+
+        if xuids_only_in_permissions:
+            logger.info(
+                f"Found {len(xuids_only_in_permissions)} players in server permissions not in global list. Adding them."
+            )
+            for xuid in xuids_only_in_permissions:
+                all_players.append({"xuid": xuid, "name": f"Unknown (XUID: {xuid})"})
+
+        all_players.sort(key=lambda p: p.get("name", "").lower())
+
     except Exception as e:
-        flash("An unexpected error occurred while loading permissions.", "danger")
+        flash(
+            "An unexpected error occurred while preparing the permissions page.",
+            "danger",
+        )
         logger.error(
-            f"Unexpected error loading permissions page for '{server_name}': {e}",
+            f"Failed to orchestrate permissions page for '{server_name}': {e}",
             exc_info=True,
         )
-        return render_template(
-            "configure_permissions.html",
-            server_name=server_name,
-            players=[],
-            permissions=permissions_map,
-            new_install=request.args.get("new_install", "false").lower() == "true",
-        )
+        all_players = []
+        permissions_map = {}
+
+    new_install = request.args.get("new_install", "false").lower() == "true"
+
+    return render_template(
+        "configure_permissions.html",
+        server_name=server_name,
+        players=all_players,
+        permissions=permissions_map,
+        new_install=new_install,
+    )
 
 
 # --- API Route: Configure Permissions ---
