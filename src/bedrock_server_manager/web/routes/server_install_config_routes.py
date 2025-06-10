@@ -558,20 +558,20 @@ def configure_service_route(server_name: str) -> Response:
     )
 
     try:
-        service_status = system_api.get_service_status(server_name)
-        if service_status.get("status") == "error":
-            flash(
-                f"Could not get service status: {service_status.get('message')}",
-                "warning",
-            )
+        service_status = False  # system_api.get_service_status(server_name)
+        # if service_status.get("status") == "error":
+        #    flash(
+        #        f"Could not get service status: {service_status.get('message')}",
+        #        "warning",
+        #    )
 
         template_data = {
             "server_name": server_name,
             "os": platform.system(),
             "new_install": request.args.get("new_install", "false").lower() == "true",
-            "service_exists": service_status.get("exists", False),
-            "autostart_enabled": service_status.get("autostart_enabled", False),
-            "autoupdate_enabled": service_status.get("autoupdate_enabled", False),
+            "service_exists": False,  # service_status.get("exists", False),
+            "autostart_enabled": False,  # service_status.get("autostart_enabled", False),
+            "autoupdate_enabled": False,  # service_status.get("autoupdate_enabled", False),
         }
         return render_template("configure_service.html", **template_data)
     except Exception as e:
@@ -629,7 +629,7 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
                 )
 
             logger.info(f"API: Setting autoupdate to {autoupdate} for '{server_name}'.")
-            result = system_api.set_autoupdate(server_name, autoupdate)
+            result = system_api.set_autoupdate(server_name, str(autoupdate))
 
             if result.get("status") != "success":
                 # Fail fast: if this fails, don't proceed.

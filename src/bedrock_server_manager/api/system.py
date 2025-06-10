@@ -112,7 +112,7 @@ def create_systemd_service(
         }
 
 
-def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
+def set_autoupdate(server_name: str, autoupdate_value: bool) -> Dict[str, str]:
     """Sets the 'autoupdate' flag in the server's specific JSON configuration file."""
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")

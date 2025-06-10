@@ -93,13 +93,12 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
         }
 
 
-def _handle_autoupdate(server: "BedrockServer", logger: Any) -> Dict[str, Any]:
+def _handle_autoupdate(server: "BedrockServer") -> Dict[str, Any]:
     """
     Handles the server autoupdate process if enabled.
 
     Args:
         server: The BedrockServer instance.
-        logger: The logger instance for logging messages.
 
     Returns:
         A dictionary indicating the outcome.
@@ -180,7 +179,7 @@ def start_server(
         server.start_method = mode  # Pass mode to the server object
 
         # --- Call the new autoupdate handler ---
-        update_result = _handle_autoupdate(server, logger)
+        update_result = _handle_autoupdate(server)
         if update_result["status"] == "error":
             return update_result  # Propagate critical update errors and stop
 
