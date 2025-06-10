@@ -1,4 +1,4 @@
-# bedrock_server_manager/core/download/downloader.py
+# bedrock_server_manager/core/downloader.py
 """
 Handles downloading, extracting, and managing Minecraft Bedrock Server files.
 
