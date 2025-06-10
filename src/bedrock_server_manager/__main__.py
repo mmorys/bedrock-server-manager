@@ -146,6 +146,34 @@ def run_cleanup(args: argparse.Namespace) -> None:
         )
 
 
+def _server_exists(server_name: str) -> bool:
+    """
+    Private helper that uses the API layer to check if a server is valid.
+    Returns True if valid, False otherwise.
+    """
+    # Use your existing API function that validates a server's existence.
+    # We assume it returns a dictionary with a 'status' and 'exists' key.
+    response = api_utils.validate_server_exist(server_name)
+    return response.get("status") == "success" and response.get("exists") is True
+
+
+def valid_server_name(name: str) -> str:
+    """
+    A custom argparse 'type' function to validate the server name.
+
+    This function is called by argparse for any argument that uses it as its type.
+    It checks if the server exists and raises a specific error if it doesn't,
+    which argparse handles gracefully.
+    """
+    if not _server_exists(name):
+        # This is the special error type that argparse looks for.
+        raise argparse.ArgumentTypeError(
+            f"Server '{name}' does not exist or is not configured."
+        )
+    # If validation passes, return the original name.
+    return name
+
+
 def main() -> None:
     """
     Main execution function for the CLI.
@@ -190,7 +218,11 @@ def main() -> None:
         # Helper function to add --server argument consistently
         def add_server_arg(sub_parser: argparse.ArgumentParser):
             sub_parser.add_argument(
-                "-s", "--server", help="Name of the target server", required=True
+                "-s",
+                "--server",
+                help="Name of the target server",
+                type=valid_server_name,
+                required=True,
             )
 
         # main (Main CLI Menu)
