@@ -80,8 +80,9 @@ class BedrockServer(
         - `get_status_from_config() -> str`: Reads stored status from JSON config.
         - `set_status_in_config(status_string: str) -> None`: Writes status to JSON config.
         - `get_world_name() -> str`: Reads 'level-name' from server.properties.
+        - 'get_custom_config_value(key: str) -> None`: Gets a custom value from the server's JSON config.
+        - `set_custom_config_value(key: str, value: str) -> None`: Sets a custom value in the server's JSON config.
         - `_manage_json_config(key, operation, value)`: (Internal helper for server JSON config).
-          (Consider adding public `get_custom_config_value` and `set_custom_config_value` if needed).
 
     Process Management (via ServerProcessMixin):
         - `is_running() -> bool`: Checks if the server process is currently active.
@@ -96,6 +97,7 @@ class BedrockServer(
         - `import_active_world_from_mcworld(mcworld_backup_file_path: str) -> str`: Imports .mcworld to active world.
         - `world_icon_filesystem_path -> Optional[str]`: Property for the world icon's disk path.
         - `has_world_icon() -> bool`: Checks if the world icon file exists.
+        - 'delete_active_world_directory() -> bool`: Deletes the active world directory.
 
     Addon Management (via ServerAddonMixin):
         - `process_addon_file(addon_file_path: str) -> None`: Processes .mcaddon or .mcpack files.
