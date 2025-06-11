@@ -154,7 +154,8 @@ def _server_exists(server_name: str) -> bool:
     # Use your existing API function that validates a server's existence.
     # We assume it returns a dictionary with a 'status' and 'exists' key.
     response = api_utils.validate_server_exist(server_name)
-    return response.get("status") == "success" and response.get("exists") is True
+    print = response
+    return response.get("status") == "success"
 
 
 def valid_server_name(name: str) -> str:
