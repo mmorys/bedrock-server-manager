@@ -24,6 +24,8 @@ from bedrock_server_manager.error import (
     SystemError,
     ServerStopError,  # For context manager
     ServerStartError,  # For context manager
+    SendCommandError,
+    ServerNotRunningError,
 )
 
 logger = logging.getLogger(__name__)
@@ -247,7 +249,11 @@ def server_lifecycle_manager(
         if server.is_running():
             was_running = True
             logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
-            server.stop()
+            stop_result = api_stop_server(server_name)
+            if stop_result.get("status") == "error":
+                error_msg = f"Failed to stop server '{server_name}': {stop_result.get('message')}. Aborted."
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
             logger.info(f"Context Mgr: Server '{server_name}' stopped.")
         else:
             logger.debug(
