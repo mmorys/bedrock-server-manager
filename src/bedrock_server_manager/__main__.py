@@ -153,7 +153,10 @@ def _server_exists(server_name: str) -> bool:
     """
     response = api_utils.validate_server_exist(server_name)
     print = response
-    return response.get("status") == "success" and response.get("message") == f"Server '{server_name}' exists and is valid."
+    return (
+        response.get("status") == "success"
+        and response.get("message") == f"Server '{server_name}' exists and is valid."
+    )
 
 
 def valid_server_name(name: str) -> str:
