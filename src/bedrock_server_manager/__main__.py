@@ -14,7 +14,7 @@ import platform
 # --- Initialize Settings and Logger ---
 try:
     from bedrock_server_manager import __version__
-    from bedrock_server_manager import Settings
+    from bedrock_server_manager.config.settings import Settings
     from bedrock_server_manager.logging import setup_logging, log_separator
     from bedrock_server_manager.config.const import app_name_title
 
@@ -91,6 +91,7 @@ try:
         web as cli_web,
         generate_password,
     )
+    from bedrock_server_manager.error import BSMError, UserExitError
 except ImportError as e:
     logger.critical(
         f"CRITICAL ERROR: Failed to import application modules ({e}) after initial setup.",
@@ -806,6 +807,10 @@ def main() -> None:
             parser.print_help()
             sys.exit(1)
 
+    except UserExitError:
+        print("\nExiting application.")
+        logger.info("Application exited gracefully by user request.")
+        sys.exit(0)
     except KeyboardInterrupt:
         print("\nOperation cancelled by user (Ctrl+C).")
         logger.warning("Application terminated by user (KeyboardInterrupt).")

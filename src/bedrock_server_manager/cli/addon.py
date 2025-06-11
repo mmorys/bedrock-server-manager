@@ -32,10 +32,9 @@ except ImportError:
 from bedrock_server_manager.api import addon as addon_api
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.error import (
+    BSMError,
     MissingArgumentError,
     InvalidServerNameError,
-    FileNotFoundError,
-    FileOperationError,
 )
 from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
@@ -88,12 +87,7 @@ def import_addon(server_name: str, addon_file_path: str) -> None:
             print(f"{_OK_PREFIX}{message}")
             logger.debug(f"CLI: Addon import successful for '{addon_filename}'.")
 
-    except (
-        MissingArgumentError,
-        InvalidServerNameError,
-        FileNotFoundError,
-        FileOperationError,
-    ) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(f"CLI: Failed to call addon import API: {e}", exc_info=True)
     except Exception as e:
@@ -149,7 +143,7 @@ def install_addons(server_name: str) -> None:
 
         show_addon_selection_menu(server_name, addon_file_paths)
 
-    except InvalidServerNameError as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Prerequisite for addon installation failed: {e}", exc_info=True

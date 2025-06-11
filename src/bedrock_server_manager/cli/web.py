@@ -37,7 +37,7 @@ from bedrock_server_manager.utils.general import (
 from bedrock_server_manager.api import web as web_api
 
 # Import errors that might be raised by API layer
-from bedrock_server_manager.error import FileOperationError
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def start_web_server(
                 )
                 pass
 
-    except (ValueError, FileOperationError) as e:
+    except (ValueError, BSMError) as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(f"CLI: Failed to call start web server API: {e}", exc_info=True)
     except Exception as e:

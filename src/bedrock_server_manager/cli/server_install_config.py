@@ -47,8 +47,9 @@ from bedrock_server_manager.utils.general import (
 )
 
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
-    FileOperationError,
+    MissingArgumentError,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,7 +136,7 @@ def configure_allowlist(server_name: str) -> None:
         else:
             print(f"{_INFO_PREFIX}No new players entered. Allowlist remains unchanged.")
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
@@ -616,6 +617,8 @@ def install_new_server() -> None:
             f"\n{_OK_PREFIX}Server installation and configuration complete for '{server_name}'."
         )
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}An application error occurred: {e}")
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during installation: {e}")
 
@@ -636,5 +639,7 @@ def update_server(server_name: str) -> None:
             # The API message is descriptive for both "updated" and "already up-to-date" cases.
             print(f"{_OK_PREFIX}{response.get('message')}")
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}A server update error occurred: {e}")
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during server update: {e}")

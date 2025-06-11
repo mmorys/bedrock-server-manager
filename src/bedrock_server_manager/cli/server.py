@@ -30,9 +30,9 @@ except ImportError:
 # Local imports
 from bedrock_server_manager.api import server as server_api
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
     MissingArgumentError,
-    FileOperationError,
 )
 from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
@@ -74,7 +74,7 @@ def start_server(server_name: str, mode: Optional[str] = "direct") -> None:
             )
             print(f"{_OK_PREFIX}{message}")
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to call start server API for '{server_name}': {e}",
@@ -118,7 +118,7 @@ def stop_server(server_name: str) -> None:
             )
             print(f"{_OK_PREFIX}{message}")
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to call stop server API for '{server_name}': {e}",
@@ -161,7 +161,7 @@ def restart_server(server_name: str) -> None:
             )
             print(f"{_OK_PREFIX}{message}")
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to call restart server API for '{server_name}': {e}",
@@ -211,7 +211,7 @@ def send_command(server_name: str, command: str) -> None:
             message = response.get("message", "Command sent successfully.")
             print(f"{_OK_PREFIX}{message}")
 
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to call send command API for '{server_name}': {e}",
@@ -282,7 +282,7 @@ def delete_server(server_name: str, skip_confirmation: bool = False) -> None:
             )
             print(f"{_OK_PREFIX}{message}")
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to call delete server API for '{server_name}': {e}",

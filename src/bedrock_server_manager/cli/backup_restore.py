@@ -39,10 +39,10 @@ from bedrock_server_manager.utils.general import (
     _ERROR_PREFIX,
 )
 from bedrock_server_manager.error import (
+    BSMError,
     MissingArgumentError,
     InvalidServerNameError,
-    InvalidInputError,
-    FileOperationError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ def prune_old_backups(server_name: str) -> None:
             print(f"{_OK_PREFIX}{message}")
             logger.debug(f"CLI: Pruning backups successful for '{server_name}'.")
 
-    except (InvalidServerNameError, ValueError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(f"CLI: Failed to call prune backups API: {e}", exc_info=True)
     except Exception as e:
@@ -107,7 +107,7 @@ def backup_server(
     Raises:
         MissingArgumentError: If `backup_type` or required `file_to_backup` is empty.
         InvalidServerNameError: If `server_name` is empty.
-        InvalidInputError: If `backup_type` is invalid.
+        UserInputError: If `backup_type` is invalid.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -143,7 +143,7 @@ def backup_server(
                 server_name, stop_start_server=change_status
             )
         else:
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Invalid backup type specified: '{backup_type}'. Must be 'world', 'config', or 'all'."
             )
 
@@ -172,7 +172,7 @@ def backup_server(
         )
         prune_old_backups(server_name=server_name)
 
-    except (MissingArgumentError, InvalidServerNameError, InvalidInputError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to initiate backup for '{server_name}': {e}", exc_info=True
@@ -325,7 +325,7 @@ def restore_server(
                 server_name=server_name, stop_start_server=change_status
             )
         else:
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'allowlist', 'permissions', 'properties', or 'all'."
             )
 
@@ -342,12 +342,7 @@ def restore_server(
             )
             print(f"{_OK_PREFIX}{message}")
 
-    except (
-        MissingArgumentError,
-        InvalidServerNameError,
-        InvalidInputError,
-        FileNotFoundError,
-    ) as e:
+    except (BSMError, FileNotFoundError) as e:
         print(f"{_ERROR_PREFIX}{e}")
         logger.error(
             f"CLI: Failed to initiate restore for '{server_name}': {e}", exc_info=True
