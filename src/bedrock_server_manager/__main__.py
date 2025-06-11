@@ -151,11 +151,9 @@ def _server_exists(server_name: str) -> bool:
     Private helper that uses the API layer to check if a server is valid.
     Returns True if valid, False otherwise.
     """
-    # Use your existing API function that validates a server's existence.
-    # We assume it returns a dictionary with a 'status' and 'exists' key.
     response = api_utils.validate_server_exist(server_name)
     print = response
-    return response.get("status") == "success"
+    return response.get("status") == "success" and response.get("message") == f"Server '{server_name}' exists and is valid."
 
 
 def valid_server_name(name: str) -> str:
