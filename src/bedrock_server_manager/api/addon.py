@@ -13,12 +13,9 @@ from typing import Dict
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.api.utils import server_lifecycle_manager
 from bedrock_server_manager.error import (
+    BSMError,
     MissingArgumentError,
-    FileOperationError,
-    FileNotFoundError,
-    InvalidAddonPackTypeError,
-    AddonExtractError,
-    DirectoryError,
+    AppFileNotFoundError,
     InvalidServerNameError,
     SendCommandError,
     ServerNotRunningError,
@@ -56,7 +53,7 @@ def import_addon(
     if not addon_file_path:
         raise MissingArgumentError("Addon file path cannot be empty.")
     if not os.path.isfile(addon_file_path):
-        raise FileNotFoundError(f"Addon file not found: {addon_file_path}")
+        raise AppFileNotFoundError(addon_file_path, "Addon file")
 
     try:
         server = BedrockServer(server_name)
@@ -89,14 +86,7 @@ def import_addon(
             message += " Server stop/start cycle handled."
         return {"status": "success", "message": message}
 
-    except (
-        FileNotFoundError,
-        FileOperationError,
-        AddonExtractError,
-        InvalidAddonPackTypeError,
-        DirectoryError,
-        InvalidServerNameError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Addon import failed for '{addon_filename}' on '{server_name}': {e}",
             exc_info=True,

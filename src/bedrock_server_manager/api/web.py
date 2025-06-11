@@ -14,11 +14,11 @@ except ImportError:
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core.system import process as system_process_utils
 from bedrock_server_manager.error import (
-    ConfigError,
-    ExecutableNotFoundError,
-    PIDFileError,
-    ProcessManagementError,
-    ProcessVerificationError,
+    BSMError,
+    ConfigurationError,
+    FileOperationError,
+    ServerProcessError,
+    SystemError,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,12 +45,7 @@ def start_web_server_api(
                 "status": "success",
                 "message": "Web server (direct mode) shut down.",
             }
-        except (RuntimeError, ImportError) as e:
-            return {
-                "status": "error",
-                "message": f"Failed to run web server directly: {e}",
-            }
-        except Exception as e:  # Catch-all for BSM errors
+        except Exception as e:  # Catch-all for BSM errors or others
             logger.error(
                 f"API: Error in BSM during direct web start: {e}", exc_info=True
             )
@@ -74,7 +69,7 @@ def start_web_server_api(
             existing_pid = None
             try:
                 existing_pid = system_process_utils.read_pid_from_file(pid_file_path)
-            except PIDFileError:  # Corrupt file
+            except FileOperationError:  # Corrupt file
                 system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
             if existing_pid:
@@ -87,7 +82,7 @@ def start_web_server_api(
                             "status": "error",
                             "message": f"Web server already running (PID: {existing_pid}).",
                         }
-                    except ProcessVerificationError:
+                    except ServerProcessError:
                         system_process_utils.remove_pid_file_if_exists(
                             pid_file_path
                         )  # Stale
@@ -115,10 +110,8 @@ def start_web_server_api(
                 "pid": new_pid,
                 "message": f"Web server started (PID: {new_pid}).",
             }
-        except ConfigError as e:
-            return {"status": "error", "message": f"Configuration error: {e}"}
-        except (ExecutableNotFoundError, ProcessManagementError, PIDFileError) as e:
-            return {"status": "error", "message": f"Process management error: {e}"}
+        except BSMError as e:
+            return {"status": "error", "message": f"Failed to start web server: {e}"}
         except Exception as e:
             logger.error(
                 f"API: Unexpected error starting detached web server: {e}",
@@ -159,24 +152,16 @@ def stop_web_server_api() -> Dict[str, str]:
         system_process_utils.terminate_process_by_pid(pid)  # Add timeouts if needed
         system_process_utils.remove_pid_file_if_exists(pid_file_path)
         return {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
-    except ConfigError as e:
-        return {"status": "error", "message": f"Configuration error: {e}"}
-    except PIDFileError as e:
+    except (FileOperationError, ServerProcessError) as e:
         system_process_utils.remove_pid_file_if_exists(bsm.get_web_ui_pid_path())
-        return {"status": "error", "message": f"PID file error: {e}. File removed."}
-    except ProcessVerificationError as e:
-        system_process_utils.remove_pid_file_if_exists(bsm.get_web_ui_pid_path())
-        return {
-            "status": "error",
-            "message": f"Process verification failed: {e}. PID file removed.",
-        }
-    except ProcessManagementError as e:
-        if (
-            "disappeared or was already stopped" in str(e).lower()
-        ):  # from terminate_process_by_pid
-            system_process_utils.remove_pid_file_if_exists(bsm.get_web_ui_pid_path())
-            return {"status": "success", "message": "Web server was already stopped."}
-        return {"status": "error", "message": f"Process management error: {e}"}
+        error_type = (
+            "PID file error"
+            if isinstance(e, FileOperationError)
+            else "Process verification failed"
+        )
+        return {"status": "error", "message": f"{error_type}: {e}. PID file removed."}
+    except BSMError as e:
+        return {"status": "error", "message": f"Error stopping web server: {e}"}
     except Exception as e:
         logger.error(f"API: Unexpected error stopping web server: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
@@ -189,15 +174,15 @@ def get_web_server_status_api() -> Dict[str, Any]:
             "status": "error",
             "message": "'psutil' not installed. Cannot get process status.",
         }
+    pid = None
     try:
         pid_file_path = bsm.get_web_ui_pid_path()
         expected_exe = bsm.get_web_ui_executable_path()
         expected_arg = bsm.get_web_ui_expected_start_arg()
-        pid = None
 
         try:
             pid = system_process_utils.read_pid_from_file(pid_file_path)
-        except PIDFileError:  # Corrupt
+        except FileOperationError:  # Corrupt
             system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
                 "status": "STOPPED",
@@ -231,17 +216,15 @@ def get_web_server_status_api() -> Dict[str, Any]:
                 "pid": pid,
                 "message": f"Web server running with PID {pid}.",
             }
-        except ProcessVerificationError as e:
+        except ServerProcessError as e:
             # PID file points to a WRONG process. Don't remove it here unless sure.
             return {"status": "MISMATCHED_PROCESS", "pid": pid, "message": str(e)}
 
-    except ConfigError as e:
-        return {"status": "ERROR", "pid": None, "message": f"Configuration error: {e}"}
-    except ProcessManagementError as e:  # from is_process_running or verify
+    except BSMError as e:  # Catches ConfigurationError, SystemError, etc.
         return {
             "status": "ERROR",
             "pid": pid,
-            "message": f"Process management error: {e}",
+            "message": f"An application error occurred: {e}",
         }
     except Exception as e:
         logger.error(

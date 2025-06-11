@@ -18,13 +18,11 @@ from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.utils.general import get_timestamp
 from bedrock_server_manager.core.system import task_scheduler as core_task
 from bedrock_server_manager.error import (
-    InvalidCronJobError,
+    BSMError,
     MissingArgumentError,
-    InvalidInputError,
+    UserInputError,
     FileOperationError,
-    CommandNotFoundError,
-    ScheduleError,
-    TaskError,
+    SystemError,
     InvalidServerNameError,
 )
 
@@ -54,7 +52,7 @@ def get_server_cron_jobs(server_name: str) -> Dict[str, Any]:
     try:
         cron_jobs_list = scheduler.get_server_cron_jobs(server_name)
         return {"status": "success", "cron_jobs": cron_jobs_list}
-    except (ScheduleError, InvalidServerNameError) as e:
+    except BSMError as e:
         logger.error(
             f"Failed to retrieve cron jobs for '{server_name}': {e}", exc_info=True
         )
@@ -102,7 +100,7 @@ def add_cron_job(cron_job_string: str) -> Dict[str, str]:
     try:
         scheduler.add_job(cron_job_string.strip())
         return {"status": "success", "message": "Cron job added successfully."}
-    except ScheduleError as e:
+    except BSMError as e:
         logger.error(f"Failed to add cron job '{cron_job_string}': {e}", exc_info=True)
         return {"status": "error", "message": f"Error adding cron job: {e}"}
 
@@ -137,7 +135,7 @@ def modify_cron_job(
     try:
         scheduler.update_job(old_strip, new_strip)
         return {"status": "success", "message": "Cron job modified successfully."}
-    except ScheduleError as e:
+    except BSMError as e:
         logger.error(f"Failed to modify cron job: {e}", exc_info=True)
         return {"status": "error", "message": f"Error modifying cron job: {e}"}
 
@@ -163,7 +161,7 @@ def delete_cron_job(cron_job_string: str) -> Dict[str, str]:
             "status": "success",
             "message": "Cron job deleted successfully (if it existed).",
         }
-    except ScheduleError as e:
+    except BSMError as e:
         logger.error(f"Failed to delete cron job '{cron_strip}': {e}", exc_info=True)
         return {"status": "error", "message": f"Error deleting cron job: {e}"}
 
@@ -198,7 +196,7 @@ def get_server_task_names(
             server_name, effective_config_dir
         )
         return {"status": "success", "task_names": task_name_list}
-    except (TaskError, FileOperationError) as e:
+    except BSMError as e:
         logger.error(
             f"Failed to get task names for server '{server_name}': {e}", exc_info=True
         )
@@ -222,7 +220,7 @@ def get_windows_task_info(task_names: List[str]) -> Dict[str, Any]:
     try:
         task_info_list = scheduler.get_task_info(task_names)
         return {"status": "success", "task_info": task_info_list}
-    except TaskError as e:
+    except BSMError as e:
         logger.error(f"Failed to get Windows task info: {e}", exc_info=True)
         return {"status": "error", "message": f"Error getting task info: {e}"}
 
@@ -273,12 +271,7 @@ def create_windows_task(
             "status": "success",
             "message": f"Windows task '{task_name}' created successfully.",
         }
-    except (
-        TaskError,
-        FileOperationError,
-        InvalidInputError,
-        MissingArgumentError,
-    ) as e:
+    except BSMError as e:
         logger.error(f"Failed to create Windows task '{task_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Error creating task: {e}"}
 
@@ -343,7 +336,7 @@ def modify_windows_task(
             triggers,
             effective_config_dir,
         )
-    except (TaskError, FileOperationError, InvalidInputError) as e:
+    except BSMError as e:
         logger.error(
             f"Failed to modify Windows task '{old_task_name}': {e}", exc_info=True
         )
@@ -372,7 +365,7 @@ def delete_windows_task(task_name: str, task_file_path: str) -> Dict[str, str]:
 
     try:
         scheduler.delete_task(task_name)
-    except TaskError as e:
+    except BSMError as e:
         errors.append(f"Scheduler deletion failed ({e})")
         logger.error(
             f"Failed to delete task '{task_name}' from Task Scheduler: {e}",

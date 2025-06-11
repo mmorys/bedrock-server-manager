@@ -13,9 +13,8 @@ from typing import Dict, List, Any
 
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import (
-    FileOperationError,
-    InvalidInputError,
-    DirectoryError,
+    BSMError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,9 +46,9 @@ def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
             "message": f"{num_saved} player entries processed and saved/updated.",
             "count": num_saved,
         }
-    except InvalidInputError as e:
+    except UserInputError as e:
         return {"status": "error", "message": f"Invalid player data: {str(e)}"}
-    except FileOperationError as e:
+    except BSMError as e:
         return {"status": "error", "message": f"Error saving player data: {str(e)}"}
     except Exception as e:
         logger.error(f"API: Unexpected error adding players: {e}", exc_info=True)
@@ -86,15 +85,10 @@ def scan_and_update_player_db_api() -> Dict[str, Any]:
             message += f" Scan errors encountered for: {result['scan_errors']}"
 
         return {"status": "success", "message": message, "details": result}
-    except DirectoryError as e:
+    except BSMError as e:
         return {
             "status": "error",
-            "message": f"Directory error during player scan: {str(e)}",
-        }
-    except FileOperationError as e:  # From BSM save_player_data failure
-        return {
-            "status": "error",
-            "message": f"Failed to save player data after scan: {str(e)}",
+            "message": f"An error occurred during player scan: {str(e)}",
         }
     except Exception as e:
         logger.error(f"API: Unexpected error scanning for players: {e}", exc_info=True)

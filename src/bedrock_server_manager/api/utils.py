@@ -14,18 +14,9 @@ from bedrock_server_manager.api.server import (
     stop_server as api_stop_server,
 )
 from bedrock_server_manager.error import (
-    InvalidServerNameError,
-    FileOperationError,
-    ServerNotFoundError,
-    CommandNotFoundError,
-    MissingArgumentError,
-    DirectoryError,
-    ResourceMonitorError,
-    SystemError,
-    ServerStopError,  # For context manager
-    ServerStartError,  # For context manager
-    SendCommandError,
-    ServerNotRunningError,
+    BSMError,
+    UserInputError,
+    ServerStartError,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,10 +54,7 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
                 "message": f"Server '{server_name}' is not installed or the installation is invalid.",
             }
 
-    except (
-        FileOperationError,
-        ValueError,
-    ) as e:  # Catches config issues from BedrockServer init
+    except BSMError as e:  # Catches config issues from BedrockServer init
         logger.error(
             f"API: Configuration error during validation for '{server_name}': {e}",
             exc_info=True,
@@ -93,7 +81,7 @@ def validate_server_name_format(server_name: str) -> Dict[str, str]:
         core_utils.core_validate_server_name_format(server_name)
         logger.debug(f"API: Format valid for '{server_name}'.")
         return {"status": "success", "message": "Server name format is valid."}
-    except ValueError as e:
+    except UserInputError as e:
         logger.warning(f"API: Invalid format for '{server_name}': {e}")
         return {"status": "error", "message": str(e)}
     except Exception as e:
@@ -142,7 +130,7 @@ def update_server_statuses() -> Dict[str, Any]:
             "message": f"Status check completed for {updated_servers_count} servers.",
         }
 
-    except (FileOperationError, DirectoryError) as e:
+    except BSMError as e:
         logger.error(f"API: Setup error during status update: {e}", exc_info=True)
         return {"status": "error", "message": f"Error accessing directories: {e}"}
     except Exception as e:
@@ -188,7 +176,7 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
             )
             return {"status": "error", "message": message}
 
-    except (CommandNotFoundError, ResourceMonitorError, FileOperationError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Prerequisite error for screen attach on '{server_name}': {e}",
             exc_info=True,
@@ -290,7 +278,7 @@ def server_lifecycle_manager(
                     logger.info(
                         f"Context Mgr: Server '{server_name}' restart initiated."
                     )
-                except (ServerStartError, CommandNotFoundError) as e:
+                except BSMError as e:
                     logger.error(
                         f"Context Mgr: FAILED to restart '{server_name}': {e}",
                         exc_info=True,

@@ -13,16 +13,10 @@ from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.api.utils import server_lifecycle_manager
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
     FileOperationError,
-    DirectoryError,
-    BackupWorldError,
-    RestoreError,
-    DownloadExtractError,
     MissingArgumentError,
-    FileNotFoundError,
-    SendCommandError,
-    ServerNotRunningError,
 )
 from bedrock_server_manager.utils.general import get_timestamp
 
@@ -44,7 +38,7 @@ def get_world_name(server_name: str) -> Dict[str, Any]:
             f"API: Retrieved world name for '{server_name}': '{world_name_str}'"
         )
         return {"status": "success", "world_name": world_name_str}
-    except FileOperationError as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to get world name for '{server_name}': {e}", exc_info=True
         )
@@ -81,7 +75,7 @@ def export_world(
         if server.is_running():
             try:
                 server.send_command("say Exporting world...")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Failed to send world export warning to '{server_name}': {e}"
                 )
@@ -118,12 +112,7 @@ def export_world(
             "export_file": export_file_path,
             "message": f"World '{world_name_str}' exported successfully to {export_filename}.",
         }
-    except (
-        MissingArgumentError,
-        DirectoryError,
-        BackupWorldError,
-        FileOperationError,
-    ) as e:
+    except (BSMError, ValueError) as e:
         logger.error(
             f"API: Failed to export world for '{server_name}': {e}", exc_info=True
         )
@@ -164,7 +153,7 @@ def import_world(
         if server.is_running():
             try:
                 server.send_command("say Importing world...")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Failed to send world export warning to '{server_name}': {e}"
                 )
@@ -185,13 +174,7 @@ def import_world(
             "status": "success",
             "message": f"World '{imported_world_name or 'Unknown'}' imported successfully from {selected_filename}.",
         }
-    except (
-        FileNotFoundError,
-        DirectoryError,
-        DownloadExtractError,
-        RestoreError,
-        FileOperationError,
-    ) as e:
+    except (BSMError, FileNotFoundError) as e:
         logger.error(
             f"API: Failed to import world for '{server_name}': {e}", exc_info=True
         )
@@ -221,7 +204,7 @@ def reset_world(server_name: str) -> Dict[str, str]:
         if server.is_running():
             try:
                 server.send_command("say WARNING: Resetting world")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Failed to send world reset warning to '{server_name}': {e}"
                 )
@@ -246,7 +229,7 @@ def reset_world(server_name: str) -> Dict[str, str]:
             "status": "success",
             "message": f"World '{world_name_for_msg}' reset successfully.",
         }
-    except (DirectoryError, FileOperationError, ServerNotRunningError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to reset world for '{server_name}': {e}", exc_info=True
         )
