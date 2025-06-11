@@ -80,7 +80,7 @@ def export_world(
 
         if server.is_running():
             try:
-                server.send_command("say Installing exporting world...")
+                server.send_command("say Exporting world...")
             except (SendCommandError, ServerNotRunningError) as e:
                 logger.warning(
                     f"API: Failed to send world export warning to '{server_name}': {e}"
@@ -160,6 +160,14 @@ def import_world(
             raise FileNotFoundError(
                 f"Source .mcworld file not found: {selected_file_path}"
             )
+
+        if server.is_running():
+            try:
+                server.send_command("say Importing world...")
+            except (SendCommandError, ServerNotRunningError) as e:
+                logger.warning(
+                    f"API: Failed to send world export warning to '{server_name}': {e}"
+                )
 
         imported_world_name: Optional[str] = None
         with server_lifecycle_manager(server_name, stop_before=stop_start_server):
