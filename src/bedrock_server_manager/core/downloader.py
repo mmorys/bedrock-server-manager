@@ -20,11 +20,15 @@ from typing import Tuple, Optional, Set
 # Local imports
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
-    DownloadExtractError,
+    DownloadError,
+    ExtractError,
     MissingArgumentError,
     InternetConnectivityError,
     FileOperationError,
-    DirectoryError,
+    AppFileNotFoundError,
+    ConfigurationError,
+    UserInputError,
+    SystemError,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,15 +45,15 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
 
     Raises:
         MissingArgumentError: If `download_dir` is None or empty.
-        ValueError: If `download_keep` cannot be converted to a valid integer >= 0.
-        DirectoryError: If `download_dir` does not exist or is not a directory.
+        UserInputError: If `download_keep` is not an integer >= 0.
+        AppFileNotFoundError: If `download_dir` does not exist or is not a directory.
         FileOperationError: If there's an error accessing files or deleting an old download.
     """
     if not download_dir:
         raise MissingArgumentError("Download directory cannot be empty for pruning.")
 
     if not isinstance(download_keep, int) or download_keep < 0:
-        raise ValueError(
+        raise UserInputError(
             f"Invalid value for downloads to keep: '{download_keep}'. Must be an integer >= 0."
         )
 
@@ -60,7 +64,7 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
     if not os.path.isdir(download_dir):
         error_msg = f"Core: Download directory '{download_dir}' does not exist or is not a directory. Cannot prune."
         logger.error(error_msg)
-        raise DirectoryError(error_msg)
+        raise AppFileNotFoundError(download_dir, "Download directory")
 
     logger.info(
         f"Core: Pruning old Bedrock server downloads in '{download_dir}' (keeping {download_keep})..."
@@ -175,7 +179,7 @@ class BedrockDownloader:
         self.os_name: str = platform.system()
         self.base_download_dir: Optional[str] = self.settings.get("DOWNLOAD_DIR")
         if not self.base_download_dir:
-            raise DirectoryError(
+            raise ConfigurationError(
                 "DOWNLOAD_DIR setting is missing or empty in configuration."
             )
         self.base_download_dir = os.path.abspath(self.base_download_dir)  # Normalize
@@ -245,7 +249,9 @@ class BedrockDownloader:
             self.logger.error(
                 f"Unsupported OS '{self.os_name}' for Bedrock server download."
             )
-            raise OSError(f"Unsupported OS for Bedrock server download: {self.os_name}")
+            raise SystemError(
+                f"Unsupported OS for Bedrock server download: {self.os_name}"
+            )
 
         try:
             app_name = self.settings.get("_app_name", "BedrockServerManager")
@@ -276,9 +282,7 @@ class BedrockDownloader:
         if not match:
             error_msg = f"Could not find download URL for OS '{self.os_name}' and version type '{self._version_type}' on page {self.DOWNLOAD_PAGE_URL}."
             self.logger.error(error_msg + " Website structure may have changed.")
-            raise DownloadExtractError(
-                error_msg + " Please check website or report issue."
-            )
+            raise DownloadError(error_msg + " Please check website or report issue.")
 
         base_url = match.group(1)
         self.logger.debug(f"Found base download URL via regex: {base_url}")
@@ -309,7 +313,7 @@ class BedrockDownloader:
                     self.logger.warning(
                         f"Could not substitute version '{self._custom_version_number}' into base URL '{base_url}'. Regex pattern might need update or base URL format unexpected."
                     )
-                    raise DownloadExtractError(
+                    raise DownloadError(
                         f"Failed to construct URL for specific version '{self._custom_version_number}'."
                     )
 
@@ -322,7 +326,7 @@ class BedrockDownloader:
                     f"Error constructing URL for specific version '{self._custom_version_number}': {e}",
                     exc_info=True,
                 )
-                raise DownloadExtractError(
+                raise DownloadError(
                     f"Error constructing URL for specific version '{self._custom_version_number}': {e}"
                 ) from e
         else:
@@ -334,7 +338,7 @@ class BedrockDownloader:
         if (
             not self.resolved_download_url
         ):  # Should not happen if logic above is correct
-            raise DownloadExtractError("Failed to resolve a download URL.")
+            raise DownloadError("Failed to resolve a download URL.")
         return self.resolved_download_url
 
     def _get_version_from_url(self) -> str:
@@ -358,9 +362,7 @@ class BedrockDownloader:
         else:
             error_msg = f"Failed to extract version number from URL format: {self.resolved_download_url}"
             self.logger.error(error_msg)
-            raise DownloadExtractError(
-                error_msg + " URL structure might be unexpected."
-            )
+            raise DownloadError(error_msg + " URL structure might be unexpected.")
 
     def _download_server_zip_file(self) -> None:
         """Downloads the server ZIP file using self.resolved_download_url and self.zip_file_path."""
@@ -478,9 +480,9 @@ class BedrockDownloader:
             )  # Call standalone
 
         except (
-            ValueError,
-            DirectoryError,
+            UserInputError,
             FileOperationError,
+            AppFileNotFoundError,
             MissingArgumentError,
         ) as e:
             self.logger.warning(
@@ -544,7 +546,9 @@ class BedrockDownloader:
                 f"Failed to create essential directories (server: '{self.server_dir}', base_dl: '{self.base_download_dir}'): {e}",
                 exc_info=True,
             )
-            raise DirectoryError(f"Failed to create required directories: {e}") from e
+            raise FileOperationError(
+                f"Failed to create required directories: {e}"
+            ) from e
 
         self.get_version_for_target_spec()  # Ensures self.resolved_download_url and self.actual_version are set
 
@@ -553,7 +557,7 @@ class BedrockDownloader:
             or not self.resolved_download_url
             or not self.base_download_dir
         ):
-            raise DownloadExtractError(
+            raise DownloadError(
                 "Internal error: version or URL not resolved after lookup/parsing."
             )
 
@@ -572,7 +576,7 @@ class BedrockDownloader:
                 f"Failed to create specific download directory '{self.specific_download_dir}': {e}",
                 exc_info=True,
             )
-            raise DirectoryError(
+            raise FileOperationError(
                 f"Failed to create download subdirectory '{self.specific_download_dir}': {e}"
             ) from e
 
@@ -600,7 +604,7 @@ class BedrockDownloader:
             or not self.zip_file_path
             or not self.specific_download_dir
         ):
-            raise DownloadExtractError(
+            raise DownloadError(
                 "Critical state missing after download preparation (actual_version, zip_file_path, or specific_download_dir)."
             )
         return self.actual_version, self.zip_file_path, self.specific_download_dir
@@ -615,9 +619,7 @@ class BedrockDownloader:
                 "ZIP file path not set. Call prepare_download_assets() first."
             )
         if not os.path.exists(self.zip_file_path):  # Check before trying to open
-            raise FileNotFoundError(
-                f"Cannot extract: ZIP file not found at '{self.zip_file_path}'."
-            )
+            raise AppFileNotFoundError(self.zip_file_path, "ZIP file to extract")
 
         self.logger.info(
             f"Extracting server files from '{self.zip_file_path}' to '{self.server_dir}'..."
@@ -674,9 +676,7 @@ class BedrockDownloader:
                 f"Failed to extract: '{self.zip_file_path}' is invalid/corrupted ZIP. {e}",
                 exc_info=True,
             )
-            raise DownloadExtractError(
-                f"Invalid ZIP file: '{self.zip_file_path}'. {e}"
-            ) from e
+            raise ExtractError(f"Invalid ZIP file: '{self.zip_file_path}'. {e}") from e
         except (OSError, IOError) as e:  # File system errors during extraction
             self.logger.error(
                 f"File system error during extraction to '{self.server_dir}': {e}",
@@ -687,7 +687,7 @@ class BedrockDownloader:
             self.logger.error(
                 f"Unexpected error during ZIP extraction: {e}", exc_info=True
             )
-            raise FileOperationError(f"Unexpected error during extraction: {e}") from e
+            raise ExtractError(f"Unexpected error during extraction: {e}") from e
 
     def full_server_setup(self, is_update: bool) -> str:
         """
@@ -710,9 +710,7 @@ class BedrockDownloader:
         if (
             not actual_version
         ):  # Should be caught by prepare_download_assets if it fails to set it
-            raise DownloadExtractError(
-                "Actual version not determined after full setup."
-            )
+            raise DownloadError("Actual version not determined after full setup.")
         return actual_version
 
     # --- Getters for populated state ---

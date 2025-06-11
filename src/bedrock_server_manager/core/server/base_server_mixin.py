@@ -9,6 +9,7 @@ from typing import Optional, TYPE_CHECKING, Any
 # Local imports
 from bedrock_server_manager.config.const import EXPATH as CONST_EXPATH
 from bedrock_server_manager.config.settings import Settings
+from bedrock_server_manager.error import MissingArgumentError, ConfigurationError
 
 
 class BedrockServerBaseMixin:
@@ -30,7 +31,7 @@ class BedrockServerBaseMixin:
 
         if not server_name:
             # This basic validation should happen early.
-            raise ValueError(
+            raise MissingArgumentError(
                 "BedrockServer cannot be initialized without a server_name."
             )
 
@@ -60,7 +61,7 @@ class BedrockServerBaseMixin:
         # Ensure critical settings are present
         _base_dir_val = self.settings.get("BASE_DIR")
         if not _base_dir_val:
-            raise ValueError(
+            raise ConfigurationError(
                 "BASE_DIR not configured in settings. Cannot initialize BedrockServer."
             )
         self.base_dir: str = _base_dir_val
@@ -71,7 +72,7 @@ class BedrockServerBaseMixin:
         # This comes from settings.config_dir property
         _app_cfg_dir_val = self.settings.config_dir
         if not _app_cfg_dir_val:
-            raise ValueError(
+            raise ConfigurationError(
                 "Application config_dir not available from settings. Cannot initialize BedrockServer."
             )
         self.app_config_dir: str = _app_cfg_dir_val

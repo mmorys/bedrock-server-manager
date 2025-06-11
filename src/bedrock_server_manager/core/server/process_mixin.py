@@ -29,14 +29,13 @@ from bedrock_server_manager.error import (
     ConfigurationError,
     MissingArgumentError,
     CommandNotFoundError,
-    ResourceMonitorError,
     ServerNotRunningError,
     ServerStopError,
     SendCommandError,
-    PIDFileError,
-    ProcessManagementError,
+    FileOperationError,
     ServerStartError,
-    MissingPackagesError,
+    SystemError,
+    ServerProcessError,
 )
 
 
@@ -72,7 +71,8 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         except (
             MissingArgumentError,
             CommandNotFoundError,
-            ResourceMonitorError,
+            SystemError,
+            ServerProcessError,
         ) as e_check:
             self.logger.warning(
                 f"Error during system_base.is_server_running for '{self.server_name}': {e_check}"
@@ -139,9 +139,9 @@ class ServerProcessMixin(BedrockServerBaseMixin):
             SendCommandError,
             CommandNotFoundError,
             NotImplementedError,
-            MissingPackagesError,
+            SystemError,
         ) as e:
-            # MissingPackagesError for pywin32 from _windows_send_command
+            # SystemError for pywin32 from _windows_send_command
             self.logger.error(
                 f"Failed to send command '{command}' to server '{self.server_name}': {e}"
             )
@@ -294,9 +294,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
                     final_status != "ERROR" and final_status != "STARTING"
                 )  # Consider it "handled"
 
-            except (
-                MissingPackagesError
-            ) as e_mp:  # From pywin32 check in _windows_start_server
+            except SystemError as e_mp:  # From pywin32 check in _windows_start_server
                 self.logger.error(f"Missing packages for Windows server start: {e_mp}")
                 self.set_status_in_config("ERROR")
                 raise
@@ -492,11 +490,11 @@ class ServerProcessMixin(BedrockServerBaseMixin):
                     if not self.is_running():  # Double check main is_running
                         self.set_status_in_config("STOPPED")
                         return
-            except PIDFileError as e_pid:
+            except FileOperationError as e_pid:
                 self.logger.warning(
                     f"PID file error for '{self.server_name}' during force stop: {e_pid}. Cannot perform PID-based stop."
                 )
-            except ProcessManagementError as e_pm:
+            except (SystemError, ServerStopError) as e_pm:
                 self.logger.error(
                     f"Error during forceful termination of PID {pid_to_terminate} for '{self.server_name}': {e_pm}"
                 )

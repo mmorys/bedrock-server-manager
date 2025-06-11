@@ -39,15 +39,14 @@ from bedrock_server_manager.config.settings import settings
 from ...error import (
     MissingArgumentError,
     ServerStartError,
-    ServerNotFoundError,
+    AppFileNotFoundError,
     ServerStopError,
-    PIDFileError as CorePIDFileError,
-    ProcessManagementError as CoreProcessManagementError,
-    ProcessVerificationError as CoreProcessVerificationError,
-    ConfigurationError as CoreConfigurationError,
-    MissingPackagesError,
+    FileOperationError,
+    SystemError,
+    ServerProcessError,
     SendCommandError,
     ServerNotRunningError,
+    PermissionsError,
 )
 
 logger = logging.getLogger(__name__)
@@ -347,7 +346,7 @@ def _windows_start_server(
     Starts Bedrock server on Windows in foreground, manages PID & named pipe. Blocks until shutdown.
     """
     if not PYWIN32_AVAILABLE:
-        raise MissingPackagesError(
+        raise SystemError(
             "The 'pywin32' package is required for Windows named pipe functionality."
         )
     if not server_name:
@@ -375,13 +374,13 @@ def _windows_start_server(
         output_file = os.path.join(server_dir, "server_output.txt")
 
         if not os.path.isfile(server_exe_path):
-            raise ServerNotFoundError(f"Server executable not found: {server_exe_path}")
+            raise AppFileNotFoundError(server_exe_path, "Server executable")
 
         pid_filename = _get_server_pid_filename(server_name)
         pid_file_path = None
         try:
             pid_file_path = core_process.get_pid_file_path(config_dir, pid_filename)
-        except CoreConfigurationError as e:
+        except AppFileNotFoundError as e:
             raise ServerStartError(
                 f"Invalid config_dir for PID file of '{server_name}': {e}"
             ) from e
@@ -431,17 +430,17 @@ def _windows_start_server(
                     f"Stale PID file '{pid_file_path}' (PID {existing_pid} not running). Removing."
                 )
                 core_process.remove_pid_file_if_exists(pid_file_path)
-        except CoreProcessVerificationError:
+        except ServerProcessError:
             logger.warning(
                 f"PID {existing_pid} from '{pid_file_path}' is running but NOT server '{server_name}' at '{server_dir}'. Removing stale PID file."
             )
             core_process.remove_pid_file_if_exists(pid_file_path)
-        except CorePIDFileError as e:
+        except FileOperationError as e:
             logger.warning(
                 f"Problematic PID file '{pid_file_path}': {e}. Removing and proceeding."
             )
             core_process.remove_pid_file_if_exists(pid_file_path)
-        except CoreProcessManagementError as e:
+        except (SystemError, PermissionsError) as e:
             raise ServerStartError(
                 f"Cannot check existing process for server '{server_name}': {e}"
             ) from e
@@ -529,7 +528,7 @@ def _windows_start_server(
 
         except ServerStartError:
             raise  # Re-raise if it's from pre-checks
-        except CorePIDFileError as e_pid:
+        except FileOperationError as e_pid:
             if server_stdout_handle:
                 server_stdout_handle.close()
             if bedrock_process and bedrock_process.poll() is None:
@@ -623,7 +622,7 @@ def _windows_start_server(
                             logger.info(
                                 f"Bedrock server PID {bedrock_process.pid} terminated by wrapper cleanup."
                             )
-                    except core_process.ProcessManagementError as e_term:
+                    except (ServerStopError, PermissionsError, SystemError) as e_term:
                         logger.error(
                             f"Error during final termination of Bedrock server '{server_name}' by wrapper: {e_term}"
                         )
@@ -713,8 +712,8 @@ def _windows_send_command(server_name: str, command: str) -> None:
 
     Raises:
         MissingArgumentError: If `server_name` or `command` is empty.
-        SendCommandError: If 'pywin32' is not available, or if a pipe communication
-                          error occurs (e.g., pipe busy, pipe broken, other Windows errors).
+        SystemError: If 'pywin32' is not available.
+        SendCommandError: If a pipe communication error occurs (e.g., pipe busy, pipe broken, other Windows errors).
         ServerNotRunningError: If the named pipe for the server is not found (server likely not running).
     """
     ERROR_FILE_NOT_FOUND = 2
@@ -730,9 +729,7 @@ def _windows_send_command(server_name: str, command: str) -> None:
         logger.error(
             "Cannot send command on Windows: Required 'pywin32' module is not installed."
         )
-        raise SendCommandError(
-            "Cannot send command on Windows: 'pywin32' module not found."
-        )
+        raise SystemError("Cannot send command on Windows: 'pywin32' module not found.")
 
     pipe_name = rf"\\.\pipe\BedrockServerPipe_{server_name}"
     handle = win32file.INVALID_HANDLE_VALUE
@@ -912,7 +909,7 @@ def _windows_stop_server(
             pid_file_path = core_process.get_pid_file_path(
                 effective_config_dir, pid_filename
             )
-        except CoreConfigurationError as e:
+        except AppFileNotFoundError as e:
             if server_name in managed_bedrock_servers:
                 del managed_bedrock_servers[server_name]
             raise ServerStopError(
@@ -923,7 +920,7 @@ def _windows_stop_server(
     pid_to_stop: Optional[int] = None
     try:
         pid_to_stop = core_process.read_pid_from_file(pid_file_path)
-    except CorePIDFileError as e:
+    except FileOperationError as e:
         if pid_file_path:
             core_process.remove_pid_file_if_exists(pid_file_path)
         if server_name in managed_bedrock_servers:
@@ -982,15 +979,13 @@ def _windows_stop_server(
                 logger.info(
                     f"Server '{server_name}' (PID {pid_to_stop}) process termination signal sent."
                 )
-        except CoreProcessVerificationError as e:
+        except ServerProcessError as e:
             if pid_file_path:
                 core_process.remove_pid_file_if_exists(pid_file_path)
             raise ServerStopError(
                 f"Verification failed for '{server_name}' (PID {pid_to_stop}): {e}. PID file removed."
             ) from e
-        except (
-            CoreProcessManagementError
-        ) as e:  # From is_process_running, verify, terminate
+        except (SystemError, PermissionsError, ServerStopError) as e:
             if "disappeared or was already stopped" not in str(e).lower():
                 # Only raise if it's a real management error, not if process just died.
                 raise ServerStopError(

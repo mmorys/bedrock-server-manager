@@ -15,6 +15,8 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
     InvalidServerNameError,
+    SystemError,
+    CommandNotFoundError,
 )
 
 # Dummy import
@@ -35,12 +37,12 @@ def core_validate_server_name_format(server_name: str) -> None:
         server_name: The server name string to validate.
 
     Raises:
-        ValueError: If the server name is empty or has an invalid format.
+        InvalidServerNameError: If the server name is empty or has an invalid format.
     """
     if not server_name:
-        raise ValueError("Server name cannot be empty.")
+        raise InvalidServerNameError("Server name cannot be empty.")
     if not re.fullmatch(r"^[a-zA-Z0-9_-]+$", server_name):
-        raise ValueError(
+        raise InvalidServerNameError(
             "Invalid server name format. Only use letters (a-z, A-Z), "
             "numbers (0-9), hyphens (-), and underscores (_)."
         )
@@ -296,14 +298,17 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
         Message contains output or error details.
 
     Raises:
-        RuntimeError: If not on Linux or 'screen' command is not found.
+        SystemError: If not on Linux.
+        CommandNotFoundError: If the 'screen' command is not found.
     """
     if platform.system() != "Linux":
-        raise RuntimeError("Screen session attachment is only supported on Linux.")
+        raise SystemError("Screen session attachment is only supported on Linux.")
 
     screen_cmd = shutil.which("screen")
     if not screen_cmd:
-        raise RuntimeError("'screen' command not found. Is screen installed?")
+        raise CommandNotFoundError(
+            "screen", "'screen' command not found. Is screen installed?"
+        )
 
     command = [screen_cmd, "-r", screen_session_name]
     logger.debug(
@@ -345,4 +350,7 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
         logger.error(f"core.core_execute_screen_attach: {msg}")
         return False, msg
     except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        raise RuntimeError("'screen' command not found unexpectedly during execution.")
+        raise CommandNotFoundError(
+            "screen",
+            message="'screen' command not found unexpectedly during execution.",
+        )

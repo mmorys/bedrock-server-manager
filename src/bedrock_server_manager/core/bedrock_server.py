@@ -23,7 +23,7 @@ from bedrock_server_manager.core.server.config_management_mixin import (
 from bedrock_server_manager.core.server.install_update_mixin import (
     ServerInstallUpdateMixin,
 )
-from bedrock_server_manager.error import FileOperationError
+from bedrock_server_manager.error import FileOperationError, ConfigParseError
 
 
 class BedrockServer(
@@ -200,7 +200,7 @@ class BedrockServer(
             try:
                 world_name_val = self.get_world_name()
                 has_icon_val = self.has_world_icon()
-            except FileOperationError as e_world:
+            except (FileOperationError, ConfigParseError) as e_world:
                 self.logger.warning(
                     f"Error reading world name/icon for '{self.server_name}': {e_world}"
                 )

@@ -13,11 +13,19 @@ from bedrock_server_manager.core.system import (
 )
 from bedrock_server_manager.error import (
     MissingArgumentError,
-    InstallUpdateError,
-    DownloadExtractError,
-    DirectoryError,
+    DownloadError,
+    ExtractError,
     FileOperationError,
     InternetConnectivityError,
+    PermissionsError,
+    ServerStopError,
+    AppFileNotFoundError,
+    FileError,
+    NetworkError,
+    SystemError,
+    UserInputError,
+    ConfigurationError,
+    ServerError,
 )
 
 
@@ -48,13 +56,8 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             self.logger.info(
                 f"Server file extraction completed for '{self.server_name}'."
             )
-        except (
-            DownloadExtractError,
-            FileOperationError,
-            MissingArgumentError,
-            FileNotFoundError,
-        ) as e:
-            raise InstallUpdateError(
+        except (FileError, MissingArgumentError) as e:
+            raise ExtractError(
                 f"Extraction phase failed for server '{self.server_name}'."
             ) from e
 
@@ -71,7 +74,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             self.logger.error(
                 f"Failed to set permissions for '{self.server_dir}' during setup: {e_perm}. Installation may be incomplete."
             )
-            raise InstallUpdateError(
+            raise PermissionsError(
                 f"Failed to set permissions for '{self.server_dir}'."
             ) from e_perm
 
@@ -159,13 +162,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
                     f"Server '{self.server_name}' (v{current_installed_version}) needs update to '{target_spec_upper}' (v{latest_available_for_spec})."
                 )
                 return True
-        except (
-            InternetConnectivityError,
-            DownloadExtractError,
-            OSError,
-            DirectoryError,
-            MissingArgumentError,
-        ) as e_fetch:
+        except (NetworkError, FileError, SystemError, UserInputError) as e_fetch:
             self.logger.warning(
                 f"Could not get latest version for '{target_spec_upper}' due to: {e_fetch}. Assuming update might be needed to be safe.",
                 exc_info=True,
@@ -206,7 +203,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             try:
                 self.stop()  # stop() method from ServerProcessMixin
             except Exception as e_stop:
-                raise InstallUpdateError(
+                raise ServerStopError(
                     f"Failed to stop server '{self.server_name}' before install/update: {e_stop}"
                 ) from e_stop
 
@@ -235,7 +232,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             if (
                 not actual_version_to_download
             ):  # Should be resolved by prepare_download_assets
-                raise InstallUpdateError(
+                raise DownloadError(
                     f"Could not resolve actual version number for spec '{target_version_specification}'."
                 )
 
@@ -261,12 +258,12 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             )
 
         except (
-            InternetConnectivityError,
-            DownloadExtractError,
-            InstallUpdateError,
-            FileOperationError,
-            DirectoryError,
-            MissingArgumentError,
+            NetworkError,
+            FileError,
+            ServerError,
+            SystemError,
+            ConfigurationError,
+            UserInputError,
         ) as e_install:
             self.logger.error(
                 f"Install/Update failed for server '{self.server_name}': {e_install}",
@@ -280,7 +277,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
                 exc_info=True,
             )
             self.set_status_in_config("ERROR")
-            raise InstallUpdateError(
+            raise FileOperationError(
                 f"Unexpected failure during install/update for '{self.server_name}': {e_unexp}"
             ) from e_unexp
         finally:

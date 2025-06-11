@@ -28,13 +28,14 @@ except ImportError:
 
 # Local imports
 from bedrock_server_manager.error import (
-    SetFolderPermissionsError,
-    DirectoryError,
+    PermissionsError,
+    AppFileNotFoundError,
     MissingArgumentError,
     CommandNotFoundError,
-    ResourceMonitorError,
-    MissingPackagesError,
+    ServerProcessError,
+    SystemError,
     InternetConnectivityError,
+    FileOperationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ def check_prerequisites() -> None:
     Currently checks for 'screen' and 'systemctl' (implicitly) on Linux. No-op on Windows.
 
     Raises:
-        MissingPackagesError: If any required packages/commands are missing on Linux.
+        SystemError: If any required packages/commands are missing on Linux.
+        CommandNotFoundError: If a required command is missing on Windows.
     """
     os_name = platform.system()
     logger.debug(f"Checking prerequisites for operating system: {os_name}")
@@ -70,7 +72,7 @@ def check_prerequisites() -> None:
         if missing_commands:
             error_msg = f"Missing required command(s) on Linux: {', '.join(missing_commands)}. Please install them."
             logger.error(error_msg)
-            raise MissingPackagesError(error_msg)
+            raise SystemError(error_msg)
         else:
             logger.debug("All required Linux prerequisites appear to be installed.")
 
@@ -86,7 +88,7 @@ def check_prerequisites() -> None:
             error_msg = "'schtasks.exe' command not found. Task scheduling features will be unavailable."
             logger.error(error_msg)
             # Eaise MissingPackagesError
-            raise MissingPackagesError(error_msg)
+            raise CommandNotFoundError("schtasks", message=error_msg)
 
         logger.debug(
             "Windows prerequisites checked (schtasks found, psutil recommended)."
@@ -152,15 +154,13 @@ def set_server_folder_permissions(server_dir: str) -> None:
 
     Raises:
         MissingArgumentError: If `server_dir` is empty.
-        DirectoryError: If `server_dir` does not exist or is not a directory.
-        SetFolderPermissionsError: If setting permissions fails due to OS errors.
+        AppFileNotFoundError: If `server_dir` does not exist or is not a directory.
+        PermissionsError: If setting permissions fails due to OS errors.
     """
     if not server_dir:
         raise MissingArgumentError("Server directory cannot be empty.")
     if not os.path.isdir(server_dir):
-        raise DirectoryError(
-            f"Server directory does not exist or is not a directory: '{server_dir}'"
-        )
+        raise AppFileNotFoundError(server_dir, "Server directory")
 
     os_name = platform.system()
     logger.debug(
@@ -203,7 +203,7 @@ def set_server_folder_permissions(server_dir: str) -> None:
                     f"Failed to set Linux permissions for '{server_dir}': {e}",
                     exc_info=True,
                 )
-                raise SetFolderPermissionsError(
+                raise PermissionsError(
                     f"Failed to set Linux permissions/ownership: {e}"
                 ) from e
 
@@ -250,7 +250,7 @@ def set_server_folder_permissions(server_dir: str) -> None:
                     f"Failed to set Windows write permissions for '{server_dir}': {e}",
                     exc_info=True,
                 )
-                raise SetFolderPermissionsError(
+                raise PermissionsError(
                     f"Failed to set Windows write permissions: {e}"
                 ) from e
         else:
@@ -260,9 +260,9 @@ def set_server_folder_permissions(server_dir: str) -> None:
 
     except MissingArgumentError:  # Re-raise specific known errors
         raise
-    except DirectoryError:  # Re-raise specific known errors
+    except AppFileNotFoundError:  # Re-raise specific known errors
         raise
-    except SetFolderPermissionsError:  # Re-raise specific known errors
+    except PermissionsError:  # Re-raise specific known errors
         raise
     except (
         Exception
@@ -271,9 +271,7 @@ def set_server_folder_permissions(server_dir: str) -> None:
             f"Unexpected error setting permissions for '{server_dir}': {e}",
             exc_info=True,
         )
-        raise SetFolderPermissionsError(
-            f"Unexpected error during permission setup: {e}"
-        ) from e
+        raise PermissionsError(f"Unexpected error during permission setup: {e}") from e
 
 
 def is_server_running(server_name: str, base_dir: str) -> bool:
@@ -294,7 +292,7 @@ def is_server_running(server_name: str, base_dir: str) -> bool:
     Raises:
         MissingArgumentError: If `server_name` or `base_dir` is empty.
         CommandNotFoundError: If required commands (`screen` on Linux) are not found.
-        ResourceMonitorError: If `psutil` is unavailable on Windows.
+        SystemError: If `psutil` is unavailable on Windows.
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
@@ -343,7 +341,7 @@ def is_server_running(server_name: str, base_dir: str) -> bool:
             logger.error(
                 "'psutil' package not found. Cannot check server status on Windows."
             )
-            raise ResourceMonitorError("'psutil' is required on Windows.")
+            raise SystemError("'psutil' is required on Windows to check server status.")
 
         try:
             # Construct the expected full, normalized path to the target executable
@@ -535,8 +533,8 @@ def _get_bedrock_process_info(
 
     Raises:
         MissingArgumentError: If `server_name` or `base_dir` is empty.
-        ResourceMonitorError: If `psutil` is unavailable, or if an unexpected error occurs
-                              during process detail retrieval.
+        SystemError: If `psutil` is unavailable.
+        ServerProcessError: If an unexpected error occurs during process detail retrieval.
     """
     # Declare intent to modify global variables
     global _last_timestamp
@@ -548,7 +546,7 @@ def _get_bedrock_process_info(
 
     if not PSUTIL_AVAILABLE:
         logger.error("'psutil' package not found. Cannot get process info.")
-        raise ResourceMonitorError("'psutil' is required for process monitoring.")
+        raise SystemError("'psutil' is required for process monitoring.")
 
     logger.debug(
         f"Attempting to get process info for server '{server_name}' (using delta CPU)..."
@@ -720,7 +718,7 @@ def _get_bedrock_process_info(
                     f"Error getting details for process PID {pid} ('{server_name}'): {detail_err}",
                     exc_info=True,
                 )
-                raise ResourceMonitorError(
+                raise ServerProcessError(
                     f"Error getting process details for '{server_name}': {detail_err}"
                 ) from detail_err
         else:
@@ -733,6 +731,6 @@ def _get_bedrock_process_info(
             f"Unexpected error getting process info for '{server_name}': {e}",
             exc_info=True,
         )
-        raise ResourceMonitorError(
+        raise ServerProcessError(
             f"Unexpected error getting process info for '{server_name}': {e}"
         ) from e

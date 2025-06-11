@@ -12,12 +12,11 @@ from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
 from bedrock_server_manager.error import (
-    ConfigError,
-    FileOperationError,
-    InvalidInputError,
-    DirectoryError,
-    InvalidServerNameError,
     ConfigurationError,
+    FileOperationError,
+    UserInputError,
+    AppFileNotFoundError,
+    InvalidServerNameError,
     MissingArgumentError,
 )
 
@@ -45,7 +44,7 @@ class BedrockServerManager:
             logger.error(
                 f"BSM Init Error: Settings object missing expected property. Details: {e}"
             )
-            raise ConfigError(f"Settings object misconfiguration: {e}") from e
+            raise ConfigurationError(f"Settings object misconfiguration: {e}") from e
 
         self._base_dir = self.settings.get("BASE_DIR")
         self._content_dir = self.settings.get("CONTENT_DIR")
@@ -59,9 +58,9 @@ class BedrockServerManager:
             self._app_version = "0.0.0"
 
         if not self._base_dir:
-            raise ConfigError("BASE_DIR not configured in settings.")
+            raise ConfigurationError("BASE_DIR not configured in settings.")
         if not self._content_dir:
-            raise ConfigError("CONTENT_DIR not configured in settings.")
+            raise ConfigurationError("CONTENT_DIR not configured in settings.")
 
     # --- Settings Related ---
     def get_setting(self, key: str, default=None) -> Any:
@@ -85,18 +84,18 @@ class BedrockServerManager:
         for pair in player_pairs:
             player_data = pair.split(":", 1)
             if len(player_data) != 2:
-                raise InvalidInputError(
+                raise UserInputError(
                     f"Invalid player data format: '{pair}'. Expected 'name:xuid'."
                 )
             player_name, player_id = player_data[0].strip(), player_data[1].strip()
             if not player_name or not player_id:
-                raise InvalidInputError(f"Name and XUID cannot be empty in '{pair}'.")
+                raise UserInputError(f"Name and XUID cannot be empty in '{pair}'.")
             player_list.append({"name": player_name.strip(), "xuid": player_id.strip()})
         return player_list
 
     def save_player_data(self, players_data: List[Dict[str, str]]) -> int:
         if not isinstance(players_data, list):
-            raise InvalidInputError("players_data must be a list.")
+            raise UserInputError("players_data must be a list.")
         for p_data in players_data:
             if not (
                 isinstance(p_data, dict)
@@ -107,7 +106,7 @@ class BedrockServerManager:
                 and isinstance(p_data["xuid"], str)
                 and p_data["xuid"]
             ):
-                raise InvalidInputError(f"Invalid player entry format: {p_data}")
+                raise UserInputError(f"Invalid player entry format: {p_data}")
 
         player_db_path = self._get_player_db_path()
         try:
@@ -130,7 +129,7 @@ class BedrockServerManager:
                         for p_entry in loaded_json["players"]:
                             if isinstance(p_entry, dict) and "xuid" in p_entry:
                                 existing_players_map[p_entry["xuid"]] = p_entry
-            except (json.JSONDecodeError, OSError) as e:
+            except (ValueError, OSError) as e:
                 logger.warning(
                     f"BSM: Could not load/parse existing players.json, will overwrite: {e}"
                 )
@@ -185,15 +184,13 @@ class BedrockServerManager:
                 logger.warning(
                     f"BSM: Player DB {player_db_path} has unexpected format."
                 )
-        except (json.JSONDecodeError, OSError) as e:
+        except (ValueError, OSError) as e:
             logger.error(f"BSM: Error reading player DB {player_db_path}: {e}")
         return []
 
     def discover_and_store_players_from_all_server_logs(self) -> Dict[str, Any]:
         if not self._base_dir or not os.path.isdir(self._base_dir):
-            raise DirectoryError(
-                f"Invalid or unconfigured server base directory: {self._base_dir}"
-            )
+            raise AppFileNotFoundError(str(self._base_dir), "Server base directory")
 
         all_discovered_from_logs: List[Dict[str, str]] = []
         scan_errors_details: List[Dict[str, str]] = []
@@ -326,7 +323,7 @@ class BedrockServerManager:
 
     def get_web_ui_executable_path(self) -> str:
         if not self._expath:
-            raise ConfigError(
+            raise ConfigurationError(
                 "Application executable path (_expath) is not configured."
             )
         return self._expath
@@ -334,9 +331,7 @@ class BedrockServerManager:
     # --- Global Content Directory Management ---
     def _list_content_files(self, sub_folder: str, extensions: List[str]) -> List[str]:
         if not self._content_dir or not os.path.isdir(self._content_dir):
-            raise DirectoryError(
-                f"Invalid or unconfigured content directory: {self._content_dir}"
-            )
+            raise AppFileNotFoundError(str(self._content_dir), "Content directory")
 
         target_dir = os.path.join(self._content_dir, sub_folder)
         if not os.path.isdir(target_dir):
@@ -426,7 +421,9 @@ class BedrockServerManager:
             return is_valid
 
         except (
-            ValueError
+            ValueError,
+            MissingArgumentError,
+            ConfigurationError,
         ) as e_val:  # e.g., from BedrockServerBaseMixin if BASE_DIR missing in settings
             logger.warning(
                 f"BSM: Validation failed for server '{server_name}' due to configuration issue during BedrockServer instantiation: {e_val}"
@@ -462,15 +459,13 @@ class BedrockServerManager:
             - A list of error messages for any servers that failed processing.
 
         Raises:
-            DirectoryError: If the main server base directory (self._base_dir) is invalid.
+            AppFileNotFoundError: If the main server base directory (self._base_dir) is invalid.
         """
         servers_data: List[Dict[str, Any]] = []
         error_messages: List[str] = []
 
         if not self._base_dir or not os.path.isdir(self._base_dir):
-            raise DirectoryError(
-                f"Server base directory does not exist or is not a directory: {self._base_dir}"
-            )
+            raise AppFileNotFoundError(str(self._base_dir), "Server base directory")
 
         # Iterate through items in the base directory, which are potential server names
         for server_name_candidate in os.listdir(self._base_dir):

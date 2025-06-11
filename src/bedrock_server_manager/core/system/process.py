@@ -13,12 +13,15 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
-from ...error import (
-    PIDFileError,
-    ProcessManagementError,
-    ProcessVerificationError,
-    ExecutableNotFoundError,
-    ConfigurationError,
+from bedrock_server_manager.error import (
+    FileOperationError,
+    SystemError,
+    ServerProcessError,
+    AppFileNotFoundError,
+    UserInputError,
+    MissingArgumentError,
+    PermissionsError,
+    ServerStopError,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,15 +39,13 @@ def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
         The absolute path to the PID file.
 
     Raises:
-        ConfigurationError: If config_dir is not a valid directory.
-        ValueError: If pid_filename is empty.
+        AppFileNotFoundError: If config_dir is not a valid directory.
+        MissingArgumentError: If pid_filename is empty.
     """
     if not config_dir or not os.path.isdir(config_dir):
-        raise ConfigurationError(
-            f"Configuration directory not found or invalid: {config_dir}"
-        )
+        raise AppFileNotFoundError(config_dir, "Configuration directory")
     if not pid_filename:
-        raise ValueError("PID filename cannot be empty.")
+        raise MissingArgumentError("PID filename cannot be empty.")
     return os.path.join(config_dir, pid_filename)
 
 
@@ -60,7 +61,7 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
         None if the PID file does not exist.
 
     Raises:
-        PIDFileError: If the file exists but is empty, unreadable, or contains invalid content.
+        FileOperationError: If the file exists but is empty, unreadable, or contains invalid content.
     """
     function_name = "core.process.read_pid_from_file"
     if not os.path.isfile(pid_file_path):
@@ -71,19 +72,23 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
         with open(pid_file_path, "r") as f:
             pid_str = f.read().strip()
         if not pid_str:
-            raise PIDFileError(f"PID file '{pid_file_path}' is empty.")
+            raise FileOperationError(f"PID file '{pid_file_path}' is empty.")
         try:
             pid = int(pid_str)
             logger.info(f"{function_name}: Found PID {pid} in file '{pid_file_path}'.")
             return pid
         except ValueError:
-            raise PIDFileError(
+            raise FileOperationError(
                 f"Invalid content in PID file '{pid_file_path}'. Expected an integer, got '{pid_str}'."
             )
     except OSError as e:
-        raise PIDFileError(f"Error reading PID file '{pid_file_path}': {e}")
+        raise FileOperationError(
+            f"Error reading PID file '{pid_file_path}': {e}"
+        ) from e
     except Exception as e:
-        raise PIDFileError(f"Unexpected error reading PID file '{pid_file_path}': {e}")
+        raise FileOperationError(
+            f"Unexpected error reading PID file '{pid_file_path}': {e}"
+        ) from e
 
 
 def write_pid_to_file(pid_file_path: str, pid: int) -> None:
@@ -95,7 +100,7 @@ def write_pid_to_file(pid_file_path: str, pid: int) -> None:
         pid: The process ID to write.
 
     Raises:
-        PIDFileError: If an OSError occurs during file writing.
+        FileOperationError: If an OSError occurs during file writing.
     """
     try:
         with open(pid_file_path, "w") as f:
@@ -104,7 +109,9 @@ def write_pid_to_file(pid_file_path: str, pid: int) -> None:
             f"core.process.write_pid_to_file: Saved PID {pid} to '{pid_file_path}'."
         )
     except OSError as e:
-        raise PIDFileError(f"Failed to write PID {pid} to file '{pid_file_path}': {e}")
+        raise FileOperationError(
+            f"Failed to write PID {pid} to file '{pid_file_path}': {e}"
+        ) from e
 
 
 def is_process_running(pid: int) -> bool:
@@ -119,10 +126,10 @@ def is_process_running(pid: int) -> bool:
         True if the process is running, False otherwise.
 
     Raises:
-        ProcessManagementError: If psutil is not available.
+        SystemError: If psutil is not available.
     """
     if not PSUTIL_AVAILABLE:
-        raise ProcessManagementError(
+        raise SystemError(
             "psutil package is required to check if a process is running."
         )
     return psutil.pid_exists(pid)
@@ -143,18 +150,18 @@ def launch_detached_process(
         The PID of the newly started detached process.
 
     Raises:
-        ExecutableNotFoundError: If the command's executable is not found.
-        ProcessManagementError: If subprocess.Popen fails.
-        PIDFileError: If writing the PID file fails.
-        ValueError: If command list is empty.
+        AppFileNotFoundError: If the command's executable is not found.
+        SystemError: If subprocess.Popen fails.
+        FileOperationError: If writing the PID file fails.
+        UserInputError: If command list or executable is empty.
     """
     function_name = "core.process.launch_detached_process"
     if not command:
-        raise ValueError("Command list cannot be empty for launching a process.")
+        raise UserInputError("Command list cannot be empty for launching a process.")
 
     # Check the executable part of the command
     if not command[0]:
-        raise ExecutableNotFoundError("Command executable cannot be empty.")
+        raise UserInputError("Command executable cannot be empty.")
 
     logger.info(f"{function_name}: Executing detached command: {' '.join(command)}")
 
@@ -184,19 +191,17 @@ def launch_detached_process(
             ),  # close_fds is not well-supported with CREATE_NO_WINDOW on Windows
         )
     except FileNotFoundError:
-        raise ExecutableNotFoundError(
-            f"Command executable '{command[0]}' not found. Ensure it's in PATH or path is correct."
-        )
+        raise AppFileNotFoundError(command[0], "Command executable") from None
     except OSError as e:
-        raise ProcessManagementError(
+        raise SystemError(
             f"OS error starting detached process with command '{' '.join(command)}': {e}"
-        )
+        ) from e
 
     pid = process.pid
     logger.info(
         f"{function_name}: Successfully started detached process with PID: {pid}"
     )
-    write_pid_to_file(pid_file_path, pid)  # Can raise PIDFileError
+    write_pid_to_file(pid_file_path, pid)  # Can raise FileOperationError
     return pid
 
 
@@ -222,41 +227,39 @@ def verify_process_identity(
                                       expected_executable_path and expected_command_arg.
 
     Raises:
-        ProcessManagementError: If psutil is not available or if process info cannot be retrieved.
-        ProcessVerificationError: If the process does not match the expected signature.
-        ValueError: If an invalid combination of verification methods is provided.
+        SystemError: If psutil is not available or if process info cannot be retrieved.
+        ServerProcessError: If the process does not match the expected signature.
+        UserInputError: If an invalid combination of verification methods is provided.
     """
     function_name = "core.process.verify_process_identity"
 
     if not PSUTIL_AVAILABLE:
-        raise ProcessManagementError(
-            "psutil package is required for process verification."
-        )
+        raise SystemError("psutil package is required for process verification.")
 
     if custom_verification_callback and (
         expected_executable_path or expected_command_arg
     ):
-        raise ValueError(
+        raise UserInputError(
             "Cannot provide both a custom_verification_callback and expected_executable_path/expected_command_arg."
         )
     if not custom_verification_callback and not (
         expected_executable_path or expected_command_arg
     ):
-        raise ValueError(
+        raise MissingArgumentError(
             "At least one verification method (executable path, command arg, or custom callback) must be provided."
         )
 
     if custom_verification_callback and (
         expected_executable_path or expected_command_arg
     ):
-        raise ValueError(
+        raise UserInputError(
             "Cannot provide both a custom_verification_callback and expected_executable_path/expected_command_arg."
         )
     # If custom_verification_callback is NOT provided, THEN we need standard args.
     if (
         not custom_verification_callback and not expected_executable_path
     ):  # At least exe path needed for standard
-        raise ValueError(
+        raise MissingArgumentError(
             "If not using a custom_verification_callback, 'expected_executable_path' must be provided for standard verification."
         )
 
@@ -268,33 +271,31 @@ def verify_process_identity(
         logger.warning(
             f"{function_name}: Process with PID {pid} does not exist (for verification)."
         )
-        raise ProcessVerificationError(
+        raise ServerProcessError(
             f"Process with PID {pid} does not exist (for verification)."
         )
     except psutil.AccessDenied:
         logger.error(
             f"{function_name}: Access denied for PID {pid} (Name: {process.name() if 'process' in locals() and hasattr(process, 'name') else 'unknown'})."
         )
-        raise ProcessManagementError(
+        raise PermissionsError(
             f"Access denied when trying to get command line for PID {pid}."
         )
     except psutil.Error as e_psutil:
         logger.error(f"{function_name}: psutil error for PID {pid}: {e_psutil}.")
-        raise ProcessManagementError(
-            f"Error getting process info for PID {pid}: {e_psutil}."
-        )
+        raise SystemError(f"Error getting process info for PID {pid}: {e_psutil}.")
 
     if not cmdline:
         logger.warning(
             f"{function_name}: Process PID {pid} (Name: {proc_name}) has empty cmdline."
         )
-        raise ProcessVerificationError(
+        raise ServerProcessError(
             f"Process PID {pid} (Name: {proc_name}) has an empty command line. Cannot verify."
         )
 
     if custom_verification_callback:
         if not custom_verification_callback(cmdline):
-            raise ProcessVerificationError(
+            raise ServerProcessError(
                 f"Custom verification failed for PID {pid} (Cmd: {' '.join(cmdline)})."
             )
         logger.info(f"{function_name}: Process {pid} verified by custom callback.")
@@ -349,7 +350,7 @@ def verify_process_identity(
             f"PID {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) "
             f"does not match expected signature. Verification failed: {verification_details}."
         )
-        raise ProcessVerificationError(mismatched_msg)
+        raise ServerProcessError(mismatched_msg)
 
     logger.info(
         f"{function_name}: Process {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) confirmed against signature."
@@ -368,13 +369,13 @@ def terminate_process_by_pid(
         kill_timeout: Seconds to wait after sending SIGKILL.
 
     Raises:
-        ProcessManagementError: If psutil is not available, access is denied, or other psutil errors occur.
+        SystemError: If psutil is not available.
+        PermissionsError: If access is denied to terminate the process.
+        ServerStopError: If other psutil or unexpected errors occur during termination.
     """
     function_name = "core.process.terminate_process_by_pid"
     if not PSUTIL_AVAILABLE:
-        raise ProcessManagementError(
-            "psutil package is required to terminate processes."
-        )
+        raise SystemError("psutil package is required to terminate processes.")
     try:
         process = psutil.Process(pid)
         logger.info(
@@ -399,13 +400,13 @@ def terminate_process_by_pid(
         )
         # This is not an error for termination, it's already gone.
     except psutil.AccessDenied:
-        raise ProcessManagementError(
+        raise PermissionsError(
             f"Permission denied trying to terminate process with PID {pid}."
         )
     except Exception as e:  # Catch other psutil or unexpected errors
-        raise ProcessManagementError(
+        raise ServerStopError(
             f"Unexpected error terminating process PID {pid}: {e}"
-        )
+        ) from e
 
 
 def remove_pid_file_if_exists(pid_file_path: str) -> bool:

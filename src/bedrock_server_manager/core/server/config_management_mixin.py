@@ -8,13 +8,10 @@ from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     MissingArgumentError,
-    DirectoryError,
     FileOperationError,
-    InvalidInputError,
-    PermissionsFileNotFoundError,
-    PermissionsFileError,
-    PropertiesFileNotFoundError,
-    PropertiesFileReadError,
+    UserInputError,
+    AppFileNotFoundError,
+    ConfigParseError,
 )
 
 
@@ -35,7 +32,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isdir(self.server_dir):
-            raise DirectoryError(f"Server directory not found: {self.server_dir}")
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
 
         allowlist_entries: List[Dict[str, Any]] = []
         if os.path.isfile(self.allowlist_json_path):
@@ -50,8 +47,8 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                             self.logger.warning(
                                 f"Allowlist file '{self.allowlist_json_path}' not a JSON list. Treating as empty."
                             )
-            except json.JSONDecodeError as e:
-                raise FileOperationError(
+            except ValueError as e:
+                raise ConfigParseError(
                     f"Invalid JSON in allowlist '{self.allowlist_json_path}': {e}"
                 ) from e
             except OSError as e:
@@ -70,7 +67,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         if not isinstance(players_to_add, list):
             raise TypeError("Input 'players_to_add' must be a list of dictionaries.")
         if not os.path.isdir(self.server_dir):
-            raise DirectoryError(f"Server directory not found: {self.server_dir}")
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
 
         self.logger.info(
             f"Server '{self.server_name}': Adding {len(players_to_add)} player(s) to allowlist."
@@ -135,7 +132,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         if not player_name_to_remove:
             raise MissingArgumentError("Player name to remove cannot be empty.")
         if not os.path.isdir(self.server_dir):
-            raise DirectoryError(f"Server directory not found: {self.server_dir}")
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
 
         self.logger.info(
             f"Server '{self.server_name}': Removing player '{player_name_to_remove}' from allowlist."
@@ -181,7 +178,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
     ) -> None:
         """Sets or updates a player's permission level in this server's permissions.json."""
         if not os.path.isdir(self.server_dir):
-            raise DirectoryError(f"Server directory not found: {self.server_dir}")
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
         if not xuid:
             raise MissingArgumentError("Player XUID cannot be empty.")
         if not permission_level:
@@ -190,7 +187,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         perm_level_lower = permission_level.lower()
         valid_perms = ("operator", "member", "visitor")
         if perm_level_lower not in valid_perms:
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Invalid permission '{perm_level_lower}'. Must be one of: {valid_perms}"
             )
 
@@ -211,7 +208,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                             self.logger.warning(
                                 f"Permissions file '{self.permissions_json_path}' not a list. Overwriting."
                             )
-            except json.JSONDecodeError as e:
+            except ValueError as e:
                 self.logger.warning(
                     f"Invalid JSON in permissions '{self.permissions_json_path}'. Overwriting. Error: {e}"
                 )
@@ -265,11 +262,9 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
     ) -> List[Dict[str, Any]]:
         """Reads, parses, and processes permissions.json, enriching with player names."""
         if not os.path.isdir(self.server_dir):
-            raise DirectoryError(f"Server directory not found: {self.server_dir}")
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
         if not os.path.isfile(self.permissions_json_path):
-            raise PermissionsFileNotFoundError(
-                f"Permissions file not found: {self.permissions_json_path}"
-            )
+            raise AppFileNotFoundError(self.permissions_json_path, "Permissions file")
 
         self.logger.debug(
             f"Server '{self.server_name}': Reading and processing permissions from {self.permissions_json_path}"
@@ -284,11 +279,11 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                     if isinstance(loaded_data, list):
                         raw_permissions = loaded_data
                     else:
-                        raise PermissionsFileError(
+                        raise ConfigParseError(
                             "Permissions file content is not a list."
                         )
-        except json.JSONDecodeError as e:
-            raise
+        except ValueError as e:
+            raise ConfigParseError(f"Invalid JSON in permissions file: {e}") from e
         except OSError as e:
             raise FileOperationError(
                 f"OSError reading permissions file '{self.permissions_json_path}': {e}"
@@ -323,13 +318,13 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
 
         str_value = str(property_value)  # Ensure value is string for properties file
         if any(ord(c) < 32 for c in str_value if c != "\t"):  # Allow tabs
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Property value for '{property_key}' contains invalid control characters."
             )
 
         if not os.path.isfile(self.server_properties_path):
-            raise PropertiesFileNotFoundError(
-                f"Server properties file not found: {self.server_properties_path}"
+            raise AppFileNotFoundError(
+                self.server_properties_path, "Server properties file"
             )
 
         self.logger.debug(
@@ -386,8 +381,8 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
     ) -> Dict[str, str]:
         """Reads and parses this server's server.properties file."""
         if not os.path.isfile(self.server_properties_path):
-            raise PropertiesFileNotFoundError(
-                f"Server properties file not found: {self.server_properties_path}"
+            raise AppFileNotFoundError(
+                self.server_properties_path, "Server properties file"
             )
 
         self.logger.debug(
@@ -408,7 +403,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                             f"Skipping malformed line {line_num} in '{self.server_properties_path}': \"{line}\""
                         )
         except OSError as e:
-            raise PropertiesFileReadError(
+            raise ConfigParseError(
                 f"Failed to read '{self.server_properties_path}': {e}"
             ) from e
 
@@ -421,5 +416,5 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         try:
             props = self.get_server_properties()
             return props.get(property_key, default)
-        except PropertiesFileNotFoundError:
+        except AppFileNotFoundError:
             return default

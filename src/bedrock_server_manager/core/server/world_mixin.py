@@ -10,11 +10,11 @@ from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBa
 from bedrock_server_manager.core.system import base as system_base_utils
 from bedrock_server_manager.error import (
     MissingArgumentError,
-    DownloadExtractError,
+    ExtractError,
     FileOperationError,
-    BackupWorldError,
-    DirectoryError,
-    RestoreError,
+    BackupRestoreError,
+    AppFileNotFoundError,
+    ConfigParseError,
 )
 
 
@@ -75,7 +75,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isfile(mcworld_file_path):
-            raise FileNotFoundError(f".mcworld file not found at: {mcworld_file_path}")
+            raise AppFileNotFoundError(mcworld_file_path, ".mcworld file")
 
         # Ensure clean target directory
         if os.path.exists(full_target_extract_dir):
@@ -122,7 +122,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             )
             if os.path.exists(full_target_extract_dir):
                 shutil.rmtree(full_target_extract_dir, ignore_errors=True)
-            raise DownloadExtractError(
+            raise ExtractError(
                 f"Invalid .mcworld file (not valid zip): {mcworld_filename}"
             ) from e
         except OSError as e:
@@ -171,9 +171,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isdir(full_source_world_dir):
-            raise DirectoryError(
-                f"Source world directory not found or not a directory: {full_source_world_dir}"
-            )
+            raise AppFileNotFoundError(full_source_world_dir, "Source world directory")
 
         target_parent_dir = os.path.dirname(target_mcworld_file_path)
         if target_parent_dir:  # Ensure parent directory for the .mcworld file exists
@@ -206,7 +204,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             self.logger.debug(f"Successfully created temporary ZIP: {temp_zip_path}")
 
             if not os.path.exists(temp_zip_path):  # Double check
-                raise BackupWorldError(
+                raise BackupRestoreError(
                     f"Archive process completed but temp zip '{temp_zip_path}' not found."
                 )
 
@@ -230,7 +228,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             )
             if os.path.exists(temp_zip_path):
                 os.remove(temp_zip_path)  # Cleanup
-            raise BackupWorldError(
+            raise BackupRestoreError(
                 f"Failed to create .mcworld for server '{self.server_name}', world '{world_dir_name}': {e}"
             ) from e
         except Exception as e_unexp:
@@ -240,7 +238,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             )
             if os.path.exists(temp_zip_path):
                 os.remove(temp_zip_path)  # Cleanup
-            raise BackupWorldError(
+            raise BackupRestoreError(
                 f"Unexpected error exporting world for server '{self.server_name}', world '{world_dir_name}': {e_unexp}"
             ) from e_unexp
 
@@ -267,24 +265,22 @@ class ServerWorldMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isfile(mcworld_backup_file_path):
-            raise FileNotFoundError(
-                f".mcworld backup file not found: {mcworld_backup_file_path}"
-            )
+            raise AppFileNotFoundError(mcworld_backup_file_path, ".mcworld backup file")
 
         # 1. Determine the target active world directory name
         active_world_dir_name: str
         try:
-            # self.get_world_name() is from ServerStateMixin, raises FileOperationError if issue
+            # self.get_world_name() is from ServerStateMixin, raises AppFileNotFoundError/ConfigParseError
             active_world_dir_name = self.get_world_name()
             self.logger.info(
                 f"Target active world name for server '{self.server_name}' is '{active_world_dir_name}'."
             )
-        except FileOperationError as e:  # From get_world_name
+        except (AppFileNotFoundError, ConfigParseError) as e:  # From get_world_name
             self.logger.error(
                 f"Cannot determine target world directory for '{self.server_name}': {e}",
                 exc_info=True,
             )
-            raise RestoreError(
+            raise BackupRestoreError(
                 f"Cannot import world: Failed to get active world name for '{self.server_name}'."
             ) from e
         except Exception as e_get_name:  # Other unexpected errors from get_world_name
@@ -292,7 +288,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
                 f"Unexpected error getting active world name for '{self.server_name}': {e_get_name}",
                 exc_info=True,
             )
-            raise RestoreError(
+            raise BackupRestoreError(
                 f"Unexpected error getting active world name for '{self.server_name}'."
             ) from e_get_name
 
@@ -308,8 +304,8 @@ class ServerWorldMixin(BedrockServerBaseMixin):
                 active_world_dir_name  # Return the name of the world directory restored
             )
         except (
-            FileNotFoundError,
-            DownloadExtractError,
+            AppFileNotFoundError,
+            ExtractError,
             FileOperationError,
             MissingArgumentError,
         ) as e_extract:  # MissingArgumentError if active_world_dir_name was empty
@@ -317,7 +313,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
                 f"World import failed for server '{self.server_name}' during extraction into '{active_world_dir_name}': {e_extract}",
                 exc_info=True,
             )
-            raise RestoreError(
+            raise BackupRestoreError(
                 f"World import for server '{self.server_name}' failed into '{active_world_dir_name}': {e_extract}"
             ) from e_extract
         except (
@@ -327,7 +323,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
                 f"Unexpected error during world import for server '{self.server_name}' into '{active_world_dir_name}': {e_unexp_extract}",
                 exc_info=True,
             )
-            raise RestoreError(
+            raise BackupRestoreError(
                 f"Unexpected error during world import for server '{self.server_name}' into '{active_world_dir_name}'."
             ) from e_unexp_extract
 
@@ -342,14 +338,15 @@ class ServerWorldMixin(BedrockServerBaseMixin):
 
         Raises:
             FileOperationError: If determining the active world path fails or robust deletion reports an issue.
-            DirectoryError: If the active world path is determined but isn't a directory (shouldn't happen if logic is sound).
+            AppFileNotFoundError: If the world directory is not found after path is determined.
+            ConfigParseError: If server.properties is invalid.
         """
         try:
             active_world_dir = (
                 self._get_active_world_directory_path()
-            )  # Can raise FileOperationError
+            )  # Can raise AppFileNotFoundError, ConfigParseError
             active_world_name = os.path.basename(active_world_dir)  # For logging
-        except FileOperationError as e:
+        except (AppFileNotFoundError, ConfigParseError) as e:
             self.logger.error(
                 f"Server '{self.server_name}': Cannot delete active world, failed to determine path: {e}"
             )
@@ -381,7 +378,7 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             self.logger.error(
                 f"Server '{self.server_name}': Path '{active_world_dir}' for active world is not a directory. Deletion aborted."
             )
-            raise DirectoryError(
+            raise FileOperationError(
                 f"Path for active world '{active_world_name}' is not a directory: {active_world_dir}"
             )
 
@@ -408,26 +405,6 @@ class ServerWorldMixin(BedrockServerBaseMixin):
         return success  # Though if it raises, this won't be reached on failure
 
     @property
-    def _worlds_base_dir_in_server(self) -> str:
-        """Path to the 'worlds' subdirectory within this server's installation."""
-        return os.path.join(self.server_dir, "worlds")
-
-    def _get_active_world_directory_path(self) -> str:
-        """
-        Determines the full path to the currently active world directory for this server,
-        based on 'level-name' in server.properties.
-        Relies on self.get_world_name() being available (from ServerStateMixin).
-        """
-        if not hasattr(self, "get_world_name"):
-            self.logger.error(
-                "get_world_name method not found on self. Cannot determine active world directory."
-            )
-            raise FileOperationError("Internal error: get_world_name method missing.")
-
-        active_world_name = self.get_world_name()  # Raises FileOperationError if fails
-        return os.path.join(self._worlds_base_dir_in_server, active_world_name)
-
-    @property
     def world_icon_filename(self) -> str:
         """Standard filename for the world icon."""
         return "world_icon.jpeg"
@@ -442,7 +419,8 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             active_world_dir = self._get_active_world_directory_path()
             return os.path.join(active_world_dir, self.world_icon_filename)
         except (
-            FileOperationError
+            AppFileNotFoundError,
+            ConfigParseError,
         ) as e:  # Raised by get_world_name or _get_active_world_directory_path
             self.logger.warning(
                 f"Server '{self.server_name}': Cannot determine world icon path because active world name is unavailable: {e}"

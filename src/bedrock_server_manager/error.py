@@ -1,261 +1,260 @@
-# bedrock_server_manager/core/error.py
-class BedrockManagerError(Exception):
+# bedrock_server_manager/error.py
+"""
+Custom exception hierarchy for the bedrock_server_manager package.
+
+This module defines a simplified and structured set of exceptions. The design
+prioritizes clarity, reduces redundancy, and integrates properly with Python's
+built-in exception types.
+
+Key Principles:
+- A single base exception, `BSMError`, for all application errors.
+- A clear hierarchy with logical categories (e.g., FileError, ServerError).
+- Inheritance from standard Python exceptions (e.g., ValueError, FileNotFoundError)
+  to allow for flexible and standard exception handling.
+"""
+
+# --- Base Exception ---
+
+
+class BSMError(Exception):
     """Base class for all custom exceptions in this project."""
 
     pass
 
 
-class SystemError(Exception):
-    """Custom exception for core system utility errors."""
+# --- Primary Exception Categories ---
+
+
+class FileError(BSMError):
+    """Base for errors related to file or directory operations."""
 
     pass
 
 
-class MissingArgumentError(BedrockManagerError):
-    """Raised when a required argument is missing."""
+class ServerError(BSMError):
+    """Base for errors related to managing the Bedrock server process."""
 
     pass
 
 
-class MissingPackagesError(BedrockManagerError):
-    """Raised when required packages are missing."""
+class ConfigurationError(BSMError):
+    """Base for errors related to configuration files or values."""
 
     pass
 
 
-class InvalidInputError(BedrockManagerError):
-    """Raised when the input is invalid."""
+class SystemError(BSMError):
+    """Base for errors related to interactions with the host operating system."""
 
     pass
 
 
-class ValueError(BedrockManagerError):
-    """Raised when the input is invalid."""
+class NetworkError(BSMError):
+    """Base for errors related to network connectivity."""
 
     pass
 
 
-class ServerNotFoundError(BedrockManagerError):
-    """Raised when the server executable is not found."""
+class UserInputError(BSMError, ValueError):
+    """
+    Base for errors caused by invalid user input.
+    Inherits from `ValueError` for broader compatibility.
+    """
 
-    def __init__(self, server_path, message="Server executable not found."):
-        self.server_path = server_path
-        self.message = message
-        super().__init__(self.message)
-
-    def __str__(self):
-        return f"{self.message}: {self.server_path}"
+    pass
 
 
-class ServerNotRunningError(BedrockManagerError):
+class UserExitError(KeyboardInterrupt):
+    """
+    Raised for graceful exits initiated by the user (e.g., answering 'no' to a prompt).
+    Inherits from `KeyboardInterrupt` so it's not caught by a broad `except Exception`.
+    """
+
+    pass
+
+
+# --- Specific Exceptions by Category ---
+
+
+# File and Directory Errors
+class AppFileNotFoundError(FileError, FileNotFoundError):
+    """
+    Raised when an essential application file or directory is not found.
+    Inherits from `FileNotFoundError` for standard exception handling.
+    """
+
+    def __init__(self, path: str, description: str = "Required file or directory"):
+        self.path = path
+        self.description = description
+        super().__init__(f"{self.description} not found at path: {self.path}")
+
+
+class FileOperationError(FileError):
+    """Raised for general failures during file operations like copy, move, or delete."""
+
+    pass
+
+
+class DownloadError(FileError, IOError):
+    """Raised when downloading a file fails. Inherits from IOError."""
+
+    pass
+
+
+class ExtractError(FileError):
+    """Raised when extracting an archive (zip, etc.) fails."""
+
+    pass
+
+
+class BackupRestoreError(FileOperationError):
+    """Raised when a backup or restore operation fails."""
+
+    pass
+
+
+# Server Process and Communication Errors
+class ServerProcessError(ServerError):
+    """Base for errors in starting, stopping, or checking the server process."""
+
+    pass
+
+
+class ServerStartError(ServerProcessError):
+    """Raised when the server process fails to start."""
+
+    pass
+
+
+class ServerStopError(ServerProcessError):
+    """Raised when the server process fails to stop."""
+
+    pass
+
+
+class ServerNotRunningError(ServerProcessError):
     """Raised when an operation requires the server to be running, but it's not."""
 
     pass
 
 
-class InstallUpdateError(BedrockManagerError):
+class SendCommandError(ServerError):
+    """Raised when sending a command to the server console fails."""
+
     pass
 
 
-class ServerStartError(BedrockManagerError):
+# Configuration Errors
+class ConfigParseError(ConfigurationError, ValueError):
+    """
+    Raised when a configuration file is malformed or contains invalid values.
+    Inherits from `ValueError` for standard exception handling.
+    """
+
     pass
 
 
-class ServerStopError(BedrockManagerError):
-    pass
-
-
-class ConfigError(BedrockManagerError):
-    pass
-
-
-class ServiceError(BedrockManagerError):
-    pass
-
-
-class DownloadExtractError(BedrockManagerError):
-    pass
-
-
-class AddonExtractError(BedrockManagerError):
-    pass
-
-
-class DirectoryError(BedrockManagerError):
-    pass
-
-
-class SendCommandError(BedrockManagerError):
-    pass
-
-
-class BlockedCommandError(ValueError):
+class BlockedCommandError(ConfigParseError):
     """Raised when an attempt is made to send a command blocked by configuration."""
 
     pass
 
 
-class AttachConsoleError(BedrockManagerError):
-    pass
-
-
-class BackupWorldError(BedrockManagerError):
-    pass
-
-
-class DeleteServerError(BedrockManagerError):
-    pass
-
-
-class ScheduleError(BedrockManagerError):
-    pass
-
-
-class ResourceMonitorError(BedrockManagerError):
-    pass
-
-
-class InternetConnectivityError(BedrockManagerError):
-    pass
-
-
-class InvalidServerNameError(BedrockManagerError):
-    pass
-
-
-class InvalidCronJobError(BedrockManagerError):
-    pass
-
-
-class InvalidAddonPackTypeError(BedrockManagerError):
-    pass
-
-
-class TypeError(BedrockManagerError):
-    pass
-
-
-class FileOperationError(BedrockManagerError):
-    pass
-
-
-class BackupConfigError(BedrockManagerError):
-    pass
-
-
-class RestoreError(BedrockManagerError):
-    pass
-
-
-class TaskError(BedrockManagerError):
-    pass
-
-
-class UpdateError(BedrockManagerError):
-    pass
-
-
-class PlayerDataError(BedrockManagerError):
-    """Raised when the input is invalid."""
+# System and Environment Errors
+class PermissionsError(SystemError, PermissionError):
+    """
+    Raised for OS-level file or directory permission errors.
+    Inherits from `PermissionError` for standard exception handling.
+    """
 
     pass
 
 
-class DownloadError(BedrockManagerError):
-    """Raised when the input is invalid."""
+class CommandNotFoundError(SystemError):
+    """Raised when a required system command (e.g., 'systemctl', 'unzip') is not found."""
 
-    pass
-
-
-class FileNotFoundError(BedrockManagerError):
-    """Raised when a file path is invalid."""
-
-    pass
-
-
-class WebServerCoreError(Exception):
-    """Base exception for core web server management errors."""
-
-    pass
-
-
-class PIDFileError(WebServerCoreError):
-    """Errors related to PID file operations (read, write, content)."""
-
-    pass
-
-
-class ProcessManagementError(WebServerCoreError):
-    """Errors related to OS-level process operations (start, stop, query)."""
-
-    pass
-
-
-class ProcessVerificationError(WebServerCoreError):
-    """Error when a process PID does not match the expected server signature."""
-
-    pass
-
-
-class ExecutableNotFoundError(WebServerCoreError):
-    """Error when the specified executable (EXPATH) for the server cannot be found."""
-
-    pass
-
-
-class ConfigurationError(WebServerCoreError):
-    """Error related to missing or invalid configuration needed by core functions."""
-
-    pass
-
-
-class PermissionsFileError(ValueError):
-    pass
-
-
-class PermissionsFileNotFoundError(BedrockManagerError):
-    pass
-
-
-class PropertiesFileNotFoundError(BedrockManagerError):
-    pass
-
-
-class PropertiesFileReadError(BedrockManagerError):
-    pass
-
-
-# Linux-specific
-class SystemdReloadError(BedrockManagerError):
-    pass
-
-
-class CommandNotFoundError(BedrockManagerError):
-    def __init__(self, command_name, message="Command not found"):
+    def __init__(self, command_name: str, message="System command not found"):
         self.command_name = command_name
         self.message = message
-        super().__init__(self.message)
-
-    def __str__(self):
-        return f"{self.message}: {self.command_name}"
+        super().__init__(f"{self.message}: '{self.command_name}'")
 
 
-class SetFolderPermissionsError(BedrockManagerError):
+# Network Errors
+class InternetConnectivityError(NetworkError):
+    """Raised when an operation requires internet access, but it's unavailable."""
+
     pass
 
 
-# Windows-specific
-class WindowsStartServerError(BedrockManagerError):  # More specific names
+# User Input Errors
+class MissingArgumentError(UserInputError):
+    """Raised when a required function or command-line argument is missing."""
+
     pass
 
 
-class WindowsStopServerError(BedrockManagerError):
+class InvalidServerNameError(UserInputError):
+    """Raised when a provided server name is invalid or contains illegal characters."""
+
     pass
 
 
-class WindowsSetFolderPermissionsError(BedrockManagerError):
-    pass
-
-
-class UserExitError(BedrockManagerError):
-    pass
+# --- DEPRECATION MAPPING (Guide for Refactoring) ---
+# This map shows how to convert from the old, flat exception list to the new hierarchy.
+#
+# OLD NAME                            -> NEW, SIMPLIFIED COUNTERPART (and how to use it)
+# =================================================================================================
+# ValueError, TypeError,              -> No longer define these. Inherit from them instead.
+# FileNotFoundError                   ->   (e.g., `UserInputError(..., ValueError)`, `AppFileNotFoundError(..., FileNotFoundError)`)
+#
+# ServerNotFoundError                 -> raise AppFileNotFoundError(path, description="Server executable")
+# ExecutableNotFoundError             -> raise AppFileNotFoundError(path, description="Server executable")
+# PropertiesFileNotFoundError         -> raise AppFileNotFoundError(path, description="server.properties file")
+# PermissionsFileNotFoundError        -> raise AppFileNotFoundError(path, description="permissions.json file")
+#
+# InstallUpdateError, UpdateError,    -> Consolidated. Use `DownloadError` for download failures and `ExtractError`
+# DownloadExtractError,               ->   for zip/archive extraction failures.
+# AddonExtractError                   ->
+#
+# BackupWorldError, RestoreError      -> Consolidated into `BackupError`.
+#
+# InvalidInputError                   -> Replaced by the `UserInputError` base class.
+# InvalidCronJobError                 -> raise UserInputError("Invalid cron job string format.")
+# InvalidAddonPackTypeError           -> raise UserInputError("Invalid addon pack type specified.")
+# PlayerDataError                     -> raise UserInputError("Invalid player data provided.") or FileOperationError for file issues.
+#
+# ConfigError                         -> Replaced by the `ConfigurationError` base class.
+# BackupConfigError                   -> raise ConfigParseError("Invalid backup configuration.")
+# PropertiesFileReadError             -> raise ConfigParseError("Failed to read or parse server.properties.")
+# PermissionsFileError                -> raise ConfigParseError("Failed to parse permissions.json.")
+#
+# SystemError (old base)              -> Replaced by the new `SystemError` category base.
+# MissingPackagesError                -> Replaced by `CommandNotFoundError`.
+# SetFolderPermissionsError,          -> Replaced by `PermissionsError`.
+# WindowsSetFolderPermissionsError    ->
+#
+# ServerStartError (Windows/Linux)    -> Consolidated into the single `ServerStartError`.
+# ServerStopError (Windows/Linux)     -> Consolidated into the single `ServerStopError`.
+#
+# WebServerCoreError,                  -> This abstract category is removed. Its children are now sorted into
+# ProcessManagementError,             ->   the main hierarchy (e.g., `SystemError`, `ServerProcessError`).
+# ProcessVerificationError            ->
+#
+# DirectoryError                      -> Covered by `FileOperationError` or `PermissionsError`.
+#                                     ->   (e.g., raise FileOperationError(f"Failed to create directory {path}"))
+#
+# TaskError                           -> Too generic. Replace with a more specific exception like `ServerError` or `FileOperationError`.
+# ServiceError                        -> raise SystemError("Failed to reload systemd service.")
+# PIDFileError                        -> raise FileOperationError("Failed to read/write PID file.")
+#
+# --- UNCHANGED (Still good as is) ---
+# BSMError                 -> (Still the main base class)
+# ServerNotRunningError               -> (Now inherits from ServerProcessError)
+# ServerStartError, ServerStopError   -> (Now inherit from ServerProcessError)
+# SendCommandError                    -> (Now inherits from ServerError)
+# BlockedCommandError                 -> (Now inherits from ConfigParseError)
+# InternetConnectivityError           -> (Now inherits from NetworkError)
+# InvalidServerNameError              -> (Now inherits from UserInputError)
+# MissingArgumentError                -> (Now inherits from UserInputError)
+# CommandNotFoundError                -> (Now inherits from SystemError)
+# UserExitError                       -> (Still inherits from KeyboardInterrupt)
