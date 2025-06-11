@@ -25,14 +25,15 @@ from bedrock_server_manager.api import world as world_api
 from bedrock_server_manager.api import addon as addon_api
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
+from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.error import (
-    FileOperationError,
+    BSMError,
     InvalidServerNameError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,13 +196,13 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Install World '{server_name}': Failed. Message: {result.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
+        result = {"status": "error", "message": str(e)}
         logger.error(
             f"API Install World '{server_name}': Config or server name error: {e}",
             exc_info=True,
         )
-        result = {"status": "error", "message": str(e)}
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
     except Exception as e:
         logger.error(
             f"API Install World '{server_name}': Unexpected error in route: {e}",
@@ -243,13 +244,13 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Export World '{server_name}': Failed. Message: {result.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
+        result = {"status": "error", "message": str(e)}
         logger.error(
             f"API Export World '{server_name}': Config or server name error: {e}",
             exc_info=True,
         )
-        result = {"status": "error", "message": str(e)}
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
     except Exception as e:
         logger.error(
             f"API Export World '{server_name}': Unexpected error in route: {e}",
@@ -287,12 +288,10 @@ def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Reset World '{server_name}': Failed. Message: {result.get('message')}"
             )
 
-    except InvalidServerNameError as e:
-        logger.warning(
-            f"API Reset World '{server_name}': Invalid server name provided."
-        )
+    except BSMError as e:
+        logger.warning(f"API Reset World '{server_name}': Application error: {e}")
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
         result = {"status": "error", "message": str(e)}
-        status_code = 404
     except Exception as e:
         logger.error(
             f"API Reset World '{server_name}': Unexpected error in route: {e}",
@@ -392,13 +391,13 @@ def install_addon_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Install Addon '{server_name}': Failed. Message: {result.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
+        result = {"status": "error", "message": str(e)}
         logger.error(
             f"API Install Addon '{server_name}': Config or server name error: {e}",
             exc_info=True,
         )
-        result = {"status": "error", "message": str(e)}
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
     except Exception as e:
         logger.error(
             f"API Install Addon '{server_name}': Unexpected error in route: {e}",

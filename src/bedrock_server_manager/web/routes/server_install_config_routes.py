@@ -35,10 +35,9 @@ from bedrock_server_manager.web.utils.auth_decorators import (
 
 # Import specific errors
 from bedrock_server_manager.error import (
-    MissingArgumentError,
+    BSMError,
+    UserInputError,
     InvalidServerNameError,
-    FileOperationError,
-    InvalidInputError,
 )
 
 # Initialize logger
@@ -126,11 +125,11 @@ def install_server_api_route() -> Tuple[Response, int]:
                 f"API Install Server failed for '{server_name}': {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError, InvalidInputError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Install Server '{server_name}': Input error. {e}")
-    except FileOperationError as e:
+    except BSMError as e:
         status_code = 500
         result = {"status": "error", "message": str(e)}
         logger.error(f"API Install Server '{server_name}': Configuration error. {e}")
@@ -221,7 +220,7 @@ def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Modify Properties failed for '{server_name}': {result.get('message')}"
             )
 
-    except (InvalidServerNameError, InvalidInputError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Modify Properties '{server_name}': Input error. {e}")
@@ -322,7 +321,7 @@ def add_to_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
             return jsonify(result), 200
         else:
             return jsonify(result), 500
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except BSMError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         logger.error(
@@ -369,7 +368,7 @@ def remove_allowlist_player_api_route(
             server_name, player_name
         )
         return jsonify(result), 200
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except BSMError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         logger.error(
@@ -503,7 +502,7 @@ def configure_permissions_api_route(server_name: str) -> Tuple[Response, int]:
                 success_count += 1
             else:
                 errors[xuid] = result.get("message", "Unknown error")
-        except (InvalidServerNameError, MissingArgumentError, InvalidInputError) as e:
+        except BSMError as e:
             errors[xuid] = str(e)
         except Exception as e:
             logger.error(
@@ -648,7 +647,7 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
                     f"API: Setting autostart to {autostart} for '{server_name}'."
                 )
                 result = system_api.create_systemd_service(
-                    server_name, autostart=autostart
+                    server_name, autoupdate, autostart
                 )
 
                 if result.get("status") != "success":
@@ -667,7 +666,7 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
             200,
         )
 
-    except (InvalidServerNameError, InvalidInputError) as e:
+    except BSMError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
         logger.error(

@@ -16,7 +16,7 @@ from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.web.utils.auth_decorators import get_current_identity
-from bedrock_server_manager.error import FileOperationError
+from bedrock_server_manager.error import BSMError
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -89,9 +89,7 @@ def index() -> Response:
 
             logger.debug("Finished processing servers for dashboard display.")
 
-    except (
-        FileOperationError
-    ) as e:  # Catch configuration errors (e.g., BASE_DIR missing)
+    except BSMError as e:  # Catch configuration errors (e.g., BASE_DIR missing)
         flash(f"Configuration error: {e}", "danger")
         logger.critical(
             f"Configuration error preventing dashboard load: {e}", exc_info=True

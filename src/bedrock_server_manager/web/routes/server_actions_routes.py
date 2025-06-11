@@ -19,12 +19,12 @@ from bedrock_server_manager.api import server as server_api, server_install_conf
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.api import application as application_api
 from bedrock_server_manager.error import (
+    BSMError,
+    UserInputError,
     InvalidServerNameError,
-    FileOperationError,
-    MissingArgumentError,
-    ServerNotFoundError,
-    BlockedCommandError,
+    AppFileNotFoundError,
     ServerNotRunningError,
+    BlockedCommandError,
 )
 
 # Initialize logger
@@ -67,16 +67,14 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
                 f"API Start Server '{server_name}': Failed. {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Start Server '{server_name}': Input error. {e}")
-    except (ServerNotFoundError, FileOperationError) as e:
-        status_code = 404 if isinstance(e, ServerNotFoundError) else 500
+    except BSMError as e:
+        status_code = 500
         result = {"status": "error", "message": str(e)}
-        logger.error(
-            f"API Start Server '{server_name}': Not found or config error. {e}"
-        )
+        logger.error(f"API Start Server '{server_name}': Application error. {e}")
     except Exception as e:
         status_code = 500
         result = {"status": "error", "message": "An unexpected error occurred."}
@@ -115,7 +113,7 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
                 f"API Stop Server '{server_name}': Failed. {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Stop Server '{server_name}': Input error. {e}")
@@ -158,7 +156,7 @@ def restart_server_route(server_name: str) -> Tuple[Response, int]:
                 f"API Restart Server '{server_name}': Failed. {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Restart Server '{server_name}': Input error. {e}")
@@ -208,11 +206,11 @@ def send_command_route(server_name: str) -> Tuple[Response, int]:
         logger.warning(
             f"API Send Command '{server_name}': Blocked command attempt. {e}"
         )
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Send Command '{server_name}': Input error. {e}")
-    except ServerNotFoundError as e:
+    except AppFileNotFoundError as e:
         status_code = 404
         result = {"status": "error", "message": str(e)}
         logger.error(f"API Send Command '{server_name}': Server not found. {e}")
@@ -261,7 +259,7 @@ def update_server_route(server_name: str) -> Tuple[Response, int]:
                 f"API Update Server '{server_name}': Failed. {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Update Server '{server_name}': Input error. {e}")
@@ -307,7 +305,7 @@ def delete_server_route(server_name: str) -> Tuple[Response, int]:
                 f"API Delete Server '{server_name}': Failed. {result.get('message')}"
             )
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Delete Server '{server_name}': Input error. {e}")
@@ -347,7 +345,7 @@ def server_status_api(server_name: str) -> Tuple[Response, int]:
         )
         logger.debug(f"API Status Info '{server_name}': Succeeded.")
 
-    except (InvalidServerNameError, MissingArgumentError) as e:
+    except UserInputError as e:
         status_code = 400
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Status Info '{server_name}': Input error. {e}")
