@@ -1,4 +1,4 @@
-# bedrock-server-manager/api/misc.py
+# bedrock_server_manager/api/misc.py
 """
 Provides API-level functions for miscellaneous or global operations
 not tied to a specific server instance (e.g., pruning downloads).
@@ -11,10 +11,8 @@ from typing import Dict, Optional
 from bedrock_server_manager.core import downloader
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import (
-    FileOperationError,
-    DirectoryError,
-    ValueError,
-    InvalidInputError,
+    BSMError,
+    UserInputError,
     MissingArgumentError,
 )
 
@@ -37,8 +35,8 @@ def prune_download_cache(
 
     Raises:
         MissingArgumentError: If `download_dir` is empty.
-        ValueError: If `keep_count` or the setting is invalid.
-        DirectoryError: If `download_dir` is not a valid directory.
+        UserInputError: If `keep_count` or the setting is invalid.
+        AppFileNotFoundError: If `download_dir` is not a valid directory.
         FileOperationError: If settings are missing or file deletion fails.
     """
     if not download_dir:
@@ -58,7 +56,7 @@ def prune_download_cache(
                 if effective_keep < 0:
                     raise ValueError("Keep count cannot be negative")
             except (TypeError, ValueError) as e:
-                raise ValueError(
+                raise UserInputError(
                     f"Invalid DOWNLOAD_KEEP setting ('{keep_setting}'): {e}"
                 ) from e
         else:
@@ -67,11 +65,11 @@ def prune_download_cache(
                 if effective_keep < 0:
                     raise ValueError("Keep count cannot be negative")
             except (TypeError, ValueError) as e:
-                raise ValueError(
+                raise UserInputError(
                     f"Invalid keep_count parameter ('{keep_count}'): {e}"
                 ) from e
 
-        # Call core function (raises DirectoryError, FileOperationError)
+        # Call core function (raises AppFileNotFoundError, FileOperationError)
         downloader.prune_old_downloads(
             download_dir=download_dir, download_keep=effective_keep
         )
@@ -82,13 +80,7 @@ def prune_download_cache(
             "message": f"Download cache pruned successfully for '{download_dir}'.",
         }
 
-    except (
-        ValueError,
-        DirectoryError,
-        FileOperationError,
-        MissingArgumentError,
-        InvalidInputError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to prune download cache '{download_dir}': {e}", exc_info=True
         )

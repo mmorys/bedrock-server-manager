@@ -9,12 +9,11 @@ import logging
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import linux as system_linux_utils
 from bedrock_server_manager.error import (
-    ServiceError,
+    SystemError,
     CommandNotFoundError,
-    SystemdReloadError,
     FileOperationError,
-    InvalidServerNameError,
     MissingArgumentError,
+    AppFileNotFoundError,
 )
 
 
@@ -28,7 +27,7 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         if self.os_type != "Linux":
             msg = f"Systemd operation '{operation_name}' is only supported on Linux. Server OS: {self.os_type}"
             self.logger.warning(msg)
-            raise NotImplementedError(msg)
+            raise SystemError(msg)
 
     @property
     def systemd_service_name_full(self) -> str:
@@ -39,17 +38,15 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
     def check_systemd_service_file_exists(self) -> bool:
         self._ensure_linux_for_systemd("check_systemd_service_file_exists")
         # Call the generic utility
-        return system_linux_utils.check_generic_service_file_exists(
-            self.systemd_service_name_full
-        )
+        return system_linux_utils.check_service_exists(self.systemd_service_name_full)
 
     def create_systemd_service_file(self, autoupdate_on_start: bool = False) -> None:
         self._ensure_linux_for_systemd("create_systemd_service_file")
 
         if not self.manager_expath or not os.path.isfile(self.manager_expath):
-            raise FileOperationError(
-                f"Manager executable path (self.manager_expath) is invalid or not set: {self.manager_expath}"
-                f" Cannot create systemd service file for '{self.server_name}'."
+            raise AppFileNotFoundError(
+                str(self.manager_expath),
+                f"Manager executable for '{self.server_name}' service file",
             )
 
         description = f"Minecraft Bedrock Server: {self.server_name}"
@@ -72,7 +69,7 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             f"for server '{self.server_name}' with autoupdate: {autoupdate_on_start}."
         )
         try:
-            system_linux_utils.create_generic_systemd_service_file(
+            system_linux_utils.create_systemd_service_file(
                 service_name_full=self.systemd_service_name_full,
                 description=description,
                 working_directory=working_directory,
@@ -89,9 +86,9 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             )
         except (
             MissingArgumentError,
-            ServiceError,
+            SystemError,
             CommandNotFoundError,
-            SystemdReloadError,
+            AppFileNotFoundError,
             FileOperationError,
         ) as e:
             self.logger.error(
@@ -105,14 +102,12 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             f"Enabling systemd service '{self.systemd_service_name_full}'."
         )
         try:
-            system_linux_utils.enable_generic_systemd_service(
-                self.systemd_service_name_full
-            )
+            system_linux_utils.enable_systemd_service(self.systemd_service_name_full)
             self.logger.info(
                 f"Systemd service '{self.systemd_service_name_full}' enabled successfully."
             )
         except (
-            ServiceError,
+            SystemError,
             CommandNotFoundError,
             MissingArgumentError,
         ) as e:  # MissingArgumentError if service_name_full is somehow empty
@@ -127,13 +122,11 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             f"Disabling systemd service '{self.systemd_service_name_full}'."
         )
         try:
-            system_linux_utils.disable_generic_systemd_service(
-                self.systemd_service_name_full
-            )
+            system_linux_utils.disable_systemd_service(self.systemd_service_name_full)
             self.logger.info(
                 f"Systemd service '{self.systemd_service_name_full}' disabled successfully."
             )
-        except (ServiceError, CommandNotFoundError, MissingArgumentError) as e:
+        except (SystemError, CommandNotFoundError, MissingArgumentError) as e:
             self.logger.error(
                 f"Failed to disable systemd service '{self.systemd_service_name_full}': {e}"
             )

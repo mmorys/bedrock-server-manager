@@ -212,7 +212,7 @@ def get_operating_system_type() -> str:
         A string representing the OS type (e.g., "Linux", "Windows", "Darwin").
 
     Raises:
-        CoreSystemError: If the OS type cannot be determined (highly unlikely).
+        SystemError: If the OS type cannot be determined (highly unlikely).
     """
     try:
         os_type = platform.system()

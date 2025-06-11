@@ -29,9 +29,9 @@ except ImportError:
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import world as world_api
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
     MissingArgumentError,
-    FileOperationError,
 )
 from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
@@ -81,6 +81,11 @@ def import_world_cli(
             )
             print(f"{_OK_PREFIX}{message}")
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}An application error occurred: {e}")
+        logger.error(
+            f"CLI: BSMError importing world for '{server_name}': {e}", exc_info=True
+        )
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world import: {e}")
         logger.error(
@@ -116,6 +121,11 @@ def export_world(server_name: str) -> None:
             )
             print(f"{_OK_PREFIX}{message}")
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}An application error occurred: {e}")
+        logger.error(
+            f"CLI: BSMError exporting world for '{server_name}': {e}", exc_info=True
+        )
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world export: {e}")
         logger.error(
@@ -200,6 +210,12 @@ def install_worlds(server_name: str) -> None:
         print(f"{_INFO_PREFIX}Installing selected world...")
         import_world_cli(server_name, selected_file_path)
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}An application error occurred: {e}")
+        logger.error(
+            f"CLI: BSMError during world installation setup for '{server_name}': {e}",
+            exc_info=True,
+        )
     except Exception as e:
         print(
             f"{_ERROR_PREFIX}An unexpected error occurred during world installation: {e}"
@@ -249,6 +265,12 @@ def reset_world_cli(server_name: str, skip_confirmation: bool = False) -> None:
         else:
             print(f"{_OK_PREFIX}{response.get('message', 'World reset successfully.')}")
 
+    except BSMError as e:
+        print(f"{_ERROR_PREFIX}An application error occurred: {e}")
+        logger.error(
+            f"CLI: BSMError resetting world for '{server_name}': {e}",
+            exc_info=True,
+        )
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world reset: {e}")
         logger.error(

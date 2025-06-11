@@ -45,6 +45,7 @@ from bedrock_server_manager.cli import (
     task_scheduler as cli_task_scheduler,
     backup_restore as cli_backup_restore,
 )
+from bedrock_server_manager.error import UserExitError
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def main_menu() -> None:
                 advanced_menu()
             elif choice == "6":
                 os.system("cls" if platform.system() == "Windows" else "clear")
-                sys.exit(0)
+                raise UserExitError()
             else:
                 print(
                     f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose again."
@@ -101,8 +102,11 @@ def main_menu() -> None:
             if choice in ["1", "2", "3", "4", "5"]:
                 input("\nPress Enter to continue...")
 
-        except (KeyboardInterrupt, EOFError):
+        except UserExitError:
             print("\nExiting application...")
+            sys.exit(0)
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting application due to user interruption...")
             sys.exit(0)
         except Exception as e:
             print(
@@ -141,7 +145,7 @@ def manage_server() -> None:
 
             # Get server name for actions that need it
             server_name: Optional[str] = None
-            if choice in ["1", "2", "3", "4", "6"]:
+            if choice in ["1", "2", "3", "4", "5", "6"]:
                 server_name = cli_utils.get_server_name()
                 if not server_name:
                     continue

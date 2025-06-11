@@ -13,14 +13,10 @@ from typing import Dict, Any
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.api.utils import server_lifecycle_manager
 from bedrock_server_manager.error import (
+    BSMError,
+    UserInputError,
+    AppFileNotFoundError,
     MissingArgumentError,
-    InvalidInputError,
-    FileNotFoundError,
-    FileOperationError,
-    DirectoryError,
-    AddonExtractError,
-    BackupWorldError,
-    RestoreError,
     InvalidServerNameError,
 )
 
@@ -38,7 +34,7 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
         server = BedrockServer(server_name)
         backup_data = server.list_backups(backup_type)
         return {"status": "success", "backups": backup_data}
-    except (MissingArgumentError, InvalidInputError, FileOperationError) as e:
+    except BSMError as e:
         logger.warning(f"Client error listing backups for server '{server_name}': {e}")
         return {"status": "error", "message": str(e)}
     except Exception as e:
@@ -69,13 +65,7 @@ def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, 
             "status": "success",
             "message": f"World backup '{os.path.basename(backup_file)}' created successfully for server '{server_name}'.",
         }
-    except (
-        MissingArgumentError,
-        FileOperationError,
-        DirectoryError,
-        AddonExtractError,
-        BackupWorldError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: World backup failed for '{server_name}': {e}", exc_info=True
         )
@@ -118,7 +108,7 @@ def backup_config_file(
             "status": "success",
             "message": f"Config file '{filename_base}' backed up as '{os.path.basename(backup_file)}' successfully.",
         }
-    except (MissingArgumentError, FileOperationError, FileNotFoundError) as e:
+    except (BSMError, FileNotFoundError) as e:
         logger.error(
             f"API: Config file backup failed for '{filename_base}' on '{server_name}': {e}",
             exc_info=True,
@@ -156,7 +146,7 @@ def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, An
             "message": f"Full backup completed successfully for server '{server_name}'.",
             "details": results,
         }
-    except (FileOperationError, BackupWorldError) as e:
+    except BSMError as e:
         logger.error(f"API: Full backup failed for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Full backup failed: {e}"}
     except Exception as e:
@@ -199,7 +189,7 @@ def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, A
             "message": f"Restore_all completed successfully for server '{server_name}'.",
             "details": results,
         }
-    except RestoreError as e:
+    except BSMError as e:
         logger.error(f"API: Restore_all failed for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Restore_all failed: {e}"}
     except Exception as e:
@@ -233,7 +223,7 @@ def restore_world(
 
     try:
         if not os.path.isfile(backup_file_path):
-            raise FileNotFoundError(f"Backup file not found: {backup_file_path}")
+            raise AppFileNotFoundError(backup_file_path, "Backup file")
 
         server = BedrockServer(server_name)
 
@@ -246,7 +236,7 @@ def restore_world(
             "status": "success",
             "message": f"World restore from '{backup_filename}' completed successfully for server '{server_name}'.",
         }
-    except (FileNotFoundError, DirectoryError, RestoreError, FileOperationError) as e:
+    except (BSMError, FileNotFoundError) as e:
         logger.error(
             f"API: World restore failed for '{server_name}': {e}", exc_info=True
         )
@@ -282,7 +272,7 @@ def restore_config_file(
 
     try:
         if not os.path.isfile(backup_file_path):
-            raise FileNotFoundError(f"Backup file not found: {backup_file_path}")
+            raise AppFileNotFoundError(backup_file_path, "Backup file")
 
         server = BedrockServer(server_name)
 
@@ -295,7 +285,7 @@ def restore_config_file(
             "status": "success",
             "message": f"Config file '{os.path.basename(restored_file)}' restored successfully from '{backup_filename}'.",
         }
-    except (FileNotFoundError, InvalidInputError, FileOperationError) as e:
+    except (BSMError, FileNotFoundError) as e:
         logger.error(
             f"API: Config file restore failed for '{server_name}': {e}", exc_info=True
         )
@@ -372,7 +362,7 @@ def prune_old_backups(server_name: str) -> Dict[str, str]:
             "status": "success",
             "message": f"Backup pruning completed for server '{server_name}'.",
         }
-    except (ValueError, FileOperationError, InvalidInputError) as e:
+    except (BSMError, ValueError) as e:
         logger.error(
             f"API: Cannot prune backups for '{server_name}': {e}", exc_info=True
         )

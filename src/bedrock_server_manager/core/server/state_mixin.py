@@ -7,9 +7,10 @@ from typing import Optional, Any, Dict, TYPE_CHECKING
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     MissingArgumentError,
-    InvalidInputError,
+    UserInputError,
     FileOperationError,
-    ConfigurationError,
+    ConfigParseError,
+    AppFileNotFoundError,
 )
 
 
@@ -37,7 +38,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             raise MissingArgumentError("Config key cannot be empty.")
         operation = str(operation).lower()
         if operation not in ["read", "write"]:
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Invalid operation: '{operation}'. Must be 'read' or 'write'."
             )
 
@@ -73,7 +74,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
                                 f"Config file '{config_file_path}' is not a JSON object. Will be overwritten on write."
                             )
                             # current_config remains {}
-            except json.JSONDecodeError as e:
+            except ValueError as e:
                 self.logger.warning(
                     f"Failed to parse JSON from '{config_file_path}'. Will be overwritten on write. Error: {e}"
                 )
@@ -120,7 +121,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Failed to serialize config data for writing (key: {key}): {e}",
                 exc_info=True,
             )
-            raise FileOperationError(
+            raise ConfigParseError(
                 f"Config data for key '{key}' is not JSON serializable for '{self.server_name}'."
             ) from e
 
@@ -156,7 +157,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Setting installed version for server '{self.server_name}' to '{version_string}'."
         )
         if not isinstance(version_string, str):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Version for '{self.server_name}' must be a string, got {type(version_string)}."
             )
         self._manage_json_config(
@@ -196,7 +197,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Setting status in JSON config for server '{self.server_name}' to '{status_string}'."
         )
         if not isinstance(status_string, str):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Status for '{self.server_name}' must be a string, got {type(status_string)}."
             )
         self._manage_json_config(key="status", operation="write", value=status_string)
@@ -236,7 +237,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Setting target_version in JSON config for server '{self.server_name}' to '{status_string}'."
         )
         if not isinstance(status_string, str):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"target_version for '{self.server_name}' must be a string, got {type(status_string)}."
             )
         self._manage_json_config(
@@ -246,37 +247,10 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"target_version in JSON config for '{self.server_name}' set to '{status_string}'."
         )
 
-    def get_version(self) -> str:
-        self.logger.debug(f"Getting installed version for server '{self.server_name}'.")
-        try:
-            version = self._manage_json_config(
-                key="installed_version", operation="read"
-            )
-            if version is None or not isinstance(version, str):
-                self.logger.debug(
-                    f"'installed_version' for '{self.server_name}' is missing or not a string. Defaulting to UNKNOWN."
-                )
-                return "UNKNOWN"
-            self.logger.debug(
-                f"Retrieved version for '{self.server_name}': '{version}'"
-            )
-            return version
-        except FileOperationError as e:
-            self.logger.error(
-                f"File error getting version for '{self.server_name}': {e}"
-            )
-            return "UNKNOWN"
-        except Exception as e_unexp:
-            self.logger.error(
-                f"Unexpected error getting version for '{self.server_name}': {e_unexp}",
-                exc_info=True,
-            )
-            return "UNKNOWN"
-
     def get_custom_config_value(self, key: str) -> None:
         self.logger.debug(f"Getting '{key}' for server '{self.server_name}'.")
         if not isinstance(key, str):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"'{key}' for '{self.server_name}' must be a string, got {type(key)}."
             )
         self._manage_json_config(key=key, operation="read")
@@ -287,7 +261,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Setting '{key}' for server '{self.server_name}' to '{value}'."
         )
         if not isinstance(value, str):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"'{key}' for '{self.server_name}' must be a string, got {type(value)}."
             )
         self._manage_json_config(key=key, operation="write", value=value)
@@ -303,8 +277,8 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Reading world name for server '{self.server_name}' from: {self.server_properties_path}"
         )
         if not os.path.isfile(self.server_properties_path):
-            raise FileOperationError(
-                f"server.properties file not found at: {self.server_properties_path}"
+            raise AppFileNotFoundError(
+                self.server_properties_path, "server.properties file"
             )
 
         try:
@@ -322,12 +296,12 @@ class ServerStateMixin(BedrockServerBaseMixin):
                         else:  # Malformed or empty value
                             err_msg = f"'level-name' property malformed or has empty value in {self.server_properties_path}"
                             self.logger.error(err_msg)
-                            raise FileOperationError(err_msg)
+                            raise ConfigParseError(err_msg)
         except OSError as e:
             self.logger.error(
                 f"Failed to read {self.server_properties_path}: {e}", exc_info=True
             )
-            raise FileOperationError(
+            raise ConfigParseError(
                 f"Failed to read server.properties for '{self.server_name}': {e}"
             ) from e
 
@@ -336,7 +310,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"'level-name' property not found in {self.server_properties_path}"
         )
         self.logger.error(final_err_msg)
-        raise FileOperationError(final_err_msg)
+        raise ConfigParseError(final_err_msg)
 
     def get_status(self) -> str:
         """

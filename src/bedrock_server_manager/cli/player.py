@@ -18,10 +18,8 @@ from bedrock_server_manager.utils.general import (
     _INFO_PREFIX,
 )
 from bedrock_server_manager.error import (
-    FileOperationError,
-    DirectoryError,
+    BSMError,
     MissingArgumentError,
-    TypeError,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,7 +72,7 @@ def scan_for_players(
             logger.debug(f"CLI: Player scan successful, no new data found.")
         # --- End User Interaction ---
 
-    except (FileOperationError, DirectoryError) as e:
+    except BSMError as e:
         # Catch errors raised directly by API func setup (e.g., bad base_dir)
         print(f"{_ERROR_PREFIX}Configuration or Directory Error: {e}")
         logger.error(f"CLI: Failed to initiate player scan: {e}", exc_info=True)
@@ -130,7 +128,7 @@ def add_players(players: List[str], config_dir: Optional[str] = None) -> None:
         # Catch input validation errors raised by API func
         print(f"{_ERROR_PREFIX}Input Error: {e}")
         logger.error(f"CLI: Invalid input for add_players: {e}", exc_info=True)
-    except FileOperationError as e:
+    except BSMError as e:
         # Catch config dir errors raised by API func
         print(f"{_ERROR_PREFIX}Configuration Error: {e}")
         logger.error(f"CLI: Configuration error adding players: {e}", exc_info=True)

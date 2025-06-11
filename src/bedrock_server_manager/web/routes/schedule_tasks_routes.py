@@ -22,10 +22,8 @@ from flask import (
 # Local imports
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
 from bedrock_server_manager.error import (
-    MissingArgumentError,
-    FileOperationError,
-    ScheduleError,
-    TaskError,
+    BSMError,
+    UserInputError,
 )
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.config.const import EXPATH
@@ -134,7 +132,7 @@ def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
         if result.get("status") == "success":
             return jsonify(result), 201  # Created
         return jsonify(result), 500
-    except (MissingArgumentError, ScheduleError) as e:
+    except BSMError as e:
         return jsonify(status="error", message=str(e)), 400
     except Exception as e:
         logger.error(f"API Add Cron Job: Unexpected error: {e}", exc_info=True)
@@ -184,7 +182,7 @@ def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
         if "not found" in (result.get("message") or "").lower():
             return jsonify(result), 404
         return jsonify(result), 500
-    except (MissingArgumentError, ScheduleError) as e:
+    except BSMError as e:
         status_code = 404 if "not found" in str(e).lower() else 400
         return jsonify(status="error", message=str(e)), status_code
     except Exception as e:
@@ -227,7 +225,7 @@ def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
         if result.get("status") == "success":
             return jsonify(result), 200
         return jsonify(result), 500
-    except (MissingArgumentError, ScheduleError) as e:
+    except BSMError as e:
         return jsonify(status="error", message=str(e)), 400
     except Exception as e:
         logger.error(f"API Delete Cron Job: Unexpected error: {e}", exc_info=True)
@@ -255,7 +253,7 @@ def schedule_tasks_windows_route(server_name: str) -> Response:
     try:
         config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
-            raise FileOperationError("Base configuration directory not set.")
+            raise BSMError("Base configuration directory not set.")
 
         task_names_resp = api_task_scheduler.get_server_task_names(
             server_name, config_dir
@@ -341,7 +339,7 @@ def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
     try:
         config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
-            raise FileOperationError("Base configuration directory not set.")
+            raise BSMError("Base configuration directory not set.")
 
         command_args = f"--server {server_name}" if command != "scan-players" else ""
         task_name = api_task_scheduler.create_task_name(server_name, command)
@@ -353,7 +351,7 @@ def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
             result["created_task_name"] = task_name
             return jsonify(result), 201
         return jsonify(result), 500
-    except (MissingArgumentError, FileOperationError, TaskError) as e:
+    except BSMError as e:
         return jsonify(status="error", message=str(e)), 500
     except Exception as e:
         logger.error(f"API Add Windows Task: Unexpected error: {e}", exc_info=True)
@@ -384,7 +382,7 @@ def manage_windows_task_api(server_name: str, task_name: str) -> Tuple[Response,
     try:
         config_dir = getattr(settings, "config_dir", None)
         if not config_dir:
-            raise FileOperationError("Base configuration directory not set.")
+            raise BSMError("Base configuration directory not set.")
 
         # Find the task's XML file path
         task_list = api_task_scheduler.get_server_task_names(
@@ -448,7 +446,7 @@ def manage_windows_task_api(server_name: str, task_name: str) -> Tuple[Response,
                 return jsonify(result), 200
             return jsonify(result), 500
 
-    except (MissingArgumentError, FileOperationError, TaskError) as e:
+    except BSMError as e:
         return jsonify(status="error", message=str(e)), 500
     except Exception as e:
         logger.error(

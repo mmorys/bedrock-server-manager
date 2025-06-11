@@ -29,7 +29,11 @@ except ImportError:
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
 from bedrock_server_manager.config.const import EXPATH, app_name_title
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.error import InvalidServerNameError, FileOperationError
+from bedrock_server_manager.error import (
+    BSMError,
+    InvalidServerNameError,
+    MissingArgumentError,
+)
 from bedrock_server_manager.utils.general import (
     get_base_dir,
     _INFO_PREFIX,
@@ -331,7 +335,7 @@ def add_windows_task(server_name: str, config_dir: str) -> None:
         return
 
     command_args = (
-        f"--server {server_name}" if selected_command != "scan-players" else ""
+        f'--server "{server_name}"' if selected_command != "scan-players" else ""
     )
     task_name = api_task_scheduler.create_task_name(server_name, selected_command)
     print(f"{_INFO_PREFIX}Generated Task Name: {task_name}")

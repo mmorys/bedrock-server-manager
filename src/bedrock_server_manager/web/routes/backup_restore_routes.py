@@ -31,7 +31,8 @@ from bedrock_server_manager.web.utils.auth_decorators import (
 )
 from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
 from bedrock_server_manager.error import (
-    FileOperationError,
+    BSMError,
+    UserInputError,
     InvalidServerNameError,
 )
 
@@ -117,10 +118,10 @@ def list_server_backups_route(
                 f"API List Backups: Handler for '{server_name}' returned error: {result_dict.get('message')}"
             )
 
-    except InvalidServerNameError as e:
-        logger.warning(f"API List Backups: Invalid server name '{server_name}': {e}")
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result_dict = {"status": "error", "message": str(e)}
-        status_code = 404
+        logger.warning(f"API List Backups: {type(e).__name__} for '{server_name}': {e}")
     except Exception as e:
         logger.error(
             f"API List Backups: Unexpected critical error in route for '{server_name}': {e}",
@@ -210,13 +211,12 @@ def backup_action_route(server_name: str) -> Tuple[Response, int]:
                 f"API Backup '{server_name}' ({backup_type}) failed: {result_dict.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
+        result_dict = {"status": "error", "message": f"Server operation error: {e}"}
         logger.error(
-            f"API Backup '{server_name}': Configuration or server name error: {e}",
-            exc_info=True,
+            f"API Backup '{server_name}': Application error: {e}", exc_info=True
         )
-        result_dict = {"status": "error", "message": f"Server configuration error: {e}"}
-        status_code = 404  # Or 500, server not found is a client error
     except Exception as e:
         logger.error(
             f"API Backup '{server_name}': Unexpected error in route: {e}", exc_info=True
@@ -274,7 +274,8 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
     if not relative_backup_file or not isinstance(relative_backup_file, str):
         return (
             jsonify(
-                status="error", message="Missing or invalid 'backup_file' specified."
+                status="error",
+                message="Missing or invalid 'backup_file' specified.",
             ),
             400,
         )
@@ -286,7 +287,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
         # --- Path Construction and Security Validation ---
         backup_base_dir = settings.get("BACKUP_DIR")
         if not backup_base_dir:
-            raise FileOperationError("BACKUP_DIR is not configured in settings.")
+            raise BSMError("BACKUP_DIR is not configured in settings.")
 
         # The API expects a full, validated path. Construct and validate it here.
         # The path should be inside the server's specific backup folder.
@@ -333,10 +334,9 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
                 f"API Restore '{server_name}' failed: {result_dict.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         logger.error(
-            f"API Restore '{server_name}': Configuration or server name error: {e}",
-            exc_info=True,
+            f"API Restore '{server_name}': Application error: {e}", exc_info=True
         )
         result_dict = {"status": "error", "message": f"Server configuration error: {e}"}
         status_code = 500
@@ -451,13 +451,12 @@ def restore_all_api_route(server_name: str) -> Tuple[Response, int]:
                 f"API Restore All '{server_name}' failed: {result_dict.get('message')}"
             )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
+        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
+        result_dict = {"status": "error", "message": f"Server operation error: {e}"}
         logger.error(
-            f"API Restore All '{server_name}': Configuration or server name error: {e}",
-            exc_info=True,
+            f"API Restore All '{server_name}': Application error: {e}", exc_info=True
         )
-        result_dict = {"status": "error", "message": f"Server configuration error: {e}"}
-        status_code = 500
     except Exception as e:
         logger.error(
             f"API Restore All '{server_name}': Unexpected error in route: {e}",

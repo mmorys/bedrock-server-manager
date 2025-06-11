@@ -34,8 +34,8 @@ except ImportError:
 # Local imports
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
-    FileOperationError,
 )
 from bedrock_server_manager.utils.general import (
     select_option,
@@ -120,7 +120,7 @@ def configure_service(server_name: str) -> None:
                 f"Calling API: system_api.create_systemd_service (Start={enable_autostart})"
             )
             autostart_response = system_api.create_systemd_service(
-                server_name, enable_autostart
+                server_name, enable_autoupdate, enable_autostart
             )
 
             # Process API response for autostart
@@ -140,7 +140,7 @@ def configure_service(server_name: str) -> None:
                     f"{_ERROR_PREFIX}Failed to configure systemd service: No response from API."
                 )
 
-    except (InvalidServerNameError, FileOperationError) as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during configuration: {e}")
@@ -225,5 +225,5 @@ def monitor_service_usage(server_name: str) -> None:
     logger.debug(f"CLI: Starting resource monitoring for server '{server_name}'.")
     try:
         _monitor_loop(server_name)
-    except FileOperationError as e:
+    except BSMError as e:
         print(f"{_ERROR_PREFIX}{e}")

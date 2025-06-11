@@ -50,7 +50,7 @@ from bedrock_server_manager.web.utils.validators import register_server_validati
 from bedrock_server_manager.web.routes.server_install_config_routes import (
     server_install_config_bp,
 )
-from bedrock_server_manager.error import FileOperationError
+from bedrock_server_manager.error import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def create_app() -> Flask:
     Raises:
         RuntimeError: If essential configurations like SECRET_KEY or JWT_SECRET_KEY
                       cannot be properly set.
-        FileOperationError: If required settings like BASE_DIR are missing.
+        ConfigurationError: If required settings like BASE_DIR are missing.
     """
     app = Flask(
         __name__,
@@ -92,7 +92,7 @@ def create_app() -> Flask:
     # --- Validate Essential Settings ---
     if not settings.get("BASE_DIR"):
         logger.critical("Configuration error: BASE_DIR setting is missing or empty.")
-        raise FileOperationError("Essential setting BASE_DIR is not configured.")
+        raise ConfigurationError("Essential setting BASE_DIR is not configured.")
 
     # --- Configure Secret Key (CSRF, Session) ---
     secret_key_env = f"{env_name}_SECRET"
@@ -233,7 +233,7 @@ def run_web_server(
                If False (default), run using Waitress production WSGI server.
     Raises:
         RuntimeError: If required authentication environment variables are not set.
-        FileOperationError: If required settings (PORT) are missing.
+        ConfigurationError: If required settings (PORT) are missing.
     """
     app = create_app()
 

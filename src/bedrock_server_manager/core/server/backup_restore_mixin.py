@@ -10,12 +10,12 @@ from typing import Optional, Dict, TYPE_CHECKING, List, Union
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     FileOperationError,
-    DirectoryError,
-    InvalidInputError,
-    BackupWorldError,
-    RestoreError,
-    AddonExtractError,
+    UserInputError,
+    BackupRestoreError,
     MissingArgumentError,
+    ConfigurationError,
+    AppFileNotFoundError,
+    ExtractError,
 )
 from bedrock_server_manager.utils import (
     general,
@@ -66,15 +66,16 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
         Raises:
             MissingArgumentError: If `backup_type` is empty.
-            InvalidInputError: If `backup_type` is invalid.
-            FileOperationError: If BACKUP_DIR setting is missing or a filesystem error occurs.
+            UserInputError: If `backup_type` is invalid.
+            ConfigurationError: If BACKUP_DIR setting is missing.
+            FileOperationError: If a filesystem error occurs.
         """
         if not backup_type:
             raise MissingArgumentError("Backup type cannot be empty.")
 
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
-            raise FileOperationError(
+            raise ConfigurationError(
                 f"Cannot list backups for '{self.server_name}': Backup directory not configured."
             )
 
@@ -115,7 +116,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
             else:
                 valid_types = list(patterns.keys()) + ["all"]
-                raise InvalidInputError(
+                raise UserInputError(
                     f"Invalid backup type: '{backup_type}'. Must be one of {valid_types}."
                 )
 
@@ -140,7 +141,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         """
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
-            raise FileOperationError(
+            raise ConfigurationError(
                 f"Cannot prune backups for '{self.server_name}': Backup directory not configured."
             )
 
@@ -166,7 +167,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             self.logger.error(
                 f"Invalid BACKUP_KEEP value '{backup_keep_count}'. Must be int >= 0."
             )
-            raise ValueError(f"Invalid BACKUP_KEEP value: {backup_keep_count}")
+            raise UserInputError(f"Invalid BACKUP_KEEP value: {backup_keep_count}")
 
         cleaned_ext = file_extension.lstrip(".")
         glob_pattern = os.path.join(
@@ -227,7 +228,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
-            raise FileOperationError(
+            raise ConfigurationError(
                 f"Cannot backup world for '{self.server_name}': Backup directory not configured."
             )
 
@@ -236,9 +237,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isdir(active_world_dir_path):
-            raise DirectoryError(
-                f"Active world directory not found: '{active_world_dir_path}'"
-            )
+            raise AppFileNotFoundError(active_world_dir_path, "Active world directory")
 
         os.makedirs(server_bck_dir, exist_ok=True)
 
@@ -262,10 +261,9 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             )  # Prune after successful backup
             return backup_file_path
         except (
-            BackupWorldError,
+            BackupRestoreError,
             FileOperationError,
-            DirectoryError,
-            AddonExtractError,
+            AppFileNotFoundError,
         ) as e_export:  # Errors from export_world_directory_to_mcworld
             self.logger.error(
                 f"Failed to export world '{active_world_name}' for server '{self.server_name}': {e_export}",
@@ -294,7 +292,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
-            raise FileOperationError(
+            raise ConfigurationError(
                 f"Cannot backup config for '{self.server_name}': Backup directory not configured."
             )
 
@@ -340,7 +338,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         """
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
-            raise FileOperationError(
+            raise ConfigurationError(
                 f"Cannot backup server '{self.server_name}': Backup directory not configured."
             )
 
@@ -378,7 +376,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         if (
             world_backup_failed
         ):  # If world backup (most critical) failed, raise overall error
-            raise BackupWorldError(
+            raise BackupRestoreError(
                 f"Core world backup failed for server '{self.server_name}'. Other components may or may not have succeeded."
             )
 
@@ -392,9 +390,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isfile(backup_config_file_path):  # Changed from os.path.exists
-            raise FileNotFoundError(
-                f"Backup config file not found: {backup_config_file_path}"
-            )
+            raise AppFileNotFoundError(backup_config_file_path, "Backup config file")
 
         # self.server_dir must exist for restore target
         os.makedirs(self.server_dir, exist_ok=True)
@@ -402,7 +398,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         # Regex to extract original name: (name_part)_backup_YYYYMMDD_HHMMSS(.ext_part)
         match = re.match(r"^(.*?)_backup_\d{8}_\d{6}(\..*)$", backup_filename_basename)
         if not match:
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Could not determine original filename from backup format: '{backup_filename_basename}'"
             )
 
@@ -553,7 +549,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 restore_results[original_conf_name] = None
 
         if failures:
-            raise RestoreError(
+            raise BackupRestoreError(
                 f"Restore for server '{self.server_name}' completed with errors: {', '.join(failures)}"
             )
 

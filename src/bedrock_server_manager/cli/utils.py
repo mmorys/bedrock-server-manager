@@ -42,8 +42,8 @@ from bedrock_server_manager.utils.general import (
     _WARN_PREFIX,
 )
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
-    FileOperationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -191,6 +191,11 @@ def attach_console(server_name: str) -> None:
         else:
             logger.debug(f"CLI: Screen attach command executed for '{server_name}'.")
 
+    except BSMError as e:
+        print(
+            f"{_ERROR_PREFIX}An application error occurred while trying to attach: {e}"
+        )
+        logger.error(f"CLI: BSMError attaching console for '{server_name}': {e}")
     except Exception as e:
         print(
             f"{_ERROR_PREFIX}An unexpected error occurred while trying to attach: {e}"

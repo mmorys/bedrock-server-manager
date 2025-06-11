@@ -21,14 +21,13 @@ from bedrock_server_manager.error import (
     CommandNotFoundError,
     ServerNotRunningError,
     SendCommandError,
-    SystemdReloadError,
-    ServiceError,
+    SystemError,
     InvalidServerNameError,
     ServerStartError,
     ServerStopError,
     MissingArgumentError,
     FileOperationError,
-    DirectoryError,
+    AppFileNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +102,11 @@ def create_systemd_service_file(
         after_targets: Space-separated list of targets this service should start after.
 
     Raises:
-        MissingArgumentError, ServiceError, CommandNotFoundError, SystemdReloadError, FileOperationError
+        MissingArgumentError: If required arguments are missing.
+        AppFileNotFoundError: If the specified `working_directory` does not exist.
+        FileOperationError: If creating directories or writing the service file fails.
+        CommandNotFoundError: If `systemctl` is not found.
+        SystemError: If reloading the systemd daemon fails.
     """
     if platform.system() != "Linux":
         logger.warning(
@@ -116,9 +119,7 @@ def create_systemd_service_file(
             "service_name_full, description, working_directory, and exec_start_command are required."
         )
     if not os.path.isdir(working_directory):  # Ensure working directory exists
-        raise FileOperationError(
-            f"WorkingDirectory '{working_directory}' does not exist or is not a directory."
-        )
+        raise AppFileNotFoundError(working_directory, "WorkingDirectory")
 
     name_to_use = (
         service_name_full
@@ -137,7 +138,7 @@ def create_systemd_service_file(
     try:
         os.makedirs(systemd_user_dir, exist_ok=True)
     except OSError as e:
-        raise ServiceError(
+        raise FileOperationError(
             f"Failed to create systemd user directory '{systemd_user_dir}': {e}"
         ) from e
 
@@ -174,7 +175,7 @@ WantedBy=default.target
             f"Successfully wrote generic systemd service file: {service_file_path}"
         )
     except OSError as e:
-        raise ServiceError(
+        raise FileOperationError(
             f"Failed to write service file '{service_file_path}': {e}"
         ) from e
 
@@ -193,7 +194,7 @@ WantedBy=default.target
             f"Systemd user daemon reloaded successfully for service '{name_to_use}'."
         )
     except subprocess.CalledProcessError as e:
-        raise SystemdReloadError(
+        raise SystemError(
             f"Failed to reload systemd user daemon. Error: {e.stderr}"
         ) from e
 
@@ -216,7 +217,7 @@ def enable_systemd_service(service_name_full: str) -> None:
         raise CommandNotFoundError("systemctl")
 
     if not check_service_exists(name_to_use):  # Check with .service suffix
-        raise ServiceError(
+        raise SystemError(
             f"Cannot enable: Systemd service file for '{name_to_use}' does not exist."
         )
 
@@ -253,7 +254,7 @@ def enable_systemd_service(service_name_full: str) -> None:
         )
         logger.info(f"Systemd service '{name_to_use}' enabled successfully.")
     except subprocess.CalledProcessError as e:
-        raise ServiceError(
+        raise SystemError(
             f"Failed to enable systemd service '{name_to_use}'. Error: {e.stderr}"
         ) from e
 
@@ -321,7 +322,7 @@ def disable_systemd_service(service_name_full: str) -> None:
                 f"Service '{name_to_use}' is static or masked, cannot be disabled via 'disable'."
             )
             return
-        raise ServiceError(
+        raise SystemError(
             f"Failed to disable systemd service '{name_to_use}'. Error: {e.stderr}"
         ) from e
 
@@ -340,26 +341,24 @@ def _linux_start_server(server_name: str, server_dir: str) -> None:
 
     Raises:
         MissingArgumentError: If `server_name` or `server_dir` is empty.
-        DirectoryError: If `server_dir` does not exist or is not a directory.
+        AppFileNotFoundError: If `server_dir` or the server executable does not exist.
         ServerStartError: If the `screen` command fails to execute.
         CommandNotFoundError: If the 'screen' or 'bash' command is not found.
-        FileOperationError: If clearing the log file fails (optional, currently logs warning).
+        SystemError: If not run on Linux.
     """
     if platform.system() != "Linux":
         logger.error("Attempted to use Linux start method on non-Linux OS.")
-        raise ServerStartError("Cannot use screen start method on non-Linux OS.")
+        raise SystemError("Cannot use screen start method on non-Linux OS.")
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
     if not server_dir:
         raise MissingArgumentError("Server directory cannot be empty.")
 
     if not os.path.isdir(server_dir):
-        raise DirectoryError(f"Server directory not found: {server_dir}")
+        raise AppFileNotFoundError(server_dir, "Server directory")
     bedrock_exe = os.path.join(server_dir, "bedrock_server")
     if not os.path.isfile(bedrock_exe):
-        raise ServerStartError(
-            f"Server executable 'bedrock_server' not found in {server_dir}"
-        )
+        raise AppFileNotFoundError(bedrock_exe, "Server executable")
     if not os.access(bedrock_exe, os.X_OK):
         logger.warning(
             f"Server executable '{bedrock_exe}' is not executable. Attempting start anyway, but it may fail."
@@ -547,11 +546,11 @@ def _linux_stop_server(server_name: str, server_dir: str) -> None:
         MissingArgumentError: If `server_name` or `server_dir` is empty.
         ServerStopError: If sending the stop command via screen fails unexpectedly.
         CommandNotFoundError: If the 'screen' command is not found.
-        # Does not raise error if screen session is not found (assumes already stopped).
+        SystemError: If not run on Linux.
     """
     if platform.system() != "Linux":
         logger.error("Attempted to use Linux stop method on non-Linux OS.")
-        raise ServerStopError("Cannot use screen stop method on non-Linux OS.")
+        raise SystemError("Cannot use screen stop method on non-Linux OS.")
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
     if not server_dir:

@@ -18,23 +18,13 @@ import re
 from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import (
     CommandNotFoundError,
-    SystemdReloadError,
-    ServiceError,
+    SystemError,
     InvalidServerNameError,
-    ScheduleError,
-    InvalidCronJobError,
-    ServerStartError,
-    ServerStopError,
+    UserInputError,
     MissingArgumentError,
     FileOperationError,
-    DirectoryError,
-    TaskError,
-    ServerNotFoundError,
-    InvalidInputError,
-    PIDFileError as CorePIDFileError,
-    ProcessManagementError as CoreProcessManagementError,
-    ProcessVerificationError as CoreProcessVerificationError,
-    ConfigurationError as CoreConfigurationError,
+    AppFileNotFoundError,
+    PermissionsError,
 )
 
 logger = logging.getLogger(__name__)
@@ -171,7 +161,7 @@ class LinuxTaskScheduler:
         if month_str in self._CRON_MONTHS_MAP:
             return self._CRON_MONTHS_MAP[month_str]
         else:
-            raise InvalidCronJobError(
+            raise UserInputError(
                 f"Invalid month value: '{month_input}'. Use 1-12 or name/abbreviation."
             )
 
@@ -183,7 +173,7 @@ class LinuxTaskScheduler:
         if dow_str in self._CRON_DAYS_MAP:
             return self._CRON_DAYS_MAP[dow_str]
         else:
-            raise InvalidCronJobError(
+            raise UserInputError(
                 f"Invalid day-of-week value: '{dow_input}'. Use 0-6, 7, or name/abbreviation (Sun-Sat)."
             )
 
@@ -246,7 +236,7 @@ class LinuxTaskScheduler:
             else:
                 error_msg = f"Error running 'crontab -l'. Return code: {process.returncode}. Error: {process.stderr}"
                 logger.error(error_msg)
-                raise ScheduleError(error_msg)
+                raise SystemError(error_msg)
 
             filtered_jobs: List[str] = []
             server_arg_pattern = f'--server "{server_name}"'
@@ -262,7 +252,7 @@ class LinuxTaskScheduler:
                 f"An unexpected error occurred while getting cron jobs: {e}",
                 exc_info=True,
             )
-            raise ScheduleError(f"Unexpected error getting cron jobs: {e}") from e
+            raise SystemError(f"Unexpected error getting cron jobs: {e}") from e
 
     def get_cron_jobs_table(self, cron_jobs: List[str]) -> List[Dict[str, str]]:
         """
@@ -282,7 +272,7 @@ class LinuxTaskScheduler:
                 readable_schedule = self.convert_to_readable_schedule(
                     minute, hour, dom, month, dow
                 )
-            except InvalidCronJobError as e:
+            except UserInputError as e:
                 readable_schedule = f"{minute} {hour} {dom} {month} {dow}"
                 logger.warning(
                     f"Could not convert schedule '{readable_schedule}' to readable format: {e}."
@@ -312,7 +302,7 @@ class LinuxTaskScheduler:
         try:
             num = int(value)
             if not (min_val <= num <= max_val):
-                raise InvalidCronJobError(
+                raise UserInputError(
                     f"Value '{value}' is out of range ({min_val}-{max_val})."
                 )
         except ValueError:
@@ -375,14 +365,12 @@ class LinuxTaskScheduler:
                 month_name = self._get_cron_month_name(month)
                 return f"Yearly on {month_name} {int(day_of_month)} at {int(hour):02d}:{int(minute):02d}"
             return f"Cron schedule: {raw_schedule}"
-        except (ValueError, InvalidCronJobError) as e:
+        except (ValueError, UserInputError) as e:
             logger.error(
                 f"Could not parse specific schedule '{raw_schedule}': {e}",
                 exc_info=True,
             )
-            raise InvalidCronJobError(
-                f"Invalid value in schedule: {raw_schedule}"
-            ) from e
+            raise UserInputError(f"Invalid value in schedule: {raw_schedule}") from e
 
     def add_job(self, cron_string: str) -> None:
         """Adds a job string to the current user's crontab."""
@@ -404,7 +392,7 @@ class LinuxTaskScheduler:
             if process.returncode == 0:
                 current_crontab = process.stdout
             elif "no crontab for" not in process.stderr.lower():
-                raise ScheduleError(f"Error reading current crontab: {process.stderr}")
+                raise SystemError(f"Error reading current crontab: {process.stderr}")
 
             if cron_string in [line.strip() for line in current_crontab.splitlines()]:
                 logger.warning(
@@ -422,9 +410,7 @@ class LinuxTaskScheduler:
             )
             _, stderr = write_process.communicate(input=new_crontab_content)
             if write_process.returncode != 0:
-                raise ScheduleError(
-                    f"Failed to write updated crontab. Stderr: {stderr}"
-                )
+                raise SystemError(f"Failed to write updated crontab. Stderr: {stderr}")
 
             logger.info(f"Successfully added cron job: '{cron_string}'")
         except Exception as e:
@@ -432,7 +418,7 @@ class LinuxTaskScheduler:
                 f"An unexpected error occurred while adding cron job: {e}",
                 exc_info=True,
             )
-            raise ScheduleError(f"Unexpected error adding cron job: {e}") from e
+            raise SystemError(f"Unexpected error adding cron job: {e}") from e
 
     def update_job(self, old_cron_string: str, new_cron_string: str) -> None:
         """Replaces an existing cron job line with a new one."""
@@ -464,7 +450,7 @@ class LinuxTaskScheduler:
             if process.returncode == 0:
                 current_crontab = process.stdout
             elif "no crontab for" not in process.stderr.lower():
-                raise ScheduleError(f"Error reading current crontab: {process.stderr}")
+                raise SystemError(f"Error reading current crontab: {process.stderr}")
 
             lines = current_crontab.splitlines()
             found = False
@@ -476,7 +462,7 @@ class LinuxTaskScheduler:
                 else:
                     updated_lines.append(line)
             if not found:
-                raise ScheduleError(
+                raise UserInputError(
                     f"Cron job to modify was not found: '{old_cron_string}'"
                 )
 
@@ -490,9 +476,7 @@ class LinuxTaskScheduler:
             )
             _, stderr = write_process.communicate(input=new_crontab_content)
             if write_process.returncode != 0:
-                raise ScheduleError(
-                    f"Failed to write modified crontab. Stderr: {stderr}"
-                )
+                raise SystemError(f"Failed to write modified crontab. Stderr: {stderr}")
 
             logger.info("Successfully modified cron job.")
         except Exception as e:
@@ -500,7 +484,7 @@ class LinuxTaskScheduler:
                 f"An unexpected error occurred while modifying cron job: {e}",
                 exc_info=True,
             )
-            raise ScheduleError(f"Unexpected error modifying cron job: {e}") from e
+            raise SystemError(f"Unexpected error modifying cron job: {e}") from e
 
     def delete_job(self, cron_string: str) -> None:
         """Deletes a specific job line from the user's crontab."""
@@ -522,7 +506,7 @@ class LinuxTaskScheduler:
             if process.returncode == 0:
                 current_crontab = process.stdout
             elif "no crontab for" not in process.stderr.lower():
-                raise ScheduleError(f"Error reading current crontab: {process.stderr}")
+                raise SystemError(f"Error reading current crontab: {process.stderr}")
 
             lines = current_crontab.splitlines()
             updated_lines = [line for line in lines if line.strip() != cron_string]
@@ -546,7 +530,7 @@ class LinuxTaskScheduler:
             )
             _, stderr = write_process.communicate(input=new_crontab_content)
             if write_process.returncode != 0:
-                raise ScheduleError(
+                raise SystemError(
                     f"Failed to write updated crontab after deletion. Stderr: {stderr}"
                 )
 
@@ -556,7 +540,7 @@ class LinuxTaskScheduler:
                 f"An unexpected error occurred while deleting cron job: {e}",
                 exc_info=True,
             )
-            raise ScheduleError(f"Unexpected error deleting cron job: {e}") from e
+            raise SystemError(f"Unexpected error deleting cron job: {e}") from e
 
 
 # ------
@@ -749,7 +733,7 @@ class WindowsTaskScheduler:
                             exc_info=True,
                         )
         except OSError as e:
-            raise TaskError(
+            raise FileOperationError(
                 f"Error reading tasks from directory '{server_task_dir}': {e}"
             ) from e
         return task_files
@@ -769,7 +753,7 @@ class WindowsTaskScheduler:
         if not isinstance(triggers, list):
             raise TypeError("Triggers must be a list.")
         if not EXPATH or not os.path.exists(EXPATH):
-            raise FileOperationError(f"Main script executable path not found: {EXPATH}")
+            raise AppFileNotFoundError(str(EXPATH), "Main script executable")
 
         try:
             task = ET.Element(
@@ -852,7 +836,7 @@ class WindowsTaskScheduler:
             tree.write(xml_file_path, encoding="utf-16", xml_declaration=True)
             return xml_file_path
         except Exception as e:
-            raise TaskError(f"Unexpected error creating task XML: {e}") from e
+            raise FileOperationError(f"Unexpected error creating task XML: {e}") from e
 
     def import_task_from_xml(self, xml_file_path: str, task_name: str) -> None:
         """Imports a task definition XML file into Windows Task Scheduler."""
@@ -861,7 +845,7 @@ class WindowsTaskScheduler:
         if not task_name:
             raise MissingArgumentError("Task name cannot be empty.")
         if not os.path.isfile(xml_file_path):
-            raise FileNotFoundError(f"Task XML file not found: {xml_file_path}")
+            raise AppFileNotFoundError(xml_file_path, "Task XML file")
 
         logger.info(f"Importing task '{task_name}' from XML file: {xml_file_path}")
         try:
@@ -885,10 +869,10 @@ class WindowsTaskScheduler:
         except subprocess.CalledProcessError as e:
             stderr = (e.stderr or "").strip()
             if "access is denied" in stderr.lower():
-                raise TaskError(
+                raise PermissionsError(
                     f"Access denied importing task '{task_name}'. Try running as Administrator."
                 ) from e
-            raise TaskError(
+            raise SystemError(
                 f"Failed to import task '{task_name}'. Error: {stderr}"
             ) from e
 
@@ -918,10 +902,10 @@ class WindowsTaskScheduler:
                 logger.info(f"Task '{task_name}' not found. Presumed already deleted.")
                 return
             if "access is denied" in stderr:
-                raise TaskError(
+                raise PermissionsError(
                     f"Access denied deleting task '{task_name}'. Try running as Administrator."
                 ) from e
-            raise TaskError(
+            raise SystemError(
                 f"Failed to delete task '{task_name}'. Error: {e.stderr}"
             ) from e
 
@@ -953,7 +937,7 @@ class WindowsTaskScheduler:
         }
         if day_str in mapping:
             return mapping[day_str]
-        raise InvalidInputError(
+        raise UserInputError(
             f"Invalid day of week: '{day_input}'. Use name, abbreviation, or number 1-7 (Mon-Sun)."
         )
 
@@ -991,7 +975,7 @@ class WindowsTaskScheduler:
             mapping[val.lower()] = val
         if month_str in mapping:
             return mapping[month_str]
-        raise InvalidInputError(
+        raise UserInputError(
             f"Invalid month: '{month_input}'. Use name, abbreviation, or number 1-12."
         )
 
@@ -1002,9 +986,9 @@ class WindowsTaskScheduler:
         trigger_type = trigger_data.get("type")
         start = trigger_data.get("start")
         if not trigger_type:
-            raise InvalidInputError("Trigger data must include a 'type' key.")
+            raise UserInputError("Trigger data must include a 'type' key.")
         if not start and trigger_type in ("TimeTrigger", "Daily", "Weekly", "Monthly"):
-            raise InvalidInputError(
+            raise UserInputError(
                 f"Trigger type '{trigger_type}' requires a 'start' boundary (YYYY-MM-DDTHH:MM:SS)."
             )
 
@@ -1026,7 +1010,7 @@ class WindowsTaskScheduler:
             elif trigger_type == "Weekly":
                 days = trigger_data.get("days")
                 if not days or not isinstance(days, list):
-                    raise InvalidInputError("Weekly trigger requires a list of 'days'.")
+                    raise UserInputError("Weekly trigger requires a list of 'days'.")
                 schedule = ET.SubElement(trigger, f"{self.XML_NAMESPACE}ScheduleByWeek")
                 ET.SubElement(schedule, f"{self.XML_NAMESPACE}WeeksInterval").text = (
                     str(trigger_data.get("interval", 1))
@@ -1043,13 +1027,9 @@ class WindowsTaskScheduler:
                 days = trigger_data.get("days")
                 months = trigger_data.get("months")
                 if not days or not isinstance(days, list):
-                    raise InvalidInputError(
-                        "Monthly trigger requires a list of 'days'."
-                    )
+                    raise UserInputError("Monthly trigger requires a list of 'days'.")
                 if not months or not isinstance(months, list):
-                    raise InvalidInputError(
-                        "Monthly trigger requires a list of 'months'."
-                    )
+                    raise UserInputError("Monthly trigger requires a list of 'months'.")
                 schedule = ET.SubElement(
                     trigger, f"{self.XML_NAMESPACE}ScheduleByMonth"
                 )
@@ -1067,7 +1047,7 @@ class WindowsTaskScheduler:
                         f"{self.XML_NAMESPACE}{self._get_month_element_name(month)}",
                     )
         else:
-            raise InvalidInputError(f"Unsupported trigger type: {trigger_type}")
+            raise UserInputError(f"Unsupported trigger type: {trigger_type}")
         ET.SubElement(trigger, f"{self.XML_NAMESPACE}Enabled").text = "true"
 
 

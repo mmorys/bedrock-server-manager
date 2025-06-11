@@ -7,10 +7,10 @@ import subprocess
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
-    ServerNotFoundError,
+    AppFileNotFoundError,
     MissingArgumentError,
-    DirectoryError,
-    SetFolderPermissionsError,
+    FileOperationError,
+    PermissionsError,
     ServerStopError,
 )
 
@@ -28,10 +28,9 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
 
         Returns:
             True if the server installation is valid.
-            False if the server directory or executable is missing.
 
         Raises:
-            ServerNotFoundError: If the server directory or the executable file within it
+            AppFileNotFoundError: If the server directory or the executable file within it
                                  does not exist.
         """
         self.logger.debug(
@@ -39,18 +38,12 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isdir(self.server_dir):
-            error_msg = f"Server directory not found: {self.server_dir}"
-            self.logger.error(error_msg)
-            return False
+            raise AppFileNotFoundError(self.server_dir, "Server directory")
 
         if not os.path.isfile(self.bedrock_executable_path):
-            executable_name = os.path.basename(self.bedrock_executable_path)
-            error_msg = (
-                f"Server executable '{executable_name}' "
-                f"not found in directory: {self.server_dir}"
+            raise AppFileNotFoundError(
+                self.bedrock_executable_path, "Server executable"
             )
-            self.logger.error(error_msg)
-            return False
 
         self.logger.debug(
             f"Server '{self.server_name}' installation validation successful."
@@ -64,7 +57,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         """
         try:
             return self.validate_installation()
-        except ServerNotFoundError:
+        except AppFileNotFoundError:
             self.logger.debug(
                 f"is_installed check: Server '{self.server_name}' not found or installation invalid."
             )
@@ -76,9 +69,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         Wraps system_base.set_server_folder_permissions.
         """
         if not self.is_installed():  # Use the non-raising check first
-            raise DirectoryError(
-                f"Cannot set permissions for '{self.server_name}': Server is not correctly installed or directory missing."
-            )
+            raise AppFileNotFoundError(self.server_dir, "Server installation directory")
 
         self.logger.info(
             f"Setting filesystem permissions for server directory: {self.server_dir}"
@@ -86,7 +77,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         try:
             system_base.set_server_folder_permissions(self.server_dir)
             self.logger.info(f"Successfully set permissions for '{self.server_dir}'.")
-        except (MissingArgumentError, DirectoryError, SetFolderPermissionsError) as e:
+        except (MissingArgumentError, AppFileNotFoundError, PermissionsError) as e:
             self.logger.error(f"Failed to set permissions for '{self.server_dir}': {e}")
             raise
         except Exception as e_unexp:
@@ -94,7 +85,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                 f"Unexpected error setting permissions for '{self.server_dir}': {e_unexp}",
                 exc_info=True,
             )
-            raise SetFolderPermissionsError(
+            raise PermissionsError(
                 f"Unexpected error setting permissions for '{self.server_name}': {e_unexp}"
             ) from e_unexp
 
@@ -138,9 +129,8 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         and its systemd service file (on Linux).
 
         Raises:
-            DirectoryError: If deleting essential directories fails.
-            FileOperationError: If settings (BACKUP_DIR) are missing when expected.
-            # MissingArgumentError/InvalidServerNameError covered by self.server_name
+            FileOperationError: If deleting essential directories fails or settings
+                                (BACKUP_DIR) are missing when expected.
         """
         # server_name is self.server_name
         # base_dir is self.base_dir
@@ -331,7 +321,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
             self.logger.error(
                 f"Deletion of server '{self.server_name}' completed with errors. Failed items: {error_summary}"
             )
-            raise DirectoryError(
+            raise FileOperationError(
                 f"Failed to completely delete server '{self.server_name}'. Failed items: {error_summary}"
             )
         else:

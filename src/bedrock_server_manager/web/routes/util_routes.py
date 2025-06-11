@@ -27,7 +27,7 @@ from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.web.utils.auth_decorators import get_current_identity
-from bedrock_server_manager.error import FileOperationError
+from bedrock_server_manager.error import BSMError, AppFileNotFoundError
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -65,11 +65,11 @@ def serve_world_icon(server_name: str) -> Response:
         else:
             # The path was invalid or the file doesn't exist.
             # The BedrockServer object would have already logged a warning if the path was None.
-            raise FileNotFoundError("World icon not found or path is invalid.")
+            raise AppFileNotFoundError(str(icon_path), "World icon")
 
-    except (FileNotFoundError, FileOperationError) as e:
+    except BSMError as e:
         # Catches both file not found and config errors (like BASE_DIR missing) during server instantiation.
-        if not isinstance(e, FileNotFoundError):
+        if not isinstance(e, AppFileNotFoundError):
             logger.error(
                 f"Configuration error serving world icon for '{server_name}': {e}",
                 exc_info=True,
@@ -108,7 +108,7 @@ def serve_custom_panorama() -> Response:
     try:
         config_dir = settings.get("CONFIG_DIR")
         if not config_dir:
-            raise FileNotFoundError("CONFIG_DIR not set in settings.")
+            raise AppFileNotFoundError("CONFIG_DIR not set in settings.", "Setting")
 
         # send_from_directory handles security and file existence checks
         return send_from_directory(
@@ -116,7 +116,7 @@ def serve_custom_panorama() -> Response:
             path="panorama.jpeg",
             mimetype="image/jpeg",
         )
-    except FileNotFoundError:
+    except AppFileNotFoundError:
         logger.info("Custom panorama not found. Serving default.")
         # Fallback to the default panorama from the static folder
         try:

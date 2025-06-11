@@ -13,9 +13,10 @@ from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBa
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
-    InvalidAddonPackTypeError,
-    AddonExtractError,
-    DirectoryError,
+    UserInputError,
+    ExtractError,
+    AppFileNotFoundError,
+    ConfigParseError,
 )
 
 
@@ -43,7 +44,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
         )
 
         if not os.path.isfile(addon_file_path):
-            raise FileNotFoundError(f"Addon file not found: {addon_file_path}")
+            raise AppFileNotFoundError(addon_file_path, "Addon file")
 
         addon_file_lower = addon_file_path.lower()
         if addon_file_lower.endswith(".mcaddon"):
@@ -55,7 +56,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
         else:
             err_msg = f"Unsupported addon file type: '{os.path.basename(addon_file_path)}'. Only .mcaddon and .mcpack."
             self.logger.error(err_msg)
-            raise InvalidAddonPackTypeError(err_msg)
+            raise UserInputError(err_msg)
 
     def _process_mcaddon_archive(self, mcaddon_file_path: str) -> None:
         """Processes an .mcaddon file by extracting its contents and handling nested packs/worlds."""
@@ -83,7 +84,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                     f"Failed to extract '{mcaddon_file_path}': Invalid ZIP. {e}",
                     exc_info=True,
                 )
-                raise AddonExtractError(
+                raise ExtractError(
                     f"Invalid .mcaddon (not zip): {os.path.basename(mcaddon_file_path)}"
                 ) from e
             except OSError as e:  # General OS error during zip
@@ -126,7 +127,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
             )
             active_world_name = (
                 self.get_world_name()
-            )  # From StateMixin, raises FileOperationError if fails
+            )  # From StateMixin, raises AppFileNotFoundError/ConfigParseError if fails
 
             for world_file_path in mcworld_files_found:
                 world_filename_basename = os.path.basename(world_file_path)
@@ -206,7 +207,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                     f"Failed to extract '{mcpack_file_path}': Invalid ZIP. {e}",
                     exc_info=True,
                 )
-                raise AddonExtractError(
+                raise ExtractError(
                     f"Invalid .mcpack (not zip): {mcpack_filename}"
                 ) from e
             except OSError as e:
@@ -296,7 +297,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                 target_world_json_file = world_resource_packs_json
                 pack_type_friendly_name = "resource"
             else:  # Should be caught by _extract_manifest_info earlier
-                raise InvalidAddonPackTypeError(
+                raise UserInputError(
                     f"Cannot install unknown pack type: '{pack_type}' for '{original_mcpack_filename}'"
                 )
 
@@ -322,17 +323,13 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                 f"Successfully installed and activated {pack_type_friendly_name} pack '{addon_name}' v{version_str} for server '{self.server_name}'."
             )
 
-        except AddonExtractError as e_manifest:  # From _extract_manifest_info
+        except (AppFileNotFoundError, ConfigParseError) as e_manifest:
             self.logger.error(
                 f"Failed to process manifest for '{original_mcpack_filename}': {e_manifest}",
                 exc_info=True,
             )
             raise
-        except (
-            FileOperationError,
-            InvalidAddonPackTypeError,
-            DirectoryError,
-        ) as e_install:  # From various points
+        except (FileOperationError, UserInputError, AppFileNotFoundError) as e_install:
             self.logger.error(
                 f"Failed to install pack from '{original_mcpack_filename}': {e_install}",
                 exc_info=True,
@@ -356,20 +353,18 @@ class ServerAddonMixin(BedrockServerBaseMixin):
         self.logger.debug(f"Attempting to read manifest file: {manifest_file}")
 
         if not os.path.isfile(manifest_file):
-            raise AddonExtractError(
-                f"Manifest 'manifest.json' not found in: {extracted_pack_dir}"
-            )
+            raise AppFileNotFoundError(manifest_file, "Manifest file")
 
         try:
             with open(manifest_file, "r", encoding="utf-8") as f:
                 manifest_data = json.load(f)
 
             if not isinstance(manifest_data, dict):
-                raise AddonExtractError("Manifest content is not a valid JSON object.")
+                raise ConfigParseError("Manifest content is not a valid JSON object.")
 
             header = manifest_data.get("header")
             if not isinstance(header, dict):
-                raise AddonExtractError("Manifest missing or invalid 'header' object.")
+                raise ConfigParseError("Manifest missing or invalid 'header' object.")
 
             uuid_val = header.get("uuid")
             version_val = header.get("version")  # list [major, minor, patch]
@@ -377,11 +372,11 @@ class ServerAddonMixin(BedrockServerBaseMixin):
 
             modules = manifest_data.get("modules")
             if not isinstance(modules, list) or not modules:
-                raise AddonExtractError("Manifest missing or invalid 'modules' array.")
+                raise ConfigParseError("Manifest missing or invalid 'modules' array.")
 
             first_module = modules[0]
             if not isinstance(first_module, dict):
-                raise AddonExtractError(
+                raise ConfigParseError(
                     "First item in 'modules' array is not valid object."
                 )
             pack_type_val = first_module.get("type")
@@ -402,7 +397,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                 and isinstance(pack_type_val, str)
             ):
                 missing_details = f"uuid: {uuid_val}, version: {version_val}, name: {name_val}, type: {pack_type_val}"
-                raise AddonExtractError(
+                raise ConfigParseError(
                     f"Invalid manifest structure in {manifest_file}. Details: {missing_details}"
                 )
 
@@ -413,7 +408,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                 self.logger.warning(
                     f"Manifest specified pack type '{pack_type_cleaned}', which might not be standard server pack type."
                 )
-                raise InvalidAddonPackTypeError(
+                raise UserInputError(
                     f"Pack type '{pack_type_cleaned}' from manifest is not 'data' or 'resources'."
                 )
 
@@ -422,15 +417,15 @@ class ServerAddonMixin(BedrockServerBaseMixin):
             )
             return pack_type_cleaned, uuid_val, version_val, name_val
 
-        except json.JSONDecodeError as e:
-            raise AddonExtractError(
+        except ValueError as e:
+            raise ConfigParseError(
                 f"Invalid JSON in manifest '{manifest_file}': {e}"
             ) from e
         except OSError as e:  # File read error
-            raise AddonExtractError(
+            raise FileOperationError(
                 f"Cannot read manifest file '{manifest_file}': {e}"
             ) from e
-        # AddonExtractError for missing keys/invalid structure is handled by direct raises above.
+        # ConfigParseError for missing keys/invalid structure is handled by direct raises above.
 
     def _update_world_pack_json_file(
         self, world_json_file_path: str, pack_uuid: str, pack_version_list: List[int]
@@ -456,7 +451,7 @@ class ServerAddonMixin(BedrockServerBaseMixin):
                                 f"'{json_filename_basename}' content not a list. Will overwrite."
                             )
             # else: File doesn't exist, packs_list remains empty.
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             self.logger.warning(
                 f"Invalid JSON in '{json_filename_basename}'. Will overwrite. Error: {e}"
             )

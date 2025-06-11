@@ -9,7 +9,7 @@ saving changes, and determining appropriate application directories.
 import os
 import json
 import logging
-from bedrock_server_manager.error import ConfigError
+from bedrock_server_manager.error import ConfigurationError
 from bedrock_server_manager.config.const import (
     package_name,
     env_name,
@@ -71,7 +71,7 @@ class Settings:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     user_config = json.load(f)
                     self._settings.update(user_config)
-        except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        except (FileNotFoundError, ValueError, OSError) as e:
             logger.warning(
                 f"Error loading config {self.config_path}: {e}. Using defaults/writing new."
             )
@@ -91,7 +91,7 @@ class Settings:
                 try:
                     os.makedirs(dir_path, exist_ok=True)
                 except OSError as e:
-                    raise ConfigError(
+                    raise ConfigurationError(
                         f"Could not create critical directory: {dir_path}"
                     ) from e
 
@@ -101,7 +101,7 @@ class Settings:
             with open(self.config_path, "w", encoding="utf-8") as f:
                 json.dump(self._settings, f, indent=4, sort_keys=True)
         except (OSError, TypeError) as e:
-            raise ConfigError(f"Failed to write configuration: {e}") from e
+            raise ConfigurationError(f"Failed to write configuration: {e}") from e
 
     def get(self, key: str, default=None):
         return self._settings.get(key, default)

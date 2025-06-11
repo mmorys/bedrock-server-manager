@@ -11,14 +11,10 @@ from typing import Dict, Optional, Any
 # Local imports
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
-    FileOperationError,
-    CommandNotFoundError,
-    ServiceError,
-    SystemdReloadError,
-    ResourceMonitorError,
     MissingArgumentError,
-    InvalidInputError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +40,7 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
             }
         else:
             return {"status": "success", "process_info": process_info}
-    except (ResourceMonitorError, FileOperationError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to get process info for '{server_name}': {e}", exc_info=True
         )
@@ -87,12 +83,7 @@ def create_systemd_service(
         }
     except NotImplementedError as e:
         return {"status": "error", "message": str(e)}
-    except (
-        ServiceError,
-        SystemdReloadError,
-        CommandNotFoundError,
-        FileOperationError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to configure systemd service for '{server_name}': {e}",
             exc_info=True,
@@ -121,7 +112,7 @@ def set_autoupdate(server_name: str, autoupdate_value: bool) -> Dict[str, str]:
 
     value_lower = autoupdate_value.lower()
     if value_lower not in ("true", "false"):
-        raise InvalidInputError("Autoupdate value must be 'true' or 'false'.")
+        raise UserInputError("Autoupdate value must be 'true' or 'false'.")
     value_bool = value_lower == "true"
 
     logger.info(
@@ -134,7 +125,7 @@ def set_autoupdate(server_name: str, autoupdate_value: bool) -> Dict[str, str]:
             "status": "success",
             "message": f"Autoupdate setting for '{server_name}' updated to {value_bool}.",
         }
-    except (FileOperationError, InvalidInputError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to set autoupdate config for '{server_name}': {e}",
             exc_info=True,
@@ -165,7 +156,7 @@ def enable_server_service(server_name: str) -> Dict[str, str]:
         }
     except NotImplementedError as e:
         return {"status": "error", "message": str(e)}
-    except (ServiceError, CommandNotFoundError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to enable systemd service for '{server_name}': {e}",
             exc_info=True,
@@ -193,7 +184,7 @@ def disable_server_service(server_name: str) -> Dict[str, str]:
         }
     except NotImplementedError as e:
         return {"status": "error", "message": str(e)}
-    except (ServiceError, CommandNotFoundError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to disable systemd service for '{server_name}': {e}",
             exc_info=True,

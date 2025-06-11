@@ -27,12 +27,8 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     get_current_identity,
 )
 from bedrock_server_manager.error import (
-    MissingArgumentError,
-    InvalidServerNameError,
-    FileOperationError,
-    ValueError,
-    DirectoryError,
-    InvalidInputError,
+    BSMError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,12 +58,8 @@ def get_world_name_api_route(server_name: str) -> Tuple[Response, int]:
             if result.get("status") == "success"
             else 500 if result.get("status") == "error" else 500
         )
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -91,12 +83,8 @@ def get_running_status_api_route(server_name: str) -> Tuple[Response, int]:
     try:
         result = info_api.get_server_running_status(server_name)
         status_code = 200 if result.get("status") == "success" else 500
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -123,12 +111,8 @@ def get_config_status_api_route(server_name: str) -> Tuple[Response, int]:
     try:
         result = info_api.get_server_config_status(server_name)
         status_code = 200 if result.get("status") == "success" else 500
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -155,12 +139,8 @@ def get_version_api_route(server_name: str) -> Tuple[Response, int]:
     try:
         result = info_api.get_server_installed_version(server_name)
         status_code = 200 if result.get("status") == "success" else 500
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -190,12 +170,8 @@ def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
         status_code = (
             200 if result.get("status") == "success" else 404
         )  # 404 if validation fails
-    except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -220,10 +196,7 @@ def scan_players_api_route() -> Tuple[Response, int]:
     try:
         result = player_api.scan_and_update_player_db_api()
         status_code = 200 if result.get("status") == "success" else 500
-    except (
-        FileOperationError,
-        DirectoryError,
-    ) as e:
+    except BSMError as e:
         status_code = 500
         result = {
             "status": "error",
@@ -292,7 +265,7 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
         try:
             keep_count = int(keep_count_input)
             if keep_count < 0:
-                # This ValueError will be caught by the generic (ValueError, InvalidInputError) handler
+                # This ValueError will be caught by the generic (ValueError, UserInputError) handler
                 raise ValueError("Keep count cannot be negative.")
         except (ValueError, TypeError):
             msg = "Invalid 'keep' value. Must be a non-negative integer."
@@ -304,10 +277,8 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
     try:
         download_cache_base_dir = settings.get("DOWNLOAD_DIR")
         if not download_cache_base_dir:
-            # This will be caught by the FileOperationError handler below
-            raise FileOperationError(
-                "DOWNLOAD_DIR setting is missing or empty in configuration."
-            )
+            # This will be caught by the BSMError handler below
+            raise BSMError("DOWNLOAD_DIR setting is missing or empty in configuration.")
 
         # Construct the full path from the base and the relative directory name
         full_download_dir_path = os.path.normpath(
@@ -372,33 +343,10 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
             # Ensure the result dictionary has a consistent error structure
             result = {"status": "error", "message": error_msg}
 
-    except (
-        MissingArgumentError,
-        InvalidInputError,
-        ValueError,
-    ) as e:  # Catches invalid keep_count or other input issues
-        logger.warning(f"API Prune Downloads: Input error: {e}", exc_info=True)
-        status_code = 400
-        result = {"status": "error", "message": f"Invalid input: {e}"}
-    except DirectoryError as e:
-        # This might be raised by misc_api for issues like permissions after os.path.isdir passed.
-        logger.warning(
-            f"API Prune Downloads: Directory operation error: {e}", exc_info=True
-        )
-        status_code = 500  # More likely a server-side issue if os.path.isdir passed
-        result = {"status": "error", "message": f"Directory operation error: {e}"}
-    except (
-        FileOperationError
-    ) as e:  # Catches DOWNLOAD_DIR config errors or other fs issues
-        logger.error(
-            f"API Prune Downloads: Configuration or File system error: {e}",
-            exc_info=True,
-        )
-        status_code = 500
-        result = {
-            "status": "error",
-            "message": f"Server configuration or file system error: {e}",
-        }
+    except BSMError as e:  # Catches invalid keep_count or other input issues
+        logger.warning(f"API Prune Downloads: Application error: {e}", exc_info=True)
+        status_code = 400 if isinstance(e, UserInputError) else 500
+        result = {"status": "error", "message": f"Invalid input or server error: {e}"}
     except Exception as e:
         logger.error(
             f"API Prune Downloads: Unexpected error for relative_dir '{relative_dir_name}': {e}",
@@ -438,17 +386,8 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
             if result.get("status") == "success"
             else 500 if result.get("status") == "error" else 500
         )
-    except (
-        MissingArgumentError,
-        InvalidServerNameError,
-        ValueError,
-        FileOperationError,
-    ) as e:
-        status_code = (
-            400
-            if isinstance(e, (MissingArgumentError, ValueError, InvalidServerNameError))
-            else 500
-        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
         result = {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
@@ -642,9 +581,9 @@ def add_players_api_route() -> Tuple[Response, int]:
             return jsonify(result_dict), 400
 
         # Call the API layer function
-        # It raises TypeError, MissingArgumentError, FileOperationError directly
-        # It returns dict for InvalidInputError, other FileOperationError, Exception
-        result_dict = player_api.add_players(players=players_list)
+        # It raises TypeError, MissingArgumentError directly
+        # It returns dict for UserInputError, other FileOperationError, Exception
+        result_dict = player_api.add_players_manually_api(players=players_list)
 
         if result_dict.get("status") == "success":
             status_code = 200  # Or 201 Created if you prefer for new resources
@@ -662,21 +601,10 @@ def add_players_api_route() -> Tuple[Response, int]:
                 f"API Add Players: Handler returned error: {result_dict.get('message')}"
             )
 
-    except (TypeError, MissingArgumentError) as e:
-        logger.warning(f"API Add Players: Client error: {e}")
+    except (TypeError, BSMError) as e:
+        logger.warning(f"API Add Players: Client or application error: {e}")
+        status_code = 400 if isinstance(e, (TypeError, UserInputError)) else 500
         result_dict = {"status": "error", "message": str(e)}
-        status_code = 400  # Bad Request
-    except (
-        FileOperationError
-    ) as e:  # If add_players raises it for config_dir not being determinable
-        logger.error(
-            f"API Add Players: Configuration/File operation error: {e}", exc_info=True
-        )
-        result_dict = {
-            "status": "error",
-            "message": f"Configuration or file system error: {e}",
-        }
-        status_code = 500
 
     except Exception as e:
         # For truly unexpected errors *within the API route itself*

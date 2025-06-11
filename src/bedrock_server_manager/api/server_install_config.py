@@ -17,19 +17,12 @@ from bedrock_server_manager.api.utils import (
     validate_server_name_format,
 )
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
     FileOperationError,
-    InstallUpdateError,
     MissingArgumentError,
-    InvalidInputError,
-    DirectoryError,
-    BackupWorldError,
-    PermissionsFileNotFoundError,
-    PropertiesFileNotFoundError,
-    DownloadExtractError,
-    InternetConnectivityError,
-    ServerNotRunningError,
-    SendCommandError,
+    UserInputError,
+    AppFileNotFoundError,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,7 +51,7 @@ def add_players_to_allowlist_api(
         if added_count > 0 and server.is_running():
             try:
                 server.send_command("allowlist reload")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Allowlist updated, but failed to send reload command: {e}"
                 )
@@ -68,7 +61,7 @@ def add_players_to_allowlist_api(
             "message": f"Successfully added {added_count} new players to the allowlist.",
             "added_count": added_count,
         }
-    except (FileOperationError, DirectoryError, TypeError) as e:
+    except (FileOperationError, TypeError) as e:
         logger.error(
             f"API: Failed to update allowlist for '{server_name}': {e}", exc_info=True
         )
@@ -93,7 +86,7 @@ def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
         server = BedrockServer(server_name)
         players = server.get_allowlist()
         return {"status": "success", "players": players}
-    except (FileOperationError, DirectoryError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to access allowlist for '{server_name}': {e}", exc_info=True
         )
@@ -124,7 +117,7 @@ def remove_player_from_allowlist(server_name: str, player_name: str) -> Dict[str
             if server.is_running():
                 try:
                     server.send_command("allowlist reload")
-                except (SendCommandError, ServerNotRunningError) as e:
+                except BSMError as e:
                     logger.warning(
                         f"API: Player removed, but failed to send reload command: {e}"
                     )
@@ -137,7 +130,7 @@ def remove_player_from_allowlist(server_name: str, player_name: str) -> Dict[str
                 "status": "success",
                 "message": f"Player '{player_name}' not found in allowlist.",
             }
-    except (FileOperationError, DirectoryError, MissingArgumentError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to remove player from allowlist for '{server_name}': {e}",
             exc_info=True,
@@ -169,7 +162,7 @@ def configure_player_permission(
         if server.is_running():
             try:
                 server.send_command("permission reload")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Permission set, but failed to send reload command: {e}"
                 )
@@ -178,12 +171,7 @@ def configure_player_permission(
             "status": "success",
             "message": f"Permission for XUID '{xuid}' set to '{permission.lower()}'.",
         }
-    except (
-        InvalidInputError,
-        DirectoryError,
-        FileOperationError,
-        MissingArgumentError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to configure permission for '{server_name}': {e}",
             exc_info=True,
@@ -215,13 +203,13 @@ def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
 
         permissions = server.get_formatted_permissions(player_name_map)
         return {"status": "success", "data": {"permissions": permissions}}
-    except PermissionsFileNotFoundError:
+    except AppFileNotFoundError as e:
         return {
             "status": "success",
             "data": {"permissions": []},
-            "message": "Permissions file not found.",
+            "message": f"{e}",
         }
-    except (FileOperationError, DirectoryError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to get permissions for '{server_name}': {e}", exc_info=True
         )
@@ -243,9 +231,9 @@ def get_server_properties_api(server_name: str) -> Dict[str, Any]:
         server = BedrockServer(server_name)
         properties = server.get_server_properties()
         return {"status": "success", "properties": properties}
-    except PropertiesFileNotFoundError as e:
+    except AppFileNotFoundError as e:
         return {"status": "error", "message": str(e)}
-    except (FileOperationError, DirectoryError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to get properties for '{server_name}': {e}", exc_info=True
         )
@@ -351,7 +339,7 @@ def modify_server_properties(
             "status": "success",
             "message": "Server properties updated successfully.",
         }
-    except (FileNotFoundError, FileOperationError, InvalidInputError) as e:
+    except (BSMError, FileNotFoundError) as e:
         logger.error(
             f"API: Failed to modify properties for '{server_name}': {e}", exc_info=True
         )
@@ -396,12 +384,7 @@ def install_new_server(
             "version": server.get_version(),
             "message": f"Server '{server_name}' installed successfully to version {server.get_version()}.",
         }
-    except (
-        InstallUpdateError,
-        DownloadExtractError,
-        InternetConnectivityError,
-        FileOperationError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Installation failed for '{server_name}': {e}", exc_info=True
         )
@@ -435,7 +418,7 @@ def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]
         if send_message and server.is_running():
             try:
                 server.send_command("say Server is updating now...")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Failed to send update notification to '{server_name}': {e}"
                 )
@@ -461,13 +444,7 @@ def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]
             "new_version": server.get_version(),
             "message": f"Server '{server_name}' updated successfully to {server.get_version()}.",
         }
-    except (
-        InstallUpdateError,
-        DownloadExtractError,
-        InternetConnectivityError,
-        FileOperationError,
-        BackupWorldError,
-    ) as e:
+    except BSMError as e:
         logger.error(f"API: Update failed for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"Server update failed: {e}"}
     except Exception as e:

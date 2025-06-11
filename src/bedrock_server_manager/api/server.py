@@ -21,22 +21,13 @@ from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.config.blocked_commands import API_COMMAND_BLACKLIST
 from bedrock_server_manager.core.system import process as system_process
 from bedrock_server_manager.error import (
+    BSMError,
     InvalidServerNameError,
-    FileOperationError,
-    CommandNotFoundError,
-    MissingArgumentError,
-    ServerNotRunningError,
-    SendCommandError,
-    ServerStartError,
-    ServerStopError,
-    InvalidInputError,
-    DirectoryError,
+    FileError,
+    UserInputError,
+    ServerError,
     BlockedCommandError,
-    ServerNotFoundError,
-    InstallUpdateError,
-    DownloadExtractError,
-    InternetConnectivityError,
-    BackupWorldError,
+    MissingArgumentError,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,8 +66,7 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
             "status": "success",
             "message": f"Configuration key '{key}' updated successfully.",
         }
-    except (FileOperationError, InvalidInputError, AttributeError) as e:
-        # AttributeError if set_json_config doesn't exist.
+    except BSMError as e:
         logger.error(
             f"API: Failed to write server config for '{server_name}': {e}",
             exc_info=True,
@@ -120,13 +110,7 @@ def _handle_autoupdate(server: "BedrockServer") -> Dict[str, Any]:
             f"API: Autoupdate check completed for server '{server.server_name}'."
         )
 
-    except (
-        InstallUpdateError,
-        DownloadExtractError,
-        InternetConnectivityError,
-        FileOperationError,
-        BackupWorldError,
-    ) as e:  # Catch specific, non-critical exceptions
+    except BSMError as e:  # Catch specific, non-critical exceptions
         logger.error(
             f"API: Autoupdate failed for server '{server.server_name}'. Continuing with start.",
             exc_info=True,
@@ -168,7 +152,7 @@ def start_server(
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if mode not in ["direct", "detached"]:
-        raise InvalidInputError(
+        raise UserInputError(
             f"Invalid start mode '{mode}'. Must be 'direct' or 'detached'."
         )
 
@@ -283,12 +267,7 @@ def start_server(
             "message": "Internal error: Invalid mode fell through.",
         }
 
-    except (
-        ServerStartError,
-        CommandNotFoundError,
-        FileOperationError,
-        system_process.ProcessManagementError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to start server '{server_name}' (mode: {mode}): {e}",
             exc_info=True,
@@ -378,7 +357,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
         try:
             server.send_command("say Stopping server in 10 seconds...")
             time.sleep(10)
-        except (SendCommandError, ServerNotRunningError) as e:
+        except BSMError as e:
             logger.warning(
                 f"API: Could not send shutdown warning to '{server_name}': {e}. Proceeding with stop."
             )
@@ -390,7 +369,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             "message": f"Server '{server_name}' stopped successfully.",
         }
 
-    except (ServerStopError, SendCommandError, CommandNotFoundError) as e:
+    except BSMError as e:
         logger.error(f"API: Failed to stop server '{server_name}': {e}", exc_info=True)
         return {
             "status": "error",
@@ -446,7 +425,7 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
         if send_message:
             try:
                 server.send_command("say Restarting server...")
-            except (SendCommandError, ServerNotRunningError) as e:
+            except BSMError as e:
                 logger.warning(
                     f"API: Failed to send restart warning to '{server_name}': {e}"
                 )
@@ -474,6 +453,11 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
             "message": f"Server '{server_name}' restarted successfully.",
         }
 
+    except BSMError as e:
+        logger.error(
+            f"API: Failed to restart server '{server_name}': {e}", exc_info=True
+        )
+        return {"status": "error", "message": f"Restart failed: {e}"}
     except Exception as e:
         logger.error(
             f"API: Unexpected error during restart for '{server_name}': {e}",
@@ -528,12 +512,7 @@ def send_command(server_name: str, command: str) -> Dict[str, str]:
             "message": f"Command '{command_clean}' sent successfully.",
         }
 
-    except (
-        ServerNotRunningError,
-        SendCommandError,
-        CommandNotFoundError,
-        ServerNotFoundError,
-    ) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to send command to server '{server_name}': {e}", exc_info=True
         )
@@ -543,7 +522,7 @@ def send_command(server_name: str, command: str) -> Dict[str, str]:
             f"API: Unexpected error sending command to '{server_name}': {e}",
             exc_info=True,
         )
-        raise RuntimeError(f"Unexpected error sending command: {e}") from e
+        raise ServerError(f"Unexpected error sending command: {e}") from e
 
 
 def delete_server_data(
@@ -599,7 +578,7 @@ def delete_server_data(
             "message": f"All data for server '{server_name}' deleted successfully.",
         }
 
-    except (DirectoryError, FileOperationError, ServerNotFoundError) as e:
+    except BSMError as e:
         logger.error(
             f"API: Failed to delete server data for '{server_name}': {e}", exc_info=True
         )

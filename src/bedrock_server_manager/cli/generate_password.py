@@ -93,5 +93,4 @@ def generate_hash() -> None:
 
 # --- Main execution block ---
 if __name__ == "__main__":
-    # This check ensures the code only runs when the script is executed directly
     generate_hash()
