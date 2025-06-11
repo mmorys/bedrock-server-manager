@@ -1,6 +1,7 @@
 # bedrock_server_manager/api/world.py
 """
-Provides API-level functions for managing Bedrock server worlds.
+Provides API-level functions for managing Bedrock server worlds by wrapping
+methods of the BedrockServer class.
 """
 
 import os
@@ -8,9 +9,9 @@ import logging
 from typing import Dict, Optional, Any
 
 # Local imports
+from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.api import server as api_server_actions
-from bedrock_server_manager.api.utils import _server_stop_start_manager
+from bedrock_server_manager.api.utils import server_lifecycle_manager
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
@@ -20,20 +21,15 @@ from bedrock_server_manager.error import (
     DownloadExtractError,
     MissingArgumentError,
     FileNotFoundError,
-    AddonExtractError,
+    SendCommandError,
+    ServerNotRunningError,
 )
-from bedrock_server_manager.utils.general import get_base_dir, get_timestamp
-from bedrock_server_manager.core.system import base as core_system_base
-from bedrock_server_manager.core.server import (
-    server_actions as core_server_actions,
-    server_utils as core_server_utils,
-    world as core_world,
-)
+from bedrock_server_manager.utils.general import get_timestamp
 
 logger = logging.getLogger(__name__)
 
 
-def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str, Any]:
+def get_world_name(server_name: str) -> Dict[str, Any]:
     """
     Retrieves the configured world name (level-name) for a server.
     """
@@ -42,15 +38,13 @@ def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str
 
     logger.debug(f"API: Attempting to get world name for server '{server_name}'...")
     try:
-        effective_base_dir = get_base_dir(base_dir)
-        world_name_str = core_server_utils.get_world_name(
-            server_name, effective_base_dir
-        )
+        server = BedrockServer(server_name)
+        world_name_str = server.get_world_name()
         logger.info(
             f"API: Retrieved world name for '{server_name}': '{world_name_str}'"
         )
         return {"status": "success", "world_name": world_name_str}
-    except (FileOperationError, InvalidServerNameError) as e:
+    except FileOperationError as e:
         logger.error(
             f"API: Failed to get world name for '{server_name}': {e}", exc_info=True
         )
@@ -68,58 +62,53 @@ def get_world_name(server_name: str, base_dir: Optional[str] = None) -> Dict[str
 
 def export_world(
     server_name: str,
-    base_dir: Optional[str] = None,
     export_dir: Optional[str] = None,
     stop_start_server: bool = True,
 ) -> Dict[str, Any]:
     """
-    Exports the server's currently configured world to a .mcworld archive file.
+    Exports the server's currently active world to a .mcworld archive file.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     logger.info(
-        f"API: Initiating world export for server '{server_name}' (Stop/Start: {stop_start_server})"
+        f"API: Initiating world export for '{server_name}' (Stop/Start: {stop_start_server})"
     )
 
     try:
-        effective_base_dir = get_base_dir(base_dir)
-        effective_export_dir: str
+        server = BedrockServer(server_name)
+
+        if server.is_running():
+            try:
+                server.send_command("say Exporting world...")
+            except (SendCommandError, ServerNotRunningError) as e:
+                logger.warning(
+                    f"API: Failed to send world export warning to '{server_name}': {e}"
+                )
+
+        # Determine export directory
         if export_dir:
             effective_export_dir = export_dir
         else:
-            backup_base_dir = settings.get("BACKUP_DIR")
-            if not backup_base_dir:
+            content_base_dir = settings.get("CONTENT_DIR")
+            if not content_base_dir:
                 raise FileOperationError(
                     "BACKUP_DIR setting missing for default export directory."
                 )
-            effective_export_dir = os.path.join(backup_base_dir, server_name)
+            effective_export_dir = os.path.join(content_base_dir, "worlds")
         os.makedirs(effective_export_dir, exist_ok=True)
 
-        # Get world name directly from core
-        world_name_str = core_server_utils.get_world_name(
-            server_name, effective_base_dir
-        )
-        world_path = os.path.join(
-            effective_base_dir, server_name, "worlds", world_name_str
-        )
-
-        if not os.path.isdir(world_path):
-            raise DirectoryError(
-                f"World directory '{world_name_str}' not found at: {world_path}"
-            )
+        world_name_str = server.get_world_name()
 
         timestamp = get_timestamp()
         export_filename = f"{world_name_str}_export_{timestamp}.mcworld"
         export_file_path = os.path.join(effective_export_dir, export_filename)
 
-        with _server_stop_start_manager(
-            server_name, effective_base_dir, stop_start_server
-        ):
+        with server_lifecycle_manager(server_name, stop_before=stop_start_server):
             logger.info(
-                f"API: Exporting world '{world_name_str}' from '{world_path}' to '{export_file_path}'..."
+                f"API: Exporting world '{world_name_str}' to '{export_file_path}'..."
             )
-            core_world.export_world(world_path, export_file_path)
+            server.export_world_directory_to_mcworld(world_name_str, export_file_path)
 
         logger.info(
             f"API: World for server '{server_name}' exported to '{export_file_path}'."
@@ -131,11 +120,9 @@ def export_world(
         }
     except (
         MissingArgumentError,
-        InvalidServerNameError,
-        FileOperationError,
         DirectoryError,
         BackupWorldError,
-        AddonExtractError,
+        FileOperationError,
     ) as e:
         logger.error(
             f"API: Failed to export world for '{server_name}': {e}", exc_info=True
@@ -152,11 +139,10 @@ def export_world(
 def import_world(
     server_name: str,
     selected_file_path: str,
-    base_dir: Optional[str] = None,
     stop_start_server: bool = True,
 ) -> Dict[str, str]:
     """
-    Imports a world from a .mcworld file, replacing the server's current world.
+    Imports a world from a .mcworld file, replacing the server's currently active world.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -169,23 +155,27 @@ def import_world(
     )
 
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        server = BedrockServer(server_name)
         if not os.path.isfile(selected_file_path):
             raise FileNotFoundError(
                 f"Source .mcworld file not found: {selected_file_path}"
             )
 
-        imported_world_name: Optional[str] = None  # To store the name for the message
+        if server.is_running():
+            try:
+                server.send_command("say Importing world...")
+            except (SendCommandError, ServerNotRunningError) as e:
+                logger.warning(
+                    f"API: Failed to send world export warning to '{server_name}': {e}"
+                )
 
-        with _server_stop_start_manager(
-            server_name, effective_base_dir, stop_start_server
-        ):
+        imported_world_name: Optional[str] = None
+        with server_lifecycle_manager(server_name, stop_before=stop_start_server):
             logger.info(
                 f"API: Importing world from '{selected_filename}' into server '{server_name}'..."
             )
-            # core_world.import_world handles getting level-name and extraction
-            imported_world_name = core_world.import_world(
-                server_name, selected_file_path, effective_base_dir
+            imported_world_name = server.import_active_world_from_mcworld(
+                selected_file_path
             )
 
         logger.info(
@@ -196,13 +186,11 @@ def import_world(
             "message": f"World '{imported_world_name or 'Unknown'}' imported successfully from {selected_filename}.",
         }
     except (
-        MissingArgumentError,
-        InvalidServerNameError,
         FileNotFoundError,
-        FileOperationError,
         DirectoryError,
         DownloadExtractError,
-        RestoreError,  # From core_world.import_world
+        RestoreError,
+        FileOperationError,
     ) as e:
         logger.error(
             f"API: Failed to import world for '{server_name}': {e}", exc_info=True
@@ -216,102 +204,56 @@ def import_world(
         return {"status": "error", "message": f"Unexpected error importing world: {e}"}
 
 
-def reset_world(server_name: str):
+def reset_world(server_name: str) -> Dict[str, str]:
     """
-    Resets the server's world by deleting the current world directory.
-    This function is specifically for Bedrock Dedicated Servers that store
-    their world in a 'worlds/<level-name>' subdirectory.
+    Resets the server's world by deleting the currently active world directory.
+    The server is stopped before deletion and restarted after if it was running.
     """
     if not server_name:
-        # This should ideally be an error specific to API input validation if distinct from InvalidServerNameError
         raise InvalidServerNameError("Server name cannot be empty for API request.")
 
-    logger.info(f"API: Initiating world reset for Bedrock server '{server_name}'...")
+    logger.info(f"API: Initiating world reset for server '{server_name}'...")
+
     try:
-        effective_base_dir = get_base_dir()
-        server_install_dir = os.path.join(effective_base_dir, server_name)
+        server = BedrockServer(server_name)
+        world_name_for_msg = server.get_world_name()
 
-        if not os.path.isdir(server_install_dir):
-            raise DirectoryError(
-                f"Server installation directory not found: {server_install_dir}"
-            )
-
-        # World name from server.properties
-        world_name_response = get_world_name(server_name, effective_base_dir)
-        if world_name_response.get("status") == "success":
-            world_name_from_config = world_name_response.get("world_name")
-        else:
-            return {"status": "error", "message": f"Error getting world name..."}
-
-        # Construct the full path to the world directory for BDS
-        world_dir_path = os.path.join(
-            server_install_dir, "worlds", world_name_from_config
-        )
-
-        if not os.path.isdir(world_dir_path):
-            return {
-                "status": "success",
-                "message": f"World '{world_dir_path}' doesn't exist. Nothing to delete",
-            }
-
-        if core_server_actions.check_if_server_is_running(server_name):
-            cmd_res = api_server_actions.send_command(
-                server_name, "say WARNING: Resetting world"
-            )
-            if cmd_res.get("status") == "error":
+        if server.is_running():
+            try:
+                server.send_command("say WARNING: Resetting world")
+            except (SendCommandError, ServerNotRunningError) as e:
                 logger.warning(
-                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
+                    f"API: Failed to send world reset warning to '{server_name}': {e}"
                 )
 
-        with _server_stop_start_manager(server_name, effective_base_dir, True, True):
+        # The context manager handles stop/start. restart_on_success_only is True
+        # to prevent starting a server with a now-deleted world if deletion fails.
+        with server_lifecycle_manager(
+            server_name,
+            stop_before=True,
+            start_after=True,
+            restart_on_success_only=True,
+        ):
             logger.info(
-                f"API: Server '{server_name}' context managed (stopped if running). "
-                f"Attempting to delete world directory: '{world_dir_path}'..."
+                f"API: Attempting to delete world directory for world '{world_name_for_msg}'..."
             )
+            server.delete_active_world_directory()
 
-            if core_system_base.delete_path_robustly(
-                world_dir_path,
-                f"Bedrock world '{world_name_from_config}' for server '{server_name}'",
-            ):
-                logger.info(
-                    f"API: World '{world_name_from_config}' for server '{server_name}' has been successfully reset."
-                )
-                return {
-                    "status": "success",
-                    "message": f"World '{world_name_from_config}' reset successfully.",
-                }
-            else:
-                # delete_path_robustly would have logged the specific reason for failure.
-                logger.error(
-                    f"API: core_system_base.delete_path_robustly failed to delete world directory '{world_dir_path}'."
-                )
-                return {
-                    "status": "error",
-                    "message": f"Failed to delete world directory '{world_name_from_config}'. "
-                    "The server was stopped (and possibly restarted), but the world files remain. "
-                    "Check system logs for deletion errors.",
-                }
-    except InvalidServerNameError as e:
-        logger.warning(
-            f"API: Invalid server name during world reset for '{server_name}': {e}",
-            exc_info=True,
+        logger.info(
+            f"API: World '{world_name_for_msg}' for server '{server_name}' has been successfully reset."
         )
-        return {"status": "error", "message": str(e)}
-    except DirectoryError as e:
+        return {
+            "status": "success",
+            "message": f"World '{world_name_for_msg}' reset successfully.",
+        }
+    except (DirectoryError, FileOperationError, ServerNotRunningError) as e:
         logger.error(
-            f"API: Directory error during world reset for '{server_name}': {e}",
-            exc_info=True,
+            f"API: Failed to reset world for '{server_name}': {e}", exc_info=True
         )
-        return {"status": "error", "message": f"Directory error: {e}"}
-    except FileOperationError as e:
-        logger.error(
-            f"API: File operation error during world reset for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"File operation error: {e}"}
+        return {"status": "error", "message": f"Failed to reset world: {e}"}
     except Exception as e:
         logger.error(
-            f"API: Unexpected error resetting world for Bedrock server '{server_name}': {e}",
+            f"API: Unexpected error resetting world for '{server_name}': {e}",
             exc_info=True,
         )
         return {

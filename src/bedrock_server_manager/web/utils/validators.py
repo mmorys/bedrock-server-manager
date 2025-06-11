@@ -60,8 +60,6 @@ def register_server_validation(app: Flask) -> None:
                 return None  # Allow request to proceed
 
         # --- Path Parsing and Server Name Extraction ---
-        # Assumes URL structure like '/...(prefix)/server/<server_name>/...'
-        # This logic might need adjustment if URL structure varies significantly.
         try:
             path_parts = current_path.strip("/").split("/")
             if "server" in path_parts:

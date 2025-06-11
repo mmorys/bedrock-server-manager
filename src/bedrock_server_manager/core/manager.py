@@ -9,8 +9,8 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 
 # Local imports
 from bedrock_server_manager.config.settings import Settings
+from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
-from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     ConfigError,
     FileOperationError,
@@ -93,39 +93,6 @@ class BedrockServerManager:
                 raise InvalidInputError(f"Name and XUID cannot be empty in '{pair}'.")
             player_list.append({"name": player_name.strip(), "xuid": player_id.strip()})
         return player_list
-
-    def scan_single_log_for_players(self, log_file_path: str) -> List[Dict[str, str]]:
-        logger.debug(f"BSM: Scanning log file for players: {log_file_path}")
-        if not os.path.exists(log_file_path) or not os.path.isfile(log_file_path):
-            logger.warning(f"BSM: Log file not found or not a file: {log_file_path}")
-            return []
-
-        players_data: List[Dict[str, str]] = []
-        unique_xuids = set()
-        try:
-            with open(log_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    match = re.search(
-                        r"Player connected:\s*([^,]+),\s*xuid:\s*(\d+)",
-                        line,
-                        re.IGNORECASE,
-                    )
-                    if match:
-                        player_name, xuid = (
-                            match.group(1).strip(),
-                            match.group(2).strip(),
-                        )
-                        if xuid not in unique_xuids:
-                            players_data.append({"name": player_name, "xuid": xuid})
-                            unique_xuids.add(xuid)
-        except OSError as e:
-            raise FileOperationError(
-                f"Error reading log file '{log_file_path}': {e}"
-            ) from e
-        logger.debug(
-            f"BSM: Found {len(players_data)} unique players in '{log_file_path}'."
-        )
-        return players_data
 
     def save_player_data(self, players_data: List[Dict[str, str]]) -> int:
         if not isinstance(players_data, list):
@@ -231,47 +198,98 @@ class BedrockServerManager:
         all_discovered_from_logs: List[Dict[str, str]] = []
         scan_errors_details: List[Dict[str, str]] = []
 
-        # Iterate through subdirectories of BASE_DIR
-        for server_name in os.listdir(self._base_dir):
-            server_path = os.path.join(self._base_dir, server_name)
-            if os.path.isdir(server_path):
-                log_file = os.path.join(
-                    server_path, "server_output.txt"
-                )  # Standard log name
-                if os.path.isfile(log_file):
-                    try:
-                        players_in_log = self.scan_single_log_for_players(log_file)
-                        if players_in_log:
-                            all_discovered_from_logs.extend(players_in_log)
-                    except FileOperationError as e:
-                        logger.warning(
-                            f"BSM: Error scanning log for server '{server_name}': {e}"
-                        )
-                        scan_errors_details.append(
-                            {"server": server_name, "error": str(e)}
-                        )
-                else:
+        logger.info(
+            f"BSM: Starting discovery of players from all server logs in '{self._base_dir}'."
+        )
+
+        for server_name_candidate in os.listdir(self._base_dir):
+            potential_server_path = os.path.join(self._base_dir, server_name_candidate)
+
+            # Check if it's a directory first
+            if not os.path.isdir(potential_server_path):
+                logger.debug(
+                    f"BSM: Skipping '{server_name_candidate}', not a directory."
+                )
+                continue
+
+            logger.debug(f"BSM: Processing potential server '{server_name_candidate}'.")
+            try:
+                # Instantiate BedrockServer.
+                server_instance = BedrockServer(
+                    server_name=server_name_candidate,
+                    settings_instance=self.settings,
+                    manager_expath=self._expath,
+                )
+
+                # Validate if it's a proper server installation before trying to scan logs
+                if not server_instance.is_installed():
                     logger.debug(
-                        f"BSM: No 'server_output.txt' in '{server_name}'. Skipping."
+                        f"BSM: '{server_name_candidate}' is not a valid Bedrock server installation. Skipping log scan."
+                    )
+                    continue
+
+                # Now use BedrockServer to scan its own log
+                players_in_log = server_instance.scan_log_for_players()
+
+                if players_in_log:
+                    all_discovered_from_logs.extend(players_in_log)
+                    logger.debug(
+                        f"BSM: Found {len(players_in_log)} players in log for server '{server_name_candidate}'."
                     )
 
+            except (
+                FileOperationError
+            ) as e:  # Raised by scan_log_for_players if log reading fails
+                logger.warning(
+                    f"BSM: Error scanning log for server '{server_name_candidate}': {e}"
+                )
+                scan_errors_details.append(
+                    {"server": server_name_candidate, "error": str(e)}
+                )
+            except (
+                Exception
+            ) as e_instantiate:  # Catch errors during BedrockServer instantiation or other unexpected issues
+                logger.error(
+                    f"BSM: Error processing server '{server_name_candidate}' for player discovery: {e_instantiate}",
+                    exc_info=True,
+                )
+                scan_errors_details.append(
+                    {
+                        "server": server_name_candidate,
+                        "error": f"Unexpected error: {str(e_instantiate)}",
+                    }
+                )
+
         saved_count = 0
+        unique_players_to_save_map = {}
         if all_discovered_from_logs:
-            # Deduplicate before saving to get a more accurate count of unique players found in logs
             unique_players_to_save_map = {
                 p["xuid"]: p for p in all_discovered_from_logs
             }
             unique_players_to_save_list = list(unique_players_to_save_map.values())
             try:
                 saved_count = self.save_player_data(unique_players_to_save_list)
-            except FileOperationError as e:  # save_player_data could raise this
+            except FileOperationError as e:
+                logger.error(
+                    f"BSM: Critical error saving player data to global DB: {e}",
+                    exc_info=True,
+                )
                 raise  # Re-raise critical save failure
+            except Exception as e_save:  # Catch other errors from save_player_data
+                logger.error(
+                    f"BSM: Unexpected error saving player data to global DB: {e_save}",
+                    exc_info=True,
+                )
+                scan_errors_details.append(
+                    {
+                        "server": "GLOBAL_PLAYER_DB",
+                        "error": f"Save failed: {str(e_save)}",
+                    }
+                )
 
         return {
-            "total_entries_in_logs": len(all_discovered_from_logs),  # Raw entries found
-            "unique_players_submitted_for_saving": (
-                len(unique_players_to_save_map) if all_discovered_from_logs else 0
-            ),
+            "total_entries_in_logs": len(all_discovered_from_logs),
+            "unique_players_submitted_for_saving": len(unique_players_to_save_map),
             "actually_saved_or_updated_in_db": saved_count,
             "scan_errors": scan_errors_details,
         }
@@ -329,14 +347,14 @@ class BedrockServerManager:
 
         found_files: List[str] = []
         for ext in extensions:
-            # Ensure extension includes a dot if glob needs it, or handle it appropriately
             pattern = f"*{ext}" if ext.startswith(".") else f"*.{ext}"
             try:
                 for filepath in glob.glob(os.path.join(target_dir, pattern)):
                     if os.path.isfile(
                         filepath
                     ):  # Ensure it's a file, not a dir ending with ext
-                        found_files.append(os.path.basename(filepath))
+                        found_files.append(os.path.abspath(filepath))
+
             except OSError as e:
                 raise FileOperationError(
                     f"Error scanning content directory {target_dir}: {e}"
@@ -362,92 +380,152 @@ class BedrockServerManager:
 
     def validate_server(self, server_name: str) -> bool:
         """
-        Validates if a server installation exists and seems minimally correct.
-
-        Checks for the existence of the server executable within the expected directory.
+        Validates if a server installation exists and seems minimally correct
+        by attempting to instantiate a BedrockServer object and checking its installed status.
 
         Args:
             server_name: The name of the server.
 
         Returns:
-            True if the server executable exists.
-            False if directory or executable don't exist
+            True if the server appears validly installed, False otherwise.
 
         Raises:
             MissingArgumentError: If `server_name` is empty.
-
+            # Other errors like ConfigurationError could be raised during BedrockServer instantiation
+            # if critical settings (like BASE_DIR) are missing from self.settings.
         """
         if not server_name:
-            raise MissingArgumentError("Server name cannot be empty.")
-
-        server_dir = os.path.join(self._base_dir, server_name)
-        logger.debug(f"Validating server '{server_name}' in directory: {server_dir}")
-
-        if not os.path.isdir(server_dir):
-            error_msg = f"Server directory not found: {server_dir}"
-            logger.debug(error_msg)
-            return False
-
-        # Determine expected executable name based on OS
-        exe_name = (
-            "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
-        )
-        exe_path = os.path.join(server_dir, exe_name)
-
-        if not os.path.isfile(exe_path):
-            error_msg = (
-                f"Server executable '{exe_name}' not found in directory: {server_dir}"
-            )
-            logger.debug(error_msg)
-            return False
+            # Raise MissingArgumentError
+            raise MissingArgumentError("Server name cannot be empty for validation.")
 
         logger.debug(
-            f"Server '{server_name}' validation successful (executable found)."
+            f"BSM: Validating server '{server_name}' using BedrockServer class."
         )
-        return True
 
-    def get_servers_data(self) -> Tuple[List[Dict[str, str]], List[str]]:
+        try:
+            # Instantiate BedrockServer.
+            server_instance = BedrockServer(
+                server_name=server_name,
+                settings_instance=self.settings,
+                manager_expath=self._expath,
+            )
+
+            # BedrockServer.is_installed() performs the checks for directory and executable
+            # and returns True or False
+            is_valid = server_instance.is_installed()
+
+            if is_valid:
+                logger.debug(
+                    f"BSM: Server '{server_name}' validation successful (via BedrockServer.is_installed)."
+                )
+            else:
+                logger.debug(
+                    f"BSM: Server '{server_name}' validation failed (via BedrockServer.is_installed). "
+                    f"Directory: '{server_instance.server_dir}', Executable: '{server_instance.bedrock_executable_path}'."
+                )
+            return is_valid
+
+        except (
+            ValueError
+        ) as e_val:  # e.g., from BedrockServerBaseMixin if BASE_DIR missing in settings
+            logger.warning(
+                f"BSM: Validation failed for server '{server_name}' due to configuration issue during BedrockServer instantiation: {e_val}"
+            )
+            return False  # Treat as not valid if we can't even instantiate properly
+        except (
+            InvalidServerNameError
+        ) as e_name:  # If BedrockServer init were to raise this for bad names
+            logger.warning(
+                f"BSM: Server name '{server_name}' considered invalid: {e_name}"
+            )
+            return False
+        except (
+            Exception
+        ) as e_unexp:  # Catch any other unexpected errors during instantiation or is_installed call
+            logger.error(
+                f"BSM: Unexpected error validating server '{server_name}': {e_unexp}",
+                exc_info=True,
+            )
+            return False  # Default to False on unexpected issues
+
+    def get_servers_data(self) -> Tuple[List[Dict[str, Any]], List[str]]:
         """
-        Logic to retrieve status and version for all servers.
-        Collects data for successfully processed servers and error messages for failures.
-        Raises DirectoryError if self._base_dir is invalid.
+        Retrieves status and version for all valid server instances by creating
+        a BedrockServer object for each potential server and querying its state.
+
+        This method replaces the use of standalone utility functions with the
+        more robust and encapsulated methods of the BedrockServer class.
+
+        Returns:
+            A tuple containing:
+            - A list of dictionaries, one for each successfully processed server.
+            - A list of error messages for any servers that failed processing.
+
+        Raises:
+            DirectoryError: If the main server base directory (self._base_dir) is invalid.
         """
-        servers_data: List[Dict[str, str]] = []
+        servers_data: List[Dict[str, Any]] = []
         error_messages: List[str] = []
 
-        if not os.path.isdir(self._base_dir):
-            # This is a fundamental setup error for the core operation
+        if not self._base_dir or not os.path.isdir(self._base_dir):
             raise DirectoryError(
                 f"Server base directory does not exist or is not a directory: {self._base_dir}"
             )
 
-        for item_name in os.listdir(self._base_dir):
-            item_path = os.path.join(self._base_dir, item_name)
-            if self.validate_server(item_path):
-                server_name = item_name
-                try:
-                    # These utils functions are expected to raise their specific exceptions
-                    # (FileOperationError, InvalidServerNameError, ConfigurationError etc.) on failure.
-                    status = core_server_utils.get_server_status_from_config(
-                        server_name, self._config_dir
+        # Iterate through items in the base directory, which are potential server names
+        for server_name_candidate in os.listdir(self._base_dir):
+            potential_server_path = os.path.join(self._base_dir, server_name_candidate)
+
+            # Ensure we are only processing directories
+            if not os.path.isdir(potential_server_path):
+                logger.debug(
+                    f"Skipping '{server_name_candidate}', as it is not a directory."
+                )
+                continue
+
+            try:
+                # Instantiate a BedrockServer for the potential server.
+                # This automatically provides access to all its properties and methods.
+                server = BedrockServer(
+                    server_name=server_name_candidate,
+                    settings_instance=self.settings,
+                    manager_expath=self._expath,
+                )
+
+                # A valid server must be properly installed (dir and executable exist).
+                # The is_installed() method handles this check cleanly.
+                if not server.is_installed():
+                    logger.debug(
+                        f"Skipping '{server_name_candidate}': Not a valid server installation."
                     )
-                    version = core_server_utils.get_installed_version(
-                        server_name, self._config_dir
-                    )
-                    servers_data.append(
-                        {"name": server_name, "status": status, "version": version}
-                    )
-                except (
-                    FileOperationError,
-                    InvalidServerNameError,
-                    ConfigurationError,  # Catching a broader range of core-level issues
-                ) as e:
-                    # Collect error message for this specific server
-                    msg = f"Could not get info for server '{server_name}': {e}"
-                    # Core layer might have its own, more detailed/debug logging if needed
-                    # logger.debug(f"Core._core_get_all_servers_data: {msg}", exc_info=True)
-                    error_messages.append(msg)
-                # Any other unexpected exceptions within the loop for a specific server would propagate
-                # and be caught by the API layer's generic Exception handler.
+                    continue
+
+                # Use the BedrockServer instance's own methods to get its data.
+                # get_status() is more powerful as it can check the live process.
+                # get_version() reads from the server's specific JSON config.
+                status = server.get_status()
+                version = server.get_version()
+
+                servers_data.append(
+                    {"name": server.server_name, "status": status, "version": version}
+                )
+
+            except (
+                FileOperationError,
+                ConfigurationError,
+                InvalidServerNameError,
+            ) as e:
+                # These are expected errors that can occur during instantiation or method calls
+                msg = f"Could not get info for server '{server_name_candidate}': {e}"
+                logger.warning(msg)
+                error_messages.append(msg)
+            except Exception as e:
+                # Catch any other unexpected error for robustness
+                msg = f"An unexpected error occurred while processing server '{server_name_candidate}': {e}"
+                logger.error(msg, exc_info=True)
+                error_messages.append(msg)
+
+        # Sort the results alphabetically by server name
+        servers_data.sort(key=lambda s: s.get("name", "").lower())
 
         return servers_data, error_messages

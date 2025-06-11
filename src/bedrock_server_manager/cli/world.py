@@ -2,9 +2,8 @@
 """
 Command-line interface functions for managing server worlds.
 
-Provides handlers for CLI commands related to exporting the current server world
-and importing/installing worlds from .mcworld files. Uses print() for user
-interaction and feedback.
+Provides handlers for CLI commands related to exporting, importing, and resetting
+server worlds. Uses print() for user interaction and feedback.
 """
 
 import os
@@ -25,23 +24,16 @@ except ImportError:
     Fore = DummyStyle()
     Style = DummyStyle()
 
-    def init(*args, **kwargs):
-        pass
-
 
 # Local imports
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import world as world_api
-from bedrock_server_manager.config.settings import (
-    settings,
-)  # Needed for default content dir
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     MissingArgumentError,
     FileOperationError,
-)  # Added errors
+)
 from bedrock_server_manager.utils.general import (
-    get_base_dir,
     _INFO_PREFIX,
     _OK_PREFIX,
     _WARN_PREFIX,
@@ -54,25 +46,15 @@ logger = logging.getLogger(__name__)
 def import_world_cli(
     server_name: str,
     selected_file_path: str,
-    base_dir: Optional[str] = None,
     stop_start_server: bool = True,
 ) -> None:
     """
-    CLI handler function to import (extract) a world from a .mcworld file.
-
-    Calls the corresponding API function and prints the result. Controls whether
-    the server is stopped/started based on the `stop_start_server` flag.
+    CLI handler function to import a world from a .mcworld file.
 
     Args:
         server_name: The name of the target server.
         selected_file_path: The full path to the .mcworld file to import.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-        stop_start_server: If True, stop server before import and restart after if it was running.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        MissingArgumentError: If `selected_file_path` is empty.
-        # API/Core errors are caught and printed.
+        stop_start_server: If True, stop server before import and restart after.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -80,51 +62,26 @@ def import_world_cli(
         raise MissingArgumentError(".mcworld file path cannot be empty.")
 
     filename = os.path.basename(selected_file_path)
-    logger.debug(
-        f"CLI: Requesting world import for server '{server_name}' from file '{filename}'. Stop/Start: {stop_start_server}"
-    )
-    # User feedback provided by the calling function (e.g., install_worlds) or directly if called
+    logger.debug(f"CLI: Requesting world import for '{server_name}' from '{filename}'.")
 
     try:
-        # Call the API function
-        logger.debug(
-            f"Calling API: world_api.import_world for '{server_name}', file '{selected_file_path}'"
-        )
         response: Dict[str, Any] = world_api.import_world(
             server_name,
             selected_file_path,
-            base_dir,
             stop_start_server=stop_start_server,
-        )  # API func returns dict
+        )
         logger.debug(f"API response from import_world: {response}")
 
-        # --- User Interaction: Print Result ---
         if response.get("status") == "error":
             message = response.get("message", "Unknown error importing world.")
             print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: World import failed for '{server_name}': {message}")
         else:
             message = response.get(
                 "message", f"World '{filename}' imported successfully."
             )
             print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: World import successful for '{server_name}'.")
-        # --- End User Interaction ---
 
-    except (
-        InvalidServerNameError,
-        MissingArgumentError,
-        FileNotFoundError,
-        FileOperationError,
-    ) as e:
-        # Catch errors raised directly by API func setup
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call import world API for '{server_name}': {e}",
-            exc_info=True,
-        )
     except Exception as e:
-        # Catch unexpected errors during API call
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world import: {e}")
         logger.error(
             f"CLI: Unexpected error importing world for '{server_name}': {e}",
@@ -132,23 +89,12 @@ def import_world_cli(
         )
 
 
-def export_world(
-    server_name: str, base_dir: Optional[str] = None, export_dir: Optional[str] = None
-) -> None:
+def export_world(server_name: str) -> None:
     """
-    CLI handler function to export the current world of a server to a .mcworld file.
-
-    Calls the corresponding API function and prints the result, including the path
-    to the exported file on success.
+    CLI handler to export the current world of a server to a .mcworld file.
 
     Args:
         server_name: The name of the server whose world to export.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        export_dir: Optional. Directory to save the exported file. Uses CONTENT_DIR default if None.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        # API/Core errors are caught and printed.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -156,46 +102,21 @@ def export_world(
     logger.debug(f"CLI: Requesting world export for server '{server_name}'.")
     print(f"{_INFO_PREFIX}Attempting to export world for server '{server_name}'...")
 
-    if not export_dir:
-        content_dir = settings.get("CONTENT_DIR")
-        export_dir = os.path.join(content_dir, "worlds")
-        if not export_dir:
-            raise FileOperationError("CONTENT_DIR setting is missing.")
-        logger.debug(f"Using default CONTENT_DIR for export: {export_dir}")
-
     try:
-        # Call the API function
-        logger.debug(f"Calling API: world_api.export_world for '{server_name}'")
-        response: Dict[str, Any] = world_api.export_world(
-            server_name, base_dir, export_dir
-        )  # API func returns dict
+        response: Dict[str, Any] = world_api.export_world(server_name)
         logger.debug(f"API response from export_world: {response}")
 
-        # --- User Interaction: Print Result ---
         if response.get("status") == "error":
             message = response.get("message", "Unknown error exporting world.")
             print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: World export failed for '{server_name}': {message}")
         else:
             export_file = response.get("export_file", "UNKNOWN_PATH")
             message = response.get(
                 "message", f"World exported successfully to: {export_file}"
             )
             print(f"{_OK_PREFIX}{message}")
-            logger.debug(
-                f"CLI: World export successful for '{server_name}'. File: {export_file}"
-            )
-        # --- End User Interaction ---
 
-    except (InvalidServerNameError, FileOperationError) as e:
-        # Catch setup errors raised directly by API func
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call export world API for '{server_name}': {e}",
-            exc_info=True,
-        )
     except Exception as e:
-        # Catch unexpected errors during API call
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world export: {e}")
         logger.error(
             f"CLI: Unexpected error exporting world for '{server_name}': {e}",
@@ -203,24 +124,9 @@ def export_world(
         )
 
 
-def install_worlds(
-    server_name: str, base_dir: Optional[str] = None, content_dir: Optional[str] = None
-) -> None:
+def install_worlds(server_name: str) -> None:
     """
-    CLI handler function to present a menu for selecting and installing a .mcworld file.
-
-    Lists available worlds, prompts for selection, confirms overwrite, and calls the
-    import world handler.
-
-    Args:
-        server_name: The name of the target server.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        content_dir: Optional. Directory containing .mcworld files. Uses default content/worlds if None.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        FileOperationError: If base or content directory cannot be determined.
-        # API/Core errors are caught and printed.
+    CLI handler to present a menu for selecting and installing a .mcworld file.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -229,47 +135,30 @@ def install_worlds(
         f"CLI: Starting interactive world installation for server '{server_name}'."
     )
     try:
-        # Resolve directories
-        effective_base_dir = get_base_dir(base_dir)
-        effective_content_dir: str
-        if content_dir:
-            effective_content_dir = content_dir
-        else:
-            content_base = settings.get("CONTENT_DIR")
-            if not content_base:
-                raise FileOperationError("CONTENT_DIR setting is missing.")
-            effective_content_dir = os.path.join(content_base, "worlds")
-
-        logger.debug(f"Using base directory: {effective_base_dir}")
-        logger.debug(f"Using world content directory: {effective_content_dir}")
-
-        # API call to list available .mcworld files
-        logger.debug(
-            "Calling API: api_application.list_available_worlds_api for worlds"
-        )
+        logger.debug("Calling API: api_application.list_available_worlds_api")
         list_response = api_application.list_available_worlds_api()
-        logger.debug(f"API list_content_files response: {list_response}")
+        logger.debug(f"API list_available_worlds_api response: {list_response}")
 
         if list_response.get("status") == "error":
             message = list_response.get("message", "Unknown error listing world files.")
             print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Failed to list world files: {message}")
-            return  # Cannot proceed without file list
+            return
 
         mcworld_file_paths = list_response.get("files", [])
         if not mcworld_file_paths:
-            print(
-                f"{_INFO_PREFIX}No world files (.mcworld) found in '{effective_content_dir}'."
-            )
-            logger.warning(
-                f"No world files found in content directory '{effective_content_dir}'."
-            )
+            # Get the content directory from the API for a more informative message
+            app_info = api_application.get_application_info_api()
+            world_dir = "the content/worlds directory"
+            if app_info.get("status") == "success":
+                world_dir = os.path.join(
+                    app_info["data"]["content_directory"], "worlds"
+                )
+
+            print(f"{_INFO_PREFIX}No world files (.mcworld) found in '{world_dir}'.")
             return
 
-        # --- User Interaction: World Selection Menu ---
         file_basenames = [os.path.basename(f) for f in mcworld_file_paths]
-        num_files = len(file_basenames)
-        cancel_option_num = num_files + 1
+        num_files, cancel_option_num = len(file_basenames), len(file_basenames) + 1
 
         print(f"\n{Fore.MAGENTA}Available worlds to install:{Style.RESET_ALL}")
         for i, name in enumerate(file_basenames):
@@ -277,146 +166,89 @@ def install_worlds(
         print(f"  {cancel_option_num}. Cancel")
 
         selected_file_path: Optional[str] = None
-        while True:
+        while not selected_file_path:
             try:
-                choice_str = input(
-                    f"{Fore.CYAN}Select a world to install (1-{cancel_option_num}):{Style.RESET_ALL} "
-                ).strip()
-                choice = int(choice_str)
-                logger.debug(f"User choice for world selection: {choice}")
+                choice = int(
+                    input(
+                        f"{Fore.CYAN}Select a world (1-{cancel_option_num}):{Style.RESET_ALL} "
+                    ).strip()
+                )
                 if 1 <= choice <= num_files:
                     selected_file_path = mcworld_file_paths[choice - 1]
-                    logger.debug(f"User selected world file: {selected_file_path}")
-                    break  # Valid choice
                 elif choice == cancel_option_num:
                     print(f"{_INFO_PREFIX}World installation canceled.")
-                    logger.debug("User canceled world installation at file selection.")
-                    return  # Exit function
+                    return
                 else:
                     print(
-                        f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose a valid option."
+                        f"{_WARN_PREFIX}Invalid selection. Please choose a valid option."
                     )
             except ValueError:
                 print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
-                logger.debug(
-                    f"User entered non-numeric input for world selection: '{choice_str}'"
-                )
-        # --- End User Interaction ---
 
-        # --- User Interaction: Overwrite Confirmation ---
         print(
             f"\n{_WARN_PREFIX}Warning: Installing '{os.path.basename(selected_file_path)}' will REPLACE the current world directory for server '{server_name}'!"
         )
-        while True:
-            confirm_str = (
-                input(
-                    f"{Fore.RED}Are you sure you want to proceed? (yes/no):{Style.RESET_ALL} "
-                )
-                .strip()
-                .lower()
-            )
-            logger.debug(f"User confirmation for world overwrite: '{confirm_str}'")
-            if confirm_str in ("yes", "y"):
-                break  # Confirmed
-            elif confirm_str in ("no", "n", ""):
-                print(f"{_INFO_PREFIX}World installation canceled.")
-                logger.debug("User canceled world installation at confirmation.")
-                return  # Exit function
-            else:
-                print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
-        # --- End User Interaction ---
+        confirm_str = (
+            input(f"{Fore.RED}Are you sure? (yes/no):{Style.RESET_ALL} ")
+            .strip()
+            .lower()
+        )
+        if confirm_str not in ("yes", "y"):
+            print(f"{_INFO_PREFIX}World installation canceled.")
+            return
 
-        # Call the import world CLI handler (which calls API and prints result)
         print(f"{_INFO_PREFIX}Installing selected world...")
-        # Use the CLI handler function which already includes API call and printing
-        import_world_cli(
-            server_name, selected_file_path, effective_base_dir
-        )  # stop/start defaults True
+        import_world_cli(server_name, selected_file_path)
 
-    except (InvalidServerNameError, FileOperationError) as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to prepare for world installation: {e}", exc_info=True
-        )
     except Exception as e:
-        # Catch unexpected errors during preparation
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
+        print(
+            f"{_ERROR_PREFIX}An unexpected error occurred during world installation: {e}"
+        )
         logger.error(
-            f"CLI: Unexpected error during world installation setup: {e}", exc_info=True
+            f"CLI: Unexpected error during world installation setup for '{server_name}': {e}",
+            exc_info=True,
         )
 
 
-def reset_world_cli(
-    server_name: str,
-    skip_confirmation: bool = False,
-):
+def reset_world_cli(server_name: str, skip_confirmation: bool = False) -> None:
     """
     CLI handler function to reset the current world of a server.
-    Calls the corresponding API function and prints the result. Controls whether
-    the server is stopped/started based on the `stop_start_server` flag.
-    Args:
-        server_name: The name of the target server.
-        skip_confirmation: If True, skips the confirmation prompt before resetting.
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-        # API/Core errors are caught and printed.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-        # --- User Interaction: Confirmation ---
     if not skip_confirmation:
         print(
             f"{_WARN_PREFIX}You are about to delete all world data for server '{server_name}'."
         )
         print(
-            f"{_WARN_PREFIX}This includes the all player inventories builds, installed content."
+            f"{_WARN_PREFIX}This includes all player inventories, builds, and installed content."
         )
         confirm = (
             input(
-                f"{Fore.RED}This action cannot be undone. Are you absolutely sure? (yes/no):{Style.RESET_ALL} "
+                f"{Fore.RED}This action cannot be undone. Are you sure? (yes/no):{Style.RESET_ALL} "
             )
             .strip()
             .lower()
         )
-        logger.debug(f"User confirmation input for delete: '{confirm}'")
 
         if confirm not in ("y", "yes"):
-            print(f"{_INFO_PREFIX}Server deletion canceled by user.")
-            logger.debug(f"Deletion of server '{server_name}' canceled by user.")
+            print(f"{_INFO_PREFIX}World reset canceled by user.")
             return
-        logger.warning(f"User confirmed deletion for server '{server_name}'.")
+        logger.warning(f"User confirmed world reset for server '{server_name}'.")
     else:
         logger.warning(
-            f"Skipping confirmation prompt for deleting server '{server_name}'."
+            f"Skipping confirmation prompt for resetting world on '{server_name}'."
         )
-    # --- End User Interaction ---
 
-    logger.debug(f"CLI: Requesting world reset for server '{server_name}'")
     print(f"{_INFO_PREFIX}Attempting to reset world for server '{server_name}'...")
     try:
-        # Call the API function
-        logger.debug(f"Calling API: world_api.reset_world for '{server_name}'")
-        response: Dict[str, Any] = world_api.reset_world(server_name)
-        logger.debug(f"API response from reset_world: {response}")
-        # --- User Interaction: Print Result ---
+        response = world_api.reset_world(server_name)
         if response.get("status") == "error":
-            message = response.get("message", "Unknown error resetting world.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: World reset failed for '{server_name}': {message}")
+            print(f"{_ERROR_PREFIX}{response.get('message', 'Unknown error.')}")
         else:
-            message = response.get(
-                "message", f"World for server '{server_name}' reset successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: World reset successful for '{server_name}'.")
-        # --- End User Interaction ---
-    except InvalidServerNameError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call reset world API for '{server_name}': {e}",
-            exc_info=True,
-        )
+            print(f"{_OK_PREFIX}{response.get('message', 'World reset successfully.')}")
+
     except Exception as e:
         print(f"{_ERROR_PREFIX}An unexpected error occurred during world reset: {e}")
         logger.error(

@@ -2,33 +2,24 @@
 """
 Provides API-level functions for managing Bedrock server instances.
 
-This acts as an interface layer, orchestrating calls to core server management
-functions (from core.server.server, core.system, etc.) and returning structured
-dictionary responses indicating success or failure, suitable for use by web routes
-or other higher-level application logic.
+This acts as an interface layer, instantiating the BedrockServer class to perform
+core operations and returning structured dictionary responses suitable for use by web
+routes or other higher-level application logic.
 """
 
 import os
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 import platform
 import time
 import shutil
 import subprocess
 
 # Local imports
-from bedrock_server_manager.utils.general import get_base_dir
-from bedrock_server_manager.config.settings import settings
+from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.config.blocked_commands import API_COMMAND_BLACKLIST
-from bedrock_server_manager.core.server import (
-    server_actions as core_server_actions,
-    server_utils as core_server_utils,
-)
-from bedrock_server_manager.core.system import (
-    base as system_base,
-    process as system_process,
-)
+from bedrock_server_manager.core.system import process as system_process
 from bedrock_server_manager.error import (
     InvalidServerNameError,
     FileOperationError,
@@ -36,81 +27,64 @@ from bedrock_server_manager.error import (
     MissingArgumentError,
     ServerNotRunningError,
     SendCommandError,
-    ServerNotFoundError,
     ServerStartError,
     ServerStopError,
     InvalidInputError,
     DirectoryError,
     BlockedCommandError,
+    ServerNotFoundError,
+    InstallUpdateError,
+    DownloadExtractError,
+    InternetConnectivityError,
+    BackupWorldError,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def write_server_config(
-    server_name: str, key: str, value: Any, config_dir: Optional[str] = None
-) -> Dict[str, Any]:
+def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]:
     """
     Writes a key-value pair to a specific server's JSON configuration file.
 
-    Uses `core_server_actions.manage_server_config` for the core operation.
+    This is a thin wrapper around the BedrockServer's config management.
 
     Args:
         server_name: The name of the server.
         key: The configuration key string.
         value: The value to write (must be JSON serializable).
-        config_dir: Optional. The base directory for server configs. Uses default if None.
 
     Returns:
         A dictionary: `{"status": "success"}` or `{"status": "error", "message": str}`.
-
-    Raises:
-        MissingArgumentError: If `server_name`, `key` is empty.
-        InvalidServerNameError: If `server_name` is invalid (currently checks empty).
-        # ValueError/TypeError might be raised by core if value isn't serializable.
-        # FileOperationError might be raised by core if config dir missing.
     """
-    # Input validation - raise exceptions for invalid API calls
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if not key:
         raise MissingArgumentError("Configuration key cannot be empty.")
-    # Value can be None or other JSON types, core function handles validation
 
     logger.debug(
-        f"Attempting to write config for server '{server_name}': Key='{key}', Value='{value}'"
+        f"API: Attempting to write config for server '{server_name}': Key='{key}', Value='{value}'"
     )
     try:
-        # Delegate to core function, which handles file I/O and validation
-        core_server_utils.manage_server_config(
-            server_name=server_name,
-            key=key,
-            operation="write",
-            value=value,
-            config_dir=config_dir,
-        )
+        server = BedrockServer(server_name)
+
+        server.set_custom_config_value(key, value)
         logger.debug(
-            f"Successfully wrote config key '{key}' for server '{server_name}'."
+            f"API: Successfully wrote config key '{key}' for server '{server_name}'."
         )
         return {
             "status": "success",
             "message": f"Configuration key '{key}' updated successfully.",
         }
-    except (
-        FileOperationError,
-        InvalidInputError,
-        InvalidServerNameError,
-        MissingArgumentError,
-    ) as e:  # Added MissingArgumentError
-        # Catch specific known errors from the core function
+    except (FileOperationError, InvalidInputError, AttributeError) as e:
+        # AttributeError if set_json_config doesn't exist.
         logger.error(
-            f"Failed to write server config for '{server_name}': {e}", exc_info=True
+            f"API: Failed to write server config for '{server_name}': {e}",
+            exc_info=True,
         )
         return {"status": "error", "message": f"Failed to write server config: {e}"}
     except Exception as e:
-        # Catch unexpected errors
         logger.error(
-            f"Unexpected error writing server config for '{server_name}': {e}",
+            f"API: Unexpected error writing server config for '{server_name}': {e}",
             exc_info=True,
         )
         return {
@@ -119,29 +93,76 @@ def write_server_config(
         }
 
 
+def _handle_autoupdate(server: "BedrockServer") -> Dict[str, Any]:
+    """
+    Handles the server autoupdate process if enabled.
+
+    Args:
+        server: The BedrockServer instance.
+
+    Returns:
+        A dictionary indicating the outcome.
+        {"status": "success"} if the process should continue (even if update fails with a known error).
+        {"status": "error", "message": ...} if an unexpected error occurs that should halt the server start.
+    """
+    try:
+        # Determine if autoupdate is enabled for the start mode
+        autoupdate = server.get_custom_config_value("autoupdate")
+        if not autoupdate:
+            return {"status": "success"}  # Autoupdate is disabled, continue normally.
+
+        logger.info(
+            f"API: Autoupdate enabled for server '{server.server_name}'. Checking for updates..."
+        )
+        target_version = server.get_target_version()
+        server.install_or_update(target_version)
+        logger.info(
+            f"API: Autoupdate check completed for server '{server.server_name}'."
+        )
+
+    except (
+        InstallUpdateError,
+        DownloadExtractError,
+        InternetConnectivityError,
+        FileOperationError,
+        BackupWorldError,
+    ) as e:  # Catch specific, non-critical exceptions
+        logger.error(
+            f"API: Autoupdate failed for server '{server.server_name}'. Continuing with start.",
+            exc_info=True,
+        )
+        # Non-fatal error, we can still attempt to start the server.
+        return {"status": "success"}
+
+    except Exception as e:  # Catch unexpected, critical exceptions
+        logger.error(
+            f"API: Unexpected error during autoupdate for server '{server.server_name}': {e}",
+            exc_info=True,
+        )
+        # This is a fatal error, we should not attempt to start the server.
+        return {
+            "status": "error",
+            "message": f"Unexpected error during autoupdate: {e}",
+        }
+
+    return {"status": "success"}
+
+
 def start_server(
     server_name: str,
-    base_dir: Optional[str] = None,
-    mode: str = "direct",  # "direct" or "detached"
+    mode: str = "direct",
 ) -> Dict[str, Any]:
     """
     Starts the specified Bedrock server.
 
     Args:
         server_name: The name of the server to start.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
-        mode: "direct" to start server synchronously in the current process's context (or as managed by OS service).
-              "detached" to launch the server as a new background process (useful for Windows user-level starts).
+        mode: "direct" to start server synchronously (blocking on Windows, screen on Linux).
+              "detached" to launch as a new background process (Windows) or use systemd (Linux).
 
     Returns:
-        A dictionary: {"status": "success", "message": ..., "pid": Optional[int]} or
-                      {"status": "error", "message": ...}.
-                      "pid" is included for "detached" mode success, representing the PID of the launcher process.
-
-    Raises:
-        MissingArgumentError, InvalidServerNameError, FileOperationError, InvalidInputError
+        A dictionary: {"status": "success", "message": ...} or {"status": "error", "message": ...}.
     """
-
     mode = mode.lower()
 
     if not server_name:
@@ -154,9 +175,15 @@ def start_server(
     logger.info(f"API: Attempting to start server '{server_name}' in '{mode}' mode...")
 
     try:
-        effective_base_dir = get_base_dir(base_dir)
+        server = BedrockServer(server_name)
+        server.start_method = mode  # Pass mode to the server object
 
-        if core_server_actions.check_if_server_is_running(server_name):
+        # --- Call the new autoupdate handler ---
+        update_result = _handle_autoupdate(server)
+        if update_result["status"] == "error":
+            return update_result  # Propagate critical update errors and stop
+
+        if server.is_running():
             logger.warning(
                 f"API: Server '{server_name}' is already running. Start request (mode: {mode}) ignored."
             )
@@ -165,24 +192,25 @@ def start_server(
                 "message": f"Server '{server_name}' is already running.",
             }
 
+        # --- Direct Mode ---
+        # On Linux, this uses 'screen'. On Windows, this is a blocking call.
         if mode == "direct":
             logger.debug(
-                f"API: Calling core core_server_actions.start_server for '{server_name}' (direct mode)."
+                f"API: Calling server.start() for '{server_name}' (direct mode)."
             )
-            core_server_actions.start_server(server_name)
-            logger.info(
-                f"API: Direct start for server '{server_name}' completed successfully."
-            )
+            server.start()
+            logger.info(f"API: Direct start for server '{server_name}' completed.")
             return {
                 "status": "success",
-                "message": f"Server '{server_name}' (direct mode) started successfully.",
+                "message": f"Server '{server_name}' (direct mode) process finished.",
             }
 
+        # --- Detached Mode ---
         elif mode == "detached":
-
-            write_server_config(server_name, "start_method", "detached")
+            server.set_custom_config_value("start_method", "detached")
 
             if platform.system() == "Windows":
+                # Launch a new instance of the manager to run the blocking start command.
                 cli_command_parts = [
                     EXPATH,
                     "start-server",
@@ -194,101 +222,61 @@ def start_server(
                 cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
 
                 logger.info(
-                    f"API: Preparing to launch detached starter for '{server_name}' with command: {' '.join(cli_command_str_list)}"
+                    f"API: Launching detached starter for '{server_name}' with command: {' '.join(cli_command_str_list)}"
                 )
 
-                app_config_dir = settings.config_dir
-                if not app_config_dir:
-                    raise FileOperationError(
-                        "Application configuration directory (_config_dir) not set in settings for detached start."
-                    )
+                launcher_pid_file_path = server.get_pid_file_path()
+                os.makedirs(os.path.dirname(launcher_pid_file_path), exist_ok=True)
 
-                launcher_pid_dir = os.path.join(app_config_dir, server_name)
-                os.makedirs(launcher_pid_dir, exist_ok=True)
-
-                launcher_pid_file_path = os.path.join(
-                    launcher_pid_dir, f"bedrock_{server_name}.pid"
+                launcher_pid = system_process.launch_detached_process(
+                    cli_command_str_list, launcher_pid_file_path
                 )
-
-                try:
-                    launcher_pid = system_process.launch_detached_process(
-                        cli_command_str_list, launcher_pid_file_path
-                    )
-                    logger.info(
-                        f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
-                    )
-                    return {
-                        "status": "success",
-                        "message": (
-                            f"Server '{server_name}' start initiated in detached mode "
-                            f"(Launcher PID: {launcher_pid}). Check status for confirmation."
-                        ),
-                        "pid": launcher_pid,
-                    }
-
-                except (
-                    system_process.ExecutableNotFoundError,
-                    system_process.ProcessManagementError,
-                    system_process.PIDFileError,
-                ) as e_proc:
-                    logger.error(
-                        f"API: Failed to launch detached starter for '{server_name}': {e_proc}",
-                        exc_info=True,
-                    )
-                    return {
-                        "status": "error",
-                        "message": f"Failed to launch detached server starter: {e_proc}",
-                    }
+                logger.info(
+                    f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
+                )
+                return {
+                    "status": "success",
+                    "message": f"Server '{server_name}' start initiated in detached mode (Launcher PID: {launcher_pid}).",
+                    "pid": launcher_pid,
+                }
 
             elif platform.system() == "Linux":
-                from bedrock_server_manager.core.system import linux as system_linux
-
-                if system_linux.check_service_exist(server_name):
-                    logger.debug("API: Using systemctl to start server.")
+                # Use systemd if the service file exists.
+                if server.check_systemd_service_file_exists():
+                    logger.debug(
+                        f"API: Using systemctl to start server '{server_name}'."
+                    )
                     systemctl_cmd_path = shutil.which("systemctl")
-                    service_name = f"bedrock-{server_name}"
+                    service_name = f"bedrock-{server.server_name}"
 
                     if systemctl_cmd_path:
-                        try:
-                            subprocess.run(
-                                [systemctl_cmd_path, "--user", "start", service_name],
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                            )
-                            logger.info(
-                                f"Successfully initiated start for systemd service '{service_name}'."
-                            )
-
-                            return {
-                                "status": "success",
-                                "message": f"Server '{server_name}' (detached mode) started successfully.",
-                            }
-
-                        except FileNotFoundError:
-                            logger.error("'systemctl' command not found unexpectedly.")
-                        except subprocess.CalledProcessError as e:
-                            logger.warning(
-                                f"Starting via systemctl failed: {e}. stderr: {e.stderr}",
-                                exc_info=True,
-                            )
+                        subprocess.run(
+                            [systemctl_cmd_path, "--user", "start", service_name],
+                            check=True,
+                            capture_output=True,
+                            text=True,
+                        )
+                        logger.info(
+                            f"Successfully initiated start for systemd service '{service_name}'."
+                        )
+                        return {
+                            "status": "success",
+                            "message": f"Server '{server_name}' started via systemd.",
+                        }
                     else:
                         logger.warning(
-                            "'systemctl' command not found. Cannot use systemd method."
+                            "'systemctl' command not found, falling back to screen."
                         )
-                else:
-                    logger.warning(
-                        f"Service file for '{server_name}' doesn't exist. Fallback to direct mode..."
-                    )
-                    write_server_config(server_name, "start_method", "")
-                    core_server_actions.start_server(server_name)
-                    logger.info(
-                        f"API: Direct start for server '{server_name}' completed successfully."
-                    )
-                    return {
-                        "status": "success",
-                        "message": f"Server '{server_name}' (direct mode) started successfully.",
-                    }
+
+                # Fallback for non-systemd or if systemctl is missing. 'screen' is inherently detached.
+                logger.info(
+                    f"API: Starting server '{server_name}' in detached mode via screen."
+                )
+                server.start()
+                return {
+                    "status": "success",
+                    "message": f"Server '{server_name}' started successfully in a screen session.",
+                }
 
         return {
             "status": "error",
@@ -296,10 +284,10 @@ def start_server(
         }
 
     except (
-        ServerNotFoundError,
         ServerStartError,
         CommandNotFoundError,
-        MissingArgumentError,
+        FileOperationError,
+        system_process.ProcessManagementError,
     ) as e:
         logger.error(
             f"API: Failed to start server '{server_name}' (mode: {mode}): {e}",
@@ -308,15 +296,6 @@ def start_server(
         return {
             "status": "error",
             "message": f"Failed to start server '{server_name}': {e}",
-        }
-    except FileOperationError as e:
-        logger.error(
-            f"API: Configuration or FileOperation error for server '{server_name}' (mode: {mode}): {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Configuration or file operation error: {e}",
         }
     except Exception as e:
         logger.error(
@@ -329,160 +308,97 @@ def start_server(
         }
 
 
-def stop_server(
-    server_name: str, base_dir: Optional[str] = None, mode: str = "direct"
-) -> Dict[str, str]:
+def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
     """
-    Stops the specified Bedrock server using the core server functions.
+    Stops the specified Bedrock server.
 
     Args:
         server_name: The name of the server to stop.
-        base_dir: Optional. The base directory for server installations. Uses config default if None.
         mode: "direct" or "detached". On Linux, "detached" uses systemd if available.
 
     Returns:
         A dictionary: {"status": "success", "message": ...} or {"status": "error", "message": ...}.
-
-    Raises:
-        MissingArgumentError, InvalidServerNameError, FileOperationError
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     mode = mode.lower()
-    if mode not in ["direct", "detached", "", None]:
-        raise InvalidInputError(
-            f"Invalid stop mode '{mode}'. Must be 'direct' or 'detached'."
-        )
-
     if platform.system() == "Windows":
-        mode = "direct"  # Normalize mode for Windows
+        mode = "direct"
 
-    write_server_config(server_name, "start_method", "")
-
-    logger.info(f"Attempting to stop server '{server_name}'...")
+    logger.info(f"API: Attempting to stop server '{server_name}' (mode: {mode})...")
 
     try:
-        if mode in ["direct", "", None]:
-            effective_base_dir = get_base_dir(base_dir)
+        server = BedrockServer(server_name)
+        server.set_custom_config_value("start_method", "")
 
-            if not core_server_actions.check_if_server_is_running(server_name):
-                logger.warning(
-                    f"Server '{server_name}' is not running. Stop request ignored."
-                )
-                return {
-                    "status": "success",
-                    "message": f"Server '{server_name}' was already stopped.",
-                }
-
-            cmd_res = send_command(server_name, "say Stopping server in 10 seconds...")
-            if cmd_res.get("status") == "error":
-                logger.warning(
-                    f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
-                )
-            time.sleep(10)  # Give players time to see message
-
-            core_server_actions.stop_server(server_name)
-            logger.info(f"Server '{server_name}' stopped successfully.")
-
+        if not server.is_running():
+            logger.warning(
+                f"API: Server '{server_name}' is not running. Stop request ignored."
+            )
+            server.set_status_in_config("STOPPED")
             return {
                 "status": "success",
-                "message": f"Server '{server_name}' stopped successfully.",
+                "message": f"Server '{server_name}' was already stopped.",
             }
 
-        elif mode == "detached":
-            if platform.system() == "Linux":
-                from bedrock_server_manager.core.system import linux as system_linux
-
-                if system_linux.check_service_exist(server_name):
-                    logger.debug(
-                        f"Attempting to stop server '{server_name}' using systemd..."
-                    )
-
-                    systemctl_cmd_path = shutil.which("systemctl")
-                    service_name = f"bedrock-{server_name}"
-                    service_file_path = os.path.join(
-                        os.path.expanduser("~/.config/systemd/user/"),
-                        f"{service_name}.service",
-                    )
-
-                    if systemctl_cmd_path and os.path.exists(service_file_path):
-                        try:
-                            subprocess.run(
-                                [systemctl_cmd_path, "--user", "stop", service_name],
-                                check=True,
-                                capture_output=True,
-                                text=True,
-                            )
-                            logger.info(
-                                f"Successfully initiated stop for systemd service '{service_name}'."
-                            )
-                            return {
-                                "status": "success",
-                                "message": f"Server '{server_name}' stopped successfully.",
-                            }
-                        except FileNotFoundError:
-                            logger.error("'systemctl' command not found unexpectedly.")
-                        except subprocess.CalledProcessError as e:
-                            logger.warning(
-                                f"Stopping via systemctl failed: {e}. stderr: {e.stderr}",
-                                exc_info=True,
-                            )
-
-                    logger.debug(
-                        "Systemctl not found or service file doesn't exist. Will try stopping directly."
-                    )
-                    core_server_actions.stop_server(server_name)
-                    logger.info(f"Server '{server_name}' stopped successfully.")
-                    return {
-                        "status": "success",
-                        "message": f"Server '{server_name}' stopped successfully.",
-                    }
-                else:
-                    logger.warning(
-                        f"Service file for '{server_name}' doesn't exist. Will try stopping directly."
-                    )
-                    core_server_actions.stop_server(server_name)
-                    logger.info(f"Server '{server_name}' stopped successfully.")
-                    return {
-                        "status": "success",
-                        "message": f"Server '{server_name}' stopped successfully.",
-                    }
-
-            elif platform.system() == "Windows":
-                logger.debug(
-                    f"Attempting to stop server '{server_name}' using direct stop method (Windows)."
+        # --- Detached (systemd) Mode for Linux ---
+        if (
+            mode == "detached"
+            and platform.system() == "Linux"
+            and server.check_systemd_service_file_exists()
+        ):
+            logger.debug(
+                f"API: Attempting to stop server '{server_name}' using systemd..."
+            )
+            systemctl_cmd_path = shutil.which("systemctl")
+            service_name = f"bedrock-{server.server_name}"
+            try:
+                subprocess.run(
+                    [systemctl_cmd_path, "--user", "stop", service_name],
+                    check=True,
+                    capture_output=True,
+                    text=True,
                 )
-                core_server_actions.stop_server(server_name)
-                logger.info(f"Server '{server_name}' stopped successfully.")
+                logger.info(
+                    f"API: Successfully initiated stop for systemd service '{service_name}'."
+                )
                 return {
                     "status": "success",
-                    "message": f"Server '{server_name}' stopped successfully.",
+                    "message": f"Server '{server_name}' stop initiated via systemd.",
                 }
-    except (
-        ServerNotFoundError,
-        ServerStopError,
-        SendCommandError,
-        CommandNotFoundError,
-        MissingArgumentError,
-    ) as e:
-        logger.error(f"Failed to stop server '{server_name}': {e}", exc_info=True)
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                logger.warning(
+                    f"API: Stopping via systemctl failed: {e}. Falling back to direct stop.",
+                    exc_info=True,
+                )
+                # Fall through to direct stop method
+
+        # --- Direct Stop (all platforms, and Linux fallback) ---
+        try:
+            server.send_command("say Stopping server in 10 seconds...")
+            time.sleep(10)
+        except (SendCommandError, ServerNotRunningError) as e:
+            logger.warning(
+                f"API: Could not send shutdown warning to '{server_name}': {e}. Proceeding with stop."
+            )
+
+        server.stop()
+        logger.info(f"API: Server '{server_name}' stopped successfully.")
+        return {
+            "status": "success",
+            "message": f"Server '{server_name}' stopped successfully.",
+        }
+
+    except (ServerStopError, SendCommandError, CommandNotFoundError) as e:
+        logger.error(f"API: Failed to stop server '{server_name}': {e}", exc_info=True)
         return {
             "status": "error",
             "message": f"Failed to stop server '{server_name}': {e}",
         }
-    except FileOperationError as e:
-        logger.error(
-            f"Configuration error preventing server stop for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Configuration error: {e}",
-        }
     except Exception as e:
         logger.error(
-            f"Unexpected error stopping server '{server_name}': {e}", exc_info=True
+            f"API: Unexpected error stopping server '{server_name}': {e}", exc_info=True
         )
         return {
             "status": "error",
@@ -490,195 +406,122 @@ def stop_server(
         }
 
 
-def restart_server(
-    server_name: str, base_dir: Optional[str] = None, send_message: bool = True
-) -> Dict[str, str]:
+def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str]:
     """
-    Restarts the specified Bedrock server.
-
-    Stops the server (sending an optional warning message first) and then starts it again.
-    If the server was not running, it simply starts it.
+    Restarts the specified Bedrock server by orchestrating stop and start calls.
 
     Args:
         server_name: The name of the server to restart.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        send_message: If True, attempt to send "say Restarting..." to the server before stopping.
+        send_message: If True, attempts to send "say Restarting..." to the server before stopping.
 
     Returns:
         A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If `base_dir` cannot be determined or essential settings are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     logger.debug(
-        f"Initiating restart for server '{server_name}'. Send message: {send_message}"
+        f"API: Initiating restart for server '{server_name}'. Send message: {send_message}"
     )
-    try:
-        effective_base_dir = get_base_dir(base_dir)  # Used for initial check
 
-        # Use core check_if_server_is_running
-        is_running = core_server_actions.check_if_server_is_running(server_name)
+    try:
+        server = BedrockServer(server_name)
+        is_running = server.is_running()
 
         if not is_running:
             logger.info(
-                f"Server '{server_name}' was not running. Attempting to start..."
+                f"API: Server '{server_name}' was not running. Attempting to start..."
             )
-            # Just call start_server API function (which itself calls core start_server)
-            start_result = start_server(server_name, effective_base_dir, "detached")
+            start_result = start_server(server_name, mode="detached")
             if start_result.get("status") == "success":
                 start_result["message"] = (
-                    f"Server '{server_name}' was not running and was started."
+                    f"Server '{server_name}' was not running and has been started."
                 )
             return start_result
-        else:
-            logger.info(
-                f"Server '{server_name}' is running. Proceeding with stop/start cycle."
-            )
 
-            # --- Send Warning Message (Optional) ---
-            if send_message:
-                cmd_res = send_command(server_name, "say Restarting server...")
-                if cmd_res.get("status") == "error":
-                    logger.warning(
-                        f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
-                    )
-
-            # --- Stop Server ---
-            logger.debug(f"Stopping server '{server_name}' for restart...")
-            stop_result = stop_server(
-                server_name, effective_base_dir
-            )  # Calls API stop_server
-            if stop_result.get("status") == "error":
-                logger.error(
-                    f"Restart failed: Could not stop server '{server_name}'. Error: {stop_result.get('message')}"
-                )
-                stop_result["message"] = (
-                    f"Restart failed during stop phase: {stop_result.get('message')}"
-                )
-                return stop_result
-
-            logger.debug("Waiting briefly before restarting...")
-            time.sleep(3)
-
-            # --- Start Server ---
-            logger.debug(f"Starting server '{server_name}' after stop...")
-            start_result = start_server(
-                server_name, effective_base_dir, "detached"
-            )  # Calls API start_server
-            if start_result.get("status") == "error":
-                logger.error(
-                    f"Restart failed: Could not start server '{server_name}' after stopping. Error: {start_result.get('message')}"
-                )
-                start_result["message"] = (
-                    f"Restart failed during start phase: {start_result.get('message')}"
-                )
-                return start_result
-
-            logger.info(f"Server '{server_name}' restarted successfully.")
-            return {
-                "status": "success",
-                "message": f"Server '{server_name}' restarted successfully.",
-            }
-
-    except (
-        FileOperationError
-    ) as e:  # Catch error from get_base_dir or core functions if settings missing
-        logger.error(
-            f"Configuration error preventing server restart for '{server_name}': {e}",
-            exc_info=True,
+        logger.info(
+            f"API: Server '{server_name}' is running. Proceeding with stop/start cycle."
         )
-        return {"status": "error", "message": f"Configuration error: {e}"}
+
+        if send_message:
+            try:
+                server.send_command("say Restarting server...")
+            except (SendCommandError, ServerNotRunningError) as e:
+                logger.warning(
+                    f"API: Failed to send restart warning to '{server_name}': {e}"
+                )
+
+        stop_result = stop_server(server_name)
+        if stop_result.get("status") == "error":
+            stop_result["message"] = (
+                f"Restart failed during stop phase: {stop_result.get('message')}"
+            )
+            return stop_result
+
+        logger.debug("API: Waiting briefly before restarting...")
+        time.sleep(3)
+
+        start_result = start_server(server_name, mode="detached")
+        if start_result.get("status") == "error":
+            start_result["message"] = (
+                f"Restart failed during start phase: {start_result.get('message')}"
+            )
+            return start_result
+
+        logger.info(f"API: Server '{server_name}' restarted successfully.")
+        return {
+            "status": "success",
+            "message": f"Server '{server_name}' restarted successfully.",
+        }
+
     except Exception as e:
         logger.error(
-            f"Unexpected error during restart process for server '{server_name}': {e}",
+            f"API: Unexpected error during restart for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Unexpected error during restart: {e}"}
 
 
-def send_command(
-    server_name: str,
-    command: str,
-    base_dir: Optional[
-        str
-    ] = None,  # base_dir not directly used by core send_server_command
-) -> Dict[str, str]:
+def send_command(server_name: str, command: str) -> Dict[str, str]:
     """
-    Sends a command to a running Bedrock server instance using core functions.
-    Certain commands defined in the `API_COMMAND_BLACKLIST` setting may be blocked.
+    Sends a command to a running Bedrock server instance.
 
     Args:
         server_name: The name of the target server.
         command: The command string to send to the server console.
-        base_dir: Optional. Base directory for server installations. (Not directly used by core send_server_command but kept for API consistency if needed elsewhere).
 
     Returns:
-        A dictionary: `{"status": "success", "message": ...}`.
-        (Errors are now raised as exceptions).
-
-    Raises:
-        MissingArgumentError: If `server_name` or `command` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        BlockedCommandError: If the command is forbidden by the blacklist configuration.
-        FileOperationError: If `base_dir` cannot be determined (if used) or essential settings missing for core.
-        ServerNotFoundError: If the server executable is missing (checked by core).
-        ServerNotRunningError: If the target server process isn't running or reachable.
-        SendCommandError: If sending the command via the OS mechanism fails.
-        CommandNotFoundError: If required OS commands (e.g., screen) are missing.
+        A dictionary: `{"status": "success", "message": ...}`. (Raises exceptions on failure).
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
-    if not command:
+    if not command or not command.strip():
         raise MissingArgumentError("Command cannot be empty.")
 
     command_clean = command.strip()
-    if not command_clean:
-        raise MissingArgumentError(
-            "Command cannot be empty after stripping whitespace."
-        )
-
     logger.info(
-        f"Attempting to send command to server '{server_name}': '{command_clean}'"
+        f"API: Attempting to send command to server '{server_name}': '{command_clean}'"
     )
 
     # --- Blacklist Check ---
-    blacklist = API_COMMAND_BLACKLIST  # This is from settings
-    # Ensure API_COMMAND_BLACKLIST is actually loaded in settings
-    # For safety, could default to an empty list if not found, or raise specific config error.
-    if not isinstance(blacklist, list):
-        logger.warning(
-            f"API_COMMAND_BLACKLIST setting is not a list or not found. Defaulting to empty list for safety."
-        )
-        blacklist = []  # Or raise ConfigurationError
-
-    command_check = command_clean.lower()
-    if command_check.startswith("/"):
-        command_check = command_check[1:]
-
+    blacklist = API_COMMAND_BLACKLIST or []
+    command_check = command_clean.lower().lstrip("/")
     for blocked_cmd_prefix in blacklist:
         if isinstance(blocked_cmd_prefix, str) and command_check.startswith(
             blocked_cmd_prefix.lower()
         ):
-            error_msg = f"Command '{command_clean}' is blocked by configuration (matches rule: '{blocked_cmd_prefix}')."
+            error_msg = f"Command '{command_clean}' is blocked by configuration."
             logger.warning(
-                f"Blocked command attempt for server '{server_name}': {error_msg}"
+                f"API: Blocked command attempt for '{server_name}': {error_msg}"
             )
             raise BlockedCommandError(error_msg)
-    # --- End Blacklist Check ---
 
     try:
-        # effective_base_dir = get_base_dir(base_dir) # Not strictly needed if send_server_command handles its paths
-
-        # Call the standalone send_server_command from core.server.server
-        core_server_actions.send_server_command(server_name, command_clean)
+        server = BedrockServer(server_name)
+        server.send_command(command_clean)
 
         logger.info(
-            f"Command '{command_clean}' sent successfully to server '{server_name}'."
+            f"API: Command '{command_clean}' sent successfully to server '{server_name}'."
         )
         return {
             "status": "success",
@@ -686,132 +529,84 @@ def send_command(
         }
 
     except (
-        ServerNotFoundError,
         ServerNotRunningError,
         SendCommandError,
         CommandNotFoundError,
-        MissingArgumentError,  # From send_server_command if args are empty
-        FileOperationError,  # From send_server_command if settings are missing
-        InvalidServerNameError,  # From send_server_command
+        ServerNotFoundError,
     ) as e:
         logger.error(
-            f"Failed to send command to server '{server_name}': {e}", exc_info=True
+            f"API: Failed to send command to server '{server_name}': {e}", exc_info=True
         )
-        raise  # Re-raise the original exception to be handled by route
-
+        raise  # Re-raise to be handled by the route
     except Exception as e:
         logger.error(
-            f"Unexpected error sending command to server '{server_name}': {e}",
+            f"API: Unexpected error sending command to '{server_name}': {e}",
             exc_info=True,
         )
-        # Re-raise as a generic error or a specific internal error type
         raise RuntimeError(f"Unexpected error sending command: {e}") from e
 
 
 def delete_server_data(
-    server_name: str,
-    base_dir: Optional[str] = None,
-    config_dir: Optional[str] = None,  # config_dir passed to core delete_server_data
-    stop_if_running: bool = True,
+    server_name: str, stop_if_running: bool = True
 ) -> Dict[str, str]:
     """
     Deletes all data associated with a Bedrock server (installation, config, backups).
 
-    Optionally stops the server first if it is running.
-
     Args:
         server_name: The name of the server to delete.
-        base_dir: Optional. Base directory for server installations. Uses config default if None.
-        config_dir: Optional. Base directory for server configs. Uses default if None.
-        stop_if_running: If True (default), attempt to stop the server before deleting data.
+        stop_if_running: If True, attempt to stop the server before deleting data.
 
     Returns:
         A dictionary: `{"status": "success", "message": ...}` or `{"status": "error", "message": ...}`.
-
-    Raises:
-        MissingArgumentError: If `server_name` is empty.
-        InvalidServerNameError: If `server_name` is invalid.
-        FileOperationError: If essential settings (BASE_DIR, BACKUP_DIR, _config_dir for core) are missing.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    logger.debug(
-        f"!!! Initiating deletion of ALL data for server '{server_name}'. Stop if running: {stop_if_running} !!!"
+    logger.warning(
+        f"API: !!! Initiating deletion of ALL data for server '{server_name}'. Stop if running: {stop_if_running} !!!"
     )
-    try:
-        effective_base_dir = get_base_dir(base_dir)
-        # Ensure backup dir setting exists for core delete function (core already checks _config_dir)
-        if not settings.get("BACKUP_DIR"):
-            raise FileOperationError(
-                "BACKUP_DIR setting missing in application configuration."
-            )
 
-        # --- Stop Server (Optional) ---
-        if stop_if_running:
-            logger.debug(
-                f"Checking if server '{server_name}' needs to be stopped before deletion..."
+    try:
+        server = BedrockServer(server_name)
+
+        if stop_if_running and server.is_running():
+            logger.info(
+                f"API: Server '{server_name}' is running. Stopping before deletion..."
             )
             try:
-                # Use core check_if_server_is_running
-                if core_server_actions.check_if_server_is_running(server_name):
-                    logger.info(
-                        f"Server '{server_name}' is running. Stopping before deletion..."
-                    )
+                server.send_command("say WARNING: Server is being deleted permanently!")
+            except Exception as e:
+                logger.warning(
+                    f"API: Could not send deletion warning to '{server_name}': {e}"
+                )
 
-                    cmd_res = send_command(
-                        server_name, "say WARNING: Deleting Server..."
-                    )
-                    if cmd_res.get("status") == "error":
-                        logger.warning(
-                            f"API: Failed to send warning to '{server_name}': {cmd_res.get('message')}"
-                        )
-                    # Call API stop_server function (which calls core stop_server)
-                    stop_result = stop_server(server_name, effective_base_dir)
-                    if stop_result.get("status") == "error":
-                        error_msg = f"Failed to stop server '{server_name}' before deletion: {stop_result.get('message')}. Deletion aborted."
-                        logger.error(error_msg)
-                        return {"status": "error", "message": error_msg}
-                    logger.info(f"Server '{server_name}' stopped.")
-                else:
-                    logger.debug(
-                        f"Server '{server_name}' is not running. No stop needed."
-                    )
-            except (
-                Exception
-            ) as e:  # Catch unexpected errors during the stop check/attempt
-                error_msg = f"Error occurred while stopping server '{server_name}' before deletion: {e}. Deletion aborted."
-                logger.error(error_msg, exc_info=True)
+            stop_result = stop_server(server_name)
+            if stop_result.get("status") == "error":
+                error_msg = f"Failed to stop server '{server_name}' before deletion: {stop_result.get('message')}. Deletion aborted."
+                logger.error(error_msg)
                 return {"status": "error", "message": error_msg}
 
-        # --- Core Deletion Operation ---
-        logger.debug(f"Proceeding with deletion of data for server '{server_name}'...")
-        # Call core delete function, passing effective_base_dir and optional config_dir
-        core_server_actions.delete_server_data(
-            server_name, effective_base_dir, config_dir=config_dir
+            time.sleep(3)  # Allow time for the server to stop gracefully
+            logger.info(f"API: Server '{server_name}' stopped.")
+
+        logger.debug(
+            f"API: Proceeding with deletion of data for server '{server_name}'..."
         )
-        logger.info(f"Successfully deleted data for server '{server_name}'.")
+        server.delete_all_data()
+        logger.info(f"API: Successfully deleted all data for server '{server_name}'.")
         return {
             "status": "success",
             "message": f"All data for server '{server_name}' deleted successfully.",
         }
 
-    except (DirectoryError, InvalidServerNameError) as e:
+    except (DirectoryError, FileOperationError, ServerNotFoundError) as e:
         logger.error(
-            f"Failed to delete server data for '{server_name}': {e}", exc_info=True
+            f"API: Failed to delete server data for '{server_name}': {e}", exc_info=True
         )
         return {"status": "error", "message": f"Failed to delete server data: {e}"}
-    except (
-        FileOperationError
-    ) as e:  # Catches config/base_dir errors from get_base_dir or core
-        logger.error(
-            f"Configuration error preventing server deletion for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Configuration error: {e}"}
     except Exception as e:
         logger.error(
-            f"Unexpected error deleting server data for '{server_name}': {e}",
+            f"API: Unexpected error deleting server data for '{server_name}': {e}",
             exc_info=True,
         )
         return {

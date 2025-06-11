@@ -56,7 +56,7 @@ def get_world_name_api_route(server_name: str) -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = api_world.get_world_name(server_name)  # Handles base_dir internally
+        result = api_world.get_world_name(server_name)
         status_code = (
             200
             if result.get("status") == "success"
@@ -89,7 +89,7 @@ def get_running_status_api_route(server_name: str) -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = info_api.get_server_running_status(server_name)  # Handles base_dir
+        result = info_api.get_server_running_status(server_name)
         status_code = 200 if result.get("status") == "success" else 500
     except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
         status_code = (
@@ -121,7 +121,7 @@ def get_config_status_api_route(server_name: str) -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = info_api.get_server_config_status(server_name)  # Handles config_dir
+        result = info_api.get_server_config_status(server_name)
         status_code = 200 if result.get("status") == "success" else 500
     except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
         status_code = (
@@ -153,9 +153,7 @@ def get_version_api_route(server_name: str) -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = info_api.get_server_installed_version(
-            server_name
-        )  # Handles config_dir
+        result = info_api.get_server_installed_version(server_name)
         status_code = 200 if result.get("status") == "success" else 500
     except (MissingArgumentError, InvalidServerNameError, FileOperationError) as e:
         status_code = (
@@ -188,7 +186,7 @@ def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = utils_api.validate_server_exist(server_name)  # Handles base_dir
+        result = utils_api.validate_server_exist(server_name)
         status_code = (
             200 if result.get("status") == "success" else 404
         )  # 404 if validation fails
@@ -220,12 +218,12 @@ def scan_players_api_route() -> Tuple[Response, int]:
     result = {}
     status_code = 500
     try:
-        result = player_api.scan_for_players()  # API handles defaults
+        result = player_api.scan_and_update_player_db_api()
         status_code = 200 if result.get("status") == "success" else 500
     except (
         FileOperationError,
         DirectoryError,
-    ) as e:  # Catch config/dir errors from API
+    ) as e:
         status_code = 500
         result = {
             "status": "error",
@@ -428,29 +426,13 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
         f"API: Request to prune backups for server '{server_name}' by user '{identity}'."
     )
 
-    data = request.get_json(silent=True) or {}  # Allow empty body, use default keep
-    keep_count = data.get("keep")  # Optional
-
-    logger.debug(f"API Prune Backups: Server='{server_name}', Keep='{keep_count}'")
-
-    if keep_count is not None:
-        try:
-            keep_count = int(keep_count)  # Validate type early
-        except (ValueError, TypeError):
-            return (
-                jsonify(
-                    status="error", message="Invalid 'keep' value. Must be an integer."
-                ),
-                400,
-            )
+    logger.debug(f"API Prune Backups: Server='{server_name}'")
 
     result = {}
     status_code = 500
     try:
-        # Call the backup API function (handles base_dir, uses setting for keep if None)
-        result = backup_restore_api.prune_old_backups(
-            server_name, backup_keep=keep_count
-        )
+        # Call the backup API function
+        result = backup_restore_api.prune_old_backups(server_name)
         status_code = (
             200
             if result.get("status") == "success"
@@ -572,12 +554,10 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
     status_code = 500  # Default to internal server error
     try:
-        # Call your existing function. It's designed to return a dict with status.
-        result_dict = player_api.get_players_from_json()
+        result_dict = player_api.get_all_known_players_api()
 
         if result_dict.get("status") == "success":
             status_code = 200
-            # The 'message' for "file not found" is already in result_dict by get_players_from_json
             logger.debug(
                 f"API Get All Players: Successfully retrieved {len(result_dict.get('players', []))} players. "
                 f"Message: {result_dict.get('message', 'N/A')}"
@@ -590,7 +570,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
     except Exception as e:
         # This catch block is for truly unexpected errors *within the API route itself*
-        # or if get_players_from_json were to raise an unhandled exception (which it aims not to).
+        # or if get_all_known_players_api were to raise an unhandled exception (which it aims not to).
         logger.error(
             f"API Get All Players: Unexpected critical error in route: {e}",
             exc_info=True,

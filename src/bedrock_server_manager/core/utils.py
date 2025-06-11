@@ -8,17 +8,17 @@ import platform
 import subprocess
 import time
 import shutil
-from typing import List, Tuple, Optional, Dict
+from typing import Tuple, Optional
 
 # Local imports
-from bedrock_server_manager.core.server import server_utils as core_server_utils
 from bedrock_server_manager.error import (
     MissingArgumentError,
     FileOperationError,
     InvalidServerNameError,
-    DirectoryError,
-    ConfigurationError,
 )
+
+# Dummy import
+core_server_utils = None
 
 logger = logging.getLogger(__name__)
 
@@ -279,64 +279,6 @@ def update_server_status_in_config(
 
 
 # ---
-
-
-# --- Server Listing ---
-def _core_get_all_servers_data(
-    effective_base_dir: str, effective_config_dir: str
-) -> Tuple[List[Dict[str, str]], List[str]]:
-    """
-    Core logic to retrieve status and version for all servers.
-    Collects data for successfully processed servers and error messages for failures.
-    Raises DirectoryError if effective_base_dir is invalid.
-    """
-    servers_data: List[Dict[str, str]] = []
-    error_messages: List[str] = []
-
-    if not os.path.isdir(effective_base_dir):
-        # This is a fundamental setup error for the core operation
-        raise DirectoryError(
-            f"Server base directory does not exist or is not a directory: {effective_base_dir}"
-        )
-
-    # Ensure config_dir exists, as core_server_utils might rely on it.
-    # Or, let core_server_utils handle this if its contract specifies.
-    # For this example, let's assume core_server_utils will raise if config_dir is bad for a specific server.
-    # if not os.path.isdir(effective_config_dir):
-    #     raise DirectoryError(
-    #         f"Server configuration directory does not exist or is not a directory: {effective_config_dir}"
-    #     )
-
-    for item_name in os.listdir(effective_base_dir):
-        item_path = os.path.join(effective_base_dir, item_name)
-        if os.path.isdir(item_path):
-            server_name = item_name
-            try:
-                # These utils functions are expected to raise their specific exceptions
-                # (FileOperationError, InvalidServerNameError, ConfigurationError etc.) on failure.
-                status = core_server_utils.get_server_status_from_config(
-                    server_name, effective_config_dir
-                )
-                version = core_server_utils.get_installed_version(
-                    server_name, effective_config_dir
-                )
-                servers_data.append(
-                    {"name": server_name, "status": status, "version": version}
-                )
-            except (
-                FileOperationError,
-                InvalidServerNameError,
-                ConfigurationError,  # Catching a broader range of core-level issues
-            ) as e:
-                # Collect error message for this specific server
-                msg = f"Could not get info for server '{server_name}': {e}"
-                # Core layer might have its own, more detailed/debug logging if needed
-                # logger.debug(f"Core._core_get_all_servers_data: {msg}", exc_info=True)
-                error_messages.append(msg)
-            # Any other unexpected exceptions within the loop for a specific server would propagate
-            # and be caught by the API layer's generic Exception handler.
-
-    return servers_data, error_messages
 
 
 # --- Screen Attach ---

@@ -8,20 +8,15 @@ commands to the appropriate handler functions within the `cli` subpackage.
 
 import sys
 import argparse
-import os
 import logging
 import platform
 
 # --- Initialize Settings and Logger ---
 try:
-
     from bedrock_server_manager import __version__
     from bedrock_server_manager import Settings
     from bedrock_server_manager.logging import setup_logging, log_separator
-    from bedrock_server_manager.config.const import (
-        get_installed_version,
-        app_name_title,
-    )
+    from bedrock_server_manager.config.const import app_name_title
 
     settings = Settings()
 
@@ -33,21 +28,18 @@ try:
             file_log_level=settings.get("FILE_LOG_LEVEL"),
             cli_log_level=settings.get("CLI_LOG_LEVEL"),
         )
-        # Log separator after setup
         log_separator(logger, app_name=app_name_title, app_version=__version__)
     except Exception as log_e:
-        # Fallback basic logging if setup fails
         logging.basicConfig(level=logging.WARNING)
-        logger = logging.getLogger("bedrock_server_manager_fallback")
+        logger = logging.getLogger("bsm_fallback_logger")
         logger.critical(
             f"Failed to initialize file logging: {log_e}. Logging to console only.",
             exc_info=True,
         )
 
 except ImportError as e:
-    # Handle case where essential config/logging cannot be imported
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("bedrock_server_manager_critical_error")
+    logger = logging.getLogger("bsm_critical_error")
     logger.critical(
         f"CRITICAL ERROR: Failed to import core modules ({e}). Cannot start application.",
         exc_info=True,
@@ -59,7 +51,7 @@ except ImportError as e:
     sys.exit(1)
 except Exception as e:
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("bedrock_server_manager_critical_error")
+    logger = logging.getLogger("bsm_critical_error")
     logger.critical(
         f"CRITICAL ERROR: Failed during initial settings/logging setup: {e}",
         exc_info=True,
@@ -71,22 +63,19 @@ except Exception as e:
 try:
     from bedrock_server_manager.api import (
         utils as api_utils,
+        server as api_server,
         server_install_config as api_server_install_config,
+        world as api_world,
         backup_restore as api_backup_restore,
+        system as api_system,
+        misc as api_misc,
     )
-    from bedrock_server_manager.error import FileOperationError
-    from bedrock_server_manager.api import misc as api_misc
     from bedrock_server_manager.utils.general import (
         startup_checks,
         _INFO_PREFIX,
         _OK_PREFIX,
         _WARN_PREFIX,
         _ERROR_PREFIX,
-    )
-    from bedrock_server_manager.core.server import (
-        server_actions as core_server_actions,
-        server_install_config as core_server_install_config,
-        server_utils as core_server_utils,
     )
     from bedrock_server_manager.core.system import base as system_base
     from bedrock_server_manager.cli import (
@@ -113,21 +102,12 @@ except ImportError as e:
     )
     sys.exit(1)
 
-if platform.system() == "Linux":
-    from bedrock_server_manager.core.system import linux as system_linux
-else:
-    system_linux = None
-
 
 def run_cleanup(args: argparse.Namespace) -> None:
     """
     Performs cleanup operations (__pycache__, logs) based on command line arguments.
-
-    Args:
-        args: The parsed command line arguments namespace.
     """
     logger.info("CLI: Running cleanup operations...")
-    # Import cleanup module only when needed
     try:
         from .utils import cleanup
     except ImportError as e:
@@ -135,102 +115,78 @@ def run_cleanup(args: argparse.Namespace) -> None:
         print(f"{_ERROR_PREFIX}Cleanup module failed to import.")
         return
 
-    cleaned_something = False
-    # Check if specific cleanup flags are provided
     if not args.cache and not args.logs:
         print(
             f"{_WARN_PREFIX}No cleanup options specified. Use --cache, --logs, or both."
         )
-        logger.warning("Cleanup command run without --cache or --logs flag.")
         return
 
     if args.cache:
-        logger.debug("Cleaning up __pycache__ directories...")
         print(f"{_INFO_PREFIX}Cleaning Python cache files (__pycache__)...")
-        try:
-            deleted_count = cleanup.cleanup_cache()
-            if deleted_count > 0:
-                print(
-                    f"{_OK_PREFIX}Cleaned up {deleted_count} __pycache__ director(y/ies)."
-                )
-                logger.info(f"Cleaned up {deleted_count} __pycache__ directories.")
-                cleaned_something = True
-            else:
-                print(f"{_INFO_PREFIX}No __pycache__ directories found to clean.")
-                logger.info("No __pycache__ directories found.")
-        except Exception as e:
-            print(f"{_ERROR_PREFIX}Error during cache cleanup: {e}")
-            logger.error(f"Error during cache cleanup: {e}", exc_info=True)
+        deleted_count = cleanup.cleanup_cache()
+        print(
+            f"{_OK_PREFIX}Cleaned up {deleted_count} __pycache__ directory/ies."
+            if deleted_count > 0
+            else f"{_INFO_PREFIX}No __pycache__ directories found to clean."
+        )
 
     if args.logs:
-        log_dir_to_clean = args.log_dir or settings.get("LOG_DIR")
-        if not log_dir_to_clean:
+        log_dir = args.log_dir or settings.get("LOG_DIR")
+        if not log_dir:
             print(
                 f"{_ERROR_PREFIX}Log directory not specified via --log-dir or settings."
             )
-            logger.error("Cannot clean logs: Log directory not specified.")
             return
+        print(f"{_INFO_PREFIX}Cleaning log files in '{log_dir}'...")
+        deleted_count = cleanup.cleanup_logs(log_dir=log_dir)
+        print(
+            f"{_OK_PREFIX}Cleaned up {deleted_count} log file(s)."
+            if deleted_count > 0
+            else f"{_INFO_PREFIX}No log files found to clean."
+        )
 
-        logger.debug(f"Cleaning up log files in '{log_dir_to_clean}'...")
-        print(f"{_INFO_PREFIX}Cleaning log files in '{log_dir_to_clean}'...")
-        try:
-            deleted_count = cleanup.cleanup_logs(log_dir=log_dir_to_clean)
-            if deleted_count > 0:
-                print(f"{_OK_PREFIX}Cleaned up {deleted_count} log file(s).")
-                logger.info(
-                    f"Cleaned up {deleted_count} log files from '{log_dir_to_clean}'."
-                )
-                cleaned_something = True
-            else:
-                print(
-                    f"{_INFO_PREFIX}No log files found to clean in '{log_dir_to_clean}'."
-                )
-                logger.info(f"No log files found to clean in '{log_dir_to_clean}'.")
-        except Exception as e:
-            print(f"{_ERROR_PREFIX}Error during log cleanup: {e}")
-            logger.error(f"Error during log cleanup: {e}", exc_info=True)
 
-    if cleaned_something:
-        logger.info("CLI: Cleanup operations finished.")
-    else:
-        logger.info("CLI: Cleanup operations finished, nothing was cleaned.")
+def _server_exists(server_name: str) -> bool:
+    """
+    Private helper that uses the API layer to check if a server is valid.
+    Returns True if valid, False otherwise.
+    """
+    response = api_utils.validate_server_exist(server_name)
+    print = response
+    return response.get("status") == "success" and response.get("message") == f"Server '{server_name}' exists and is valid."
+
+
+def valid_server_name(name: str) -> str:
+    """
+    A custom argparse 'type' function to validate the server name.
+
+    This function is called by argparse for any argument that uses it as its type.
+    It checks if the server exists and raises a specific error if it doesn't,
+    which argparse handles gracefully.
+    """
+    if not _server_exists(name):
+        # This is the special error type that argparse looks for.
+        raise argparse.ArgumentTypeError(
+            f"Server '{name}' does not exist or is not configured."
+        )
+    # If validation passes, return the original name.
+    return name
 
 
 def main() -> None:
     """
     Main execution function for the CLI.
-
-    Performs initial checks, parses arguments, and dispatches to the appropriate command handler.
     """
     try:
         # --- Initial Checks ---
         logger.info(f"Starting {app_name_title} v{__version__}...")
-        startup_checks(
-            app_name_title, __version__
-        )  # Handles Python version, creates dirs
-        system_base.check_prerequisites()  # Check for screen, systemctl, etc.
+        startup_checks(app_name_title, __version__)
+        system_base.check_prerequisites()
 
-        # --- Resolve Base/Config Dirs ---
-        base_dir = settings.get("BASE_DIR")
-        config_dir = settings.config_dir
-        if not base_dir:
-            # Base dir is essential, exit if not set
-            raise FileOperationError(
-                "CRITICAL: BASE_DIR setting is missing or empty. Cannot continue."
-            )
-        if not config_dir:
-            # Config dir is also essential for most operations
-            raise FileOperationError(
-                "CRITICAL: Configuration directory could not be determined. Cannot continue."
-            )
-
-        logger.debug(f"Using Base Directory: {base_dir}")
-        logger.debug(f"Using Config Directory: {config_dir}")
-
-        # Update statuses on startup
+        # Update server statuses on startup
         try:
             logger.debug("Performing initial update of server statuses...")
-            api_utils.update_server_statuses(base_dir, config_dir)
+            api_utils.update_server_statuses()
         except Exception as status_update_e:
             logger.warning(
                 f"Could not update server statuses on startup: {status_update_e}",
@@ -261,7 +217,11 @@ def main() -> None:
         # Helper function to add --server argument consistently
         def add_server_arg(sub_parser: argparse.ArgumentParser):
             sub_parser.add_argument(
-                "-s", "--server", help="Name of the target server", required=True
+                "-s",
+                "--server",
+                help="Name of the target server",
+                type=valid_server_name,
+                required=True,
             )
 
         # main (Main CLI Menu)
@@ -716,224 +676,109 @@ def main() -> None:
         )
 
         # --- Command Dispatch Dictionary ---
-        # Maps subcommand names to lambda functions calling the appropriate CLI handler
         commands = {
-            "main": lambda args: main_menus.main_menu(base_dir, config_dir),
+            "main": lambda args: main_menus.main_menu(),
             "list-servers": lambda args: (
-                cli_utils.list_servers_loop(base_dir, config_dir)
+                cli_utils.list_servers_loop()
                 if args.loop
-                else cli_utils.list_servers_status(base_dir, config_dir)
+                else cli_utils.list_servers_status()
             ),
-            "get-status": lambda args: print(
-                core_server_utils.get_server_status_from_config(args.server, config_dir)
-            ),
+            "get-status": lambda args: (
+                lambda resp: print(
+                    f"{_OK_PREFIX}{resp['process_info']}"
+                    if resp.get("status") == "success" and resp.get("process_info")
+                    else f"{_WARN_PREFIX}Server is STOPPED."
+                )
+            )(api_system.get_bedrock_process_info(args.server)),
             "configure-allowlist": lambda args: cli_server_install_config.configure_allowlist(
-                args.server, base_dir
+                args.server
             ),
             "remove-allowlist-player": lambda args: cli_server_install_config.remove_allowlist_players(
                 args.server, args.players
             ),
             "configure-permissions": lambda args: cli_server_install_config.select_player_for_permission(
-                args.server, base_dir, config_dir
+                args.server
             ),
-            "configure-properties": lambda args: (
-                # Call interactive config if only server name provided
-                cli_server_install_config.configure_server_properties(
-                    args.server, base_dir
-                )
-                if not args.property
-                else
-                # Call direct property modification if property and value are given
-                (
-                    lambda: (
-                        (
-                            # Validate first
-                            validation := api_server_install_config.validate_server_property_value(
-                                args.property, args.value
-                            ),
-                            # Print error or modify
-                            (
-                                print(f"{_ERROR_PREFIX}{validation.get('message')}")
-                                if validation.get("status") == "error"
-                                else (
-                                    # Modify using core function directly for single property set
-                                    core_server_install_config.modify_server_properties(
-                                        os.path.join(
-                                            base_dir, args.server, "server.properties"
-                                        ),
-                                        args.property,
-                                        args.value,
-                                    ),
-                                    print(
-                                        f"{_OK_PREFIX}Property '{args.property}' set to '{args.value}'."
-                                    ),
-                                )
-                            ),
-                        )
-                        if args.value is not None
-                        else print(
-                            f"{_ERROR_PREFIX}Value (--value) is required when using --property."
-                        )
-                    )
-                )
+            "configure-properties": lambda args: cli_server_install_config.configure_server_properties(
+                args.server
             ),
-            "install-server": lambda args: cli_server_install_config.install_new_server(
-                base_dir, config_dir
-            ),
+            "install-server": lambda args: cli_server_install_config.install_new_server(),
             "update-server": lambda args: cli_server_install_config.update_server(
-                args.server, base_dir
+                args.server
             ),
             "start-server": lambda args: cli_server.start_server(
-                args.server, base_dir, args.mode
+                args.server, args.mode
             ),
-            "stop-server": lambda args: cli_server.stop_server(args.server, base_dir),
+            "stop-server": lambda args: cli_server.stop_server(args.server),
+            "restart-server": lambda args: cli_server.restart_server(args.server),
             "install-world": lambda args: (
-                cli_world.import_world_cli(
-                    args.server, args.file, base_dir
-                )  # Call direct import if file specified
+                cli_world.import_world_cli(args.server, args.file)
                 if args.file
-                else cli_world.install_worlds(
-                    args.server, base_dir
-                )  # Call interactive menu otherwise
+                else cli_world.install_worlds(args.server)
             ),
             "install-addon": lambda args: (
-                cli_addon.import_addon(
-                    args.server, args.file, base_dir
-                )  # Call direct import if file specified
+                cli_addon.import_addon(args.server, args.file)
                 if args.file
-                else cli_addon.install_addons(
-                    args.server, base_dir
-                )  # Call interactive menu otherwise
-            ),
-            "restart-server": lambda args: cli_server.restart_server(
-                args.server, base_dir
+                else cli_addon.install_addons(args.server)
             ),
             "attach-console": lambda args: cli_utils.attach_console(args.server),
             "delete-server": lambda args: cli_server.delete_server(
-                args.server, base_dir, config_dir, skip_confirmation=args.yes
+                args.server, skip_confirmation=getattr(args, "yes", False)
             ),
             "backup-server": lambda args: cli_backup_restore.backup_server(
-                args.server, args.type, args.file, args.change_status, base_dir
-            ),
-            "backup-all": lambda args: cli_backup_restore.backup_server(
                 args.server,
-                "all",
-                file_to_backup=None,
-                change_status=args.change_status,
-                base_dir=base_dir,
+                getattr(args, "type", None),
+                getattr(args, "file", None),
+                getattr(args, "change_status", True),
             ),
             "restore-server": lambda args: cli_backup_restore.restore_server(
-                args.server, args.file, args.type, args.change_status, base_dir
-            ),
-            "restore-all": lambda args: cli_backup_restore.restore_server(
                 args.server,
-                "all",
-                backup_file=None,
-                change_status=args.change_status,
-                base_dir=base_dir,
+                getattr(args, "type", None),
+                getattr(args, "file", None),
+                getattr(args, "change_status", True),
             ),
-            "list-backups": lambda args: print(
-                api_backup_restore.list_backup_files(args.server, args.type)["backups"]
-            ),
-            "scan-players": lambda args: cli_player.scan_for_players(
-                base_dir, config_dir
-            ),
-            "add-players": lambda args: cli_player.add_players(
-                args.players, config_dir
-            ),
-            "monitor-usage": lambda args: cli_system.monitor_service_usage(
-                args.server, base_dir
-            ),
+            "list-backups": lambda args: (
+                lambda r: print(r.get("backups", "Error or no backups found."))
+            )(api_backup_restore.list_backup_files(args.server, args.type)),
+            "scan-players": lambda args: cli_player.scan_for_players(),
+            "add-players": lambda args: cli_player.add_players(args.players),
+            "monitor-usage": lambda args: cli_system.monitor_service_usage(args.server),
             "prune-old-backups": lambda args: cli_backup_restore.prune_old_backups(
-                args.server,
-                file_name=args.file_name,
-                backup_keep=args.keep,
-                base_dir=base_dir,
+                args.server
             ),
-            "prune-old-downloads": lambda args: api_misc.prune_old_downloads(
-                args.download_dir, args.keep
-            ),
-            "manage-script-config": lambda args: (
-                print(settings.get(args.key))
-                if args.operation == "read"
-                else settings.set(args.key, args.value)
-            ),
-            "manage-server-config": lambda args: (
-                # Print return value only for 'read'
-                (
-                    lambda v: print(
-                        v
-                        if v is not None
-                        else f"{_WARN_PREFIX}Key '{args.key}' not found."
-                    )
-                )(
-                    core_server_utils.manage_server_config(
-                        args.server, args.key, "read", config_dir=config_dir
-                    )
-                )
-                if args.operation == "read"
-                else
-                # Call write operation (returns None), print success/fail based on exception
-                (
-                    lambda: (
-                        (
-                            core_server_utils.manage_server_config(
-                                args.server,
-                                args.key,
-                                "write",
-                                args.value,
-                                config_dir=config_dir,
-                            ),
-                            print(
-                                f"{_OK_PREFIX}Set '{args.key}' to '{args.value}' in {args.server} config."
-                            ),
-                        )
-                        if args.value is not None
-                        else print(
-                            f"{_ERROR_PREFIX}Value (--value) required for write operation."
-                        )
-                    )
-                )
-            ),
-            "get-installed-version": lambda args: print(
-                core_server_actions.get_installed_version(args.server, config_dir)
-            ),
-            "get-world-name": lambda args: print(
-                core_server_utils.get_world_name(args.server, base_dir)
-            ),
-            "check-service-exist": lambda args: print(
-                system_linux.check_service_exist(args.server)
-            ),
-            "create-service": lambda args: cli_system.configure_service(
-                args.server, base_dir
-            ),
+            "get-world-name": lambda args: (
+                lambda r: print(r.get("world_name", "Error getting world name."))
+            )(api_world.get_world_name(args.server)),
+            "create-service": lambda args: cli_system.configure_service(args.server),
             "enable-service": lambda args: cli_system.enable_service(args.server),
             "disable-service": lambda args: cli_system.disable_service(args.server),
             "is-server-running": lambda args: print(
-                system_base.is_server_running(args.server, base_dir)
+                True
+                if (
+                    api_system.get_bedrock_process_info(args.server).get("process_info")
+                )
+                else False
             ),
             "send-command": lambda args: cli_server.send_command(
-                args.server, " ".join(args.command), base_dir
-            ),  # Join command parts
-            "export-world": lambda args: cli_world.export_world(args.server, base_dir),
-            "reset-world": lambda args: cli_world.reset_world_cli(
-                args.server, args.skip_confirmation
+                args.server, " ".join(getattr(args, "command", []))
             ),
-            "validate-server": lambda args: print(
-                api_utils.validate_server_exist(args.server, base_dir)
-            ),  # Print the result dict
-            "check-internet": lambda args: (
-                lambda result: (
-                    print(f"{_OK_PREFIX}Internet connectivity OK.")
-                    if result
-                    else print(f"{_ERROR_PREFIX}Internet connectivity check failed.")
-                )
-            )(
-                system_base.check_internet_connectivity()
-            ),  # Call core func and print result
-            "cleanup": lambda args: run_cleanup(args),
+            "export-world": lambda args: cli_world.export_world(args.server),
+            "reset-world": lambda args: cli_world.reset_world_cli(
+                args.server, getattr(args, "skip_confirmation", False)
+            ),
+            "validate-server": lambda args: (lambda r: print(r))(
+                api_utils.validate_server_exist(args.server)
+            ),
+            "check-internet": lambda args: print(
+                f"{_OK_PREFIX}Internet OK."
+                if system_base.check_internet_connectivity()
+                else f"{_ERROR_PREFIX}Connectivity check failed."
+            ),
+            "cleanup": run_cleanup,
             "start-web-server": lambda args: cli_web.start_web_server(
-                args.host, args.debug, args.mode
+                getattr(args, "host", None),
+                getattr(args, "debug", False),
+                getattr(args, "mode", "direct"),
             ),
             "stop-web-server": lambda args: cli_web.stop_web_server(),
             "generate-password": lambda args: generate_password.generate_hash(),
@@ -945,15 +790,15 @@ def main() -> None:
 
         if args.subcommand in commands:
             logger.debug(f"Executing command: {args.subcommand}")
-            commands[args.subcommand](args)  # Execute the corresponding lambda function
-            logger.debug(f"Command '{args.subcommand}' finished.")
-            sys.exit(0)  # Explicit success exit
+            # Get the function from the dictionary and call it
+            command_func = commands[args.subcommand]
+            command_func(args)
+            sys.exit(0)
         elif args.subcommand is None:
-            # No command given, show main menu by default
-            logger.info("No subcommand provided, launching help display...")
-            parser.print_help()  # Print help display
+            # Launch the main interactive menu by default
+            logger.info("No subcommand provided, launching main interactive menu...")
+            main_menus.main_menu()
         else:
-            # Should not happen if choices are restricted, but handle anyway
             logger.error(f"Unknown subcommand provided: {args.subcommand}")
             parser.print_help()
             sys.exit(1)
@@ -963,9 +808,8 @@ def main() -> None:
         logger.warning("Application terminated by user (KeyboardInterrupt).")
         sys.exit(1)
     except Exception as e:
-        # Catch-all for unexpected errors during setup or dispatch
         print(
-            f"\n{_ERROR_PREFIX}An critical unexpected error occurred: {type(e).__name__}: {e}"
+            f"\n{_ERROR_PREFIX}A critical unexpected error occurred: {type(e).__name__}: {e}"
         )
         logger.critical(
             f"An unexpected critical error occurred in main: {e}", exc_info=True

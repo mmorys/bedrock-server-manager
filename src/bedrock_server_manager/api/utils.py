@@ -3,21 +3,15 @@ import os
 import logging
 from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
+import platform
 
-# Local imports from API/App layer
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.core.system import base as system_base
-from bedrock_server_manager.core.server import server_actions as core_server_actions
-from bedrock_server_manager.core.server import server_utils as core_server_utils
-from bedrock_server_manager.core import utils as core_utils
-from bedrock_server_manager.utils import get_utils
+# Local imports
+from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.core.manager import BedrockServerManager
+from bedrock_server_manager.core import utils as core_utils
 from bedrock_server_manager.api.server import (
     start_server as api_start_server,
     stop_server as api_stop_server,
-)  # For context manager
-from bedrock_server_manager.utils.general import (
-    get_base_dir,
 )
 from bedrock_server_manager.error import (
     InvalidServerNameError,
@@ -28,56 +22,59 @@ from bedrock_server_manager.error import (
     DirectoryError,
     ResourceMonitorError,
     SystemError,
+    ServerStopError,  # For context manager
+    ServerStartError,  # For context manager
+    SendCommandError,
+    ServerNotRunningError,
 )
-from bedrock_server_manager.core.system import (
-    base as core_system,
-)
-
 
 logger = logging.getLogger(__name__)
+# The global bsm instance can be useful for manager-level tasks like listing all servers
 bsm = BedrockServerManager()
 
 
-def validate_server_exist(
-    server_name: str, base_dir: Optional[str] = None
-) -> Dict[str, Any]:
+def validate_server_exist(server_name: str) -> Dict[str, Any]:
     """
-    Validates if a server installation directory and executable exist.
-    (API wrapper for core_server_utils.validate_server)
+    Validates if a server installation directory and executable exist
+    by using the BedrockServer.is_installed() method.
     """
     if not server_name:
-        # API level argument validation
-        logger.error("API.validate_server_exist: Server name cannot be empty.")
         return {"status": "error", "message": "Server name cannot be empty."}
-        # Or raise MissingArgumentError if preferred for API errors to be exceptions
 
-    logger.debug(f"API.validate_server_exist: Validating '{server_name}'...")
+    logger.debug(f"API: Validating existence of server '{server_name}'...")
     try:
-        effective_base_dir = get_base_dir(base_dir)  # Can raise FileOperationError
-        core_server_utils.validate_server(
-            server_name, effective_base_dir
-        )  # Can raise ServerNotFoundError (from core)
-        logger.debug(
-            f"API.validate_server_exist: Server '{server_name}' validation successful."
-        )
-        return {
-            "status": "success",
-            "message": f"Server '{server_name}' exists and is valid.",
-        }
-    except ServerNotFoundError as e:  # Core server not found
-        logger.warning(
-            f"API.validate_server_exist: Validation failed for '{server_name}': {e}"
-        )
-        return {"status": "error", "message": str(e)}
-    except FileOperationError as e:  # From get_base_dir
+        # Instantiate the server; this may raise config errors if settings are bad.
+        server = BedrockServer(server_name)
+
+        # is_installed() is a simple boolean check.
+        if server.is_installed():
+            logger.debug(f"API: Server '{server_name}' validation successful.")
+            return {
+                "status": "success",
+                "message": f"Server '{server_name}' exists and is valid.",
+            }
+        else:
+            logger.warning(
+                f"API: Validation failed for '{server_name}'. It is not correctly installed."
+            )
+            # Providing more specific info from the server object could be useful.
+            return {
+                "status": "error",
+                "message": f"Server '{server_name}' is not installed or the installation is invalid.",
+            }
+
+    except (
+        FileOperationError,
+        ValueError,
+    ) as e:  # Catches config issues from BedrockServer init
         logger.error(
-            f"API.validate_server_exist: Config error for '{server_name}': {e}",
+            f"API: Configuration error during validation for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Configuration error: {e}"}
-    except Exception as e:  # Catch-all for unexpected
+    except Exception as e:
         logger.error(
-            f"API.validate_server_exist: Unexpected error for '{server_name}': {e}",
+            f"API: Unexpected error validating server '{server_name}': {e}",
             exc_info=True,
         )
         return {
@@ -89,192 +86,117 @@ def validate_server_exist(
 def validate_server_name_format(server_name: str) -> Dict[str, str]:
     """
     Validates the format of a potential server name using core utility.
+    (This function doesn't depend on a server instance, so it remains the same).
     """
-    logger.debug(
-        f"API.validate_server_name_format: Validating format for '{server_name}'"
-    )
+    logger.debug(f"API: Validating format for '{server_name}'")
     try:
-        core_utils.core_validate_server_name_format(
-            server_name
-        )  # Raises ValueError on failure
-        logger.debug(
-            f"API.validate_server_name_format: Format valid for '{server_name}'."
-        )
+        core_utils.core_validate_server_name_format(server_name)
+        logger.debug(f"API: Format valid for '{server_name}'.")
         return {"status": "success", "message": "Server name format is valid."}
-    except ValueError as e:  # From core_validate_server_name_format
-        logger.warning(
-            f"API.validate_server_name_format: Invalid format for '{server_name}': {e}"
-        )
+    except ValueError as e:
+        logger.warning(f"API: Invalid format for '{server_name}': {e}")
         return {"status": "error", "message": str(e)}
-    except Exception as e:  # Catch-all
-        logger.error(
-            f"API.validate_server_name_format: Unexpected error for '{server_name}': {e}",
-            exc_info=True,
-        )
+    except Exception as e:
+        logger.error(f"API: Unexpected error for '{server_name}': {e}", exc_info=True)
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
-def update_server_statuses(
-    base_dir: Optional[str] = None, config_dir: Optional[str] = None
-) -> Dict[str, Any]:
+def update_server_statuses() -> Dict[str, Any]:
     """
-    Updates status in config files based on runtime checks.
-    (API orchestrator using core_system_ops and core_server)
+    Updates status in config files based on runtime checks for all servers.
     """
-    updated_servers_list: List[str] = []
+    updated_servers_count = 0
     error_messages = []
-    logger.debug("API.update_server_statuses: Updating server statuses...")
+    logger.debug("API: Updating all server statuses...")
 
     try:
-        effective_base_dir = get_base_dir(base_dir)
-        effective_config_dir = (
-            config_dir
-            if config_dir is not None
-            else getattr(settings, "config_dir", None)
-        )
-        if not effective_config_dir:
-            raise FileOperationError("Base configuration directory not set.")
-        if not os.path.isdir(effective_base_dir):
-            raise DirectoryError(
-                f"Server base directory does not exist: {effective_base_dir}"
-            )
+        # Use the BSM instance to get the list of servers
+        all_servers_data, discovery_errors = bsm.get_servers_data()
+        if discovery_errors:
+            error_messages.extend(discovery_errors)
 
-        for item_name in os.listdir(effective_base_dir):
-            item_path = os.path.join(effective_base_dir, item_name)
-            if os.path.isdir(item_path):
-                server_name = item_name
-                try:
-                    is_actually_running = core_system.is_server_running(
-                        server_name, effective_base_dir
-                    )
-                    config_status = core_server_utils.get_server_status_from_config(
-                        server_name, effective_config_dir
-                    )
+        for server_data in all_servers_data:
+            server_name = server_data.get("name")
+            if not server_name:
+                continue
 
-                    needs_update = False
-                    new_status = config_status
-                    if is_actually_running and config_status in (
-                        "STOPPED",
-                        "INSTALLED",
-                        "UNKNOWN",
-                        "ERROR",
-                    ):
-                        needs_update = True
-                        new_status = "RUNNING"
-                    elif not is_actually_running and config_status in (
-                        "RUNNING",
-                        "STARTING",
-                        "RESTARTING",
-                        "STOPPING",
-                    ):
-                        needs_update = True
-                        new_status = "STOPPED"
+            try:
 
-                    if needs_update:
-                        core_server_utils.manage_server_config(
-                            server_name,
-                            "status",
-                            "write",
-                            new_status,
-                            effective_config_dir,
-                        )
-                        updated_servers_list.append(server_name)
-                        logger.info(
-                            f"API.update_server_statuses: Updated '{server_name}' to '{new_status}'."
-                        )
-
-                except (
-                    CommandNotFoundError,
-                    ResourceMonitorError,
-                    FileOperationError,
-                    InvalidServerNameError,
-                ) as e:  # API Level errors
-                    msg = f"Could not update status for server '{server_name}': {e}"
-                    logger.error(f"API.update_server_statuses: {msg}", exc_info=True)
-                    error_messages.append(msg)
+                logger.info(
+                    f"API: Status for '{server_name}' was reconciled by get_servers_data."
+                )
+                updated_servers_count += 1
+            except Exception as e:
+                msg = f"Could not update status for server '{server_name}': {e}"
+                logger.error(f"API.update_server_statuses: {msg}", exc_info=True)
+                error_messages.append(msg)
 
         if error_messages:
             return {
-                "status": "error",  # If any server failed, overall status is error for this operation
+                "status": "error",
                 "message": f"Completed with errors: {'; '.join(error_messages)}",
-                "updated_servers": updated_servers_list,
+                "updated_servers_count": updated_servers_count,
             }
-        return {"status": "success", "updated_servers": updated_servers_list}
+        return {
+            "status": "success",
+            "message": f"Status check completed for {updated_servers_count} servers.",
+        }
 
     except (FileOperationError, DirectoryError) as e:
-        logger.error(f"API.update_server_statuses: Setup error: {e}", exc_info=True)
+        logger.error(f"API: Setup error during status update: {e}", exc_info=True)
         return {"status": "error", "message": f"Error accessing directories: {e}"}
     except Exception as e:
-        logger.error(
-            f"API.update_server_statuses: Unexpected error: {e}", exc_info=True
-        )
+        logger.error(f"API: Unexpected error during status update: {e}", exc_info=True)
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:
     """
-    Attempts to attach to the screen session of a running Bedrock server. (Linux-specific)
-    (API orchestrator using core_system_ops and core_utils)
+    Attempts to attach to the screen session of a running Bedrock server. (Linux-specific).
     """
-    if not server_name:
-        # API level validation
-        logger.error("API.attach_to_screen_session: Server name cannot be empty.")
+    if platform.system() != "Linux":
         return {
             "status": "error",
-            "message": "Server name cannot be empty.",
-        }  # Or raise MissingArgumentError
+            "message": "Attaching to screen is only supported on Linux.",
+        }
 
-    logger.info(
-        f"API.attach_to_screen_session: Attempting for server '{server_name}'..."
-    )
+    if not server_name:
+        return {"status": "error", "message": "Server name cannot be empty."}
+
+    logger.info(f"API: Attempting screen attach for server '{server_name}'...")
     try:
-        # Core utility can raise RuntimeError for non-Linux or screen not found
-        # No need to explicitly check platform.system() here if core does it.
+        server = BedrockServer(server_name)
 
-        # Check if server is running first
-        effective_base_dir = get_base_dir(None)  # Can raise FileOperationError
-        if not core_system.is_server_running(
-            server_name, effective_base_dir
-        ):  # Can raise CommandNotFoundError, ResourceMonitorError
+        if not server.is_running():
             msg = f"Cannot attach: Server '{server_name}' is not currently running."
-            logger.warning(f"API.attach_to_screen_session: {msg}")
+            logger.warning(f"API: {msg}")
             return {"status": "error", "message": msg}
 
-        screen_session_name = f"bedrock-{server_name}"
+        # The core logic for attaching is simple enough to live here or in a dedicated method.
+        # Assuming core_utils.core_execute_screen_attach is still the preferred way.
+        screen_session_name = f"bedrock-{server.server_name}"
         success, message = core_utils.core_execute_screen_attach(screen_session_name)
 
         if success:
             logger.info(
-                f"API.attach_to_screen_session: Core reported success for '{screen_session_name}'."
+                f"API: Screen attach command issued for '{screen_session_name}'."
             )
             return {"status": "success", "message": message}
         else:
             logger.warning(
-                f"API.attach_to_screen_session: Core reported failure for '{screen_session_name}': {message}"
+                f"API: Screen attach failed for '{screen_session_name}': {message}"
             )
             return {"status": "error", "message": message}
 
-    except (
-        RuntimeError
-    ) as e:  # From core_utils.core_execute_screen_attach or core_system_ops.is_server_running (if it uses screen)
+    except (CommandNotFoundError, ResourceMonitorError, FileOperationError) as e:
         logger.error(
-            f"API.attach_to_screen_session: Runtime error for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": str(e)}
-    except (
-        FileOperationError,
-        CommandNotFoundError,
-        ResourceMonitorError,
-    ) as e:  # From get_base_dir or is_server_running
-        logger.error(
-            f"API.attach_to_screen_session: Prerequisite error for '{server_name}': {e}",
+            f"API: Prerequisite error for screen attach on '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Error preparing for screen attach: {e}"}
     except Exception as e:
         logger.error(
-            f"API.attach_to_screen_session: Unexpected error for '{server_name}': {e}",
+            f"API: Unexpected error during screen attach for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
@@ -282,48 +204,41 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
 
 def get_system_and_app_info() -> Dict[str, Any]:
     """
-    Retrieves system information and application version using get_utils.
+    Retrieves system information and application version using the BedrockServerManager instance.
     """
-    logger.debug("API.get_system_and_app_info: Request received.")
+    logger.debug("API: Requesting system and app info.")
     try:
-        os_type = get_utils.get_operating_system_type()
-        app_version = get_utils._get_app_version()
-
-        data = {"os_type": os_type, "app_version": app_version}
-        logger.info(f"API.get_system_and_app_info: Successfully retrieved: {data}")
+        data = {"os_type": bsm.get_os_type(), "app_version": bsm.get_app_version()}
+        logger.info(f"API: Successfully retrieved system info: {data}")
         return {"status": "success", "data": data}
-    except SystemError as e:  # If get_utils can raise this API-level error
-        logger.error(f"API.get_system_and_app_info: System error: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
     except Exception as e:
-        logger.error(
-            f"API.get_system_and_app_info: Unexpected error: {e}", exc_info=True
-        )
+        logger.error(f"API: Unexpected error getting system info: {e}", exc_info=True)
         return {"status": "error", "message": "An unexpected error occurred."}
 
 
 @contextmanager
-def _server_stop_start_manager(
+def server_lifecycle_manager(
     server_name: str,
-    base_dir: str,
-    stop_start_flag: bool,
+    stop_before: bool,
+    start_after: bool = True,
     restart_on_success_only: bool = False,
 ):
     """
     Context manager to handle stopping a server before an operation and
-    restarting it afterward if it was running.
+    restarting it afterward, using the BedrockServer class.
 
     Args:
         server_name: The name of the server.
-        base_dir: Base directory for the server.
-        stop_start_flag: If True, perform stop/start.
+        stop_before: If True, stop the server if it's running.
+        start_after: If True, restart the server if it was stopped by this manager.
         restart_on_success_only: If True, only attempt restart if the managed
-                                 block ('yield') completed without exceptions.
+                                 block completed without exceptions.
     """
+    server = BedrockServer(server_name)
     was_running = False
     operation_succeeded = True
 
-    if not stop_start_flag:
+    if not stop_before:
         logger.debug(
             f"Context Mgr: Stop/Start not flagged for '{server_name}'. Skipping."
         )
@@ -331,62 +246,56 @@ def _server_stop_start_manager(
         return
 
     try:
-        logger.debug(
-            f"Context Mgr: Checking status for '{server_name}' (Stop/Start: {stop_start_flag})"
-        )
-        if core_server_actions.check_if_server_is_running(server_name):
+        if server.is_running():
             was_running = True
             logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
-            stop_result = api_stop_server(server_name, base_dir)
+            stop_result = api_stop_server(server_name)
             if stop_result.get("status") == "error":
-                raise FileOperationError(
-                    f"Context Mgr: Failed to stop server '{server_name}' for operation: {stop_result.get('message')}"
-                )
+                error_msg = f"Failed to stop server '{server_name}': {stop_result.get('message')}. Aborted."
+                logger.error(error_msg)
+                return {"status": "error", "message": error_msg}
             logger.info(f"Context Mgr: Server '{server_name}' stopped.")
         else:
             logger.debug(
                 f"Context Mgr: Server '{server_name}' is not running. No stop needed."
             )
 
-        yield
+        yield  # The wrapped operation runs here
 
     except Exception:
         operation_succeeded = False
         logger.error(
-            f"Context Mgr: Exception occurred during managed operation for '{server_name}'."
+            f"Context Mgr: Exception occurred during managed operation for '{server_name}'.",
+            exc_info=True,
         )
-        raise
+        raise  # Re-raise the exception after logging it
     finally:
-        if stop_start_flag and was_running:
-            should_restart_based_on_success_flag = True
-            if restart_on_success_only and not operation_succeeded:  # Check the flag
-                should_restart_based_on_success_flag = False
+        if was_running and start_after:
+            should_restart = True
+            if restart_on_success_only and not operation_succeeded:
+                should_restart = False
                 logger.warning(
-                    f"Context Mgr: Operation for '{server_name}' failed, and restart_on_success_only is True. Skipping restart."
+                    f"Context Mgr: Operation for '{server_name}' failed. Skipping restart as requested."
                 )
 
-            if should_restart_based_on_success_flag:
-                if (
-                    not operation_succeeded
-                ):  # Still attempt if restart_on_success_only is False
-                    logger.warning(
-                        f"Context Mgr: Attempting to restart '{server_name}' despite operation error (restart_on_success_only is False or operation succeeded)."
-                    )
-                else:
-                    logger.info(f"Context Mgr: Restarting server '{server_name}'...")
-
-                start_result = api_start_server(server_name, base_dir, mode="detached")
-                if start_result.get("status") == "error":
-                    logger.error(
-                        f"Context Mgr: Failed to restart '{server_name}': {start_result.get('message')}"
-                    )
-                    if (
-                        operation_succeeded
-                    ):  # If main op was fine, this error is now primary
-                        raise FileOperationError(
-                            f"Operation successful, but failed to restart server '{server_name}': {start_result.get('message')}"
+            if should_restart:
+                logger.info(f"Context Mgr: Restarting server '{server_name}'...")
+                try:
+                    # Using the API function for detached mode is often best here
+                    start_result = api_start_server(server_name, mode="detached")
+                    if start_result.get("status") == "error":
+                        raise ServerStartError(
+                            f"Failed to restart '{server_name}': {start_result.get('message')}"
                         )
-                else:
                     logger.info(
                         f"Context Mgr: Server '{server_name}' restart initiated."
                     )
+                except (ServerStartError, CommandNotFoundError) as e:
+                    logger.error(
+                        f"Context Mgr: FAILED to restart '{server_name}': {e}",
+                        exc_info=True,
+                    )
+                    # Decide if this should be a critical failure
+                    if operation_succeeded:
+                        # If the main operation was fine, the failure to restart becomes the primary error.
+                        raise
