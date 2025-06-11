@@ -78,6 +78,14 @@ def export_world(
     try:
         server = BedrockServer(server_name)
 
+        if server.is_running():
+            try:
+                server.send_command("say Installing exporting world...")
+            except (SendCommandError, ServerNotRunningError) as e:
+                logger.warning(
+                    f"API: Failed to send world export warning to '{server_name}': {e}"
+                )
+
         # Determine export directory
         if export_dir:
             effective_export_dir = export_dir
