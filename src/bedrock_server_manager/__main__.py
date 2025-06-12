@@ -41,6 +41,7 @@ from bedrock_server_manager.cli import (
     main_menus,
     addon,
     backup_restore,
+    cleanup,
     generate_password,
     player,
     server,
@@ -130,6 +131,7 @@ cli.add_command(world.world)
 
 # Add standalone commands from our modules
 cli.add_command(addon.install_addon)
+cli.add_command(cleanup.cleanup)
 cli.add_command(
     generate_password.generate_password_hash_command, name="generate-password"
 )
