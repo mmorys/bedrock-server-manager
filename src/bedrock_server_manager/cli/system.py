@@ -1,229 +1,189 @@
 # bedrock_server_manager/cli/system.py
 """
-Command-line interface functions for system-level operations related to servers.
+Click command group for system-level operations related to servers.
 
-Provides handlers for CLI commands to create/configure OS services (systemd on Linux,
-autoupdate flag on Windows) and monitor server resource usage. Uses print() for user
-interaction and feedback.
+Provides commands to create/configure OS services and monitor resource usage.
 """
 
-import os
 import time
 import logging
 import platform
-from typing import Optional
+from typing import Dict, Any
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
+import questionary
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
 from bedrock_server_manager.api import system as system_api
-from bedrock_server_manager.error import (
-    BSMError,
-    InvalidServerNameError,
-)
-from bedrock_server_manager.utils.general import (
-    select_option,
-    _INFO_PREFIX,
-    _OK_PREFIX,
-    _WARN_PREFIX,
-    _ERROR_PREFIX,
-)
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def configure_service(server_name: str) -> None:
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
     """
-    CLI handler to interactively configure OS-specific service settings for a server.
+    Handles responses from API calls, displaying success or error messages.
 
     Args:
-        server_name: The name of the server.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+        response: The dictionary response from an API call.
+        success_msg: Default message to display on success if API provides no message.
 
-    logger.debug(
-        f"CLI: Starting interactive service configuration for server '{server_name}'."
-    )
+    Raises:
+        click.Abort: If the API response indicates an error.
+    """
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
+    else:
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
+
+
+@click.group()
+def system():
+    """Commands for OS-level integrations and monitoring."""
+    pass
+
+
+@system.command("configure-service")
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server to configure.",
+)
+def configure_service(server_name: str):
+    """Interactively configure OS-specific service settings."""
     os_name = platform.system()
+    if os_name not in ("Windows", "Linux"):
+        click.secho(
+            f"Automated service configuration is not supported on this OS ({os_name}).",
+            fg="red",
+        )
+        return
 
     try:
-        # Check for supported operating systems first.
-        if os_name not in ("Windows", "Linux"):
-            print(
-                f"{_ERROR_PREFIX}Automated service configuration is not supported on this OS ({os_name})."
-            )
-            return
+        click.secho(f"--- Configuring Service for '{server_name}' ---", bold=True)
 
-        # --- Section 1: Autoupdate (Common to Windows & Linux) ---
-        print(f"\n{_INFO_PREFIX}Configuring autoupdate setting for '{server_name}'...")
-        enable_autoupdate = (
-            select_option("Enable check for updates on server start?", "n", "y", "n")
-            == "y"
-        )
+        # 1. Autoupdate (Common to both OSes)
+        enable_autoupdate = questionary.confirm(
+            "Enable check for updates on server start?", default=False
+        ).ask()
+        if enable_autoupdate is None:
+            raise click.Abort()
+
         autoupdate_value = "true" if enable_autoupdate else "false"
-
-        logger.debug(
-            f"Calling API: system_api.set_autoupdate (Value={autoupdate_value})"
-        )
         autoupdate_response = system_api.set_autoupdate(server_name, autoupdate_value)
+        _handle_api_response(autoupdate_response, "Autoupdate setting configured.")
 
-        # Process API response for autoupdate
-        if autoupdate_response:
-            if autoupdate_response.get("status") == "error":
-                message = autoupdate_response.get(
-                    "message", "Unknown error configuring autoupdate."
-                )
-                print(f"{_ERROR_PREFIX}{message}")
-            else:
-                message = autoupdate_response.get(
-                    "message", "Autoupdate configured successfully."
-                )
-                print(f"{_OK_PREFIX}{message}")
-        else:
-            print(
-                f"{_ERROR_PREFIX}Failed to configure autoupdate: No response from API."
-            )
-
-        # --- Section 2: Autostart (Linux-specific) ---
+        # 2. Autostart (Linux only)
         if os_name == "Linux":
-            print(
-                f"\n{_INFO_PREFIX}Configuring systemd service for '{server_name}' (Linux)..."
-            )
-            enable_autostart = (
-                select_option(
-                    "Enable service to start automatically on system boot?",
-                    "n",
-                    "y",
-                    "n",
-                )
-                == "y"
-            )
+            click.secho("\n--- Configuring systemd Service (Linux) ---", bold=True)
+            enable_autostart = questionary.confirm(
+                "Enable service to start automatically on system boot?", default=False
+            ).ask()
+            if enable_autostart is None:
+                raise click.Abort()
 
-            logger.debug(
-                f"Calling API: system_api.create_systemd_service (Start={enable_autostart})"
-            )
             autostart_response = system_api.create_systemd_service(
                 server_name, enable_autoupdate, enable_autostart
             )
+            _handle_api_response(autostart_response, "Systemd service configured.")
 
-            # Process API response for autostart
-            if autostart_response:
-                if autostart_response.get("status") == "error":
-                    message = autostart_response.get(
-                        "message", "Unknown error configuring systemd service."
-                    )
-                    print(f"{_ERROR_PREFIX}{message}")
-                else:
-                    message = autostart_response.get(
-                        "message", "Systemd service configured successfully."
-                    )
-                    print(f"{_OK_PREFIX}{message}")
-            else:
-                print(
-                    f"{_ERROR_PREFIX}Failed to configure systemd service: No response from API."
-                )
+        click.secho("\nService configuration complete.", fg="green", bold=True)
 
     except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred during configuration: {e}")
+        click.secho(f"An error occurred: {e}", fg="red")
+        raise click.Abort()
+    except (click.Abort, KeyboardInterrupt):
+        click.secho("\nConfiguration cancelled.", fg="yellow")
 
 
-def enable_service(server_name: str) -> None:
-    """CLI handler to enable the systemd service for a server (autostart on login). (Linux-specific)"""
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+@system.command("enable-service")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the server."
+)
+def enable_service(server_name: str):
+    """Enables the systemd service to autostart (Linux only)."""
+    if platform.system() != "Linux":
+        click.secho("This command is only available on Linux.", fg="red")
+        return
 
-    logger.debug(f"CLI: Requesting to enable service for server '{server_name}'...")
-    print(f"{_INFO_PREFIX}Attempting to enable service for '{server_name}'...")
+    click.echo(f"Attempting to enable service for '{server_name}'...")
     try:
         response = system_api.enable_server_service(server_name)
-        if response.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{response.get('message', 'Unknown error.')}")
-        else:
-            print(f"{_OK_PREFIX}{response.get('message', 'Service enabled.')}")
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
+        _handle_api_response(response, "Service enabled successfully.")
+    except BSMError as e:
+        click.secho(f"Failed to enable service: {e}", fg="red")
+        raise click.Abort()
 
 
-def disable_service(server_name: str) -> None:
-    """CLI handler to disable the systemd service for a server. (Linux-specific)"""
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+@system.command("disable-service")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the server."
+)
+def disable_service(server_name: str):
+    """Disables the systemd service from autostarting (Linux only)."""
+    if platform.system() != "Linux":
+        click.secho("This command is only available on Linux.", fg="red")
+        return
 
-    logger.debug(f"CLI: Requesting to disable service for server '{server_name}'...")
-    print(f"{_INFO_PREFIX}Attempting to disable service for '{server_name}'...")
+    click.echo(f"Attempting to disable service for '{server_name}'...")
     try:
         response = system_api.disable_server_service(server_name)
-        if response.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{response.get('message', 'Unknown error.')}")
-        else:
-            print(f"{_OK_PREFIX}{response.get('message', 'Service disabled.')}")
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
+        _handle_api_response(response, "Service disabled successfully.")
+    except BSMError as e:
+        click.secho(f"Failed to disable service: {e}", fg="red")
+        raise click.Abort()
 
 
-def _monitor_loop(server_name: str) -> None:
-    """Internal helper to continuously fetch and display server resource usage."""
-    logger.debug(f"Starting monitoring loop for server '{server_name}'.")
+@system.command("monitor")
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server to monitor.",
+)
+def monitor_usage(server_name: str):
+    """Continuously monitor CPU and memory usage of a server."""
+    click.secho(f"Starting resource monitoring for server '{server_name}'.", fg="cyan")
+    click.echo("Press CTRL+C to exit.")
+    time.sleep(1)
+
     try:
         while True:
             response = system_api.get_bedrock_process_info(server_name)
 
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"{Style.BRIGHT}{Fore.MAGENTA}--- Monitoring Server: {server_name} ---{Style.RESET_ALL}"
+            click.clear()  # The idiomatic way to clear the screen
+            click.secho(
+                f"--- Monitoring Server: {server_name} ---", fg="magenta", bold=True
             )
-            print("Press CTRL + C to exit monitor\n")
+            click.echo(
+                f"(Last updated: {time.strftime('%H:%M:%S')}, Press CTRL+C to exit)\n"
+            )
 
             if response.get("status") == "error":
-                message = response.get("message", "Unknown error retrieving status.")
-                print(f"{Fore.RED}Error: {message}{Style.RESET_ALL}")
+                click.secho(f"Error: {response.get('message')}", fg="red")
             elif response.get("process_info") is None:
-                print(
-                    f"{Fore.YELLOW}Server process not found (likely stopped).{Style.RESET_ALL}"
-                )
+                click.secho("Server process not found (likely stopped).", fg="yellow")
             else:
-                process_info = response["process_info"]
-                print(f"PID          : {process_info.get('pid', 'N/A')}")
-                print(f"CPU Usage    : {process_info.get('cpu_percent', 0.0):.1f}%")
-                print(f"Memory Usage : {process_info.get('memory_mb', 0.0):.1f} MB")
-                print(f"Uptime       : {process_info.get('uptime', 'N/A')}")
+                info = response["process_info"]
+                click.echo(f"  {'PID':<12}: {info.get('pid', 'N/A')}")
+                click.echo(f"  {'CPU Usage':<12}: {info.get('cpu_percent', 0.0):.1f}%")
+                click.echo(
+                    f"  {'Memory Usage':<12}: {info.get('memory_mb', 0.0):.1f} MB"
+                )
+                click.echo(f"  {'Uptime':<12}: {info.get('uptime', 'N/A')}")
 
             time.sleep(2)
-
-    except KeyboardInterrupt:
-        print(f"\n{_OK_PREFIX}Monitoring stopped by user.")
-    except Exception as e:
-        print(f"\n{_ERROR_PREFIX}An unexpected error occurred during monitoring: {e}")
+    except (KeyboardInterrupt, click.Abort):
+        click.secho("\nMonitoring stopped.", fg="green")
 
 
-def monitor_service_usage(server_name: str) -> None:
-    """
-    CLI handler to continuously monitor and display the CPU and memory usage of a server.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Starting resource monitoring for server '{server_name}'.")
-    try:
-        _monitor_loop(server_name)
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
+if __name__ == "__main__":
+    # Allows for direct testing of this command group
+    # python -m bedrock_server_manager.cli.system monitor --server my_server
+    logging.basicConfig(level=logging.INFO)
+    system()

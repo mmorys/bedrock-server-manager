@@ -1,218 +1,112 @@
 # bedrock_server_manager/cli/addon.py
 """
-Command-line interface functions for managing server addons (worlds, packs).
+Click command for managing server addons (.mcpack, .mcaddon).
 
-Provides functionality triggered by CLI commands to list and install addons.
-Uses print() for user-facing output and prompts.
+Provides a single command to install addons either from a specified file
+or via an interactive selection menu.
 """
 
 import os
 import logging
-from typing import Optional, List
+from typing import Optional, Dict, Any
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
+import questionary
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
 from bedrock_server_manager.api import addon as addon_api
 from bedrock_server_manager.api import application as api_application
-from bedrock_server_manager.error import (
-    BSMError,
-    MissingArgumentError,
-    InvalidServerNameError,
-)
-from bedrock_server_manager.utils.general import (
-    _INFO_PREFIX,
-    _OK_PREFIX,
-    _WARN_PREFIX,
-    _ERROR_PREFIX,
-)
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def import_addon(server_name: str, addon_file_path: str) -> None:
-    """
-    CLI handler function to install a single specified addon file.
-
-    Calls the corresponding API function and prints the result to the console.
-
-    Args:
-        server_name: The name of the target server.
-        addon_file_path: The full path to the addon file (.mcworld, .mcaddon, .mcpack).
-
-    Raises:
-        MissingArgumentError: If `addon_file_path` is empty.
-        InvalidServerNameError: If `server_name` is empty.
-        # Other errors from addon_api.import_addon are caught and printed.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not addon_file_path:
-        raise MissingArgumentError("Addon file path cannot be empty.")
-
-    addon_filename = os.path.basename(addon_file_path)
-    logger.debug(
-        f"CLI: Initiating import for addon '{addon_filename}' to server '{server_name}'."
-    )
-    logger.debug(f"Calling API: addon_api.import_addon with file: {addon_file_path}")
-
-    try:
-        response = addon_api.import_addon(server_name, addon_file_path)
-        logger.debug(f"API response for import_addon: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error during addon import.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Addon import failed for '{addon_filename}': {message}")
-        else:
-            message = response.get(
-                "message", f"Addon '{addon_filename}' installed successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: Addon import successful for '{addon_filename}'.")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(f"CLI: Failed to call addon import API: {e}", exc_info=True)
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
-        logger.error(f"CLI: Unexpected error during addon import: {e}", exc_info=True)
-
-
-def install_addons(server_name: str) -> None:
-    """
-    CLI handler function to present a menu for installing addons (.mcaddon, .mcpack).
-
-    Lists available addons by calling the API and prompts the user for selection.
-
-    Args:
-        server_name: The name of the target server.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(
-        f"CLI: Initiating interactive addon installation for server '{server_name}'."
-    )
-    try:
-        logger.debug(
-            "Calling API: api_application.list_available_addons_api to get addon list."
-        )
-        list_response = api_application.list_available_addons_api()
-        logger.debug(f"API response for list_available_addons_api: {list_response}")
-
-        if list_response.get("status") == "error":
-            message = list_response.get("message", "Unknown error listing addon files.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Failed to list addon files: {message}")
-            return
-
-        addon_file_paths = list_response.get("files", [])
-        if not addon_file_paths:
-            app_info_response = api_application.get_application_info_api()
-            addon_dir = "the content directory"  # Fallback message
-            if app_info_response.get("status") == "success":
-                addon_dir = os.path.join(
-                    app_info_response["data"]["content_directory"], "addons"
-                )
-
-            print(
-                f"{_WARN_PREFIX}No addon files (.mcaddon, .mcpack) found in '{addon_dir}'."
-            )
-            logger.warning(f"No addon files found when requested by the API.")
-            return
-
-        show_addon_selection_menu(server_name, addon_file_paths)
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Prerequisite for addon installation failed: {e}", exc_info=True
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred: {e}")
-        logger.error(
-            f"CLI: Unexpected error during addon installation setup: {e}", exc_info=True
-        )
-
-
-def show_addon_selection_menu(server_name: str, addon_file_paths: List[str]) -> None:
-    """
-    Displays an interactive menu for selecting an addon file and triggers its installation.
-
-    Args:
-        server_name: The name of the target server.
-        addon_file_paths: A list of full paths to the available addon files.
-
-    Raises:
-        MissingArgumentError: If `addon_file_paths` list is empty.
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not addon_file_paths:
-        raise MissingArgumentError("Addon files list cannot be empty.")
-
-    addon_basenames = [os.path.basename(file) for file in addon_file_paths]
-    num_addons = len(addon_basenames)
-    cancel_option_num = num_addons + 1
-
-    logger.debug(f"Displaying addon selection menu with {num_addons} options.")
-    print(f"{_INFO_PREFIX}Available addons to install:")
-    for i, name in enumerate(addon_basenames):
-        print(f"  {i + 1}. {name}")
-    print(f"  {cancel_option_num}. Cancel Installation")
-
-    selected_addon_path: Optional[str] = None
-    while True:
-        try:
-            choice_str = input(
-                f"{Fore.CYAN}Select an addon to install (1-{cancel_option_num}):{Style.RESET_ALL} "
-            ).strip()
-            choice = int(choice_str)
-
-            if 1 <= choice <= num_addons:
-                selected_addon_path = addon_file_paths[choice - 1]
-                logger.debug(f"User selected addon: {selected_addon_path}")
-                break
-            elif choice == cancel_option_num:
-                print(f"{_INFO_PREFIX}Addon installation canceled by user.")
-                logger.debug("User canceled addon installation from menu.")
-                return
-            else:
-                print(
-                    f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose a number between 1 and {cancel_option_num}."
-                )
-                logger.debug(f"User entered invalid menu choice: {choice}")
-        except ValueError:
-            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
-            logger.debug(f"User entered non-numeric input: '{choice_str}'")
-
-    if selected_addon_path:
-        print(
-            f"{_INFO_PREFIX}Installing selected addon: {os.path.basename(selected_addon_path)}..."
-        )
-        import_addon(server_name, selected_addon_path)
+# A helper to reduce code duplication in API response handling
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
+    """Prints styled success or error message based on API response."""
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
     else:
-        logger.error(
-            "Exited addon selection loop without a valid selection or cancellation."
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
+
+
+@click.command("install-addon")
+@click.option("-s", "--server", required=True, help="Name of the target server.")
+@click.option(
+    "-f",
+    "--file",
+    "addon_file_path",
+    type=click.Path(exists=True, dir_okay=False, resolve_path=True),
+    help="Full path to the addon file (.mcpack, .mcaddon). Skips interactive menu.",
+)
+def install_addon(server: str, addon_file_path: Optional[str]):
+    """
+    Installs an addon to the specified Bedrock server.
+
+    This command can install an addon from a local file path provided with the
+    --file option. If --file is not specified, it enters an interactive mode,
+    listing available addons from the application's content directory for selection.
+    """
+    try:
+        selected_addon_path = addon_file_path
+
+        # If no file is provided via CLI option, enter interactive mode
+        if not selected_addon_path:
+            click.secho(
+                f"Entering interactive addon installation for server: {server}",
+                fg="yellow",
+            )
+
+            # Get list of available addons from the API
+            list_response = api_application.list_available_addons_api()
+            available_files = list_response.get("files", [])
+
+            if not available_files:
+                # Provide a helpful message if no addons are found
+                app_info = api_application.get_application_info_api().get("data", {})
+                addon_dir = os.path.join(
+                    app_info.get("content_directory", ""), "addons"
+                )
+                click.secho(
+                    f"Warning: No addon files found in '{addon_dir}'.", fg="yellow"
+                )
+                return
+
+            # Create a mapping from user-friendly basename to full path
+            file_map = {os.path.basename(f): f for f in available_files}
+
+            selection = questionary.select(
+                "Select an addon to install:",
+                choices=list(file_map.keys()) + ["Cancel"],
+            ).ask()
+
+            if not selection or selection == "Cancel":
+                raise click.Abort()
+
+            selected_addon_path = file_map[selection]
+
+        # At this point, selected_addon_path is guaranteed to be a valid path
+        addon_filename = os.path.basename(selected_addon_path)
+        click.echo(f"Installing addon '{addon_filename}' to server '{server}'...")
+        logger.debug(
+            f"CLI: Calling addon_api.import_addon for file: {selected_addon_path}"
         )
+
+        response = addon_api.import_addon(server, selected_addon_path)
+
+        success_message = f"Addon '{addon_filename}' installed successfully."
+        _handle_api_response(response, success_message)
+
+    except BSMError as e:
+        click.secho(f"An error occurred: {e}", fg="red")
+        raise click.Abort()
+    except click.Abort:
+        click.secho("Addon installation cancelled.", fg="yellow")
+
+
+if __name__ == "__main__":
+    # Allows for direct testing of this command
+    logging.basicConfig(level=logging.INFO)
+    install_addon()

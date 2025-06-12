@@ -30,11 +30,10 @@ dependencies = [
     "flask >= 3.1.0",
     "flask-wtf >= 1.2.2",
     "flask-jwt-extended >= 4.7.1",
-    "waitress >= 3.0.2"
+    "waitress >= 3.0.2",
+    "click >= 3.2.0",
+    "questionary >= 2.1.0"
 ]
-
-[project.optional-dependencies]
-color = ["colorama"]
 
 keywords = ["minecraft", "bedrock", "server"]
 

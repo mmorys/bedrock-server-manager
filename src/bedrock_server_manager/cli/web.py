@@ -1,144 +1,106 @@
 # bedrock_server_manager/cli/web.py
 """
-Command-line interface functions for managing the application's web server process.
-
-Provides handlers for CLI commands to start the web server (directly or detached)
-and potentially stop it (though stopping is not currently implemented).
-Uses print() for user feedback.
+Click command group for managing the application's web server process.
 """
 
 import logging
-from typing import Optional, Dict, Any, List, Union
+from typing import Dict, Any, Tuple
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
-from bedrock_server_manager.utils.general import (
-    _OK_PREFIX,
-    _ERROR_PREFIX,
-    _INFO_PREFIX,
-)
 from bedrock_server_manager.api import web as web_api
-
-# Import errors that might be raised by API layer
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def start_web_server(
-    host: Optional[Union[str, List[str]]] = None,
-    debug: bool = False,
-    mode: str = "direct",
-) -> None:
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
     """
-    CLI handler function to start the application's web server.
-
-    Calls the corresponding API function based on the specified mode.
+    Handles responses from API calls, displaying success or error messages.
 
     Args:
-        host: Optional. The host address or list of addresses to bind to.
-        debug: If True, run in Flask's debug mode.
-        mode: Startup mode: "direct" (blocking) or "detached" (background).
-    """
-    logger.debug(
-        f"CLI: Requesting to start web server. Host='{host}', Debug={debug}, Mode='{mode}'"
-    )
+        response: The dictionary response from an API call.
+        success_msg: Default message to display on success if API provides no message.
 
-    print(f"{_INFO_PREFIX}Attempting to start web server in '{mode}' mode...")
+    Raises:
+        click.Abort: If the API response indicates an error.
+    """
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
+    else:
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
+
+
+@click.group()
+def web():
+    """Commands for managing the web management interface."""
+    pass
+
+
+@web.command("start")
+@click.option(
+    "-H",
+    "--host",
+    multiple=True,
+    help="Host address to bind to. Use multiple times for multiple hosts (e.g., --host 127.0.0.1 --host 0.0.0.0).",
+)
+@click.option(
+    "-d",
+    "--debug",
+    is_flag=True,
+    help="Run in Flask's debug mode (NOT for production).",
+)
+@click.option(
+    "-m",
+    "--mode",
+    type=click.Choice(["direct", "detached"], case_sensitive=False),
+    default="direct",
+    show_default=True,
+    help="Run mode: 'direct' blocks the terminal, 'detached' runs in the background.",
+)
+def start_web_server(host: Tuple[str], debug: bool, mode: str):
+    """Starts the web management server."""
+    click.echo(f"Attempting to start web server in '{mode}' mode...")
     if mode == "direct":
-        print(f"{_INFO_PREFIX}Server will run in this terminal. Press Ctrl+C to stop.")
+        click.secho(
+            "Server will run in this terminal. Press Ctrl+C to stop.", fg="cyan"
+        )
 
     try:
-        logger.debug(
-            f"Calling API: web_api.start_web_server (Host='{host}', Debug={debug}, Mode='{mode}')"
-        )
-        # The `host` argument passed here is now Optional[Union[str, List[str]]],
-        # matching the updated signature of web_api.start_web_server
-        response: Dict[str, Any] = web_api.start_web_server_api(host, debug, mode)
-        logger.debug(f"API response from start_web_server: {response}")
+        # The API likely expects a list, so we convert the tuple from `multiple=True`.
+        # Pass an empty list if no hosts are provided, letting the API use its default.
+        host_list = list(host)
+
+        response = web_api.start_web_server_api(host_list, debug, mode)
 
         if response.get("status") == "error":
-            message = response.get("message", "Unknown error starting web server.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Start web server failed: {message}")
+            click.secho(f"Error: {response.get('message')}", fg="red")
         else:
             if mode == "detached":
-                pid = response.get("pid")
+                pid = response.get("pid", "N/A")
                 message = response.get(
-                    "message",
-                    f"Web server started successfully in detached mode (PID: {pid}).",
+                    "message", f"Web server started in detached mode (PID: {pid})."
                 )
-                print(f"{_OK_PREFIX}{message}")
-                logger.debug(
-                    f"CLI: Detached web server started successfully (PID: {pid})."
-                )
-            else:  # direct mode
-                # Message for direct mode shutdown is handled by web_api.start_web_server
-                # or user sees server output directly.
-                logger.info(
-                    "CLI: Web server (direct mode) has started and is blocking. It will log its own shutdown or user will Ctrl+C."
-                )
-                pass
-
-    except (ValueError, BSMError) as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(f"CLI: Failed to call start web server API: {e}", exc_info=True)
-    except Exception as e:
-        print(
-            f"{_ERROR_PREFIX}An unexpected error occurred while starting the web server: {e}"
-        )
-        logger.error(f"CLI: Unexpected error starting web server: {e}", exc_info=True)
+                click.secho(f"Success: {message}", fg="green")
+            # For 'direct' mode, the process blocks, so no success message is needed here.
+            # The user will see the server's own startup logs.
+    except BSMError as e:
+        click.secho(f"Failed to start web server: {e}", fg="red")
+        raise click.Abort()
 
 
-def stop_web_server() -> None:
-    """
-    CLI handler function to stop the detached web server process.
-
-    *** Currently Not Implemented ***
-    Prints a message indicating lack of implementation.
-    """
-    logger.debug("CLI: Requesting to stop web server...")
-    # --- User Interaction: Initial Message ---
-    print(f"{_INFO_PREFIX}Attempting to stop web server...")
-    # --- End User Interaction ---
-
+@web.command("stop")
+def stop_web_server():
+    """Stops the detached web server process (if implemented)."""
+    click.echo("Attempting to stop the web server...")
     try:
-        # Call the API function
-        logger.debug("Calling API: web_api.stop_web_server")
-        response: Dict[str, str] = web_api.stop_web_server_api()  # Returns dict
-        logger.debug(f"API response from stop_web_server: {response}")
-
-        # --- User Interaction: Print Result ---
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error stopping web server.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Stop web server failed: {message}")
-        else:
-            message = response.get("message", "Web server stopped successfully.")
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug("CLI: Stop web server successful.")
-        # --- End User Interaction ---
-
-    except Exception as e:
-        # Catch unexpected errors during API call
-        print(
-            f"{_ERROR_PREFIX}An unexpected error occurred while stopping the web server: {e}"
-        )
-        logger.error(f"CLI: Unexpected error stopping web server: {e}", exc_info=True)
+        response = web_api.stop_web_server_api()
+        # The API itself will return the "not implemented" message, which our handler will print.
+        # This is good design, keeping the "not implemented" logic in the API layer.
+        _handle_api_response(response, "Web server stopped successfully.")
+    except BSMError as e:
+        click.secho(f"An error occurred: {e}", fg="red")
+        raise click.Abort()

@@ -1,577 +1,326 @@
 # bedrock_server_manager/cli/task_scheduler.py
 """
-Command-line interface functions for managing scheduled tasks.
+Click command group for managing scheduled tasks for servers.
 
-Provides interactive menus and calls API functions to handle scheduling of
-server operations via Linux cron jobs or Windows Task Scheduler.
+Provides an interactive, platform-aware interface for creating, viewing,
+and deleting scheduled tasks via cron (Linux) or Task Scheduler (Windows).
 """
 
-import os
-import time
 import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+import platform
+from typing import Dict, List, Any, Optional, Tuple
 
-try:
-    from colorama import Fore, Style, init
-except ImportError:
-
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
+import click
+import questionary
+from questionary import Validator, ValidationError
 
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
-from bedrock_server_manager.config.const import EXPATH, app_name_title
-from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.error import (
-    BSMError,
-    InvalidServerNameError,
-    MissingArgumentError,
-)
-from bedrock_server_manager.utils.general import (
-    get_base_dir,
-    _INFO_PREFIX,
-    _OK_PREFIX,
-    _WARN_PREFIX,
-    _ERROR_PREFIX,
-)
+from bedrock_server_manager.config.const import EXPATH
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
-APP_DISPLAY_NAME = app_name_title
 
 
-def task_scheduler(server_name: str, base_dir: Optional[str] = None) -> None:
-    """Main entry point for the task scheduler CLI menu."""
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+# --- Helper Functions and Validators ---
 
-    logger.debug(f"CLI: Entering task scheduler for server '{server_name}'.")
 
-    if isinstance(
-        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
-    ):
-        logger.debug("Dispatching to Linux cron scheduler menu.")
-        _cron_scheduler(server_name)
-    elif isinstance(
-        api_task_scheduler.scheduler, api_task_scheduler.core_task.WindowsTaskScheduler
-    ):
-        logger.debug("Dispatching to Windows Task Scheduler menu.")
-        _windows_scheduler(server_name)
+class CronTimeValidator(Validator):
+    """
+    Basic validator for cron time string inputs.
+    Ensures the input is not empty. A more advanced version could use regex
+    to validate the cron string format more thoroughly.
+    """
+
+    def validate(self, document):
+        # A basic validator. A real-world one might use a more complex regex.
+        value = document.text.strip()
+        if not value:
+            raise ValidationError(
+                message="Input cannot be empty. Use '*' for any value.",
+                cursor_position=0,
+            )
+
+
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
+    """
+    Handles responses from API calls, displaying success or error messages.
+
+    Args:
+        response: The dictionary response from an API call.
+        success_msg: Default message to display on success if API provides no message.
+
+    Raises:
+        click.Abort: If the API response indicates an error.
+    """
+    if response.get("status") == "error":
+        click.secho(f"Error: {response.get('message', 'Unknown error')}", fg="red")
+        raise click.Abort()
     else:
-        message = "Task scheduling is not supported or not configured on this operating system."
-        print(f"{_ERROR_PREFIX}{message}")
-        logger.error(message)
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
 
 
-def _cron_scheduler(server_name: str) -> None:
-    """Displays the Linux cron job management menu."""
-    while True:
-        try:
-            os.system("clear")
-            print(
-                f"\n{Fore.MAGENTA}{APP_DISPLAY_NAME} - Cron Job Scheduler{Style.RESET_ALL}"
-            )
-            print(
-                f"{Fore.CYAN}Managing tasks for server: {Fore.YELLOW}{server_name}{Style.RESET_ALL}\n"
-            )
-
-            cron_resp = api_task_scheduler.get_server_cron_jobs(server_name)
-            if cron_resp.get("status") == "error":
-                print(f"{_ERROR_PREFIX}{cron_resp.get('message')}")
-            else:
-                display_cron_job_table(cron_resp.get("cron_jobs", []))
-
-            print(f"\n{Fore.MAGENTA}Options:{Style.RESET_ALL}")
-            print(
-                "  1) Add New Cron Job\n  2) Modify Existing Cron Job\n  3) Delete Cron Job\n  4) Back to Advanced Menu"
-            )
-
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-4]:{Style.RESET_ALL} "
-            ).strip()
-            if choice == "1":
-                add_cron_job(server_name)
-            elif choice == "2":
-                modify_cron_job(server_name)
-            elif choice == "3":
-                delete_cron_job(server_name)
-            elif choice == "4":
-                return
-            else:
-                print(f"{_WARN_PREFIX}Invalid selection. Please choose again.")
-                time.sleep(1.5)
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to previous menu...")
-            return
-        except Exception as e:
-            print(f"\n{_ERROR_PREFIX}An unexpected error occurred: {e}")
-            logger.error(
-                f"Error in cron scheduler menu for '{server_name}': {e}", exc_info=True
-            )
-            input("Press Enter to continue...")
+# --- Platform-Specific Display and Logic ---
 
 
-def display_cron_job_table(cron_jobs: List[str]) -> None:
+def _display_cron_table(cron_jobs: List[str]):
     """Displays a formatted table of cron jobs."""
     table_resp = api_task_scheduler.get_cron_jobs_table(cron_jobs)
-    if table_resp.get("status") == "error":
-        print(f"{_ERROR_PREFIX}{table_resp.get('message')}")
+    if not table_resp.get("table_data"):
+        click.secho("No scheduled cron jobs found for this server.", fg="cyan")
         return
 
-    table_data = table_resp.get("table_data", [])
-    if not table_data:
-        print(f"{_INFO_PREFIX}No scheduled cron jobs found for this server context.")
-        return
-
-    print("-" * 75)
-    print(f"{'SCHEDULE (Raw)':<20} {'SCHEDULE (Readable)':<25} {'COMMAND':<25}")
-    print("-" * 75)
-    for job in table_data:
-        raw_schedule = f"{job['minute']} {job['hour']} {job['day_of_month']} {job['month']} {job['day_of_week']}"
-        print(
-            f"{Fore.GREEN}{raw_schedule:<20}{Style.RESET_ALL}"
-            f"{Fore.CYAN}{job.get('schedule_time', 'N/A'):<25}{Style.RESET_ALL} "
-            f"{Fore.YELLOW}{job.get('command_display', 'N/A'):<25}{Style.RESET_ALL}"
+    click.secho(
+        f"{'SCHEDULE (Raw)':<20} {'SCHEDULE (Readable)':<25} {'COMMAND'}", bold=True
+    )
+    click.echo("-" * 80)
+    for job in table_resp["table_data"]:
+        raw = f"{job['minute']} {job['hour']} {job['day_of_month']} {job['month']} {job['day_of_week']}"
+        click.echo(
+            f"{click.style(raw, fg='green'):<32} {click.style(job.get('schedule_time', 'N/A'), fg='cyan'):<25} {click.style(job.get('command_display', 'N/A'), fg='yellow')}"
         )
-    print("-" * 75)
+    click.echo("-" * 80)
 
 
-def add_cron_job(server_name: str) -> None:
-    """CLI handler to interactively add a new cron job."""
-    print(f"\n{_INFO_PREFIX}Add New Cron Job")
-    command_to_schedule = _get_command_to_schedule(server_name)
-    if not command_to_schedule:
-        return
-
-    schedule_parts = _get_cron_schedule_details()
-    if not schedule_parts:
-        return
-
-    minute, hour, dom, month, dow = schedule_parts
-    new_cron_string = f"{minute} {hour} {dom} {month} {dow} {command_to_schedule}"
-
-    if _confirm_action(f"Add this cron job?\n  {new_cron_string}"):
-        add_resp = api_task_scheduler.add_cron_job(new_cron_string)
-        if add_resp.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{add_resp.get('message')}")
-        else:
-            print(f"{_OK_PREFIX}{add_resp.get('message')}")
-    else:
-        print(f"{_INFO_PREFIX}Cron job not added.")
-
-
-def modify_cron_job(server_name: str) -> None:
-    """CLI handler to interactively modify an existing cron job."""
-    print(f"\n{_INFO_PREFIX}Modify Existing Cron Job")
-
-    cron_jobs_resp = api_task_scheduler.get_server_cron_jobs(server_name)
-    cron_jobs = cron_jobs_resp.get("cron_jobs", [])
-    if not cron_jobs:
-        print(f"{_INFO_PREFIX}No existing cron jobs found to modify.")
-        return
-
-    job_to_modify = _select_from_list(cron_jobs, "Select the cron job to modify")
-    if not job_to_modify:
-        return
-
-    old_command = job_to_modify.split(maxsplit=5)[-1]
-
-    print(f"\n{_INFO_PREFIX}Enter NEW schedule details for command: {old_command}")
-    new_schedule_parts = _get_cron_schedule_details()
-    if not new_schedule_parts:
-        return
-
-    minute, hour, dom, month, dow = new_schedule_parts
-    new_cron_string = f"{minute} {hour} {dom} {month} {dow} {old_command}"
-
-    if new_cron_string == job_to_modify:
-        print(
-            f"{_INFO_PREFIX}New schedule is identical to the old one. No change made."
-        )
-        return
-
-    if _confirm_action(
-        f"Apply this modification?\n  Old: {job_to_modify}\n  New: {new_cron_string}"
-    ):
-        modify_resp = api_task_scheduler.modify_cron_job(job_to_modify, new_cron_string)
-        if modify_resp.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{modify_resp.get('message')}")
-        else:
-            print(f"{_OK_PREFIX}{modify_resp.get('message')}")
-    else:
-        print(f"{_INFO_PREFIX}Cron job not modified.")
-
-
-def delete_cron_job(server_name: str) -> None:
-    """CLI handler to interactively delete an existing cron job."""
-    print(f"\n{_INFO_PREFIX}Delete Existing Cron Job")
-
-    cron_jobs_resp = api_task_scheduler.get_server_cron_jobs(server_name)
-    cron_jobs = cron_jobs_resp.get("cron_jobs", [])
-    if not cron_jobs:
-        print(f"{_INFO_PREFIX}No existing cron jobs found to delete.")
-        return
-
-    job_to_delete = _select_from_list(cron_jobs, "Select the cron job to delete")
-    if not job_to_delete:
-        return
-
-    if _confirm_action(
-        f"Are you sure you want to delete this cron job?\n  {job_to_delete}",
-        is_destructive=True,
-    ):
-        delete_resp = api_task_scheduler.delete_cron_job(job_to_delete)
-        if delete_resp.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{delete_resp.get('message')}")
-        else:
-            print(f"{_OK_PREFIX}{delete_resp.get('message')}")
-    else:
-        print(f"{_INFO_PREFIX}Cron job not deleted.")
-
-
-# --- Windows Scheduler ---
-
-
-def _windows_scheduler(server_name: str) -> None:
-    """Displays the Windows Task Scheduler management menu."""
-    config_dir = getattr(settings, "config_dir")
-    if not config_dir:
-        print(f"{_ERROR_PREFIX}Base configuration directory not set.")
-        return
-
-    while True:
-        try:
-            os.system("cls")
-            print(
-                f"\n{Fore.MAGENTA}{APP_DISPLAY_NAME} - Windows Task Scheduler{Style.RESET_ALL}"
-            )
-            print(
-                f"{Fore.CYAN}Managing tasks for server: {Fore.YELLOW}{server_name}{Style.RESET_ALL}\n"
-            )
-
-            task_names_resp = api_task_scheduler.get_server_task_names(
-                server_name, config_dir
-            )
-            if task_names_resp.get("status") == "error":
-                print(f"{_ERROR_PREFIX}{task_names_resp.get('message')}")
-            else:
-                task_list = task_names_resp.get("task_names", [])
-                if task_list:
-                    display_windows_task_table(task_list)
-                else:
-                    print(f"{_INFO_PREFIX}No configured tasks found for this server.")
-
-            print(f"\n{Fore.MAGENTA}Options:{Style.RESET_ALL}")
-            print(
-                "  1) Add New Task\n  2) Modify Existing Task\n  3) Delete Task\n  4) Back to Advanced Menu"
-            )
-
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-4]:{Style.RESET_ALL} "
-            ).strip()
-            if choice == "1":
-                add_windows_task(server_name, config_dir)
-            elif choice == "2":
-                modify_windows_task(server_name, config_dir)
-            elif choice == "3":
-                delete_windows_task(server_name, config_dir)
-            elif choice == "4":
-                return
-            else:
-                print(f"{_WARN_PREFIX}Invalid selection. Please choose again.")
-                time.sleep(1.5)
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to previous menu...")
-            return
-        except Exception as e:
-            print(f"\n{_ERROR_PREFIX}An unexpected error occurred: {e}")
-            logger.error(
-                f"Error in Windows scheduler menu for '{server_name}': {e}",
-                exc_info=True,
-            )
-            input("Press Enter to continue...")
-
-
-def display_windows_task_table(task_name_path_list: List[Tuple[str, str]]) -> None:
+def _display_windows_task_table(task_info_list: List[Dict]):
     """Displays a formatted table of Windows scheduled tasks."""
-    task_names = [task[0] for task in task_name_path_list]
-    task_info_resp = api_task_scheduler.get_windows_task_info(task_names)
-
-    if task_info_resp.get("status") == "error":
-        print(f"{_ERROR_PREFIX}{task_info_resp.get('message')}")
-        return
-
-    task_info_list = task_info_resp.get("task_info", [])
     if not task_info_list:
-        print(
-            f"{_INFO_PREFIX}No tasks found in Windows Task Scheduler (config files may exist)."
-        )
+        click.secho("No scheduled tasks found for this server.", fg="cyan")
         return
 
-    print("-" * 80)
-    print(f"{'TASK NAME':<35} {'COMMAND':<20} {'SCHEDULE (Readable)':<25}")
-    print("-" * 80)
+    click.secho(f"{'TASK NAME':<35} {'COMMAND':<20} {'SCHEDULE'}", bold=True)
+    click.echo("-" * 80)
     for task in task_info_list:
-        print(
-            f"{Fore.GREEN}{task.get('task_name', 'N/A'):<35}{Style.RESET_ALL}"
-            f"{Fore.YELLOW}{task.get('command', 'N/A'):<20}{Style.RESET_ALL}"
-            f"{Fore.CYAN}{task.get('schedule', 'N/A'):<25}{Style.RESET_ALL}"
+        click.echo(
+            f"{click.style(task.get('task_name', 'N/A'), fg='green'):<47} {click.style(task.get('command', 'N/A'), fg='yellow'):<20} {click.style(task.get('schedule', 'N/A'), fg='cyan')}"
         )
-    print("-" * 80)
+    click.echo("-" * 80)
 
 
-def add_windows_task(server_name: str, config_dir: str) -> None:
-    """CLI handler to interactively add a new Windows task."""
-    print(f"\n{_INFO_PREFIX}Add New Windows Scheduled Task")
+def _get_command_to_schedule(server_name: str, for_windows: bool) -> Optional[str]:
+    """
+    Prompts the user to select a predefined server command to schedule.
 
-    selected_command = _get_command_to_schedule(server_name, is_windows=True)
-    if not selected_command:
-        return
+    Args:
+        server_name: The name of the server, used for constructing Linux commands.
+        for_windows: Boolean indicating if the command is for Windows (affects command format).
 
-    command_args = (
-        f'--server "{server_name}"' if selected_command != "scan-players" else ""
-    )
-    task_name = api_task_scheduler.create_task_name(server_name, selected_command)
-    print(f"{_INFO_PREFIX}Generated Task Name: {task_name}")
-
-    triggers = _get_trigger_details()
-    if not triggers:
-        if not _confirm_action(
-            "No triggers defined. Create a manually runnable task anyway?"
-        ):
-            print(f"{_INFO_PREFIX}Add task canceled.")
-            return
-
-    create_resp = api_task_scheduler.create_windows_task(
-        server_name, selected_command, command_args, task_name, triggers, config_dir
-    )
-    if create_resp.get("status") == "error":
-        print(f"{_ERROR_PREFIX}{create_resp.get('message')}")
-    else:
-        print(f"{_OK_PREFIX}{create_resp.get('message')}")
-
-
-def modify_windows_task(server_name: str, config_dir: str) -> None:
-    """CLI handler to modify an existing Windows task by replacing it."""
-    print(f"\n{_INFO_PREFIX}Modify Existing Windows Task")
-
-    task_list_resp = api_task_scheduler.get_server_task_names(server_name, config_dir)
-    task_list = task_list_resp.get("task_names", [])
-    if not task_list:
-        print(f"{_INFO_PREFIX}No existing tasks found to modify.")
-        return
-
-    task_to_modify = _select_from_list(
-        [t[0] for t in task_list], "Select the task to modify"
-    )
-    if not task_to_modify:
-        return
-
-    print(
-        f"\n{_INFO_PREFIX}The existing task '{task_to_modify}' will be deleted and replaced."
-    )
-    print(f"{_INFO_PREFIX}Please define the new command and schedule:")
-
-    add_windows_task(server_name, config_dir)
-
-
-def delete_windows_task(server_name: str, config_dir: str) -> None:
-    """CLI handler to interactively delete a Windows task."""
-    print(f"\n{_INFO_PREFIX}Delete Existing Windows Task")
-
-    task_list_resp = api_task_scheduler.get_server_task_names(server_name, config_dir)
-    task_list = task_list_resp.get("task_names", [])
-    if not task_list:
-        print(f"{_INFO_PREFIX}No existing tasks found to delete.")
-        return
-
-    task_tuple = _select_from_list(
-        task_list, "Select the task to delete", display_index=0
-    )
-    if not task_tuple:
-        return
-
-    task_name_to_delete, task_file_path = task_tuple
-
-    if _confirm_action(
-        f"Are you sure you want to delete task '{task_name_to_delete}'?",
-        is_destructive=True,
-    ):
-        delete_resp = api_task_scheduler.delete_windows_task(
-            task_name_to_delete, task_file_path
-        )
-        if delete_resp.get("status") == "error":
-            print(f"{_ERROR_PREFIX}{delete_resp.get('message')}")
-        else:
-            print(f"{_OK_PREFIX}{delete_resp.get('message')}")
-    else:
-        print(f"{_INFO_PREFIX}Task not deleted.")
-
-
-# --- Helper Functions for CLI ---
-
-
-def _get_command_to_schedule(
-    server_name: str, is_windows: bool = False
-) -> Optional[str]:
-    """Shared helper to get a command selection from the user."""
-    print(f"\n{Fore.MAGENTA}Choose the command to schedule:{Style.RESET_ALL}")
-    command_options = {
-        1: ("Update Server", "update-server"),
-        2: ("Backup Server (All)", "backup-all"),
-        3: ("Start Server", "start-server"),
-        4: ("Stop Server", "stop-server"),
-        5: ("Restart Server", "restart-server"),
-        6: ("Scan Players", "scan-players"),
+    Returns:
+        The command string to be scheduled, or None if cancelled.
+    """
+    choices = {
+        "Update Server": "update-server",
+        "Backup Server (All)": "backup-all",
+        "Start Server": "start-server",
+        "Stop Server": "stop-server",
+        "Restart Server": "restart-server",
+        "Scan Players": "scan-players",
     }
-    for idx, (desc, _) in command_options.items():
-        print(f"  {idx}) {desc}")
-    print(f"  {len(command_options) + 1}) Cancel")
+    selection = questionary.select(
+        "Choose the command to schedule:", choices=list(choices.keys()) + ["Cancel"]
+    ).ask()
+    if not selection or selection == "Cancel":
+        return None
 
-    while True:
-        try:
-            choice = int(input(f"{Fore.CYAN}Select command:{Style.RESET_ALL} ").strip())
-            if 1 <= choice <= len(command_options):
-                slug = command_options[choice][1]
-                if is_windows:
-                    return slug
-                # For Linux, construct the full command string
-                args = f'--server "{server_name}"' if slug != "scan-players" else ""
-                return f"{EXPATH} {slug} {args}".strip()
-            elif choice == len(command_options) + 1:
-                print(f"{_INFO_PREFIX}Operation canceled.")
-                return None
-            else:
-                print(f"{_WARN_PREFIX}Invalid choice.")
-        except ValueError:
-            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
+    slug = choices[selection]
+    if for_windows:
+        return slug
+
+    args = f'--server "{server_name}"' if slug != "scan-players" else ""
+    return f"{EXPATH} {slug} {args}".strip()
 
 
-def _get_cron_schedule_details() -> Optional[Tuple[str, str, str, str, str]]:
-    """Shared helper to get cron schedule parts from the user."""
-    print(f"\n{_INFO_PREFIX}Enter schedule details (* for any value):")
-    prompts = [
-        ("Minute", 0, 59),
-        ("Hour", 0, 23),
-        ("Day of Month", 1, 31),
-        ("Month", 1, 12),
-        ("Day of Week", 0, 7, "0/7=Sun"),
-    ]
-    parts = {}
-    for name, min_val, max_val, *help_txt in prompts:
-        help_str = f" ({help_txt[0]})" if help_txt else ""
-        while True:
-            val = input(
-                f"{Fore.CYAN}{name} ({min_val}-{max_val} or *){help_str}:{Style.RESET_ALL} "
-            ).strip()
-            # Basic validation can be done here, but API layer handles it robustly
-            if val:
-                parts[name] = val
-                break
-            else:
-                print(f"{_WARN_PREFIX}Input cannot be empty. Use '*' for any value.")
-    return (
-        parts["Minute"],
-        parts["Hour"],
-        parts["Day of Month"],
-        parts["Month"],
-        parts["Day of Week"],
-    )
+def _add_cron_job(server_name: str):
+    """
+    Guides the user through interactively creating a new cron job for Linux.
+
+    Prompts for the command to schedule and the cron timing parameters.
+
+    Args:
+        server_name: The name of the server for which the cron job is being created.
+    """
+    command = _get_command_to_schedule(server_name, for_windows=False)
+    if not command:
+        raise click.Abort()
+
+    click.secho("\nEnter schedule details (* for any value):", bold=True)
+    m = questionary.text("Minute (0-59):", validate=CronTimeValidator()).ask()
+    h = questionary.text("Hour (0-23):", validate=CronTimeValidator()).ask()
+    dom = questionary.text("Day of Month (1-31):", validate=CronTimeValidator()).ask()
+    mon = questionary.text("Month (1-12):", validate=CronTimeValidator()).ask()
+    dow = questionary.text(
+        "Day of Week (0-7, 0/7=Sun):", validate=CronTimeValidator()
+    ).ask()
+    if any(p is None for p in [m, h, dom, mon, dow]):
+        raise click.Abort()
+
+    new_cron = f"{m} {h} {dom} {mon} {dow} {command}"
+    if questionary.confirm(f"Add this cron job?\n  {new_cron}").ask():
+        resp = api_task_scheduler.add_cron_job(new_cron)
+        _handle_api_response(resp, "Cron job added.")
+    else:
+        click.secho("Operation cancelled.", fg="yellow")
 
 
-def _get_trigger_details() -> List[Dict[str, Any]]:
-    """Interactively gathers trigger details for Windows tasks."""
-    triggers = []
-    while True:
-        print(f"\n{Fore.MAGENTA}Add Trigger - Choose Type:{Style.RESET_ALL}")
-        print("  1) Daily\n  2) Weekly\n  3) Done Adding Triggers")
-        choice = input(
-            f"{Fore.CYAN}Select trigger type (1-3):{Style.RESET_ALL} "
-        ).strip()
+def _add_windows_task(server_name: str):
+    """
+    Guides the user through interactively creating a new Windows Scheduled Task.
 
-        if choice not in ("1", "2"):
-            break
+    Prompts for the command to schedule and confirms the generated task name.
 
-        start_str = input(
-            f"{Fore.CYAN}Enter start time (HH:MM):{Style.RESET_ALL} "
-        ).strip()
-        try:
-            start_dt = datetime.strptime(start_str, "%H:%M")
-            # Set date to today for a valid ISO string
-            start_iso = (
-                datetime.now()
-                .replace(hour=start_dt.hour, minute=start_dt.minute, second=0)
-                .isoformat(timespec="seconds")
-            )
-        except ValueError:
-            print(
-                f"{_ERROR_PREFIX}Invalid time format. Please use HH:MM. Trigger not added."
-            )
-            continue
+    Args:
+        server_name: The name of the server for which the task is being created.
+    """
+    command = _get_command_to_schedule(server_name, for_windows=True)
+    if not command:
+        raise click.Abort()
 
-        trigger = {"start": start_iso}
-        if choice == "1":  # Daily
-            trigger["type"] = "Daily"
-            trigger["interval"] = 1
-            triggers.append(trigger)
-            print(f"{_INFO_PREFIX}Daily trigger added.")
-        elif choice == "2":  # Weekly
-            trigger["type"] = "Weekly"
-            days_str = input(
-                f"{Fore.CYAN}Enter days (comma-separated: Mon,Tue,etc.):{Style.RESET_ALL} "
-            ).strip()
-            trigger["days"] = [d.strip() for d in days_str.split(",") if d.strip()]
-            trigger["interval"] = 1
-            if trigger["days"]:
-                triggers.append(trigger)
-                print(f"{_INFO_PREFIX}Weekly trigger added.")
-            else:
-                print(f"{_WARN_PREFIX}No days specified. Weekly trigger not added.")
-    return triggers
+    command_args = f'--server "{server_name}"' if command != "scan-players" else ""
+    task_name = api_task_scheduler.create_task_name(server_name, command)
+    click.echo(f"Generated Task Name: {task_name}")
 
-
-def _select_from_list(items: List, prompt: str, display_index=None) -> Any:
-    """Helper to have a user select an item from a list."""
-    print(f"\n{Fore.MAGENTA}{prompt}:{Style.RESET_ALL}")
-    for i, item in enumerate(items):
-        display_item = (
-            item[display_index]
-            if isinstance(item, tuple) and display_index is not None
-            else item
+    if questionary.confirm(f"Create task '{task_name}'?").ask():
+        resp = api_task_scheduler.create_windows_task(
+            server_name, command, command_args, task_name
         )
-        print(f"  {i + 1}) {display_item}")
-    print(f"  {len(items) + 1}) Cancel")
-
-    while True:
-        try:
-            choice = int(
-                input(
-                    f"{Fore.CYAN}Enter number (1-{len(items) + 1}):{Style.RESET_ALL} "
-                ).strip()
-            )
-            if 1 <= choice <= len(items):
-                return items[choice - 1]
-            elif choice == len(items) + 1:
-                return None
-            else:
-                print(f"{_WARN_PREFIX}Invalid selection.")
-        except ValueError:
-            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
+        _handle_api_response(resp, "Windows task created.")
+    else:
+        click.secho("Operation cancelled.", fg="yellow")
 
 
-def _confirm_action(prompt: str, is_destructive: bool = False) -> bool:
-    """Helper to get a y/n confirmation from the user."""
-    color = Fore.RED if is_destructive else Fore.CYAN
-    while True:
-        confirm = input(f"{color}{prompt} (y/n):{Style.RESET_ALL} ").strip().lower()
-        if confirm in ("y", "yes"):
-            return True
-        if confirm in ("n", "no", ""):
-            return False
-        print(f"{_WARN_PREFIX}Invalid input. Please answer 'yes' or 'no'.")
+# --- Main Click Group and Commands ---
+
+
+@click.group(invoke_without_command=True)
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="The target server for scheduling.",
+)
+@click.pass_context
+def schedule(ctx, server_name: str):
+    """
+    Manage scheduled tasks (cron/Windows Task Scheduler).
+
+    Running without a subcommand launches the interactive management menu.
+    """
+    os_type = platform.system()
+    if os_type not in ("Linux", "Windows"):
+        click.secho(
+            f"Task scheduling is not supported on this OS ({os_type}).", fg="red"
+        )
+        return
+
+    ctx.obj = {"server_name": server_name, "os_type": os_type}
+
+    if ctx.invoked_subcommand is None:
+        # Launch main interactive menu
+        while True:
+            try:
+                click.clear()
+                click.secho(
+                    f"--- Task Scheduler for Server: {server_name} ---", bold=True
+                )
+
+                # List current tasks
+                ctx.invoke(list_tasks)
+
+                choice = questionary.select(
+                    "\nSelect an option:",
+                    choices=["Add New Task", "Delete Task", "Exit"],
+                ).ask()
+
+                if not choice or choice == "Exit":
+                    break
+                if choice == "Add New Task":
+                    ctx.invoke(add_task)
+                if choice == "Delete Task":
+                    ctx.invoke(delete_task)
+
+            except (click.Abort, KeyboardInterrupt):
+                break
+        click.secho("Exiting scheduler menu.", fg="cyan")
+
+
+@schedule.command("list")
+@click.pass_context
+def list_tasks(ctx):
+    """List all scheduled tasks for the server."""
+    server_name = ctx.obj["server_name"]
+    os_type = ctx.obj["os_type"]
+
+    if os_type == "Linux":
+        resp = api_task_scheduler.get_server_cron_jobs(server_name)
+        _display_cron_table(resp.get("cron_jobs", []))
+    elif os_type == "Windows":
+        task_names_resp = api_task_scheduler.get_server_task_names(server_name)
+        task_info_resp = api_task_scheduler.get_windows_task_info(
+            [t[0] for t in task_names_resp.get("task_names", [])]
+        )
+        _display_windows_task_table(task_info_resp.get("task_info", []))
+
+
+@schedule.command("add")
+@click.pass_context
+def add_task(ctx):
+    """Interactively add a new scheduled task."""
+    server_name = ctx.obj["server_name"]
+    os_type = ctx.obj["os_type"]
+
+    try:
+        if os_type == "Linux":
+            _add_cron_job(server_name)
+        elif os_type == "Windows":
+            _add_windows_task(server_name)
+    except (click.Abort, KeyboardInterrupt):
+        click.secho("\nAdd operation cancelled.", fg="yellow")
+
+
+@schedule.command("delete")
+@click.pass_context
+def delete_task(ctx):
+    """Interactively delete an existing scheduled task."""
+    server_name = ctx.obj["server_name"]
+    os_type = ctx.obj["os_type"]
+
+    try:
+        if os_type == "Linux":
+            resp = api_task_scheduler.get_server_cron_jobs(server_name)
+            jobs = resp.get("cron_jobs", [])
+            if not jobs:
+                click.secho("No jobs to delete.", fg="yellow")
+                return
+            job_to_delete = questionary.select(
+                "Select job to delete:", choices=jobs + ["Cancel"]
+            ).ask()
+            if job_to_delete and job_to_delete != "Cancel":
+                if questionary.confirm(
+                    f"Delete this job?\n  {job_to_delete}", default=False
+                ).ask():
+                    del_resp = api_task_scheduler.delete_cron_job(job_to_delete)
+                    _handle_api_response(del_resp, "Job deleted.")
+
+        elif os_type == "Windows":
+            resp = api_task_scheduler.get_server_task_names(server_name)
+            tasks = resp.get("task_names", [])
+            if not tasks:
+                click.secho("No tasks to delete.", fg="yellow")
+                return
+            task_map = {t[0]: t for t in tasks}
+            task_name_to_delete = questionary.select(
+                "Select task to delete:", choices=list(task_map.keys()) + ["Cancel"]
+            ).ask()
+            if task_name_to_delete and task_name_to_delete != "Cancel":
+                if questionary.confirm(
+                    f"Delete task '{task_name_to_delete}'?", default=False
+                ).ask():
+                    _, file_path = task_map[task_name_to_delete]
+                    del_resp = api_task_scheduler.delete_windows_task(
+                        task_name_to_delete, file_path
+                    )
+                    _handle_api_response(del_resp, "Task deleted.")
+
+    except (click.Abort, KeyboardInterrupt):
+        click.secho("\nDelete operation cancelled.", fg="yellow")
