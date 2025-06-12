@@ -258,7 +258,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Unexpected error getting target_version from JSON config for '{self.server_name}': {e_unexp}",
                 exc_info=True,
             )
-            return "UNKNOWN" # Default to UNKNOWN on error (or LATEST if more appropriate for target_version)
+            return "UNKNOWN"  # Default to UNKNOWN on error (or LATEST if more appropriate for target_version)
 
     def set_target_version(self, status_string: str) -> None:
         """Sets the 'target_version' in this server's JSON configuration file."""
@@ -278,13 +278,17 @@ class ServerStateMixin(BedrockServerBaseMixin):
 
     def get_custom_config_value(self, key: str) -> Optional[Any]:
         """Retrieves a custom value from this server's JSON configuration file."""
-        self.logger.debug(f"Getting custom config key '{key}' for server '{self.server_name}'.")
+        self.logger.debug(
+            f"Getting custom config key '{key}' for server '{self.server_name}'."
+        )
         if not isinstance(key, str):
             raise UserInputError(
                 f"Key '{key}' for custom config on '{self.server_name}' must be a string, got {type(key)}."
             )
         value = self._manage_json_config(key=key, operation="read")
-        self.logger.info(f"Retrieved custom config for '{self.server_name}': Key='{key}', Value='{value}'.")
+        self.logger.info(
+            f"Retrieved custom config for '{self.server_name}': Key='{key}', Value='{value}'."
+        )
         return value
 
     def set_custom_config_value(self, key: str, value: Any) -> None:
@@ -293,7 +297,9 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Setting custom config for server '{self.server_name}': Key='{key}', Value='{value}'."
         )
         self._manage_json_config(key=key, operation="write", value=value)
-        self.logger.info(f"Custom config for '{self.server_name}' set: Key='{key}', Value='{value}'.")
+        self.logger.info(
+            f"Custom config for '{self.server_name}' set: Key='{key}', Value='{value}'."
+        )
 
     @property
     def server_properties_path(self) -> str:

@@ -57,9 +57,7 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
             f"Invalid value for downloads to keep: '{download_keep}'. Must be an integer >= 0."
         )
 
-    logger.debug(
-        f"Configured to keep {download_keep} downloads in '{download_dir}'."
-    )
+    logger.debug(f"Configured to keep {download_keep} downloads in '{download_dir}'.")
 
     if not os.path.isdir(download_dir):
         error_msg = f"Download directory '{download_dir}' does not exist or is not a directory. Cannot prune."

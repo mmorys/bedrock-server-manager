@@ -53,9 +53,7 @@ def core_validate_server_name_format(server_name: str) -> None:
             "Invalid server name format. Only use letters (a-z, A-Z), "
             "numbers (0-9), hyphens (-), and underscores (_)."
         )
-    logger.debug(
-        f"Server name '{server_name}' format is valid."
-    )
+    logger.debug(f"Server name '{server_name}' format is valid.")
 
 
 # --- Currently Unused ---
@@ -318,9 +316,7 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
         )
 
     command = [screen_cmd, "-r", screen_session_name]
-    logger.debug(
-        f"Executing screen attach command: {' '.join(command)}"
-    )
+    logger.debug(f"Executing screen attach command: {' '.join(command)}")
     try:
         # Using subprocess.run as the core function doesn't need to be interactive itself.
         # The API layer will decide how to present this to a user.

@@ -116,10 +116,12 @@ def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
-    if autoupdate_value is None: # Should not happen with type hint but good for robustness
+    if (
+        autoupdate_value is None
+    ):  # Should not happen with type hint but good for robustness
         raise MissingArgumentError("Autoupdate value cannot be empty.")
 
-    value_lower = str(autoupdate_value).lower() # Ensure it's a string for .lower()
+    value_lower = str(autoupdate_value).lower()  # Ensure it's a string for .lower()
     if value_lower not in ("true", "false"):
         raise UserInputError("Autoupdate value must be 'true' or 'false'.")
     value_bool = value_lower == "true"
