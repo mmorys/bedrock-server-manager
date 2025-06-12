@@ -352,12 +352,12 @@ def install_server(ctx: click.Context):
         if questionary.confirm("Start server now?", default=True).ask():
             # Find the main 'cli' group from the context object we set in __main__.py
             # Then get the 'server' subgroup, and finally the 'start' command.
-            server_group = ctx.obj['cli'].get_command(ctx, "server")
+            server_group = ctx.obj["cli"].get_command(ctx, "server")
             start_command = server_group.get_command(ctx, "start")
-            
+
             click.echo("Starting the server in detached mode...")
             # Use ctx.invoke to run the command
-            ctx.invoke(start_command, server_name=server_name, mode='detached')
+            ctx.invoke(start_command, server_name=server_name, mode="detached")
 
         click.secho("\nInstallation and configuration complete!", fg="green", bold=True)
 

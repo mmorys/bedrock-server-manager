@@ -23,9 +23,7 @@ def generate_password_hash_command():
     click.secho(
         "--- Bedrock Server Manager Password Hash Generator ---", fg="cyan", bold=True
     )
-    click.secho(
-        "--- Note: Input will not be displayed ---", fg="yellow", bold=True
-    )
+    click.secho("--- Note: Input will not be displayed ---", fg="yellow", bold=True)
 
     try:
         plaintext_password = click.prompt(

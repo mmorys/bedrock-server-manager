@@ -206,7 +206,7 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "Delete Server": (
             server_group.get_command(ctx, "delete"),
             "server_name",
-            {"yes": False}, # Let the command handle confirmation interactively
+            {"yes": False},  # Let the command handle confirmation interactively
         ),
         "--------": "separator",
         "Back to Main Menu": "back",
@@ -239,9 +239,7 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         if callable(action_config) and not (
             hasattr(action_config, "commands") or hasattr(action_config, "callback")
         ):
-            action_config(
-                ctx, server_name
-            )
+            action_config(ctx, server_name)
         elif isinstance(action_config, tuple):
             command_obj, server_param_key, kwargs_to_pass = action_config
             final_kwargs = {}
@@ -304,7 +302,7 @@ def manage_server_menu(ctx: click.Context, server_name: str):
                     f"Warning: Unhandled menu action type for '{choice}'. Action: {action_config}",
                     fg="yellow",
                 )
-        
+
         # Don't show the server status at the top of the loop anymore,
         # it might have just been deleted.
         click.pause("\nPress Enter to continue...")
