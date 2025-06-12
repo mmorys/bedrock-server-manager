@@ -58,16 +58,16 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
         )
 
     logger.debug(
-        f"Core: Configured to keep {download_keep} downloads in '{download_dir}'."
+        f"Configured to keep {download_keep} downloads in '{download_dir}'."
     )
 
     if not os.path.isdir(download_dir):
-        error_msg = f"Core: Download directory '{download_dir}' does not exist or is not a directory. Cannot prune."
+        error_msg = f"Download directory '{download_dir}' does not exist or is not a directory. Cannot prune."
         logger.error(error_msg)
         raise AppFileNotFoundError(download_dir, "Download directory")
 
     logger.info(
-        f"Core: Pruning old Bedrock server downloads in '{download_dir}' (keeping {download_keep})..."
+        f"Pruning old Bedrock server downloads in '{download_dir}' (keeping {download_keep})..."
     )
 
     try:
@@ -79,7 +79,7 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
         download_files.sort(key=lambda p: p.stat().st_mtime)
 
         logger.debug(
-            f"Core: Found {len(download_files)} potential download files matching pattern."
+            f"Found {len(download_files)} potential download files matching pattern."
         )
 
         num_files = len(download_files)
@@ -87,50 +87,50 @@ def prune_old_downloads(download_dir: str, download_keep: int) -> None:
             num_to_delete = num_files - download_keep
             files_to_delete = download_files[:num_to_delete]  # Get the oldest ones
             logger.info(
-                f"Core: Found {num_files} downloads. Will delete {num_to_delete} oldest file(s) to keep {download_keep}."
+                f"Found {num_files} downloads. Will delete {num_to_delete} oldest file(s) to keep {download_keep}."
             )
 
             deleted_count = 0
             for file_path_obj in files_to_delete:
                 try:
                     file_path_obj.unlink()  # Use pathlib's unlink
-                    logger.info(f"Core: Deleted old download: {file_path_obj}")
+                    logger.info(f"Deleted old download: {file_path_obj}")
                     deleted_count += 1
                 except OSError as e_unlink:  # Catch specific OSError for unlink
                     logger.error(
-                        f"Core: Failed to delete old server download '{file_path_obj}': {e_unlink}",
+                        f"Failed to delete old server download '{file_path_obj}': {e_unlink}",
                         exc_info=True,
                     )
             if deleted_count < num_to_delete:
                 # If some deletions failed, raise an error after trying all
                 raise FileOperationError(
-                    f"Core: Failed to delete all required old downloads ({num_to_delete - deleted_count} failed). Check logs."
+                    f"Failed to delete all required old downloads ({num_to_delete - deleted_count} failed). Check logs."
                 )
 
-            logger.info(f"Core: Successfully deleted {deleted_count} old download(s).")
+            logger.info(f"Successfully deleted {deleted_count} old download(s).")
         else:
             logger.info(
-                f"Core: Found {num_files} download(s), which is not more than the {download_keep} to keep. No files deleted."
+                f"Found {num_files} download(s), which is not more than the {download_keep} to keep. No files deleted."
             )
 
     except (
         OSError
     ) as e_os:  # Catch OS-level errors during directory/file access (not unlink specifically)
         logger.error(
-            f"Core: OS error occurred while accessing or pruning downloads in '{download_dir}': {e_os}",
+            f"OS error occurred while accessing or pruning downloads in '{download_dir}': {e_os}",
             exc_info=True,
         )
         raise FileOperationError(
-            f"Core: Error pruning downloads in '{download_dir}': {e_os}"
+            f"Error pruning downloads in '{download_dir}': {e_os}"
         ) from e_os
     except Exception as e_generic:  # Catch any other unexpected error
         logger.error(
-            f"Core: Unexpected error occurred while pruning downloads: {e_generic}",
+            f"Unexpected error occurred while pruning downloads: {e_generic}",
             exc_info=True,
         )
         # Wrap in a FileOperationError for consistency if it's truly unexpected during file ops
         raise FileOperationError(
-            f"Core: Unexpected error pruning downloads: {e_generic}"
+            f"Unexpected error pruning downloads: {e_generic}"
         ) from e_generic
 
 
@@ -715,13 +715,17 @@ class BedrockDownloader:
 
     # --- Getters for populated state ---
     def get_actual_version(self) -> Optional[str]:
+        """Returns the actual version string resolved (e.g., '1.20.1.2')."""
         return self.actual_version
 
     def get_zip_file_path(self) -> Optional[str]:
+        """Returns the full path to the downloaded server ZIP file."""
         return self.zip_file_path
 
     def get_specific_download_dir(self) -> Optional[str]:
+        """Returns the specific download directory used (e.g., '.../.downloads/stable')."""
         return self.specific_download_dir
 
     def get_resolved_download_url(self) -> Optional[str]:
+        """Returns the fully resolved download URL."""
         return self.resolved_download_url

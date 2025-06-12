@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/installation_mixin.py
+"""
+Provides the ServerInstallationMixin class for BedrockServer.
+
+This mixin handles validation of server installations, setting filesystem
+permissions, and comprehensive deletion of server data including installation files,
+configurations, backups, and systemd services.
+"""
 import os
 import shutil
 import subprocess
@@ -16,7 +23,22 @@ from bedrock_server_manager.error import (
 
 
 class ServerInstallationMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods related to
+    the installation state, filesystem permissions, and complete removal
+    of a server instance.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerInstallationMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_dir, logger,
+        bedrock_executable_path, settings, os_type, _server_specific_config_dir,
+        get_pid_file_path) and methods (like is_running, stop) from other
+        mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
         # Attributes like self.server_name, self.server_dir, self.logger,
         # self.bedrock_executable_path are available from BedrockServerBaseMixin.

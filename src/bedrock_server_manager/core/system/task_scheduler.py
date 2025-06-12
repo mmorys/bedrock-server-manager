@@ -570,7 +570,6 @@ class WindowsTaskScheduler:
     def get_task_info(self, task_names: List[str]) -> List[Dict[str, str]]:
         """
         Retrieves details for specified Windows scheduled tasks.
-        Corresponds to the original `get_windows_task_info` function.
         """
         if not isinstance(task_names, list):
             raise TypeError("Input 'task_names' must be a list.")

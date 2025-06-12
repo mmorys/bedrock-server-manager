@@ -1,8 +1,18 @@
 # bedrock_server_manager/core/system/windows.py
 """
-Provides Windows-specific implementations for system interactions.
+Provides Windows-specific implementations for system interactions related to
+the Bedrock server.
 
-Includes functions for starting and stopping the Bedrock server process directly
+This module includes functions for:
+- Starting the Bedrock server process directly in the foreground.
+- Managing a named pipe server for inter-process communication (IPC) to send
+  commands to the running Bedrock server.
+- Handling OS signals for graceful shutdown of the foreground server.
+- Sending commands to the server via the named pipe.
+- Stopping the server process (currently unused/experimental).
+
+It relies on `pywin32` for named pipe functionality and `psutil` (optional)
+for some process details if used by other parts of the system.
 """
 import os
 import threading
@@ -63,6 +73,11 @@ _foreground_server_shutdown_event = threading.Event()
 
 
 def _handle_os_signals(sig, frame):
+    """
+    Signal handler for SIGINT and SIGTERM to gracefully shut down the
+    foreground Bedrock server process started by `_windows_start_server`.
+    Sets a global event that the main server loop checks.
+    """
     logger.info(
         f"OS Signal {sig} received by _windows_start_server. Setting foreground shutdown event."
     )

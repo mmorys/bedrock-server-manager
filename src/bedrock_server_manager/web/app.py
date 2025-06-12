@@ -205,6 +205,7 @@ def create_app() -> Flask:
     # Inject login status for templates
     @app.context_processor
     def inject_user() -> Dict[str, bool]:
+        """Injects the user's login status into template contexts."""
         is_logged_in = session.get("logged_in", False)
         # logger.debug(f"Injecting context: is_logged_in={is_logged_in}") # Can be noisy
         return dict(is_logged_in=is_logged_in)

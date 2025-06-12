@@ -1,4 +1,13 @@
 # bedrock_server_manager/core/server/state_mixin.py
+"""
+Provides the ServerStateMixin class for BedrockServer.
+
+This mixin is responsible for managing the persisted state of a server instance,
+including its installed version, current status (RUNNING, STOPPED, etc.),
+target version for updates, and custom configuration values. These are typically
+stored in a server-specific JSON configuration file. It also handles reading
+the world name from server.properties.
+"""
 import os
 import json
 from typing import Optional, Any, Dict, TYPE_CHECKING
@@ -15,7 +24,21 @@ from bedrock_server_manager.error import (
 
 
 class ServerStateMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that handles reading and writing
+    persistent state information for the server. This includes managing the
+    server-specific JSON configuration file (for status, version, etc.)
+    and reading the world name from `server.properties`.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerStateMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, _server_specific_config_dir,
+        server_dir, logger) from the base class.
+        """
         super().__init__(*args, **kwargs)
 
     @property
@@ -126,6 +149,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             ) from e
 
     def get_version(self) -> str:
+        """Retrieves the 'installed_version' from this server's JSON configuration file."""
         self.logger.debug(f"Getting installed version for server '{self.server_name}'.")
         try:
             version = self._manage_json_config(
@@ -150,9 +174,10 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Unexpected error getting version for '{self.server_name}': {e_unexp}",
                 exc_info=True,
             )
-            return "UNKNOWN"
+            return "UNKNOWN"  # Default to UNKNOWN on error
 
     def set_version(self, version_string: str) -> None:
+        """Sets the 'installed_version' in this server's JSON configuration file."""
         self.logger.debug(
             f"Setting installed version for server '{self.server_name}' to '{version_string}'."
         )
@@ -166,6 +191,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
         self.logger.info(f"Version for '{self.server_name}' set to '{version_string}'.")
 
     def get_status_from_config(self) -> str:
+        """Retrieves the 'status' from this server's JSON configuration file."""
         self.logger.debug(
             f"Getting stored status for server '{self.server_name}' from JSON config."
         )
@@ -190,9 +216,10 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Unexpected error getting status from JSON config for '{self.server_name}': {e_unexp}",
                 exc_info=True,
             )
-            return "UNKNOWN"
+            return "UNKNOWN"  # Default to UNKNOWN on error
 
     def set_status_in_config(self, status_string: str) -> None:
+        """Sets the 'status' in this server's JSON configuration file."""
         self.logger.debug(
             f"Setting status in JSON config for server '{self.server_name}' to '{status_string}'."
         )
@@ -206,6 +233,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
         )
 
     def get_target_version(self) -> str:
+        """Retrieves the 'target_version' from this server's JSON configuration file."""
         self.logger.debug(
             f"Getting stored target_version for server '{self.server_name}' from JSON config."
         )
@@ -230,9 +258,10 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Unexpected error getting target_version from JSON config for '{self.server_name}': {e_unexp}",
                 exc_info=True,
             )
-            return "UNKNOWN"
+            return "UNKNOWN" # Default to UNKNOWN on error (or LATEST if more appropriate for target_version)
 
     def set_target_version(self, status_string: str) -> None:
+        """Sets the 'target_version' in this server's JSON configuration file."""
         self.logger.debug(
             f"Setting target_version in JSON config for server '{self.server_name}' to '{status_string}'."
         )
@@ -247,25 +276,24 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"target_version in JSON config for '{self.server_name}' set to '{status_string}'."
         )
 
-    def get_custom_config_value(self, key: str) -> None:
-        self.logger.debug(f"Getting '{key}' for server '{self.server_name}'.")
+    def get_custom_config_value(self, key: str) -> Optional[Any]:
+        """Retrieves a custom value from this server's JSON configuration file."""
+        self.logger.debug(f"Getting custom config key '{key}' for server '{self.server_name}'.")
         if not isinstance(key, str):
             raise UserInputError(
-                f"'{key}' for '{self.server_name}' must be a string, got {type(key)}."
+                f"Key '{key}' for custom config on '{self.server_name}' must be a string, got {type(key)}."
             )
-        self._manage_json_config(key=key, operation="read")
-        self.logger.info(f"{key} for '{self.server_name}': {key}.")
+        value = self._manage_json_config(key=key, operation="read")
+        self.logger.info(f"Retrieved custom config for '{self.server_name}': Key='{key}', Value='{value}'.")
+        return value
 
-    def set_custom_config_value(self, key: str, value: str) -> None:
+    def set_custom_config_value(self, key: str, value: Any) -> None:
+        """Sets a custom key-value pair in this server's JSON configuration file."""
         self.logger.debug(
-            f"Setting '{key}' for server '{self.server_name}' to '{value}'."
+            f"Setting custom config for server '{self.server_name}': Key='{key}', Value='{value}'."
         )
-        if not isinstance(value, str):
-            raise UserInputError(
-                f"'{key}' for '{self.server_name}' must be a string, got {type(value)}."
-            )
         self._manage_json_config(key=key, operation="write", value=value)
-        self.logger.info(f"{key} for '{self.server_name}' set to '{value}'.")
+        self.logger.info(f"Custom config for '{self.server_name}' set: Key='{key}', Value='{value}'.")
 
     @property
     def server_properties_path(self) -> str:

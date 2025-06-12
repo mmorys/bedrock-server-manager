@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/systemd_mixin.py
+"""
+Provides the ServerSystemdMixin class for BedrockServer.
+
+This mixin handles Linux-specific systemd service management for a server instance.
+It allows creating, enabling, disabling, removing, and checking the status of
+systemd user services that manage the Bedrock server process.
+"""
 import os
 import platform
 import shutil
@@ -18,7 +25,19 @@ from bedrock_server_manager.error import (
 
 
 class ServerSystemdMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for managing
+    a systemd user service associated with the server instance (Linux-only).
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerSystemdMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_dir, manager_expath,
+        logger, os_type) from the base class.
+        """
         super().__init__(*args, **kwargs)
         # self.server_name, self.base_dir, self.manager_expath, self.logger, self.os_type are available
 
@@ -41,6 +60,19 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         return system_linux_utils.check_service_exists(self.systemd_service_name_full)
 
     def create_systemd_service_file(self, autoupdate_on_start: bool = False) -> None:
+        """
+        Creates or updates the systemd user service file for this server.
+
+        Args:
+            autoupdate_on_start: If True, adds an ExecStartPre command to update
+                                 the server before starting.
+
+        Raises:
+            SystemError: If not on Linux.
+            AppFileNotFoundError: If the BSM manager executable path is not found.
+            FileOperationError: If creating directories or writing the service file fails.
+            CommandNotFoundError: If `systemctl` is not found for daemon-reload.
+        """
         self._ensure_linux_for_systemd("create_systemd_service_file")
 
         if not self.manager_expath or not os.path.isfile(self.manager_expath):
@@ -97,6 +129,14 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             raise
 
     def enable_systemd_service(self) -> None:
+        """
+        Enables the systemd user service for this server to start on user login.
+
+        Raises:
+            SystemError: If not on Linux or if enabling the service fails.
+            CommandNotFoundError: If `systemctl` is not found.
+            MissingArgumentError: If the service name is somehow empty.
+        """
         self._ensure_linux_for_systemd("enable_systemd_service")
         self.logger.info(
             f"Enabling systemd service '{self.systemd_service_name_full}'."
@@ -117,6 +157,14 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
             raise
 
     def disable_systemd_service(self) -> None:
+        """
+        Disables the systemd user service for this server from starting on user login.
+
+        Raises:
+            SystemError: If not on Linux or if disabling the service fails.
+            CommandNotFoundError: If `systemctl` is not found.
+            MissingArgumentError: If the service name is somehow empty.
+        """
         self._ensure_linux_for_systemd("disable_systemd_service")
         self.logger.info(
             f"Disabling systemd service '{self.systemd_service_name_full}'."

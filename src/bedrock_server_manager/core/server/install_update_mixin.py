@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/install_update_mixin.py
+"""
+Provides the ServerInstallUpdateMixin class for BedrockServer.
+
+This mixin handles the installation and updating of the Bedrock server software.
+It uses the BedrockDownloader class to fetch server files and manages the
+process of setting up these files in the server's directory.
+"""
 import os
 import logging  # self.logger from BaseMixin
 from typing import TYPE_CHECKING, Optional
@@ -30,7 +37,24 @@ from bedrock_server_manager.error import (
 
 
 class ServerInstallUpdateMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for installing
+    and updating the Minecraft Bedrock Server software.
+
+    It orchestrates the download process using BedrockDownloader, extracts
+    server files, and manages version checking.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerInstallUpdateMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_dir, settings, logger)
+        and methods (like is_installed, get_version, set_version, stop,
+        is_running, set_status_in_config, set_filesystem_permissions)
+        from other mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
         # self.server_name, self.server_dir, self.logger, self.settings are available
         # self.set_version() method (from ServerStateMixin) is available on the final class

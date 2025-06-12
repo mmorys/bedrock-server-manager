@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/base_server_mixin.py
+"""
+Provides the BedrockServerBaseMixin class, which forms the foundational layer
+for the BedrockServer class and its other mixins.
+
+This mixin initializes core attributes like server name, paths, settings,
+and logger, which are common across all server-related operations.
+"""
 import os
 import platform
 import logging
@@ -27,6 +34,22 @@ class BedrockServerBaseMixin:
         *args,
         **kwargs,
     ):
+        """
+        Initializes the base attributes for a Bedrock server instance.
+
+        Args:
+            server_name: The unique name of the server.
+            settings_instance: An optional pre-configured Settings object.
+                               If None, a new Settings object is created.
+            manager_expath: Optional path to the BSM executable, used for
+                            operations like systemd service creation.
+            *args: Variable length argument list for multiple inheritance.
+            **kwargs: Arbitrary keyword arguments for multiple inheritance.
+
+        Raises:
+            MissingArgumentError: If `server_name` is not provided.
+            ConfigurationError: If critical settings like BASE_DIR are missing.
+        """
         super().__init__(*args, **kwargs)  # For cooperative multiple inheritance
 
         if not server_name:
@@ -44,7 +67,7 @@ class BedrockServerBaseMixin:
         else:
             self.settings = Settings()
         self.logger.debug(
-            f"BedrockServerManager initialized using settings from: {self.settings.config_path}"
+            f"BedrockServerBaseMixin for '{self.server_name}' initialized using settings from: {self.settings.config_path}"
         )
 
         if manager_expath:

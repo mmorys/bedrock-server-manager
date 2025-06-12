@@ -1,4 +1,11 @@
 # bedrock_server_manager/api/web.py
+"""
+Provides API-level functions for managing the application's web server.
+
+This module handles starting, stopping, and checking the status of the Flask-based
+web UI. It interfaces with the BedrockServerManager for configuration details
+and core process utilities for managing the web server process.
+"""
 import logging
 from typing import Dict, Optional, Any, List, Union
 import os
@@ -30,6 +37,24 @@ def start_web_server_api(
     debug: bool = False,
     mode: str = "direct",
 ) -> Dict[str, Any]:
+    """
+    Starts the application's web server.
+
+    The server can be started in 'direct' mode (blocking, in the current terminal)
+    or 'detached' mode (background process).
+
+    Args:
+        host: Optional. The host address or list of addresses to bind to.
+              Defaults to configured or Flask's default.
+        debug: If True, run Flask in debug mode (intended for development).
+        mode: "direct" or "detached".
+
+    Returns:
+        A dictionary indicating success or failure, and PID if started in detached mode.
+        Example (detached): `{"status": "success", "pid": 1234, "message": "..."}`
+        Example (direct): `{"status": "success", "message": "Web server shut down."}`
+        Example (error): `{"status": "error", "message": "Error details..."}`
+    """
     mode = mode.lower()
     if mode not in ["direct", "detached"]:
         return {
@@ -121,6 +146,17 @@ def start_web_server_api(
 
 
 def stop_web_server_api() -> Dict[str, str]:
+    """
+    Stops the detached web server process.
+
+    It reads the PID from the stored PID file, verifies the process,
+    and then terminates it.
+
+    Returns:
+        A dictionary indicating success or failure.
+        Example: `{"status": "success", "message": "Web server stopped."}` or
+                 `{"status": "error", "message": "Error details..."}`
+    """
     logger.info("API: Attempting to stop detached web server...")
     if not PSUTIL_AVAILABLE:
         return {
@@ -168,6 +204,17 @@ def stop_web_server_api() -> Dict[str, str]:
 
 
 def get_web_server_status_api() -> Dict[str, Any]:
+    """
+    Checks the status of the web server process.
+
+    Verifies against a PID file and checks if the process is running and matches
+    the expected web server process.
+
+    Returns:
+        A dictionary with the status ("RUNNING", "STOPPED", "MISMATCHED_PROCESS", "ERROR"),
+        PID (if available), and a descriptive message.
+        Example: `{"status": "RUNNING", "pid": 1234, "message": "..."}`
+    """
     logger.debug("API: Getting web server status...")
     if not PSUTIL_AVAILABLE:
         return {

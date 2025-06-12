@@ -1,4 +1,12 @@
 # bedrock_server_manager/config/splash_text.py
+"""
+Defines collections of splash text messages for the application.
+
+These messages are typically displayed in the UI to add a bit of flavor
+and humor, often related to Minecraft, server management, or the application itself.
+The texts are categorized for potential varied use.
+"""
+
 # --- User Interface (UI) Related ---
 SPLASH_TEXTS_UI = [
     "Based on Ore UI!",
@@ -98,7 +106,7 @@ SPLASH_TEXTS_MISC = [
 ]
 
 # --- Combined List ---
-SPLASH_TEXTS = {
+SPLASH_TEXTS: dict[str, list[str]] = {
     "UI": SPLASH_TEXTS_UI,
     "Features": SPLASH_TEXTS_FEATURES,
     "Management": SPLASH_TEXTS_MANAGEMENT,
@@ -108,3 +116,8 @@ SPLASH_TEXTS = {
     "OpenSource": SPLASH_TEXTS_OPENSOURCE,
     "Misc": SPLASH_TEXTS_MISC,
 }
+"""
+A dictionary categorizing all splash text lists.
+Keys are category names (e.g., "UI", "Features"), and values are the
+corresponding lists of splash text strings.
+"""

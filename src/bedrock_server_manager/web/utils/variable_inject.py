@@ -22,7 +22,7 @@ def inject_global_variables() -> Dict[str, Any]:
 
     Calls helper functions (typically from `bedrock_server_manager.utils.get_utils`)
     to retrieve dynamic values like custom panorama URLs, random splash texts,
-    and the application name configured in Flask.
+    the application name, and version.
 
     Returns:
         A dictionary where keys are the variable names made available in templates

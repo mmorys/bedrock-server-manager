@@ -1,4 +1,17 @@
 # bedrock_server_manager/core/system/process.py
+"""
+Provides generic, cross-platform process management utilities.
+
+This module includes functions for:
+- Handling PID files (reading, writing, removing).
+- Checking if a process is running by its PID.
+- Launching detached background processes.
+- Verifying the identity of a running process.
+- Terminating processes gracefully and forcefully.
+
+It relies on the `psutil` library for many of its capabilities and abstracts
+away platform-specific details where possible.
+"""
 import os
 import logging
 import subprocess

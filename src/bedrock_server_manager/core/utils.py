@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/utils.py
+"""
+Provides core utility functions for server management tasks.
+
+This includes server name validation, status checking by parsing log files (currently unused),
+and platform-specific operations like attaching to screen sessions on Linux.
+These functions are typically lower-level helpers used by other core modules or API layers.
+"""
 
 import os
 import re
@@ -47,7 +54,7 @@ def core_validate_server_name_format(server_name: str) -> None:
             "numbers (0-9), hyphens (-), and underscores (_)."
         )
     logger.debug(
-        f"core.core_validate_server_name_format: Server name '{server_name}' format is valid."
+        f"Server name '{server_name}' format is valid."
     )
 
 
@@ -312,7 +319,7 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
 
     command = [screen_cmd, "-r", screen_session_name]
     logger.debug(
-        f"core.core_execute_screen_attach: Executing command: {' '.join(command)}"
+        f"Executing screen attach command: {' '.join(command)}"
     )
     try:
         # Using subprocess.run as the core function doesn't need to be interactive itself.
@@ -324,7 +331,7 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
             "\n" + process.stderr.strip() if process.stderr.strip() else ""
         )
         logger.info(
-            f"core.core_execute_screen_attach: Screen attach command executed for '{screen_session_name}'. Output: {output}"
+            f"Screen attach command executed for '{screen_session_name}'. Output: {output}"
         )
         return (
             True,
@@ -337,17 +344,17 @@ def core_execute_screen_attach(screen_session_name: str) -> Tuple[bool, str]:
             or "there is no screen to be resumed" in stderr_lower
         ):
             msg = f"Screen session '{screen_session_name}' not found."
-            logger.warning(f"core.core_execute_screen_attach: {msg}")
+            logger.warning(msg)
             return False, msg
         else:
             msg = f"Failed to execute screen attach command for '{screen_session_name}'. Error: {e.stderr or 'Unknown error'}"
-            logger.error(f"core.core_execute_screen_attach: {msg}", exc_info=True)
+            logger.error(msg, exc_info=True)
             return False, msg
     except subprocess.TimeoutExpired:
         msg = (
             f"Timeout while trying to attach to screen session '{screen_session_name}'."
         )
-        logger.error(f"core.core_execute_screen_attach: {msg}")
+        logger.error(msg)
         return False, msg
     except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
         raise CommandNotFoundError(

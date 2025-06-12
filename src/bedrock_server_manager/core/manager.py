@@ -1,4 +1,8 @@
 # bedrock_server_manager/core/manager.py
+"""
+Provides the BedrockServerManager class, the central orchestrator for application-wide
+operations, settings management, and server discovery.
+"""
 import os
 import json
 import re
@@ -24,7 +28,23 @@ logger = logging.getLogger(__name__)
 
 
 class BedrockServerManager:
+    """
+    Manages application settings, server discovery, global player data,
+    and web UI process information.
+
+    This class acts as a central point for accessing configuration and performing
+    operations that span across multiple server instances or relate to the
+    application as a whole.
+    """
+
     def __init__(self, settings_instance: Optional[Settings] = None):
+        """
+        Initializes the BedrockServerManager.
+
+        Args:
+            settings_instance: An optional pre-configured Settings object.
+                               If None, a new Settings object will be created.
+        """
         if settings_instance:
             self.settings = settings_instance
         else:
@@ -64,16 +84,31 @@ class BedrockServerManager:
 
     # --- Settings Related ---
     def get_setting(self, key: str, default=None) -> Any:
+        """Retrieves a setting value by key."""
         return self.settings.get(key, default)
 
     def set_setting(self, key: str, value: Any) -> None:
+        """Sets a setting value by key."""
         self.settings.set(key, value)
 
     # --- Player Database Management ---
     def _get_player_db_path(self) -> str:
+        """Returns the absolute path to the players.json database file."""
         return os.path.join(self._config_dir, "players.json")
 
     def parse_player_cli_argument(self, player_string: str) -> List[Dict[str, str]]:
+        """
+        Parses a comma-separated string of 'name:xuid' pairs into a list of dicts.
+
+        Args:
+            player_string: The comma-separated string of player data.
+
+        Returns:
+            A list of dictionaries, each with "name" and "xuid" keys.
+
+        Raises:
+            UserInputError: If the format of any pair is invalid.
+        """
         if not player_string or not isinstance(player_string, str):
             return []
         logger.debug(f"BSM: Parsing player argument string: '{player_string}'")
@@ -94,6 +129,22 @@ class BedrockServerManager:
         return player_list
 
     def save_player_data(self, players_data: List[Dict[str, str]]) -> int:
+        """
+        Saves or updates player data in the players.json file.
+
+        Merges the provided player data with existing data, updating entries
+        with matching XUIDs and adding new ones.
+
+        Args:
+            players_data: A list of player dictionaries ({"name": str, "xuid": str}).
+
+        Returns:
+            The total number of players added or updated.
+
+        Raises:
+            UserInputError: If `players_data` format is invalid.
+            FileOperationError: If there's an issue creating directories or writing the file.
+        """
         if not isinstance(players_data, list):
             raise UserInputError("players_data must be a list.")
         for p_data in players_data:
@@ -166,6 +217,13 @@ class BedrockServerManager:
         return 0
 
     def get_known_players(self) -> List[Dict[str, str]]:
+        """
+        Retrieves all known players from the players.json file.
+
+        Returns:
+            A list of player dictionaries, or an empty list if the file
+            doesn't exist or is invalid.
+        """
         player_db_path = self._get_player_db_path()
         if not os.path.exists(player_db_path):
             return []
@@ -189,6 +247,20 @@ class BedrockServerManager:
         return []
 
     def discover_and_store_players_from_all_server_logs(self) -> Dict[str, Any]:
+        """
+        Scans all valid server logs within the base directory for player connection
+        information (name, XUID) and updates the central players.json database.
+
+        Returns:
+            A dictionary summarizing the results, including counts of entries found,
+            unique players submitted for saving, players actually saved/updated,
+            and a list of any errors encountered during the scan of individual servers.
+            Example: `{"total_entries_in_logs": N, "unique_players_submitted_for_saving": M, ...}`
+
+        Raises:
+            AppFileNotFoundError: If the main server base directory is invalid.
+            FileOperationError: If there's a critical error saving data to players.json.
+        """
         if not self._base_dir or not os.path.isdir(self._base_dir):
             raise AppFileNotFoundError(str(self._base_dir), "Server base directory")
 
@@ -295,6 +367,18 @@ class BedrockServerManager:
     def start_web_ui_direct(
         self, host: Optional[Union[str, List[str]]] = None, debug: bool = False
     ) -> None:
+        """
+        Starts the web UI in the current process (blocking).
+
+        This is typically called when the `--mode direct` is used for starting the web server.
+
+        Args:
+            host: Optional host address(es) to bind to.
+            debug: If True, run Flask in debug mode.
+
+        Raises:
+            RuntimeError/ImportError: If the web application cannot be imported or started.
+        """
         logger.info("BSM: Starting web application in direct mode (blocking)...")
         try:
             from bedrock_server_manager.web.app import (
@@ -316,12 +400,20 @@ class BedrockServerManager:
             raise
 
     def get_web_ui_pid_path(self) -> str:
+        """Returns the path to the PID file for the detached web server."""
         return os.path.join(self._config_dir, self._WEB_SERVER_PID_FILENAME)
 
     def get_web_ui_expected_start_arg(self) -> str:
+        """Returns the expected start argument used to identify the web server process."""
         return self._WEB_SERVER_START_ARG
 
     def get_web_ui_executable_path(self) -> str:
+        """
+        Returns the path to the BSM executable, used for launching/identifying the web server.
+
+        Raises:
+            ConfigurationError: If the executable path is not set.
+        """
         if not self._expath:
             raise ConfigurationError(
                 "Application executable path (_expath) is not configured."
@@ -330,6 +422,20 @@ class BedrockServerManager:
 
     # --- Global Content Directory Management ---
     def _list_content_files(self, sub_folder: str, extensions: List[str]) -> List[str]:
+        """
+        Internal helper to list files with given extensions in a content sub-folder.
+
+        Args:
+            sub_folder: The sub-folder within the main content directory (e.g., "worlds").
+            extensions: A list of file extensions to search for (e.g., [".mcworld"]).
+
+        Returns:
+            A sorted list of absolute file paths.
+
+        Raises:
+            AppFileNotFoundError: If the main content directory is not found.
+            FileOperationError: If there's an OS error scanning the directory.
+        """
         if not self._content_dir or not os.path.isdir(self._content_dir):
             raise AppFileNotFoundError(str(self._content_dir), "Content directory")
 
@@ -366,9 +472,11 @@ class BedrockServerManager:
 
     # --- Application / System Information ---
     def get_app_version(self) -> str:
+        """Returns the application version string."""
         return self._app_version
 
     def get_os_type(self) -> str:
+        """Returns the current operating system type (e.g., "Linux", "Windows")."""
         return platform.system()
 
     # --- Server Discovery ---

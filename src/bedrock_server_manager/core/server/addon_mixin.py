@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/addon_mixin.py
+"""
+Provides the ServerAddonMixin class for BedrockServer.
+
+This mixin handles the processing of addon files (.mcaddon, .mcpack),
+including extraction, manifest parsing, and installation into the server's
+active world directory. It interacts with world and state management mixins.
+"""
 import os
 import glob
 import shutil
@@ -21,7 +28,23 @@ from bedrock_server_manager.error import (
 
 
 class ServerAddonMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for managing
+    server addons, such as .mcaddon and .mcpack files.
+
+    This includes processing addon archives, extracting their contents,
+    reading manifest files, and installing behavior or resource packs
+    into the server's active world.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerAddonMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_dir, logger) and methods
+        (like get_world_name) being available from other mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
         # Attributes from BaseMixin: self.server_name, self.base_dir, self.server_dir, self.logger
         # Methods from other mixins (available on final BedrockServer class):

@@ -1,4 +1,12 @@
 # bedrock_server_manager/core/server/process_mixin.py
+"""
+Provides the ServerProcessMixin class for BedrockServer.
+
+This mixin is responsible for managing the Bedrock server process, including
+starting, stopping, checking its running status, sending commands, and
+retrieving process resource information. It uses platform-specific utilities
+from `core.system`.
+"""
 import time
 import os
 import psutil
@@ -40,7 +48,22 @@ from bedrock_server_manager.error import (
 
 
 class ServerProcessMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for managing
+    the server's underlying system process. This includes starting, stopping,
+    sending commands, and querying process status and resource usage.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerProcessMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, base_dir, logger, settings,
+        os_type, bedrock_executable_path, app_config_dir, get_pid_file_path)
+        and methods (like is_installed, set_status_in_config, get_status_from_config)
+        from other mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
         # Attributes: self.server_name, self.base_dir, self.logger, self.settings
 
@@ -161,13 +184,12 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         Uses systemd-compatible screen on Linux or starts directly on Windows (blocking call).
         Manages persistent status and waits for confirmation on Linux.
 
-        Args:
-            server_path_override: Optional. If provided, attempts to use this path for the
-                                  server executable. Primarily for legacy compatibility or
-                                  very specific use cases. Generally, the instance's
-                                  self.bedrock_executable_path should be used.
-
-        Raises: (as per original function, adapted for class context)
+        Raises:
+            ServerStartError: If the server is not installed, already running, or fails to start.
+            CommandNotFoundError: If essential commands (like 'screen' on Linux) are missing.
+            SystemError: For underlying system issues (e.g., missing Windows dependencies).
+            FileOperationError: For issues related to file system access during start.
+            ConfigurationError: If critical settings are misconfigured.
         """
 
         if (
@@ -189,7 +211,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
             self.set_status_in_config("STARTING")
         except Exception as e_stat:
             # Log but don't fail the start yet, process might still launch.
-            self.logger.error(
+            self.logger.warning(
                 f"Failed to set status to STARTING for '{self.server_name}': {e_stat}"
             )
 
@@ -342,12 +364,17 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         """
         Stops the Bedrock server process gracefully.
         Sends a 'stop' command, waits for the process to terminate.
+        If graceful stop fails, it may attempt a more forceful termination.
 
-        Args:
-            server_path_override: Optional. Used if underlying checks need an explicit path.
-                                  Generally, instance paths are used.
-
-        Raises: (as per original function, adapted for class context)
+        Raises:
+            ServerStopError: If the server fails to stop after all attempts.
+            ServerNotRunningError: Though typically handled by an initial check, could occur
+                                   if server stops unexpectedly during the process.
+            SendCommandError: If sending the initial 'stop' command fails.
+            NotImplementedError: If stopping is not supported on the OS (should not happen).
+            CommandNotFoundError: If required system commands are missing.
+            SystemError: For underlying system issues during process management.
+            FileOperationError: For issues related to PID file management.
         """
 
         if not self.is_running():
@@ -366,7 +393,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         try:
             self.set_status_in_config("STOPPING")
         except Exception as e_stat:
-            self.logger.error(
+            self.logger.warning(
                 f"Failed to set status to STOPPING for '{self.server_name}': {e_stat}"
             )
 

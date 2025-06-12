@@ -475,7 +475,14 @@ def send_command(server_name: str, command: str) -> Dict[str, str]:
         command: The command string to send to the server console.
 
     Returns:
-        A dictionary: `{"status": "success", "message": ...}`. (Raises exceptions on failure).
+        A dictionary `{"status": "success", "message": "Command sent successfully."}` on success.
+
+    Raises:
+        InvalidServerNameError: If `server_name` is empty.
+        MissingArgumentError: If `command` is empty.
+        BlockedCommandError: If the command is in the API_COMMAND_BLACKLIST.
+        BSMError: For other application-specific errors during command sending.
+        ServerError: For unexpected errors.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")

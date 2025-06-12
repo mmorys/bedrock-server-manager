@@ -45,7 +45,8 @@ def check_prerequisites() -> None:
     """
     Checks if essential command-line tools are available on the system.
 
-    Currently checks for 'screen' and 'systemctl' (implicitly) on Linux. No-op on Windows.
+    - Linux: Checks for 'screen', 'systemctl', 'pgrep', 'crontab'.
+    - Windows: Checks for 'schtasks.exe'. Recommends 'psutil' for full functionality.
 
     Raises:
         SystemError: If any required packages/commands are missing on Linux.
@@ -437,7 +438,6 @@ def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
     Args:
         path_to_delete: The full path to the file or directory to delete.
         item_description: A human-readable description of the item being deleted (for logging).
-        logger_obj: The logger instance to use for logging.
 
     Returns:
         True if deletion was successful or path didn't exist, False otherwise.

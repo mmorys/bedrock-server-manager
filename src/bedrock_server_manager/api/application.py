@@ -1,4 +1,11 @@
 # bedrock_server_manager/api/application.py
+"""
+Provides API-level functions for application-wide information and actions.
+
+This module handles requests for general application details, listing available
+content files (worlds, addons), and retrieving data for all managed servers.
+It interfaces with the BedrockServerManager core class.
+"""
 import logging
 from typing import Dict, Any
 
@@ -10,6 +17,14 @@ bsm = BedrockServerManager()
 
 
 def get_application_info_api() -> Dict[str, Any]:
+    """
+    Retrieves general information about the application.
+
+    Returns:
+        A dictionary containing application details like name, version, OS, and key directories.
+        Example: `{"status": "success", "data": {"application_name": "...", ...}}` or
+                 `{"status": "error", "message": "..."}`
+    """
     logger.debug("API: Requesting application info.")
     try:
         info = {
@@ -27,6 +42,14 @@ def get_application_info_api() -> Dict[str, Any]:
 
 
 def list_available_worlds_api() -> Dict[str, Any]:
+    """
+    Lists available .mcworld files from the application's content directory.
+
+    Returns:
+        A dictionary with a list of world file paths.
+        Example: `{"status": "success", "files": ["/path/to/world1.mcworld", ...]}` or
+                 `{"status": "error", "message": "..."}`
+    """
     logger.debug("API: Requesting list of available worlds.")
     try:
         worlds = bsm.list_available_worlds()
@@ -39,6 +62,14 @@ def list_available_worlds_api() -> Dict[str, Any]:
 
 
 def list_available_addons_api() -> Dict[str, Any]:
+    """
+    Lists available .mcaddon and .mcpack files from the application's content directory.
+
+    Returns:
+        A dictionary with a list of addon file paths.
+        Example: `{"status": "success", "files": ["/path/to/addon1.mcaddon", ...]}` or
+                 `{"status": "error", "message": "..."}`
+    """
     logger.debug("API: Requesting list of available addons.")
     try:
         addons = bsm.list_available_addons()
@@ -53,7 +84,14 @@ def list_available_addons_api() -> Dict[str, Any]:
 def get_all_servers_data() -> Dict[str, Any]:
     """
     Retrieves the last known status and installed version for all detected servers.
+
     (API orchestrator using core_server_actions functions)
+
+    Returns:
+        A dictionary containing a list of server data objects, or an error message.
+        Example: `{"status": "success", "servers": [{"name": "s1", "status": "RUNNING", ...}]}` or
+                 `{"status": "error", "message": "..."}`.
+        If some servers have errors, status can be "success" but with a message field detailing partial failures.
     """
     logger.debug("API.get_all_servers_data: Getting status for all servers...")
 

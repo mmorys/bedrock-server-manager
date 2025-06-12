@@ -1,4 +1,10 @@
 # bedrock_server_manager/core/server/player_mixin.py
+"""
+Provides the ServerPlayerMixin class for BedrockServer.
+
+This mixin is responsible for scanning server logs to identify player
+connections, extracting player names and XUIDs.
+"""
 import os
 import re
 import logging  # self.logger from BaseMixin
@@ -13,7 +19,19 @@ if TYPE_CHECKING:
 
 
 class ServerPlayerMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for
+    scanning server logs to discover player connection information.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerPlayerMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_log_path, logger)
+        from the base class.
+        """
         super().__init__(*args, **kwargs)
         # self.server_name, self.server_log_path, self.logger are available
 

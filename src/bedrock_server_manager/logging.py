@@ -36,13 +36,14 @@ def setup_logging(
     to the console. Prevents adding duplicate handlers if called multiple times.
 
     Args:
-        log_dir: Directory to store log files. Defaults to DEFAULT_LOG_DIR.
+        log_dir: Directory to store log files. Defaults to `DEFAULT_LOG_DIR`.
         log_filename: The base name of the log file.
-        log_keep: Number of backup log files to keep. Defaults to DEFAULT_LOG_KEEP.
-        log_level: The minimum log level to record (e.g., logging.INFO, logging.DEBUG).
+        log_keep: Number of backup log files to keep. Defaults to `DEFAULT_LOG_KEEP`.
+        file_log_level: The minimum log level for the file handler (e.g., `logging.INFO`).
+        cli_log_level: The minimum log level for the console handler (e.g., `logging.WARN`).
         when: Time interval for rotation (e.g., 'midnight', 'h', 'd').
-              See TimedRotatingFileHandler documentation.
-        interval: The interval number based on 'when' (e.g., 1 for daily if when='midnight').
+              See `logging.handlers.TimedRotatingFileHandler` documentation.
+        interval: The interval number based on 'when' (e.g., 1 for daily if `when='midnight'`).
 
     Returns:
         The configured logger instance for "bedrock_server_manager".

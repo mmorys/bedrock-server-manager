@@ -22,6 +22,20 @@ bsm = BedrockServerManager()
 
 
 def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
+    """
+    Adds or updates player data in the central players.json file.
+
+    Input is a list of strings, each expected to be in "PlayerName:XUID" format.
+
+    Args:
+        player_strings: A list of strings, where each string contains player
+                        name and XUID separated by a colon.
+
+    Returns:
+        A dictionary indicating success or failure, with a count of players processed.
+        Example: `{"status": "success", "message": "X players processed...", "count": X}` or
+                 `{"status": "error", "message": "Error details..."}`
+    """
     logger.info(f"API: Adding players manually: {player_strings}")
     if (
         not player_strings
@@ -56,6 +70,14 @@ def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
 
 
 def get_all_known_players_api() -> Dict[str, Any]:
+    """
+    Retrieves all player data stored in the central players.json file.
+
+    Returns:
+        A dictionary containing a list of all known player objects.
+        Example: `{"status": "success", "players": [{"name": "P1", "xuid": "123..."}, ...]}` or
+                 `{"status": "error", "message": "Error details..."}`
+    """
     logger.info("API: Request to get all known players.")
     try:
         players = bsm.get_known_players()
@@ -69,6 +91,16 @@ def get_all_known_players_api() -> Dict[str, Any]:
 
 
 def scan_and_update_player_db_api() -> Dict[str, Any]:
+    """
+    Scans logs from all servers to find player connection data (name, XUID)
+    and updates the central players.json file with any new unique entries.
+
+    Returns:
+        A dictionary summarizing the scan results, including counts of entries found,
+        unique players, players saved, and any errors encountered during the scan.
+        Example: `{"status": "success", "message": "Scan complete...", "details": {...}}` or
+                 `{"status": "error", "message": "Error details..."}`
+    """
     logger.info("API: Request to scan all server logs and update player DB.")
     try:
         result = bsm.discover_and_store_players_from_all_server_logs()

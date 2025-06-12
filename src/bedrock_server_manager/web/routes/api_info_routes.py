@@ -367,7 +367,7 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
 def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     """
     API endpoint to prune old backups (world, configs) for a specific server.
-    Optional 'keep' count can be provided in JSON body.
+    The number of backups to keep is determined by application settings.
     """
     identity = get_current_identity() or "Unknown"
     logger.info(

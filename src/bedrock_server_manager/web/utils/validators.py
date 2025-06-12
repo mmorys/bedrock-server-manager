@@ -18,10 +18,16 @@ from bedrock_server_manager.api.utils import validate_server_exist
 logger = logging.getLogger(__name__)
 
 # Define paths or patterns that should *not* trigger server validation
-BYPASS_VALIDATION_PATHS = [
-    "/server/install",
-    "/api/server/install",
+BYPASS_VALIDATION_PATHS: list[str] = [
+    "/server/install",  # Web UI page for starting a new server install
+    "/api/server/install",  # API endpoint for initiating a new server install
 ]
+"""
+A list of URL path prefixes that should bypass the server existence validation.
+This is used for routes that are meant to be accessed even if a specific
+server name in the path doesn't correspond to an existing server, such as
+routes for creating new servers.
+"""
 
 
 def register_server_validation(app: Flask) -> None:

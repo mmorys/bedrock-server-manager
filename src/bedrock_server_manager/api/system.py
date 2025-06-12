@@ -103,14 +103,23 @@ def create_systemd_service(
         }
 
 
-def set_autoupdate(server_name: str, autoupdate_value: bool) -> Dict[str, str]:
-    """Sets the 'autoupdate' flag in the server's specific JSON configuration file."""
+def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
+    """
+    Sets the 'autoupdate' flag in the server's specific JSON configuration file.
+
+    Args:
+        server_name: The name of the server.
+        autoupdate_value: String representation of boolean ('true' or 'false').
+
+    Returns:
+        A dictionary indicating success or failure.
+    """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
-    if autoupdate_value is None:
+    if autoupdate_value is None: # Should not happen with type hint but good for robustness
         raise MissingArgumentError("Autoupdate value cannot be empty.")
 
-    value_lower = autoupdate_value.lower()
+    value_lower = str(autoupdate_value).lower() # Ensure it's a string for .lower()
     if value_lower not in ("true", "false"):
         raise UserInputError("Autoupdate value must be 'true' or 'false'.")
     value_bool = value_lower == "true"

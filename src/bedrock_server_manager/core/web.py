@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/web.py
+"""
+Provides core functionalities for managing the application's web server process.
+
+This includes starting the web server in a detached (background) mode,
+stopping a running web server, and determining the path to its PID file.
+These functions rely on generic process utilities from `core.system.process`.
+"""
 import logging
 from typing import Optional, List
 

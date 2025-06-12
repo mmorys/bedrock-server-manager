@@ -50,6 +50,7 @@ def start_server(server_name: str, mode: Optional[str] = "direct") -> None:
 
     Args:
         server_name: The name of the server to start.
+        mode: The mode to start the server in (e.g., "direct", "detached").
 
     Raises:
         InvalidServerNameError: If `server_name` is empty.
@@ -227,7 +228,9 @@ def send_command(server_name: str, command: str) -> None:
 
 def delete_server(server_name: str, skip_confirmation: bool = False) -> None:
     """
-    CLI handler function to delete a Bedrock server's data. Includes confirmation prompt.
+    CLI handler function to delete a Bedrock server's data.
+
+    Includes a confirmation prompt unless `skip_confirmation` is True.
 
     Args:
         server_name: The name of the server to delete.

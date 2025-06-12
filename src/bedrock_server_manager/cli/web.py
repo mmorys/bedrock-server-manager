@@ -49,7 +49,9 @@ def start_web_server(
 ) -> None:
     """
     CLI handler function to start the application's web server.
+
     Calls the corresponding API function based on the specified mode.
+
     Args:
         host: Optional. The host address or list of addresses to bind to.
         debug: If True, run in Flask's debug mode.

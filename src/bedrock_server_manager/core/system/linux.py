@@ -3,9 +3,9 @@
 Provides Linux-specific implementations for system interactions.
 
 Includes functions for managing systemd user services (create, enable, disable, check)
-and managing user cron jobs (list, add, modify, delete) for scheduling tasks related
-to Bedrock servers. Relies on external commands like `systemctl`, `screen`, `pgrep`,
-and `crontab`.
+for Bedrock servers. It also provides helpers for starting, stopping, and sending
+commands to server processes managed via `screen`. Relies on external commands
+like `systemctl` and `screen`.
 """
 
 import platform
@@ -433,8 +433,6 @@ def _linux_start_server(server_name: str, server_dir: str) -> None:
 def _linux_send_command(server_name: str, command: str) -> None:
     """
     Sends a command to a Bedrock server running in a 'screen' session.
-    This function is typically called by the systemd service file (`ExecReload`).
-    It sends the specified command to the server via screen.
     (Linux-specific)
 
     Args:

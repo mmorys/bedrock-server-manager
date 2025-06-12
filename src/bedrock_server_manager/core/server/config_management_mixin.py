@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/config_management_mixin.py
+"""
+Provides the ServerConfigManagementMixin class for BedrockServer.
+
+This mixin is responsible for managing server-specific configuration files,
+including `allowlist.json`, `permissions.json`, and `server.properties`.
+It handles reading, writing, and modifying these files.
+"""
 import os
 import json
 import logging
@@ -16,13 +23,26 @@ from bedrock_server_manager.error import (
 
 
 class ServerConfigManagementMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for managing
+    key server configuration files such as `allowlist.json`, `permissions.json`,
+    and `server.properties`.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerConfigManagementMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_dir, logger) from the base class.
+        """
         super().__init__(*args, **kwargs)
         # self.server_dir, self.logger are available
 
     # --- ALLOWLIST METHODS ---
     @property
     def allowlist_json_path(self) -> str:
+        """Returns the full path to this server's allowlist.json file."""
         return os.path.join(self.server_dir, "allowlist.json")
 
     def get_allowlist(self) -> List[Dict[str, Any]]:
@@ -171,6 +191,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
     # --- PERMISSIONS.JSON METHODS ---
     @property
     def permissions_json_path(self) -> str:
+        """Returns the full path to this server's permissions.json file."""
         return os.path.join(self.server_dir, "permissions.json")
 
     def set_player_permission(

@@ -64,8 +64,7 @@ def startup_checks(
     Performs initial checks and setup when the application starts.
 
     - Verifies Python version compatibility (>= 3.10).
-    - Writes a separator to the log file.
-    - Initializes colorama for colored console output.
+    - Initializes colorama for colored console output (if available).
     - Creates essential application directories based on settings.
 
     Args:

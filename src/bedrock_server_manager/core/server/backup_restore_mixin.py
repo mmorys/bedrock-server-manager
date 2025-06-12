@@ -1,4 +1,11 @@
 # bedrock_server_manager/core/server/backup_restore_mixin.py
+"""
+Provides the ServerBackupMixin class for BedrockServer.
+
+This mixin handles all backup and restore operations for a server instance,
+including backing up worlds and configuration files, listing available backups,
+restoring from backups, and pruning old backup files.
+"""
 import os
 import glob
 import re
@@ -23,7 +30,21 @@ from bedrock_server_manager.utils import (
 
 
 class ServerBackupMixin(BedrockServerBaseMixin):
+    """
+    A mixin for the BedrockServer class that provides methods for backing up
+    and restoring server data, including worlds and configuration files.
+    It also handles pruning of old backups based on retention settings.
+    """
+
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ServerBackupMixin.
+
+        Calls super().__init__ for proper multiple inheritance setup.
+        Relies on attributes (like server_name, server_dir, settings, logger) and
+        methods (like get_world_name, export_world_directory_to_mcworld,
+        import_active_world_from_mcworld) from other mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
         # Attributes: self.server_name, self.server_dir, self.logger, self.settings
         # Methods from other mixins: self.get_world_name(), self.export_world_directory_to_mcworld(),

@@ -1,4 +1,11 @@
 # bedrock_server_manager/api/utils.py
+"""
+Provides utility API functions that assist other API modules or perform general tasks.
+
+This includes server validation, server name format checking, status updates,
+console attachment (Linux-specific), and a server lifecycle context manager
+for safely performing operations that require a server to be temporarily stopped.
+"""
 import os
 import logging
 from typing import Dict, List, Optional, Any
@@ -73,8 +80,15 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
 
 def validate_server_name_format(server_name: str) -> Dict[str, str]:
     """
-    Validates the format of a potential server name using core utility.
-    (This function doesn't depend on a server instance, so it remains the same).
+    Validates the format of a potential server name using core utility functions.
+
+    This function does not depend on an existing server instance.
+
+    Args:
+        server_name: The server name string to validate.
+
+    Returns:
+        A dictionary indicating success or failure with a message.
     """
     logger.debug(f"API: Validating format for '{server_name}'")
     try:

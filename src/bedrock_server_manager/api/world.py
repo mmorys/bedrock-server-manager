@@ -155,7 +155,7 @@ def import_world(
                 server.send_command("say Importing world...")
             except BSMError as e:
                 logger.warning(
-                    f"API: Failed to send world export warning to '{server_name}': {e}"
+                    f"API: Failed to send world import warning to '{server_name}': {e}"
                 )
 
         imported_world_name: Optional[str] = None

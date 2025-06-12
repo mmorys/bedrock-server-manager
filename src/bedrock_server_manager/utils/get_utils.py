@@ -146,13 +146,10 @@ def _get_splash_text() -> str:
 
 def _get_app_name() -> str:
     """
-    Retrieves the application name, primarily from the Flask app configuration.
-
-    Requires a Flask application context to access 'current_app.config'.
+    Retrieves the application's user-friendly title.
 
     Returns:
-        The application name string configured in Flask ('APP_NAME'),
-        or a default name if not configured or if called outside a Flask context.
+        The application name string, derived from `app_name_title` constant.
     """
     default_app_name: str = app_name_title  # Default name
     app_name: str = default_app_name
@@ -180,13 +177,11 @@ def _get_app_name() -> str:
 
 def _get_app_version() -> str:
     """
-    Retrieves the application version for web server display
-
-    Requires a version string in a '#.#.#' format.
+    Retrieves the installed application version.
 
     Returns:
-        The application version string pulled from app meta,
-        or a default version if not found.
+        The application version string (e.g., "1.2.3") by accessing
+        `settings.version`, or "0.0.0" if not found.
     """
     default_app_version: str = "0.0.0"  # Default version
     app_version: str = default_app_version
