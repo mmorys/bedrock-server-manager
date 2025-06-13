@@ -14,6 +14,7 @@ This module provides functions to:
 import re
 import requests
 import platform
+import json
 import logging
 import os
 import zipfile
@@ -35,10 +36,10 @@ logger = logging.getLogger("bedrock_server_manager")
 
 def lookup_bedrock_download_url(target_version: str) -> str:
     """
-    Finds the download URL for a specific or latest Bedrock server version.
+    Finds the download URL by querying the official Minecraft services API.
 
-    Scrapes the official Minecraft download page to find the URL matching
-    the specified version and operating system.
+    This method calls the internal API used by the Minecraft website to get a
+    list of download links, then selects the correct one.
 
     Args:
         target_version: The desired version identifier:
@@ -53,11 +54,12 @@ def lookup_bedrock_download_url(target_version: str) -> str:
     Raises:
         MissingArgumentError: If `target_version` is None or empty.
         OSError: If the host operating system (platform.system()) is not 'Linux' or 'Windows'.
-        InternetConnectivityError: If fetching the download page fails (network error, timeout).
-        DownloadExtractError: If the appropriate download link cannot be found on the page
+        InternetConnectivityError: If fetching from the API fails (network error, timeout).
+        DownloadExtractError: If the appropriate download link cannot be found in the API response
                                or if constructing a specific version URL fails.
     """
-    download_page = "https://www.minecraft.net/en-us/download/server/bedrock"
+    # This is the correct, confirmed API endpoint
+    API_URL = "https://net-secondary.web.minecraft-services.net/api/v1.0/download/links"
     version_type = ""
     custom_version = ""
 
@@ -70,37 +72,34 @@ def lookup_bedrock_download_url(target_version: str) -> str:
     # Determine version type (LATEST/PREVIEW) and specific version number if provided
     if target_version_upper == "PREVIEW":
         version_type = "PREVIEW"
-        logger.info("Searching for the latest PREVIEW version URL.")
+        logger.info("Searching for the latest PREVIEW version URL via API.")
     elif target_version_upper == "LATEST":
         version_type = "LATEST"
-        logger.info("Searching for the latest STABLE version URL.")
+        logger.info("Searching for the latest STABLE version URL via API.")
     elif target_version_upper.endswith("-PREVIEW"):
         version_type = "PREVIEW"
-        # Extract the version number part (e.g., "1.20.1.2" from "1.20.1.2-PREVIEW")
         custom_version = target_version[: -len("-PREVIEW")]
         logger.info(f"Searching for specific PREVIEW version URL: {custom_version}.")
     else:
         version_type = "LATEST"
-        custom_version = target_version  # Assumes it's a specific stable version number
+        custom_version = target_version
         logger.info(f"Searching for specific STABLE version URL: {custom_version}.")
 
-    # Determine the correct regex based on OS and version type
+    # Determine the correct API identifier based on OS and version type
     os_name = platform.system()
     logger.debug(f"Detected operating system: {os_name}")
     if os_name == "Linux":
-        if version_type == "PREVIEW":
-            regex = (
-                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewLinux"'
-            )
-        else:  # LATEST or specific stable
-            regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockLinux"'
+        download_type = (
+            "serverBedrockPreviewLinux"
+            if version_type == "PREVIEW"
+            else "serverBedrockLinux"
+        )
     elif os_name == "Windows":
-        if version_type == "PREVIEW":
-            regex = (
-                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewWindows"'
-            )
-        else:  # LATEST or specific stable
-            regex = r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockWindows"'
+        download_type = (
+            "serverBedrockPreviewWindows"
+            if version_type == "PREVIEW"
+            else "serverBedrockWindows"
+        )
     else:
         logger.error(
             f"Unsupported operating system '{os_name}' for Bedrock server download."
@@ -109,50 +108,51 @@ def lookup_bedrock_download_url(target_version: str) -> str:
             f"Unsupported operating system for Bedrock server download: {os_name}"
         )
 
-    # Fetch the download page content
+    logger.debug(f"Targeting API downloadType identifier: '{download_type}'")
+
+    # Fetch the download links from the API
     try:
         headers = {
             "User-Agent": f"zvortex11325/{app_name}",
             "Accept-Language": "en-US,en;q=0.5",
-            "Accept": "text/html",
         }
-        logger.debug(f"Requesting URL: {download_page} with headers: {headers}")
-        response = requests.get(download_page, headers=headers, timeout=30)
-        response.raise_for_status()  # Raises HTTPError for bad responses (4xx or 5xx)
-        download_page_content = response.text
-        logger.debug(
-            f"Successfully fetched download page (status {response.status_code}), content length: {len(download_page_content)} bytes."
-        )
+        logger.debug(f"Requesting URL: {API_URL} with headers: {headers}")
+        response = requests.get(API_URL, headers=headers, timeout=30)
+        response.raise_for_status()
+        api_data = response.json()
+        logger.debug(f"Successfully fetched API data: {api_data}")
     except requests.exceptions.RequestException as e:
         logger.error(
-            f"Failed to fetch Minecraft download page '{download_page}': {e}",
-            exc_info=True,
+            f"Failed to fetch Minecraft download API '{API_URL}': {e}", exc_info=True
         )
-        raise InternetConnectivityError(
-            f"Failed to fetch download page '{download_page}': {e}"
-        ) from e
+        raise InternetConnectivityError(f"Failed to fetch download API: {e}") from e
+    except json.JSONDecodeError as e:
+        logger.error(f"Download API returned invalid JSON: {e}", exc_info=True)
+        raise DownloadExtractError("The download API returned malformed data.") from e
 
-    # Search for the download URL using the regex
-    match = re.search(regex, download_page_content)
+    # Find the correct download link from the API response
+    all_links = api_data.get("result", {}).get("links", [])
+    base_download_url = None
+    for link in all_links:
+        if link.get("downloadType") == download_type:
+            base_download_url = link.get("downloadUrl")
+            logger.info(f"Found URL via API for '{download_type}': {base_download_url}")
+            break
 
-    if match:
-        base_download_url = match.group(1)
-        logger.debug(f"Found base download URL via regex: {base_download_url}")
-
+    if base_download_url:
         if custom_version:
             # If a specific version was requested, attempt to modify the found URL
             try:
-                # Regex breakdown:
-                # (bedrock-server-) : Group 1 - Match the prefix literally
-                # [0-9.]+?         : Match one or more digits or dots (non-greedy) - the version part
-                # (\.zip)          : Group 2 - Match the .zip suffix literally
                 modified_url = re.sub(
                     r"(bedrock-server-)[0-9.]+?(\.zip)",
-                    rf"\g<1>{custom_version}\g<2>",  # Replace version part with custom_version
+                    rf"\g<1>{custom_version}\g<2>",
                     base_download_url,
-                    count=1,  # Only replace the first occurrence
+                    count=1,
                 )
-                if modified_url == base_download_url:  # Check if substitution happened
+                if (
+                    modified_url == base_download_url
+                    and not custom_version in base_download_url
+                ):
                     logger.warning(
                         f"Could not substitute version '{custom_version}' into base URL '{base_download_url}'. Regex might need update."
                     )
@@ -172,7 +172,7 @@ def lookup_bedrock_download_url(target_version: str) -> str:
                     f"Error constructing URL for specific version '{custom_version}': {e}"
                 ) from e
         else:
-            # Use the URL found directly (LATEST or PREVIEW)
+            # Use the URL found directly for LATEST or PREVIEW
             resolved_download_url = base_download_url
             logger.debug(
                 f"Using latest {version_type} download URL found: {resolved_download_url}"
@@ -180,11 +180,16 @@ def lookup_bedrock_download_url(target_version: str) -> str:
 
         return resolved_download_url
     else:
-        # If no match found with the regex
-        error_msg = f"Could not find a download URL matching OS '{os_name}' and version type '{version_type}' on page {download_page}."
-        logger.error(error_msg + " The website structure may have changed.")
+        # If no match was found in the API data
+        error_msg = (
+            f"Could not find a download link for '{download_type}' in the API response."
+        )
+        logger.error(
+            error_msg
+            + f" Available types: {[link.get('downloadType') for link in all_links]}"
+        )
         raise DownloadExtractError(
-            error_msg + " Please check the website or report an issue."
+            error_msg + " Please check for new server versions or report an issue."
         )
 
 
