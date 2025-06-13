@@ -136,7 +136,7 @@ class Settings:
                 f"Configuration file not found at {self.config_path}. Creating with default settings."
             )
             self._settings = default_settings
-            self._write_config() 
+            self._write_config()
 
         # Set the final settings and ensure directories exist
         self._settings = default_settings
