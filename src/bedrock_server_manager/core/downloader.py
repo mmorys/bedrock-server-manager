@@ -314,6 +314,17 @@ class BedrockDownloader:
                     base_url,
                     count=1,
                 )
+
+                if (
+                    modified_url == base_url
+                    and self._custom_version_number not in base_url
+                ):
+                    self.logger.error(
+                        f"Regex failed to substitute custom version '{self._custom_version_number}' into base URL '{base_url}'. The URL format may have changed."
+                    )
+                    raise DownloadError(
+                        f"Failed to construct URL for specific version '{self._custom_version_number}'. Please check the version number or report an issue."
+                    )
                 self.resolved_download_url = modified_url
                 self.logger.info(
                     f"Constructed specific version URL: {self.resolved_download_url}"
@@ -495,27 +506,28 @@ class BedrockDownloader:
     def get_version_for_target_spec(self) -> str:
         """
         Determines and returns the version string corresponding to the instance's
-        initialized target_version. Does not download files but may make network requests.
-        Populates self.actual_version.
+        initialized target_version. Does not download files but makes network requests
+        to resolve the URL and version. Populates self.actual_version and self.resolved_download_url.
         """
         self.logger.debug(
             f"Getting prospective version for target spec: '{self.input_target_version}'"
         )
 
-        if self._custom_version_number:  # Specific version like "1.20.1.2" was input
-            self.logger.debug(
-                f"Target spec '{self.input_target_version}' is specific. Returning parsed version: {self._custom_version_number}"
-            )
-            if not self.actual_version:
-                self.actual_version = self._custom_version_number
-            return self._custom_version_number
+        # STEP 1: Always look up the download URL. This method uses the instance's
+        # state (_custom_version_number) to construct the correct final URL
+        # for both specific and latest versions. It populates self.resolved_download_url.
+        self._lookup_bedrock_download_url()
 
-        # For "LATEST" or "PREVIEW", requires online lookup
-        if not self.resolved_download_url:
-            self._lookup_bedrock_download_url()  # Sets self.resolved_download_url
+        # STEP 2: Now that the URL is resolved, parse the definitive version number
+        # from it. This populates self.actual_version.
+        self._get_version_from_url()
 
-        # self.actual_version will be set by _get_version_from_url
-        return self._get_version_from_url()  # Sets self.actual_version and returns it
+        # STEP 3: Sanity check and return.
+        if not self.actual_version:
+            # This should ideally not be reached if the above methods are successful.
+            raise DownloadError("Could not determine actual version from resolved URL.")
+
+        return self.actual_version
 
     def prepare_download_assets(self) -> Tuple[str, str, str]:
         """
