@@ -91,7 +91,7 @@ Follow your platforms documentation for setting Enviroment Variables
 
 The app will create its data folders in this location. This is where servers will be installed to and where the app will look when managing various server aspects. 
 
-Certain variables can can be changed directly in the `./.config/script_config.json` or with the `manage-script-config` command
+Certain variables can can be changed directly in the `./.config/script_config.json`
 
 #### The following variables are configurable via json
 
@@ -131,24 +131,24 @@ python -m bedrock_server_manager <command> [options] # 3.3.0 and later
 ###### Open Main Menu:
 
 ```
-bedrock-server-manager main
+bedrock-server-manager
 ```
 
 ###### Send Command:
 ```
-bedrock-server-manager send-command --server server_name --command "tell @a hello"
+bedrock-server-manager server send-command --server server_name "tell @a hello"
 ```
 
-##### Manage Script Config:
+##### Export World:
 
 ```
-bedrock-server-manager manage-script-config --key BACKUP_KEEP --operation write --value 5
+bedrock-server-manager world export --server server_name_
 ```
 
 ##### Start the Web Server:
 
 ```
-bedrock-server-manager start-web-server --host 0.0.0.0 "::" --mode direct
+bedrock-server-manager web start --host 0.0.0.0 --host "::" --mode direct
 ```
 
 
@@ -165,7 +165,7 @@ Place .mcworld files in `CONTENT_DIR/worlds` or .mcpack/.mcaddon files in `CONTE
 Use the interactive menu to choose which file to install or use the command:
 
 ```
-bedrock-server-manager install-world --server server_name --file '/path/to/WORLD.mcworld'
+bedrock-server-manager world install --server server_name --file '/path/to/WORLD.mcworld'
 ```
 
 ```
@@ -229,22 +229,18 @@ To change which host to listen to start the web server with the specified host
 Example: specify local host only ipv4 and ipv6:
 
 ```
-bedrock-server-manager start-web-server --host 127.0.0.1 "::1"
+bedrock-server-manager web start --host 127.0.0.1 --host "::1"
 ```
 
 Example: specify all ipv4 and ipv6 addresses:
 
 ```
-bedrock-server-manager start-web-server --host 0.0.0.0 "::"
+bedrock-server-manager web start --host 0.0.0.0 --host "::"
 ```
 
 #### Port:
 
 By default Bedrock Server Manager will use port `11325`. This can be change in script_config.json
-
-```
-bedrock-server-manager manage-script-config --key WEB_PORT --operation write --value 11325
-```
 
 #### HTTP API:
 
