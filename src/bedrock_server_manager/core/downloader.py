@@ -13,6 +13,7 @@ import requests
 import platform
 import logging
 import os
+import json
 import zipfile
 from pathlib import Path
 from typing import Tuple, Optional, Set
@@ -224,24 +225,30 @@ class BedrockDownloader:
 
     def _lookup_bedrock_download_url(self) -> str:
         """
-        Finds the download URL for the Bedrock server based on instance's target.
-        Sets self.resolved_download_url and returns it.
+        Finds the download URL by calling the official, confirmed Minecraft
+        download links API directly. This is the most robust and reliable method.
         """
         self.logger.debug(
-            f"Looking up download URL for target: '{self.input_target_version}' (type: '{self._version_type}', custom: '{self._custom_version_number}')"
+            f"Looking up download URL for target: '{self.input_target_version}' "
+            f"(type: '{self._version_type}', custom: '{self._custom_version_number}')"
         )
 
+        API_URL = (
+            "https://net-secondary.web.minecraft-services.net/api/v1.0/download/links"
+        )
+
+        # --- STEP 1: Determine the downloadType identifier for the API ---
         if self.os_name == "Linux":
-            regex = (
-                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewLinux"'
+            download_type = (
+                "serverBedrockPreviewLinux"
                 if self._version_type == "PREVIEW"
-                else r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockLinux"'
+                else "serverBedrockLinux"
             )
         elif self.os_name == "Windows":
-            regex = (
-                r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockPreviewWindows"'
+            download_type = (
+                "serverBedrockPreviewWindows"
                 if self._version_type == "PREVIEW"
-                else r'<a[^>]+href="([^"]+)"[^>]+data-platform="serverBedrockWindows"'
+                else "serverBedrockWindows"
             )
         else:
             self.logger.error(
@@ -251,75 +258,67 @@ class BedrockDownloader:
                 f"Unsupported OS for Bedrock server download: {self.os_name}"
             )
 
+        self.logger.debug(f"Targeting API downloadType identifier: '{download_type}'")
+
+        # --- STEP 2: Fetch the download data from the API ---
         try:
             app_name = self.settings.get("_app_name", "BedrockServerManager")
             headers = {
-                "User-Agent": f"Python/{platform.python_version()} {app_name}/UnknownVersion",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Accept": "text/html",
+                "User-Agent": f"Python/{platform.python_version()} {app_name}/UnknownVersion"
             }
-            self.logger.debug(
-                f"Requesting URL: {self.DOWNLOAD_PAGE_URL} with headers: {headers}"
-            )
-            response = requests.get(self.DOWNLOAD_PAGE_URL, headers=headers, timeout=30)
+            self.logger.debug(f"Requesting URL: {API_URL} with headers: {headers}")
+            response = requests.get(API_URL, headers=headers, timeout=30)
             response.raise_for_status()
-            page_content = response.text
-            self.logger.debug(
-                f"Fetched download page (status {response.status_code}), content length: {len(page_content)} bytes."
-            )
+            api_data = response.json()
+            self.logger.debug(f"Successfully fetched API data: {api_data}")
         except requests.exceptions.RequestException as e:
             self.logger.error(
-                f"Failed to fetch Minecraft download page '{self.DOWNLOAD_PAGE_URL}': {e}",
-                exc_info=True,
+                f"Failed to query the Minecraft download API: {e}", exc_info=True
             )
             raise InternetConnectivityError(
-                f"Failed to fetch download page '{self.DOWNLOAD_PAGE_URL}': {e}"
+                f"Could not contact the Minecraft download API: {e}"
+            ) from e
+        except json.JSONDecodeError as e:
+            self.logger.error(
+                f"Minecraft download API returned invalid JSON: {e}", exc_info=True
+            )
+            raise DownloadError(
+                "The Minecraft download API returned malformed data."
             ) from e
 
-        match = re.search(regex, page_content)
-        if not match:
-            error_msg = f"Could not find download URL for OS '{self.os_name}' and version type '{self._version_type}' on page {self.DOWNLOAD_PAGE_URL}."
-            self.logger.error(error_msg + " Website structure may have changed.")
-            raise DownloadError(error_msg + " Please check website or report issue.")
+        # --- STEP 3: Find the correct download link from the API response ---
+        all_links = api_data.get("result", {}).get("links", [])
+        base_url = None
+        for link in all_links:
+            if link.get("downloadType") == download_type:
+                base_url = link.get("downloadUrl")
+                self.logger.info(f"Found URL via API for '{download_type}': {base_url}")
+                break
 
-        base_url = match.group(1)
-        self.logger.debug(f"Found base download URL via regex: {base_url}")
+        if not base_url:
+            self.logger.error(
+                f"API response did not contain a URL for downloadType '{download_type}'."
+            )
+            self.logger.debug(f"Full API data received: {api_data}")
+            raise DownloadError(
+                f"The API did not provide a download URL for your system ({download_type})."
+            )
 
+        # --- STEP 4: Handle custom version numbers if provided ---
         if self._custom_version_number:
             try:
-                # Try to substitute the custom version into the found URL's version part
+                # Substitute the custom version into the found URL's version part
                 modified_url = re.sub(
                     r"(bedrock-server-)[0-9.]+?(\.zip)",
                     rf"\g<1>{self._custom_version_number}\g<2>",
                     base_url,
                     count=1,
                 )
-                # Check if substitution was effective or if base_url already matched
-                current_ver_in_base_match = re.search(
-                    r"bedrock-server-([0-9.]+)\.zip", base_url
-                )
-                current_ver_in_base = (
-                    current_ver_in_base_match.group(1)
-                    if current_ver_in_base_match
-                    else None
-                )
-
-                if (
-                    modified_url == base_url
-                    and current_ver_in_base != self._custom_version_number
-                ):
-                    self.logger.warning(
-                        f"Could not substitute version '{self._custom_version_number}' into base URL '{base_url}'. Regex pattern might need update or base URL format unexpected."
-                    )
-                    raise DownloadError(
-                        f"Failed to construct URL for specific version '{self._custom_version_number}'."
-                    )
-
                 self.resolved_download_url = modified_url
                 self.logger.info(
                     f"Constructed specific version URL: {self.resolved_download_url}"
                 )
-            except Exception as e:  # Includes re.error if pattern is bad
+            except Exception as e:
                 self.logger.error(
                     f"Error constructing URL for specific version '{self._custom_version_number}': {e}",
                     exc_info=True,
@@ -329,14 +328,12 @@ class BedrockDownloader:
                 ) from e
         else:
             self.resolved_download_url = base_url
-            self.logger.debug(
-                f"Using latest {self._version_type} download URL found: {self.resolved_download_url}"
+
+        if not self.resolved_download_url:
+            raise DownloadError(
+                "Internal error: Failed to resolve a final download URL."
             )
 
-        if (
-            not self.resolved_download_url
-        ):  # Should not happen if logic above is correct
-            raise DownloadError("Failed to resolve a download URL.")
         return self.resolved_download_url
 
     def _get_version_from_url(self) -> str:
