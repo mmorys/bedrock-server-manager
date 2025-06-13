@@ -400,7 +400,13 @@ class LinuxTaskScheduler:
                 )
                 return
 
-            new_crontab_content = current_crontab.strip() + "\n" + cron_string + "\n"
+            if not current_crontab.strip():
+                new_crontab_content = cron_string + "\n"
+            else:
+                new_crontab_content = (
+                    current_crontab.strip() + "\n" + cron_string + "\n"
+                )
+
             write_process = subprocess.Popen(
                 [self.crontab_cmd, "-"],
                 stdin=subprocess.PIPE,
@@ -517,22 +523,30 @@ class LinuxTaskScheduler:
                 )
                 return
 
-            new_crontab_content = "\n".join(updated_lines)
-            if new_crontab_content:
-                new_crontab_content += "\n"
-
-            write_process = subprocess.Popen(
-                [self.crontab_cmd, "-"],
-                stdin=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            _, stderr = write_process.communicate(input=new_crontab_content)
-            if write_process.returncode != 0:
-                raise SystemError(
-                    f"Failed to write updated crontab after deletion. Stderr: {stderr}"
+            # If the updated list of jobs is empty, remove the crontab entirely.
+            if not updated_lines:
+                logger.info(
+                    "Last cron job removed. Deleting crontab file with 'crontab -r'."
                 )
+                # Run the remove command. We use check=False because it might fail if the file
+                # was already gone for some reason, which is not a critical error.
+                subprocess.run([self.crontab_cmd, "-r"], check=False)
+            else:
+                # If there are still jobs left, write them back to the file.
+                new_crontab_content = "\n".join(updated_lines) + "\n"
+
+                write_process = subprocess.Popen(
+                    [self.crontab_cmd, "-"],
+                    stdin=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                _, stderr = write_process.communicate(input=new_crontab_content)
+                if write_process.returncode != 0:
+                    raise SystemError(
+                        f"Failed to write updated crontab after deletion. Stderr: {stderr}"
+                    )
 
             logger.info(f"Successfully deleted cron job: '{cron_string}'")
         except Exception as e:
