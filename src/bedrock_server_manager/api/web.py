@@ -114,7 +114,7 @@ def start_web_server_api(
                 else:  # Stale PID
                     system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
-            command = [str(expected_exe), str(expected_arg), "--mode", "direct"]
+            command = [str(expected_exe), "web", "start", "--mode", "direct"]
             host_cmd_args_list = []
             if host:
                 if isinstance(host, list):

@@ -34,13 +34,6 @@ logger = logging.getLogger(__name__)
 server_actions_bp = Blueprint("action_routes", __name__)
 
 
-## Refactor: All action routes will follow this simplified pattern:
-## 1. Log the request.
-## 2. Call the single, corresponding API function.
-## 3. Check the 'status' of the returned dictionary to set the HTTP status code.
-## 4. Handle a minimal set of high-level exceptions (InvalidInput, ConfigError, etc.).
-
-
 # --- API Route: Start Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/start", methods=["POST"])
 @csrf.exempt

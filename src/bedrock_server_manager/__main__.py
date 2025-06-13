@@ -2,46 +2,32 @@
 """
 Main entry point for the Bedrock Server Manager command-line interface (CLI).
 
-Handles argument parsing, initial setup (logging, checks), and dispatching
-commands to the appropriate handler functions within the `cli` subpackage.
+This module uses `click` to assemble and manage all available commands.
+It handles initial setup and launches the main interactive menu if no
+command is specified.
 """
 
-import sys
-import argparse
 import logging
-import platform
+import sys
 
-# --- Initialize Settings and Logger ---
+import click
+
+# --- Early and Essential Imports ---
 try:
     from bedrock_server_manager import __version__
     from bedrock_server_manager.config.settings import Settings
     from bedrock_server_manager.logging import setup_logging, log_separator
     from bedrock_server_manager.config.const import app_name_title
-
-    settings = Settings()
-
-    # Configure logging based on settings
-    try:
-        logger = setup_logging(
-            log_dir=settings.get("LOG_DIR"),
-            log_keep=settings.get("LOGS_KEEP"),
-            file_log_level=settings.get("FILE_LOG_LEVEL"),
-            cli_log_level=settings.get("CLI_LOG_LEVEL"),
-        )
-        log_separator(logger, app_name=app_name_title, app_version=__version__)
-    except Exception as log_e:
-        logging.basicConfig(level=logging.WARNING)
-        logger = logging.getLogger("bsm_fallback_logger")
-        logger.critical(
-            f"Failed to initialize file logging: {log_e}. Logging to console only.",
-            exc_info=True,
-        )
-
+    from bedrock_server_manager.utils.general import startup_checks
+    from bedrock_server_manager.core.system import base as system_base
+    from bedrock_server_manager.api import utils as api_utils
+    from bedrock_server_manager.error import UserExitError
 except ImportError as e:
+    # Use basic logging for critical failures before the logger is set up
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("bsm_critical_error")
     logger.critical(
-        f"CRITICAL ERROR: Failed to import core modules ({e}). Cannot start application.",
+        f"CRITICAL ERROR: Failed to import core modules ({e}). Cannot start.",
         exc_info=True,
     )
     print(
@@ -49,778 +35,127 @@ except ImportError as e:
         file=sys.stderr,
     )
     sys.exit(1)
-except Exception as e:
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger("bsm_critical_error")
-    logger.critical(
-        f"CRITICAL ERROR: Failed during initial settings/logging setup: {e}",
-        exc_info=True,
-    )
-    print(f"CRITICAL ERROR: Failed during initial setup: {e}", file=sys.stderr)
-    sys.exit(1)
 
-# --- Import other modules ---
-try:
-    from bedrock_server_manager.api import (
-        utils as api_utils,
-        server as api_server,
-        server_install_config as api_server_install_config,
-        world as api_world,
-        backup_restore as api_backup_restore,
-        system as api_system,
-        misc as api_misc,
-    )
-    from bedrock_server_manager.utils.general import (
-        startup_checks,
-        _INFO_PREFIX,
-        _OK_PREFIX,
-        _WARN_PREFIX,
-        _ERROR_PREFIX,
-    )
-    from bedrock_server_manager.core.system import base as system_base
-    from bedrock_server_manager.cli import (
-        main_menus,
-        utils as cli_utils,
-        server_install_config as cli_server_install_config,
-        server as cli_server,
-        world as cli_world,
-        addon as cli_addon,
-        backup_restore as cli_backup_restore,
-        player as cli_player,
-        system as cli_system,
-        web as cli_web,
-        generate_password,
-    )
-    from bedrock_server_manager.error import BSMError, UserExitError
-except ImportError as e:
-    logger.critical(
-        f"CRITICAL ERROR: Failed to import application modules ({e}) after initial setup.",
-        exc_info=True,
-    )
-    print(
-        f"CRITICAL ERROR: Failed to import application modules ({e}). Check installation.",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+# --- Import all our new Click command modules ---
+from bedrock_server_manager.cli import (
+    main_menus,
+    addon,
+    backup_restore,
+    cleanup,
+    generate_password,
+    player,
+    server,
+    server_install_config,
+    system,
+    task_scheduler,
+    utils,
+    web,
+    world,
+)
+
+# --- Define the main Click group ---
 
 
-def run_cleanup(args: argparse.Namespace) -> None:
+@click.group(
+    invoke_without_command=True,
+    context_settings=dict(help_option_names=["-h", "--help"]),
+)
+@click.version_option(
+    __version__, "-v", "--version", message=f"{app_name_title} %(version)s"
+)
+@click.pass_context
+def cli(ctx: click.Context):
     """
-    Performs cleanup operations (__pycache__, logs) based on command line arguments.
+    The main command group for the Bedrock Server Manager CLI.
+
+    This tool provides a comprehensive suite of commands to install, configure,
+    manage, and monitor Minecraft Bedrock servers.
+
+    If no specific command is provided on the command line, the application
+    will launch an interactive menu system to guide the user.
     """
-    logger.info("CLI: Running cleanup operations...")
+    # --- Initial Setup and Checks (runs every time) ---
     try:
-        from .utils import cleanup
-    except ImportError as e:
-        logger.error(f"Cleanup module not found: {e}", exc_info=True)
-        print(f"{_ERROR_PREFIX}Cleanup module failed to import.")
-        return
+        settings = Settings()
 
-    if not args.cache and not args.logs:
-        print(
-            f"{_WARN_PREFIX}No cleanup options specified. Use --cache, --logs, or both."
+        # Configure logging
+        log_dir = settings.get("LOG_DIR")
+        logger = setup_logging(
+            log_dir=log_dir,
+            log_keep=settings.get("LOGS_KEEP"),
+            file_log_level=settings.get("FILE_LOG_LEVEL"),
+            cli_log_level=settings.get("CLI_LOG_LEVEL"),
         )
-        return
+        log_separator(logger, app_name=app_name_title, app_version=__version__)
 
-    if args.cache:
-        print(f"{_INFO_PREFIX}Cleaning Python cache files (__pycache__)...")
-        deleted_count = cleanup.cleanup_cache()
-        print(
-            f"{_OK_PREFIX}Cleaned up {deleted_count} __pycache__ directory/ies."
-            if deleted_count > 0
-            else f"{_INFO_PREFIX}No __pycache__ directories found to clean."
-        )
-
-    if args.logs:
-        log_dir = args.log_dir or settings.get("LOG_DIR")
-        if not log_dir:
-            print(
-                f"{_ERROR_PREFIX}Log directory not specified via --log-dir or settings."
-            )
-            return
-        print(f"{_INFO_PREFIX}Cleaning log files in '{log_dir}'...")
-        deleted_count = cleanup.cleanup_logs(log_dir=log_dir)
-        print(
-            f"{_OK_PREFIX}Cleaned up {deleted_count} log file(s)."
-            if deleted_count > 0
-            else f"{_INFO_PREFIX}No log files found to clean."
-        )
-
-
-def _server_exists(server_name: str) -> bool:
-    """
-    Private helper that uses the API layer to check if a server is valid.
-    Returns True if valid, False otherwise.
-    """
-    response = api_utils.validate_server_exist(server_name)
-    print = response
-    return (
-        response.get("status") == "success"
-        and response.get("message") == f"Server '{server_name}' exists and is valid."
-    )
-
-
-def valid_server_name(name: str) -> str:
-    """
-    A custom argparse 'type' function to validate the server name.
-
-    This function is called by argparse for any argument that uses it as its type.
-    It checks if the server exists and raises a specific error if it doesn't,
-    which argparse handles gracefully.
-    """
-    if not _server_exists(name):
-        # This is the special error type that argparse looks for.
-        raise argparse.ArgumentTypeError(
-            f"Server '{name}' does not exist or is not configured."
-        )
-    # If validation passes, return the original name.
-    return name
-
-
-def main() -> None:
-    """
-    Main execution function for the CLI.
-    """
-    try:
-        # --- Initial Checks ---
         logger.info(f"Starting {app_name_title} v{__version__}...")
         startup_checks(app_name_title, __version__)
         system_base.check_prerequisites()
+        api_utils.update_server_statuses()
 
-        # Update server statuses on startup
+    except Exception as setup_e:
+        click.secho(f"CRITICAL ERROR during startup: {setup_e}", fg="red", bold=True)
+        # Use basic logger if full logger failed
+        logging.getLogger("bsm_critical_error").critical(
+            f"CRITICAL ERROR during startup: {setup_e}", exc_info=True
+        )
+        sys.exit(1)
+
+    # Pass the main cli group object to the context so sub-menus can invoke other commands
+    ctx.obj = {"cli": cli}
+
+    # --- Interactive Mode ---
+    # If no subcommand was invoked, run the main interactive menu
+    if ctx.invoked_subcommand is None:
+        logger.info("No command provided, launching main interactive menu...")
         try:
-            logger.debug("Performing initial update of server statuses...")
-            api_utils.update_server_statuses()
-        except Exception as status_update_e:
-            logger.warning(
-                f"Could not update server statuses on startup: {status_update_e}",
-                exc_info=True,
-            )
-
-        # --- Argument Parsing ---
-        parser = argparse.ArgumentParser(
-            description=f"{app_name_title} - Manage Minecraft Bedrock Servers.",
-            epilog="Run a command with -h for specific help, e.g., 'bedrock-server-manager start-server -h'",
-        )
-        parser.add_argument(
-            "-v",
-            "--version",
-            action="version",
-            version=f"{app_name_title} {__version__}",
-        )
-        subparsers = parser.add_subparsers(
-            title="Available Commands",
-            dest="subcommand",
-            metavar="COMMAND",
-            help="Use '<command> --help' for more information on a specific command.",
-        )
-        subparsers.required = False
-
-        # --- Subparser Definitions ---
-
-        # Helper function to add --server argument consistently
-        def add_server_arg(sub_parser: argparse.ArgumentParser):
-            sub_parser.add_argument(
-                "-s",
-                "--server",
-                help="Name of the target server",
-                type=valid_server_name,
-                required=True,
-            )
-
-        # main (Main CLI Menu)
-        main_parser = subparsers.add_parser("main", help="Open the main CLI menu")
-
-        # list-servers
-        list_parser = subparsers.add_parser(
-            "list-servers", help="List all servers and their statuses"
-        )
-        list_parser.add_argument(
-            "-l",
-            "--loop",
-            action="store_true",
-            help="Continuously list server statuses (Ctrl+C to exit)",
-        )
-
-        # get-status
-        status_parser = subparsers.add_parser(
-            "get-status", help="Get the status of a specific server (from config)"
-        )
-        add_server_arg(status_parser)
-
-        # configure-allowlist
-        allowlist_parser = subparsers.add_parser(
-            "configure-allowlist",
-            help="Interactively configure the allowlist for a server",
-        )
-        add_server_arg(allowlist_parser)
-
-        remove_allowlist_parser = subparsers.add_parser(
-            "remove-allowlist-player",
-            help="Remove players from a specific server's allowlist.json",
-        )
-        add_server_arg(remove_allowlist_parser)
-        remove_allowlist_parser.add_argument(
-            "-p",
-            "--players",
-            help="One or more player names to remove (case-insensitive)",
-            nargs="+",  # Requires at least one player name
-            required=True,
-        )
-
-        # configure-permissions
-        permissions_parser = subparsers.add_parser(
-            "configure-permissions",
-            help="Interactively configure permissions for a server",
-        )
-        add_server_arg(permissions_parser)
-
-        # configure-properties
-        config_parser = subparsers.add_parser(
-            "configure-properties",
-            help="Configure server.properties interactively or set a single property",
-        )
-        add_server_arg(config_parser)
-        config_parser.add_argument(
-            "-p", "--property", help="Name of the property to set directly"
-        )
-        config_parser.add_argument(
-            "-v", "--value", help="New value for the property (use with --property)"
-        )
-
-        # install-server
-        install_parser = subparsers.add_parser(
-            "install-server", help="Install a new server interactively"
-        )
-
-        # update-server
-        update_server_parser = subparsers.add_parser(
-            "update-server", help="Update an existing server to its target version"
-        )
-        add_server_arg(update_server_parser)
-
-        # start-server, stop-server, restart-server
-        start_server_parser = subparsers.add_parser(
-            "start-server", help="Start a server"
-        )
-        add_server_arg(start_server_parser)
-        start_server_parser.add_argument(
-            "-m",
-            "--mode",
-            choices=["direct", "detached"],
-            default="detached",
-            help="Mode to start server in",
-        )
-
-        stop_server_parser = subparsers.add_parser("stop-server", help="Stop a server")
-        add_server_arg(stop_server_parser)
-        restart_parser = subparsers.add_parser(
-            "restart-server", help="Restart a server"
-        )
-        add_server_arg(restart_parser)
-        restart_parser.add_argument(
-            "--no-warn",
-            action="store_false",
-            dest="send_message",
-            default=True,
-            help="Do not send in-game warning before restart",
-        )
-
-        # install-world, install-addon
-        install_world_parser = subparsers.add_parser(
-            "install-world",
-            help="Install a world from a .mcworld file (interactive selection or specified file)",
-        )
-        add_server_arg(install_world_parser)
-        install_world_parser.add_argument(
-            "-f", "--file", help="Full path to the .mcworld file to install directly"
-        )
-        addon_parser = subparsers.add_parser(
-            "install-addon",
-            help="Install an addon (.mcaddon or .mcpack) interactively or from specified file",
-        )
-        add_server_arg(addon_parser)
-        addon_parser.add_argument(
-            "-f", "--file", help="Full path to the addon file to install directly"
-        )
-
-        # attach-console
-        attach_parser = subparsers.add_parser(
-            "attach-console",
-            help="Attach to the server console screen session (Linux only)",
-        )
-        add_server_arg(attach_parser)
-
-        # delete-server
-        delete_parser = subparsers.add_parser(
-            "delete-server", help="Delete ALL data for a server (irreversible!)"
-        )
-        add_server_arg(delete_parser)
-        delete_parser.add_argument(
-            "-y",
-            "--yes",
-            action="store_true",
-            help="Bypass confirmation prompt (use with caution!)",
-        )
-
-        # backup-server, restore-server
-        backup_parser = subparsers.add_parser(
-            "backup-server", help="Backup server files (interactive or specified type)"
-        )
-        add_server_arg(backup_parser)
-        backup_parser.add_argument(
-            "-t",
-            "--type",
-            choices=["world", "config", "all"],
-            help="Backup type (required if not interactive)",
-        )
-        backup_parser.add_argument(
-            "-f",
-            "--file",
-            help="Specific relative config file path to backup (required for type 'config')",
-        )
-        backup_parser.add_argument(
-            "--no-stop",
-            action="store_false",
-            dest="change_status",
-            default=True,
-            help="Attempt backup without stopping the server (may risk data corruption)",
-        )
-        restore_parser = subparsers.add_parser(
-            "restore-server",
-            help="Restore server files from backup (interactive or specified file)",
-        )
-        add_server_arg(restore_parser)
-        restore_parser.add_argument(
-            "-f",
-            "--file",
-            help="Full path to the backup file to restore (required if not interactive)",
-        )
-        restore_parser.add_argument(
-            "-t",
-            "--type",
-            choices=["world", "config", "all"],
-            help="Restore type (required if not interactive)",
-        )
-        restore_parser.add_argument(
-            "--no-stop",
-            action="store_false",
-            dest="change_status",
-            default=True,
-            help="Attempt restore without stopping the server (may risk data corruption)",
-        )
-
-        # backup-all (shortcut for backup-server -t all)
-        backup_all_parser = subparsers.add_parser(
-            "backup-all", help="Backup server world and standard configuration files"
-        )
-        add_server_arg(backup_all_parser)
-        backup_all_parser.add_argument(
-            "--no-stop",
-            action="store_false",
-            dest="change_status",
-            default=True,
-            help="Attempt backup without stopping the server",
-        )
-
-        # restore-all (shortcut for restore-server -t all)
-        restore_all_parser = subparsers.add_parser(
-            "restore-all", help="Restore server world and config from latest backups"
-        )
-        add_server_arg(restore_all_parser)
-        restore_all_parser.add_argument(
-            "--no-stop",
-            action="store_false",
-            dest="change_status",
-            default=True,
-            help="Attempt restore without stopping the server",
-        )
-
-        list_backups_parser = subparsers.add_parser(
-            "list-backups", help="List all backups for a server"
-        )
-        add_server_arg(list_backups_parser)
-        list_backups_parser.add_argument(
-            "-t",
-            "--type",
-            choices=["world", "properties", "allowlist", "permissions", "all"],
-            help="Backup type to list",
-        )
-
-        # scan-players
-        scan_players_parser = subparsers.add_parser(
-            "scan-players",
-            help="Scan all server logs for player connections and update players.json",
-        )
-
-        # add-players (manual player entry)
-        add_players_parser = subparsers.add_parser(
-            "add-players", help="Manually add players to players.json"
-        )
-        add_players_parser.add_argument(
-            "-p",
-            "--players",
-            help="One or more players in 'PlayerName:XUID' format",
-            nargs="+",
-            required=True,
-        )
-
-        # monitor-usage
-        monitor_parser = subparsers.add_parser(
-            "monitor-usage",
-            help="Monitor live resource usage (CPU/Mem) for a server (Ctrl+C to exit)",
-        )
-        add_server_arg(monitor_parser)
-
-        # prune-old-backups
-        prune_old_backups_parser = subparsers.add_parser(
-            "prune-old-backups",
-            help="Delete old backups for a server, keeping the newest N",
-        )
-        add_server_arg(prune_old_backups_parser)
-        prune_old_backups_parser.add_argument(
-            "-k",
-            "--keep",
-            help=f"Number of backups to keep (default: from settings, currently {settings.get('BACKUP_KEEP', 'Not Set')})",
-            type=int,
-        )
-
-        # prune-old-downloads
-        prune_old_downloads_parser = subparsers.add_parser(
-            "prune-old-downloads", help="Delete old server downloads (zip files)"
-        )
-        prune_old_downloads_parser.add_argument(
-            "-d",
-            "--download-dir",
-            help="Specific downloads directory (e.g., /path/to/.downloads/stable)",
-            required=True,
-        )
-        prune_old_downloads_parser.add_argument(
-            "-k",
-            "--keep",
-            help=f"Number of downloads to keep (default: from settings, currently {settings.get('DOWNLOAD_KEEP', 'Not Set')})",
-            type=int,
-        )
-
-        # manage-script-config
-        manage_script_config_parser = subparsers.add_parser(
-            "manage-script-config", help="Read/Write key in apps specific JSON config"
-        )
-        manage_script_config_parser.add_argument(
-            "-k", "--key", required=True, help="Config key"
-        )
-        manage_script_config_parser.add_argument(
-            "-o",
-            "--operation",
-            required=True,
-            choices=["read", "write"],
-            help="Operation: read or write",
-        )
-        manage_script_config_parser.add_argument(
-            "-v", "--value", help="Value to write (required for 'write' operation)"
-        )
-        # manage-server-config
-        manage_server_config_parser = subparsers.add_parser(
-            "manage-server-config",
-            help="Read/Write key in server's specific JSON config",
-        )
-        add_server_arg(manage_server_config_parser)
-        manage_server_config_parser.add_argument(
-            "-k", "--key", required=True, help="Configuration key name"
-        )
-        manage_server_config_parser.add_argument(
-            "-o",
-            "--operation",
-            required=True,
-            choices=["read", "write"],
-            help="Operation: read or write",
-        )
-        manage_server_config_parser.add_argument(
-            "-v", "--value", help="Value to write (required for 'write' operation)"
-        )
-
-        # get-installed-version
-        get_installed_version_parser = subparsers.add_parser(
-            "get-installed-version", help="Get installed version from server config"
-        )
-        add_server_arg(get_installed_version_parser)
-
-        # get-world-name
-        get_world_name_parser = subparsers.add_parser(
-            "get-world-name",
-            help="Get configured world name (level-name) from server properties",
-        )
-        add_server_arg(get_world_name_parser)
-
-        # check-service-exist, create-service, enable-service, disable-service (systemd)
-        check_service_exist_parser = subparsers.add_parser(
-            "check-service-exist",
-            help="Check if systemd user service file exists (Linux only)",
-        )
-        add_server_arg(check_service_exist_parser)
-        create_service_parser = subparsers.add_parser(
-            "create-service",
-            help="Interactively create/configure OS service (systemd/Windows autoupdate flag)",
-        )
-        add_server_arg(create_service_parser)
-        enable_service_parser = subparsers.add_parser(
-            "enable-service", help="Enable systemd service autostart (Linux only)"
-        )
-        add_server_arg(enable_service_parser)
-        disable_service_parser = subparsers.add_parser(
-            "disable-service", help="Disable systemd service autostart (Linux only)"
-        )
-        add_server_arg(disable_service_parser)
-
-        # is-server-running
-        is_server_running_parser = subparsers.add_parser(
-            "is-server-running",
-            help="Check if server process is currently running (returns True/False)",
-        )
-        add_server_arg(is_server_running_parser)
-
-        # send-command
-        send_command_parser = subparsers.add_parser(
-            "send-command", help="Send a command to a running server"
-        )
-        add_server_arg(send_command_parser)
-        send_command_parser.add_argument(
-            "-c", "--command", help="Command string to send", required=True, nargs="+"
-        )  # Allow spaces in command
-
-        # export-world
-        export_world_parser = subparsers.add_parser(
-            "export-world",
-            help="Export server world to a .mcworld file in backup directory",
-        )
-        add_server_arg(export_world_parser)
-
-        # reset-world
-        reset_world_parser = subparsers.add_parser(
-            "reset-world",
-            help="Reset server world",
-        )
-        add_server_arg(reset_world_parser)
-        reset_world_parser.add_argument(
-            "-sc",
-            "-skip_confirmation",
-            help="Skip confirmation prompt",
-            action="store_true",
-            default=False,
-            dest="skip_confirmation",
-        )
-
-        # validate-server
-        validate_server_parser = subparsers.add_parser(
-            "validate-server", help="Check if server directory and executable exist"
-        )
-        add_server_arg(validate_server_parser)
-
-        # check-internet-connectivity
-        check_internet_parser = subparsers.add_parser(
-            "check-internet", help="Check basic internet connectivity"
-        )
-
-        # cleanup
-        cleanup_parser = subparsers.add_parser(
-            "cleanup", help="Clean up generated files"
-        )
-        cleanup_parser.add_argument(
-            "-c",
-            "--cache",
-            action="store_true",
-            help="Clean up __pycache__ directories",
-        )
-        cleanup_parser.add_argument(
-            "-l",
-            "--logs",
-            action="store_true",
-            help="Clean up log files in configured LOG_DIR",
-        )
-        cleanup_parser.add_argument(
-            "-ld",
-            "--log-dir",
-            help="Override log directory for cleanup (default: from settings)",
-        )
-
-        # --- Web-Server ---
-        web_server_start_parser = subparsers.add_parser(
-            "start-web-server", help="Start the web management interface"
-        )
-        web_server_start_parser.add_argument(
-            "-H",
-            "--host",
-            help="One or more host addresses/hostnames to bind to (space-separated). Default: all IPv4/IPv6.",
-            required=False,
-            nargs="+",
-        )
-        web_server_start_parser.add_argument(
-            "-d",
-            "--debug",
-            help="Start Flask development server in debug mode (NOT for production)",
-            action="store_true",
-        )
-        web_server_start_parser.add_argument(
-            "-m",
-            "--mode",
-            choices=["direct", "detached"],
-            default="direct",
-            help="Run mode: direct (takes over current console) or detached (runs in background)",
-        )
-
-        web_server_stop_parser = subparsers.add_parser(
-            "stop-web-server",
-            help="Stop the detached web server process (NOT IMPLEMENTED)",
-        )
-
-        # generate-paswword
-        generate_password_parser = subparsers.add_parser(
-            "generate-password",
-            help="Interactive flow to generate a password hash for the web server",
-        )
-
-        # --- Command Dispatch Dictionary ---
-        commands = {
-            "main": lambda args: main_menus.main_menu(),
-            "list-servers": lambda args: (
-                cli_utils.list_servers_loop()
-                if args.loop
-                else cli_utils.list_servers_status()
-            ),
-            "get-status": lambda args: (
-                lambda resp: print(
-                    f"{_OK_PREFIX}{resp['process_info']}"
-                    if resp.get("status") == "success" and resp.get("process_info")
-                    else f"{_WARN_PREFIX}Server is STOPPED."
-                )
-            )(api_system.get_bedrock_process_info(args.server)),
-            "configure-allowlist": lambda args: cli_server_install_config.configure_allowlist(
-                args.server
-            ),
-            "remove-allowlist-player": lambda args: cli_server_install_config.remove_allowlist_players(
-                args.server, args.players
-            ),
-            "configure-permissions": lambda args: cli_server_install_config.select_player_for_permission(
-                args.server
-            ),
-            "configure-properties": lambda args: cli_server_install_config.configure_server_properties(
-                args.server
-            ),
-            "install-server": lambda args: cli_server_install_config.install_new_server(),
-            "update-server": lambda args: cli_server_install_config.update_server(
-                args.server
-            ),
-            "start-server": lambda args: cli_server.start_server(
-                args.server, args.mode
-            ),
-            "stop-server": lambda args: cli_server.stop_server(args.server),
-            "restart-server": lambda args: cli_server.restart_server(args.server),
-            "install-world": lambda args: (
-                cli_world.import_world_cli(args.server, args.file)
-                if args.file
-                else cli_world.install_worlds(args.server)
-            ),
-            "install-addon": lambda args: (
-                cli_addon.import_addon(args.server, args.file)
-                if args.file
-                else cli_addon.install_addons(args.server)
-            ),
-            "attach-console": lambda args: cli_utils.attach_console(args.server),
-            "delete-server": lambda args: cli_server.delete_server(
-                args.server, skip_confirmation=getattr(args, "yes", False)
-            ),
-            "backup-server": lambda args: cli_backup_restore.backup_server(
-                args.server,
-                getattr(args, "type", None),
-                getattr(args, "file", None),
-                getattr(args, "change_status", True),
-            ),
-            "restore-server": lambda args: cli_backup_restore.restore_server(
-                args.server,
-                getattr(args, "type", None),
-                getattr(args, "file", None),
-                getattr(args, "change_status", True),
-            ),
-            "list-backups": lambda args: (
-                lambda r: print(r.get("backups", "Error or no backups found."))
-            )(api_backup_restore.list_backup_files(args.server, args.type)),
-            "scan-players": lambda args: cli_player.scan_for_players(),
-            "add-players": lambda args: cli_player.add_players(args.players),
-            "monitor-usage": lambda args: cli_system.monitor_service_usage(args.server),
-            "prune-old-backups": lambda args: cli_backup_restore.prune_old_backups(
-                args.server
-            ),
-            "get-world-name": lambda args: (
-                lambda r: print(r.get("world_name", "Error getting world name."))
-            )(api_world.get_world_name(args.server)),
-            "create-service": lambda args: cli_system.configure_service(args.server),
-            "enable-service": lambda args: cli_system.enable_service(args.server),
-            "disable-service": lambda args: cli_system.disable_service(args.server),
-            "is-server-running": lambda args: print(
-                True
-                if (
-                    api_system.get_bedrock_process_info(args.server).get("process_info")
-                )
-                else False
-            ),
-            "send-command": lambda args: cli_server.send_command(
-                args.server, " ".join(getattr(args, "command", []))
-            ),
-            "export-world": lambda args: cli_world.export_world(args.server),
-            "reset-world": lambda args: cli_world.reset_world_cli(
-                args.server, getattr(args, "skip_confirmation", False)
-            ),
-            "validate-server": lambda args: (lambda r: print(r))(
-                api_utils.validate_server_exist(args.server)
-            ),
-            "check-internet": lambda args: print(
-                f"{_OK_PREFIX}Internet OK."
-                if system_base.check_internet_connectivity()
-                else f"{_ERROR_PREFIX}Connectivity check failed."
-            ),
-            "cleanup": run_cleanup,
-            "start-web-server": lambda args: cli_web.start_web_server(
-                getattr(args, "host", None),
-                getattr(args, "debug", False),
-                getattr(args, "mode", "direct"),
-            ),
-            "stop-web-server": lambda args: cli_web.stop_web_server(),
-            "generate-password": lambda args: generate_password.generate_hash(),
-        }
-
-        # --- Parse Arguments and Execute ---
-        args = parser.parse_args()
-        logger.debug(f"Parsed arguments: {args}")
-
-        if args.subcommand in commands:
-            logger.debug(f"Executing command: {args.subcommand}")
-            # Get the function from the dictionary and call it
-            command_func = commands[args.subcommand]
-            command_func(args)
+            main_menus.main_menu(ctx)
+        except UserExitError:
+            # This is the expected way to exit the menu gracefully
             sys.exit(0)
-        elif args.subcommand is None:
-            # Launch the main interactive menu by default
-            logger.info("No subcommand provided, launching main interactive menu...")
-            main_menus.main_menu()
-        else:
-            logger.error(f"Unknown subcommand provided: {args.subcommand}")
-            parser.print_help()
+        except (click.Abort, KeyboardInterrupt):
+            # This handles Ctrl+C from the top-level menu
+            click.secho("\nOperation cancelled by user.", fg="red")
             sys.exit(1)
 
-    except UserExitError:
-        print("\nExiting application.")
-        logger.info("Application exited gracefully by user request.")
-        sys.exit(0)
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user (Ctrl+C).")
-        logger.warning("Application terminated by user (KeyboardInterrupt).")
-        sys.exit(1)
+
+# --- Assemble the Commands ---
+# Add command groups from our modules
+cli.add_command(backup_restore.backup)
+cli.add_command(player.player)
+cli.add_command(server.server)
+cli.add_command(system.system)
+cli.add_command(task_scheduler.schedule)
+cli.add_command(web.web)
+cli.add_command(world.world)
+
+# Add standalone commands from our modules
+cli.add_command(addon.install_addon)
+cli.add_command(cleanup.cleanup)
+cli.add_command(
+    generate_password.generate_password_hash_command, name="generate-password"
+)
+cli.add_command(server_install_config.install_server)
+cli.add_command(server_install_config.update_server)
+cli.add_command(server_install_config.configure_allowlist)
+cli.add_command(server_install_config.configure_permissions)
+cli.add_command(server_install_config.configure_properties)
+cli.add_command(server_install_config.remove_allowlist_players)
+cli.add_command(utils.list_servers)
+cli.add_command(utils.attach_console)
+
+
+def main():
+    """Main execution function wrapped for exception handling."""
+    try:
+        cli()
     except Exception as e:
-        print(
-            f"\n{_ERROR_PREFIX}A critical unexpected error occurred: {type(e).__name__}: {e}"
+        # This is a final catch-all for any unexpected errors not handled by Click
+        click.secho(
+            f"\nFATAL UNEXPECTED ERROR: {type(e).__name__}: {e}", fg="red", bold=True
         )
-        logger.critical(
-            f"An unexpected critical error occurred in main: {e}", exc_info=True
+        logging.getLogger("bsm_critical_error").critical(
+            "A fatal, unexpected error occurred.", exc_info=True
         )
         sys.exit(1)
 

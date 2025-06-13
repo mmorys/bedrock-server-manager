@@ -4165,9 +4165,9 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `DELETE /api/server/{server_name}/allowlist/player/{player_name}` - Remove Player from Allowlist
+### `DELETE /api/server/{server_name}/allowlist/players` - Remove Multiple Players from Allowlist
 
-Removes a specific player from the `allowlist.json` file for the specified server instance. The player name matching is case-insensitive.
+Removes one or more players from the `allowlist.json` file for the specified server. The operation is atomic: it processes all players and then reloads the server's allowlist once (if running). Player name matching is case-insensitive.
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -4178,42 +4178,51 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 #### Path Parameters
 
 *   `**server_name**` (*string*, required): The unique name of the server instance.
-*   `**player_name**` (*string*, required): The name of the player to remove from the allowlist (case-insensitive).
 
 #### Request Body
 
-None.
+A JSON object containing a list of player names to remove.
+
+*   `**players**` (*array of strings*, required): The list of player names to remove.
+
+**Example Body:**
+```json
+{
+    "players": ["Steve", "Alex", "NonExistentPlayer"]
+}
+```
 
 #### Success Response (`200 OK`)
 
-Returned when the operation completes. The message indicates whether the player was found and removed, or if the player was not found on the list.
+Returned when the operation completes. The response includes a `details` object that categorizes which players were successfully removed and which were not found in the allowlist.
 
-*   *Player found and removed:*
-    ```json
-    {
-        "status": "success",
-        "message": "Player '<player_name>' removed successfully from allowlist for server '<server_name>'."
+```json
+{
+    "status": "success",
+    "message": "Allowlist update process completed.",
+    "details": {
+        "removed": [
+            "Steve",
+            "Alex"
+        ],
+        "not_found": [
+            "NonExistentPlayer"
+        ]
     }
-    ```
-*   *Player not found:*
-    ```json
-    {
-        "status": "success",
-        "message": "Player '<player_name>' not found in the allowlist for server '<server_name}'. No changes made."
-    }
-    ```
+}
+```
 
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If `server_name` or `player_name` path parameters are missing or empty. Messages from `MissingArgumentError` or `InvalidServerNameError`.
+    *   If the request body is missing, not valid JSON, or does not contain a `players` array.
         ```json
         {
             "status": "error",
-            "message": "User input error: Player name cannot be empty."
+            "message": "Request body must be a JSON object with a 'players' key containing a list of names."
         }
         ```
-        *or*
+    *   If `server_name` is missing or invalid. Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
@@ -4240,47 +4249,36 @@ Returned when the operation completes. The message indicates whether the player 
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like `BASE_DIR` is missing. Message from `ConfigurationError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
-        }
-        ```
-    *   If reading or writing the `allowlist.json` file fails due to permissions, disk errors, or invalid JSON content. Messages from `FileOperationError` or `ConfigParseError`.
+    *   For any underlying file operation, configuration, or unexpected errors during the process (see single player endpoint for more detailed examples).
         ```json
         {
             "status": "error",
             "message": "File operation error: Failed to write updated allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
         }
         ```
-        *or*
-         ```json
-        {
-            "status": "error",
-            "message": "Failed to parse configuration file: Invalid JSON in allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
-        }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        {
-            "status": "error",
-            "message": "Unexpected error during player removal: <original error message>"
-        }
-        ```
 
 #### `curl` Example (Bash)
 
 ```bash
-curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>
+curl -X DELETE \
+     -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"players": ["Steve", "Alex"]}' \
+     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/players
 ```
 
 #### PowerShell Example
 
 ```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>" -Headers $headers
+$headers = @{
+    Authorization = 'Bearer YOUR_JWT_TOKEN'
+    'Content-Type' = 'application/json'
+}
+$body = @{
+    players = @('Steve', 'Alex')
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/players" -Headers $headers -Body $body
 ```
 
 ---

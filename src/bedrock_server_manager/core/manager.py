@@ -70,7 +70,7 @@ class BedrockServerManager:
         self._content_dir = self.settings.get("CONTENT_DIR")
 
         self._WEB_SERVER_PID_FILENAME = "web_server.pid"
-        self._WEB_SERVER_START_ARG = "start-web-server"
+        self._WEB_SERVER_START_ARG = ["web", "start"]
 
         try:
             self._app_version = self.settings.version

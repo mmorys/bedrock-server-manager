@@ -84,8 +84,8 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         description = f"Minecraft Bedrock Server: {self.server_name}"
         working_directory = self.server_dir  # From BaseMixin
 
-        exec_start = f'{self.manager_expath} start-server --server "{self.server_name}" --mode direct'
-        exec_stop = f'{self.manager_expath} stop-server --server "{self.server_name}"'
+        exec_start = f'{self.manager_expath} server start --server "{self.server_name}" --mode direct'
+        exec_stop = f'{self.manager_expath} server stop --server "{self.server_name}"'
 
         exec_start_pre = None
         if autoupdate_on_start:

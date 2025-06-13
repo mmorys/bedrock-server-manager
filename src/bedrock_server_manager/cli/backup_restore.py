@@ -1,485 +1,331 @@
 # bedrock_server_manager/cli/backup_restore.py
 """
-Command-line interface functions for handling server backup and restore operations.
+Click command group for handling server backup, restore, and management.
 
-Provides user interaction menus and calls corresponding API functions to perform
-backup, restore, and pruning tasks. Uses print() for user feedback.
+Combines direct command-line execution with interactive questionary menus
+for a flexible user experience.
 """
 
 import os
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, Tuple
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
+import questionary
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
-from bedrock_server_manager.api import (
-    backup_restore as backup_restore_api,
-)
-from bedrock_server_manager.utils.general import (
-    _INFO_PREFIX,
-    _OK_PREFIX,
-    _WARN_PREFIX,
-    _ERROR_PREFIX,
-)
-from bedrock_server_manager.error import (
-    BSMError,
-    MissingArgumentError,
-    InvalidServerNameError,
-    UserInputError,
-)
+from bedrock_server_manager.api import backup_restore as backup_restore_api
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def prune_old_backups(server_name: str) -> None:
-    """
-    CLI handler function to prune old backups for a server.
-
-    Calls the corresponding API function which uses global settings for retention count.
-
-    Args:
-        server_name: The name of the server whose backups to prune.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Initiating prune old backups for server '{server_name}'.")
-    logger.debug(f"Calling API: backup_restore_api.prune_old_backups")
-
-    try:
-        response = backup_restore_api.prune_old_backups(server_name=server_name)
-        logger.debug(f"API response for prune_old_backups: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error during pruning.")
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(f"CLI: Pruning backups failed for '{server_name}': {message}")
-        else:
-            message = response.get("message", "Old backups pruned successfully.")
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(f"CLI: Pruning backups successful for '{server_name}'.")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(f"CLI: Failed to call prune backups API: {e}", exc_info=True)
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred during pruning: {e}")
-        logger.error(f"CLI: Unexpected error during backup pruning: {e}", exc_info=True)
+# A helper to reduce code duplication in API response handling
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
+    """Prints styled success or error message based on API response."""
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
+    else:
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
 
 
-def backup_server(
+# ---- Interactive Menu Helpers ----
+
+
+def _interactive_backup_menu(
     server_name: str,
-    backup_type: str,
-    file_to_backup: Optional[str] = None,
-    change_status: bool = True,
-) -> None:
+) -> Tuple[Optional[str], Optional[str], bool]:
     """
-    CLI handler function to back up a server's world, a specific config file, or all.
-
-    Calls the appropriate API backup function and handles pruning afterwards.
+    Guides the user through an interactive backup process using questionary.
 
     Args:
-        server_name: The name of the server.
-        backup_type: Type of backup ("world", "config", "all").
-        file_to_backup: Relative path of config file if `backup_type` is "config".
-        change_status: If True, stop/start server if needed for the backup type.
+        server_name: The name of the server to back up.
 
-    Raises:
-        MissingArgumentError: If `backup_type` or required `file_to_backup` is empty.
-        InvalidServerNameError: If `server_name` is empty.
-        UserInputError: If `backup_type` is invalid.
+    Returns:
+        A tuple containing:
+            - backup_type (Optional[str]): Type of backup ('world', 'config', 'all').
+            - file_to_backup (Optional[str]): Specific config file if type is 'config'.
+            - change_status (bool): Whether to stop/start the server for the backup.
+                                    Always True from this menu.
     """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not backup_type:
-        raise MissingArgumentError("Backup type cannot be empty.")
+    click.secho(f"Entering interactive backup for server: {server_name}", fg="yellow")
 
-    backup_type_norm = backup_type.lower()
-    logger.debug(
-        f"CLI: Initiating '{backup_type_norm}' backup for server '{server_name}'. Change Status: {change_status}"
-    )
+    backup_type_map = {
+        "Backup World Only": ("world", None, True),
+        "Backup Everything (World + Configs)": ("all", None, True),
+        "Backup a Specific Configuration File": ("config", None, False),
+    }
 
-    response: Optional[Dict[str, Any]] = None
-    try:
-        if backup_type_norm == "world":
-            logger.debug("Calling API: backup_restore_api.backup_world")
-            response = backup_restore_api.backup_world(
-                server_name, stop_start_server=change_status
-            )
-        elif backup_type_norm == "config":
-            if not file_to_backup:
-                raise MissingArgumentError(
-                    "File path is required for config backup type."
-                )
-            logger.debug(
-                f"Calling API: backup_restore_api.backup_config_file for file '{file_to_backup}'"
-            )
-            response = backup_restore_api.backup_config_file(
-                server_name, file_to_backup, stop_start_server=change_status
-            )
-        elif backup_type_norm == "all":
-            logger.debug("Calling API: backup_restore_api.backup_all")
-            response = backup_restore_api.backup_all(
-                server_name, stop_start_server=change_status
-            )
-        else:
-            raise UserInputError(
-                f"Invalid backup type specified: '{backup_type}'. Must be 'world', 'config', or 'all'."
-            )
+    choice = questionary.select(
+        "Select backup option:",
+        choices=list(backup_type_map.keys()) + ["Cancel"],
+    ).ask()
 
-        logger.debug(f"API response for backup_{backup_type_norm}: {response}")
+    if not choice or choice == "Cancel":
+        raise click.Abort()
 
-        if response and response.get("status") == "error":
-            message = response.get(
-                "message", f"Unknown error during '{backup_type_norm}' backup."
-            )
-            print(f"{_ERROR_PREFIX}{message}")
-            logger.error(
-                f"CLI: Backup type '{backup_type_norm}' failed for '{server_name}': {message}"
-            )
-            return
-        else:
-            message = response.get(
-                "message", f"Backup type '{backup_type_norm}' completed successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-            logger.debug(
-                f"CLI: Backup type '{backup_type_norm}' successful for '{server_name}'."
-            )
+    b_type, b_file, b_change_status = backup_type_map[choice]
 
-        logger.debug(
-            f"CLI: Pruning old backups for '{server_name}' after successful backup."
-        )
-        prune_old_backups(server_name=server_name)
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to initiate backup for '{server_name}': {e}", exc_info=True
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred during backup: {e}")
-        logger.error(
-            f"CLI: Unexpected error during '{backup_type_norm}' backup for '{server_name}': {e}",
-            exc_info=True,
-        )
-
-
-def backup_menu(server_name: str) -> None:
-    """
-    Displays an interactive backup menu for the user to choose backup type.
-
-    Args:
-        server_name: The name of the server.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Displaying backup menu for server '{server_name}'.")
-    while True:
-        print(
-            f"\n{Fore.MAGENTA}Backup Options for Server: {server_name}{Style.RESET_ALL}"
-        )
-        print("  1. Backup World Only")
-        print("  2. Backup Specific Configuration File")
-        print("  3. Backup Everything (World + Configs)")
-        print("  4. Cancel")
-
-        choice = input(
-            f"{Fore.CYAN}Select backup option (1-4):{Style.RESET_ALL} "
-        ).strip()
-        logger.debug(f"User entered backup menu choice: '{choice}'")
-
-        if choice == "1":
-            backup_server(server_name, "world", change_status=True)
-            break
-        elif choice == "2":
-            logger.debug("User selected 'Backup Specific Configuration File'.")
-            print(
-                f"{Fore.MAGENTA}Select configuration file to backup:{Style.RESET_ALL}"
-            )
-            print("  1. allowlist.json")
-            print("  2. permissions.json")
-            print("  3. server.properties")
-            print("  4. Cancel Config Backup")
-            config_choice = input(
-                f"{Fore.CYAN}Choose file (1-4):{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"User entered config file choice: '{config_choice}'")
-
-            file_map = {
-                "1": "allowlist.json",
-                "2": "permissions.json",
-                "3": "server.properties",
-            }
-            file_to_backup = file_map.get(config_choice)
-
-            if file_to_backup:
-                backup_server(
-                    server_name, "config", file_to_backup, change_status=False
-                )
-                break
-            elif config_choice == "4":
-                print(f"{_INFO_PREFIX}Configuration file backup canceled.")
-                break  # Exit backup menu completely after cancel
-            else:
-                print(
-                    f"{_WARN_PREFIX}Invalid selection '{config_choice}'. Please choose a valid option."
-                )
-                continue  # Ask for config choice again
-        elif choice == "3":
-            backup_server(server_name, "all", change_status=True)
-            break
-        elif choice == "4":
-            print(f"{_INFO_PREFIX}Backup operation canceled.")
-            return
-        else:
-            print(
-                f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose a number between 1 and 4."
-            )
-
-
-def restore_server(
-    server_name: str,
-    restore_type: str,
-    backup_file: Optional[str] = None,
-    change_status: bool = True,
-) -> None:
-    """
-    CLI handler function to restore a server's world, config file, or all from backups.
-
-    Args:
-        server_name: The name of the server.
-        restore_type: Type of restore ("world", "config", "all").
-        backup_file: Full path to the specific backup file to restore.
-        change_status: If True, stop/start server if needed for the restore type.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not restore_type:
-        raise MissingArgumentError("Restore type cannot be empty.")
-
-    restore_type_norm = restore_type.lower()
-    log_target = (
-        f"'{os.path.basename(backup_file)}'" if backup_file else "latest backups"
-    )
-    logger.debug(
-        f"CLI: Initiating '{restore_type_norm}' restore for server '{server_name}' from {log_target}. Change Status: {change_status}"
-    )
-
-    response: Optional[Dict[str, Any]] = None
-    try:
-        if restore_type_norm == "world":
-            if not backup_file:
-                raise MissingArgumentError(
-                    "Backup file path is required for world restore."
-                )
-            logger.debug("Calling API: backup_restore_api.restore_world")
-
-            response = backup_restore_api.restore_world(
-                server_name=server_name,
-                backup_file_path=backup_file,
-                stop_start_server=change_status,
-            )
-        elif restore_type_norm in ["allowlist", "permissions", "properties"]:
-            if not backup_file:
-                raise MissingArgumentError(
-                    "Backup file path is required for config restore."
-                )
-            logger.debug(
-                f"Calling API: backup_restore_api.restore_config_file for file '{backup_file}'"
-            )
-
-            response = backup_restore_api.restore_config_file(
-                server_name=server_name,
-                backup_file_path=backup_file,
-                stop_start_server=change_status,
-            )
-        elif restore_type_norm == "all":
-            logger.debug("Calling API: backup_restore_api.restore_all")
-
-            response = backup_restore_api.restore_all(
-                server_name=server_name, stop_start_server=change_status
-            )
-        else:
-            raise UserInputError(
-                f"Invalid restore type specified: '{restore_type}'. Must be 'world', 'allowlist', 'permissions', 'properties', or 'all'."
-            )
-
-        logger.debug(f"API response for restore_{restore_type_norm}: {response}")
-
-        if response and response.get("status") == "error":
-            message = response.get(
-                "message", f"Unknown error during '{restore_type_norm}' restore."
-            )
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get(
-                "message", f"Restore type '{restore_type_norm}' completed successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-
-    except (BSMError, FileNotFoundError) as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to initiate restore for '{server_name}': {e}", exc_info=True
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred during restore: {e}")
-        logger.error(
-            f"CLI: Unexpected error during '{restore_type_norm}' restore for '{server_name}': {e}",
-            exc_info=True,
-        )
-
-
-def restore_menu(server_name: str) -> None:
-    """
-    Displays an interactive restore menu for the user to choose restore type and backup file.
-
-    Args:
-        server_name: The name of the server.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Displaying restore menu for server '{server_name}'.")
-    while True:
-        print(
-            f"\n{Fore.MAGENTA}Restore Options for Server: {server_name}{Style.RESET_ALL}"
-        )
-        print("  1. Restore World")
-        print("  2. Restore Allowlist")
-        print("  3. Restore Permissions")
-        print("  4. Restore Properties")
-        print("  5. Restore Everything (from latest backups)")
-        print("  6. Cancel")
-
-        choice = input(
-            f"{Fore.CYAN}Select restore option (1-4):{Style.RESET_ALL} "
-        ).strip()
-        logger.debug(f"User entered main restore menu choice: '{choice}'")
-
-        if choice == "5":
-            print(
-                f"{_INFO_PREFIX}Restoring server '{server_name}' from latest backups..."
-            )
-            restore_server(server_name=server_name, restore_type="all")
-            return
-        elif choice == "6":
-            print(f"{_INFO_PREFIX}Restore operation canceled.")
-            return
-
-        restore_map = {
-            "1": "world",
-            "2": "allowlist",
-            "3": "permissions",
-            "4": "properties",
+    if b_type == "config":
+        config_file_map = {
+            "allowlist.json": "allowlist.json",
+            "permissions.json": "permissions.json",
+            "server.properties": "server.properties",
         }
-        restore_type = restore_map.get(choice)
+        file_choice = questionary.select(
+            "Which configuration file to back up?",
+            choices=list(config_file_map.keys()) + ["Cancel"],
+        ).ask()
 
-        if not restore_type:
-            print(
-                f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose a number between 1 and 4."
+        if not file_choice or file_choice == "Cancel":
+            raise click.Abort()
+
+        b_file = config_file_map[file_choice]
+
+    return b_type, b_file, b_change_status
+
+
+def _interactive_restore_menu(
+    server_name: str,
+) -> Tuple[Optional[str], Optional[str], bool]:
+    """
+    Guides the user through an interactive restore process using questionary.
+
+    Args:
+        server_name: The name of the server to restore.
+
+    Returns:
+        A tuple containing:
+            - restore_type (Optional[str]): Type of restore ('world', 'allowlist', etc.).
+            - backup_file_path (Optional[str]): Full path to the selected backup file.
+            - change_status (bool): Whether to stop/start the server for the restore.
+                                    Always True from this menu.
+    """
+    click.secho(f"Entering interactive restore for server: {server_name}", fg="yellow")
+
+    restore_type_map = {
+        "Restore World": "world",
+        "Restore Allowlist": "allowlist",
+        "Restore Permissions": "permissions",
+        "Restore Properties": "properties",
+    }
+
+    choice = questionary.select(
+        "Select what you want to restore:",
+        choices=list(restore_type_map.keys()) + ["Cancel"],
+    ).ask()
+
+    if not choice or choice == "Cancel":
+        raise click.Abort()
+
+    restore_type = restore_type_map[choice]
+
+    # Fetch available backup files for the selected type
+    try:
+        response = backup_restore_api.list_backup_files(server_name, restore_type)
+        backup_files = response.get("backups", [])
+        if not backup_files:
+            click.secho(
+                f"No '{restore_type}' backups found for server '{server_name}'.",
+                fg="yellow",
             )
-            continue
+            raise click.Abort()
+    except BSMError as e:
+        click.secho(f"Error listing backups: {e}", fg="red")
+        raise click.Abort()
 
-        try:
-            logger.debug(
-                f"Listing '{restore_type}' backups for server '{server_name}'..."
+    # Create a user-friendly list of basenames
+    file_choices = [os.path.basename(f) for f in backup_files]
+
+    file_to_restore_basename = questionary.select(
+        f"Select a '{restore_type}' backup to restore:",
+        choices=file_choices + ["Cancel"],
+    ).ask()
+
+    if not file_to_restore_basename or file_to_restore_basename == "Cancel":
+        raise click.Abort()
+
+    # Find the full path from the chosen basename
+    selected_file_path = next(
+        (p for p in backup_files if os.path.basename(p) == file_to_restore_basename),
+        None,
+    )
+
+    return restore_type, selected_file_path, True
+
+
+# ---- Click Command Group ----
+
+
+@click.group()
+def backup():
+    """Commands for server backup, restore, and management."""
+    pass
+
+
+@backup.command("create")
+@click.option("-s", "--server", required=True, help="Name of the target server.")
+@click.option(
+    "-t",
+    "--type",
+    "backup_type",
+    type=click.Choice(["world", "config", "all"]),
+    help="Type of backup. Skips interactive menu.",
+)
+@click.option(
+    "-f", "--file", "file_to_backup", help="File to backup (for type 'config')."
+)
+@click.option(
+    "--no-stop",
+    is_flag=True,
+    default=False,
+    help="Attempt backup without stopping server (risks data corruption).",
+)
+def create_backup(
+    server: str,
+    backup_type: Optional[str],
+    file_to_backup: Optional[str],
+    no_stop: bool,
+):
+    """
+    Backs up server data. Launches an interactive menu if --type is not specified.
+    """
+    change_status = not no_stop
+
+    try:
+        if not backup_type:
+            # Interactive Mode
+            backup_type, file_to_backup, change_status = _interactive_backup_menu(
+                server
             )
-            list_response = backup_restore_api.list_backup_files(
-                server_name, restore_type
-            )
-            logger.debug(f"List backup files API response: {list_response}")
 
-            if list_response.get("status") == "error":
-                message = list_response.get(
-                    "message", f"Unknown error listing {restore_type} backups."
-                )
-                print(f"{_ERROR_PREFIX}{message}")
-                continue
-
-            backup_file_paths: List[str] = list_response.get("backups", [])
-            if not backup_file_paths:
-                print(
-                    f"{_WARN_PREFIX}No '{restore_type}' backups found for server '{server_name}'."
-                )
-                continue
-
-            # Show selection menu for the files
-            selected_file = _select_file_from_list(
-                backup_file_paths, f"'{restore_type}' backup"
+        # Validation for non-interactive mode
+        if backup_type == "config" and not file_to_backup:
+            raise click.UsageError(
+                "Option '--file' is required when using '--type config'."
             )
 
-            if selected_file:
-                print(
-                    f"{_INFO_PREFIX}Restoring from '{os.path.basename(selected_file)}'..."
-                )
-                restore_server(
-                    server_name=server_name,
-                    backup_file=selected_file,
-                    restore_type=restore_type,
-                )
-                return  # Exit menu after successful restore call
+        click.echo(f"Starting '{backup_type}' backup for server '{server}'...")
+        logger.debug(
+            f"CLI: Initiating '{backup_type}' backup for server '{server}'. Change Status: {change_status}"
+        )
+
+        response = None
+        if backup_type == "world":
+            response = backup_restore_api.backup_world(
+                server, stop_start_server=change_status
+            )
+        elif backup_type == "config":
+            response = backup_restore_api.backup_config_file(
+                server, file_to_backup, stop_start_server=change_status
+            )
+        elif backup_type == "all":
+            response = backup_restore_api.backup_all(
+                server, stop_start_server=change_status
+            )
+
+        _handle_api_response(response, "Backup completed successfully.")
+
+        # Prune after a successful backup
+        click.echo("Pruning old backups...")
+        prune_response = backup_restore_api.prune_old_backups(server_name=server)
+        _handle_api_response(prune_response, "Pruning complete.")
+
+    except BSMError as e:
+        click.secho(f"A backup error occurred: {e}", fg="red")
+        raise click.Abort()
+    except click.Abort:
+        click.secho("Backup operation cancelled.", fg="yellow")
+
+
+@backup.command("restore")
+@click.option("-s", "--server", required=True, help="Name of the target server.")
+@click.option(
+    "-f",
+    "--file",
+    "backup_file",
+    help="Full path to the backup file to restore. Skips interactive menu.",
+)
+@click.option(
+    "--no-stop",
+    is_flag=True,
+    default=False,
+    help="Attempt restore without stopping server (risks data corruption).",
+)
+def restore_backup(server: str, backup_file: Optional[str], no_stop: bool):
+    """
+    Restores server data from a backup.
+
+    If --file is provided, the command attempts to infer the restore type
+    (world, allowlist, permissions, properties) from the filename.
+    Otherwise, it launches an interactive menu to select the restore type
+    and the specific backup file.
+    """
+    change_status = not no_stop
+
+    try:
+        # Determine restore type from filename if provided, otherwise go interactive
+        if backup_file:
+            filename = os.path.basename(backup_file).lower()
+            if "world" in filename:
+                restore_type = "world"
+            elif "allowlist" in filename:
+                restore_type = "allowlist"
+            elif "permissions" in filename:
+                restore_type = "permissions"
+            elif "properties" in filename:
+                restore_type = "properties"
             else:
-                # User canceled from the file selection menu
-                print(f"{_INFO_PREFIX}Restore operation canceled.")
-                return
-
-        except Exception as e:
-            print(
-                f"{_ERROR_PREFIX}An unexpected error occurred while listing backups: {e}"
-            )
-            logger.error(f"CLI: Unexpected error listing backups: {e}", exc_info=True)
-            continue
-
-
-def _select_file_from_list(file_paths: List[str], item_type_name: str) -> Optional[str]:
-    """Helper function to display a file selection menu and return the user's choice."""
-
-    print(f"\n{Fore.MAGENTA}Available {item_type_name}s:{Style.RESET_ALL}")
-    for i, file_path in enumerate(file_paths):
-        print(f"  {i + 1}. {os.path.basename(file_path)}")
-    cancel_option_num = len(file_paths) + 1
-    print(f"  {cancel_option_num}. Cancel")
-
-    while True:
-        try:
-            choice_str = input(
-                f"{Fore.CYAN}Select a {item_type_name} to restore (1-{cancel_option_num}):{Style.RESET_ALL} "
-            ).strip()
-            choice_num = int(choice_str)
-
-            if 1 <= choice_num <= len(file_paths):
-                return file_paths[choice_num - 1]
-            elif choice_num == cancel_option_num:
-                return None
-            else:
-                print(
-                    f"{_WARN_PREFIX}Invalid selection '{choice_num}'. Please choose again."
+                raise click.UsageError(
+                    f"Could not determine restore type from filename '{filename}'. Please use interactive mode."
                 )
-        except ValueError:
-            print(f"{_WARN_PREFIX}Invalid input. Please enter a number.")
+        else:
+            # Interactive Mode
+            restore_type, backup_file, change_status = _interactive_restore_menu(server)
+
+        click.echo(
+            f"Starting '{restore_type}' restore for server '{server}' from '{os.path.basename(backup_file)}'..."
+        )
+        logger.debug(
+            f"CLI: Initiating '{restore_type}' restore for server '{server}'. Change Status: {change_status}"
+        )
+
+        response = None
+        if restore_type == "world":
+            response = backup_restore_api.restore_world(
+                server, backup_file, stop_start_server=change_status
+            )
+        else:  # Covers allowlist, permissions, properties
+            response = backup_restore_api.restore_config_file(
+                server, backup_file, stop_start_server=change_status
+            )
+
+        _handle_api_response(response, "Restore completed successfully.")
+
+    except BSMError as e:
+        click.secho(f"A restore error occurred: {e}", fg="red")
+        raise click.Abort()
+    except click.Abort:
+        click.secho("Restore operation cancelled.", fg="yellow")
+
+
+@backup.command("prune")
+@click.option(
+    "-s", "--server", required=True, help="Name of the server whose backups to prune."
+)
+def prune_backups(server: str):
+    """Deletes old backups for a server, keeping the newest N."""
+    try:
+        click.echo(f"Pruning old backups for server '{server}'...")
+        response = backup_restore_api.prune_old_backups(server_name=server)
+        _handle_api_response(response, "Pruning complete.")
+    except BSMError as e:
+        click.secho(f"An error occurred during pruning: {e}", fg="red")
+        raise click.Abort()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    backup()

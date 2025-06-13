@@ -1,206 +1,193 @@
 # bedrock_server_manager/cli/utils.py
 """
-Provides utility functions specifically for the command-line interface (CLI).
+Provides CLI utility commands and modernized interactive helper functions.
 
-Includes functions for prompting users, displaying formatted lists (like server status),
-and handling platform-specific CLI actions like attaching to screen sessions.
-Uses print() for user interaction and feedback.
+Includes commands for listing server statuses and attaching to consoles,
+and a `questionary`-based helper for selecting a valid server.
 """
 
-import os
 import time
 import logging
 import platform
 from typing import Optional, Dict, Any, List
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
+import questionary
+from questionary import Validator, ValidationError
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
 from bedrock_server_manager.api import (
     utils as api_utils,
     application as api_application,
 )
-from bedrock_server_manager.utils.general import (
-    _INFO_PREFIX,
-    _ERROR_PREFIX,
-    _WARN_PREFIX,
-)
-from bedrock_server_manager.error import (
-    BSMError,
-    InvalidServerNameError,
-)
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def get_server_name() -> Optional[str]:
-    """
-    Prompts the user to enter a server name and validates its existence using the API.
+# --- Modernized Interactive Helper ---
 
-    Loops until a valid existing server name is entered or the user cancels.
+
+class ServerExistsValidator(Validator):
+    """A questionary Validator that uses the API to check if a server exists."""
+
+    def validate(self, document):
+        server_name = document.text.strip()
+        if not server_name:
+            # Let questionary handle empty input if needed by the prompt
+            return
+
+        response = api_utils.validate_server_exist(server_name)
+        if response.get("status") != "success":
+            raise ValidationError(
+                message=response.get("message", "Server not found or invalid."),
+                cursor_position=len(document.text),
+            )
+
+
+def get_server_name_interactively() -> Optional[str]:
+    """
+    Prompts the user to enter a server name and validates its existence using a live validator.
 
     Returns:
         The validated server name as a string, or None if the user cancels.
     """
-    logger.debug("Prompting user for server name.")
-    while True:
-        try:
-            server_name_input = input(
-                f"{Fore.MAGENTA}Enter the server name (or type 'exit' to cancel):{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"User input for server name: '{server_name_input}'")
-        except (KeyboardInterrupt, EOFError):
-            print(f"\n{_INFO_PREFIX}Operation canceled.")
-            return None
-
-        if not server_name_input:
-            print(f"{_WARN_PREFIX}Server name cannot be empty.")
-            continue
-        if server_name_input.lower() == "exit":
-            print(f"{_INFO_PREFIX}Operation canceled.")
-            return None
-
-        try:
-            logger.debug(
-                f"Calling API: api_utils.validate_server_exist for '{server_name_input}'"
-            )
-            response = api_utils.validate_server_exist(server_name_input)
-            logger.debug(f"API response from validate_server_exist: {response}")
-
-            if response.get("status") == "success":
-                return server_name_input
-            else:
-                message = response.get(
-                    "message", f"Server '{server_name_input}' not found or invalid."
-                )
-                print(f"{_ERROR_PREFIX}{message}")
-
-        except Exception as e:
-            print(f"{_ERROR_PREFIX}An unexpected error occurred during validation: {e}")
-            logger.error(
-                f"CLI: Unexpected error validating server '{server_name_input}': {e}",
-                exc_info=True,
-            )
-            # Loop to let the user try again
-
-
-def list_servers_status() -> None:
-    """Retrieves and prints a formatted list of all detected servers with their status and version."""
-    logger.debug("CLI: Requesting list of all server statuses.")
     try:
-        response: Dict[str, Any] = api_application.get_all_servers_data()
-        logger.debug(f"API response from get_all_servers_data: {response}")
+        server_name = questionary.text(
+            "Enter the server name:",
+            validate=ServerExistsValidator(),
+            validate_while_typing=False,
+        ).ask()
 
-        print(f"\n{Fore.MAGENTA}Detected Servers Status:{Style.RESET_ALL}")
-        print("-" * 65)
-        print(
-            f"{Style.BRIGHT}{'SERVER NAME':<25} {'STATUS':<20} {'VERSION':<15}{Style.RESET_ALL}"
-        )
-        print("-" * 65)
+        # .ask() returns None if the user cancels (e.g., Ctrl+C)
+        return server_name
 
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error retrieving server list.")
-            print(f"{Fore.RED}  Error: {message}{Style.RESET_ALL}")
-        else:
-            servers: List[Dict[str, str]] = response.get("servers", [])
-            if not servers:
-                print("  No servers found.")
-            else:
-                for server_data in servers:
-                    name = server_data.get("name", "N/A")
-                    status = server_data.get("status", "UNKNOWN").upper()
-                    version = server_data.get("version", "UNKNOWN")
-
-                    status_color = {
-                        "RUNNING": Fore.GREEN,
-                        "STARTING": Fore.YELLOW,
-                        "RESTARTING": Fore.YELLOW,
-                        "STOPPING": Fore.YELLOW,
-                        "INSTALLED": Fore.BLUE,
-                        "STOPPED": Fore.RED,
-                    }.get(status, Fore.RED)
-
-                    status_str = f"{status_color}{status:<10}{Style.RESET_ALL}"
-                    version_color = Fore.WHITE if version != "UNKNOWN" else Fore.RED
-                    version_str = f"{version_color}{version}{Style.RESET_ALL}"
-                    print(
-                        f"  {Fore.CYAN}{name:<23}{Style.RESET_ALL} {status_str:<29} {version_str:<15}"
-                    )
-
-        print("-" * 65)
-        print()
-
-    except Exception as e:
-        print(
-            f"{_ERROR_PREFIX}An unexpected error occurred while listing server status: {e}"
-        )
-        logger.error(f"CLI: Unexpected error listing server status: {e}", exc_info=True)
-
-
-def list_servers_loop() -> None:
-    """Continuously clears the screen and lists servers with their statuses."""
-    logger.debug("CLI: Starting server status monitoring loop.")
-    try:
-        while True:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            list_servers_status()
-            time.sleep(5)
     except (KeyboardInterrupt, EOFError):
-        print("\nExiting status monitor.")
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred starting the monitor: {e}")
-        logger.error(
-            f"CLI: Unexpected error starting status monitor loop: {e}", exc_info=True
-        )
+        # Handle cases where the process is killed more abruptly
+        click.secho("\nOperation cancelled.", fg="yellow")
+        return None
 
 
-def attach_console(server_name: str) -> None:
+# --- Utility Commands ---
+
+
+# Helper similar to other CLI modules for standardized response handling
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
     """
-    CLI handler function to attach the current terminal to a server's screen session. (Linux-specific)
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
+    Handles responses from API calls, displaying success or error messages.
 
-    logger.debug(f"CLI: Requesting to attach console for server '{server_name}'...")
+    Args:
+        response: The dictionary response from an API call.
+        success_msg: Default message to display on success if API provides no message.
+
+    Raises:
+        click.Abort: If the API response indicates an error.
+    """
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
+    else:
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
+
+
+def _print_server_table(servers: List[Dict[str, Any]]):
+    """
+    Prints a formatted table of server information to the console.
+
+    Args:
+        servers: A list of dictionaries, where each dictionary contains
+                 details for a server (e.g., name, status, version).
+    """
+    header = f"{'SERVER NAME':<25} {'STATUS':<20} {'VERSION'}"
+    click.secho(header, bold=True)
+    click.echo("-" * 65)
+
+    if not servers:
+        click.echo("  No servers found.")
+    else:
+        for server_data in servers:
+            name = server_data.get("name", "N/A")
+            status = server_data.get("status", "UNKNOWN").upper()
+            version = server_data.get("version", "UNKNOWN")
+
+            status_color = {
+                "RUNNING": "green",
+                "STARTING": "yellow",
+                "STOPPING": "yellow",
+                "STOPPED": "red",
+                "INSTALLED": "blue",
+            }.get(status, "red")
+
+            status_styled = click.style(f"{status:<10}", fg=status_color)
+            name_styled = click.style(name, fg="cyan")
+
+            click.echo(f"  {name_styled:<38} {status_styled:<20} {version}")
+
+    click.echo("-" * 65)
+
+
+@click.command("list-servers")
+@click.option(
+    "-l",
+    "--loop",
+    is_flag=True,
+    help="Continuously list server statuses every 5 seconds.",
+)
+def list_servers(loop: bool):
+    """Lists all servers and their statuses."""
     try:
-        logger.debug(
-            f"Calling API: api_utils.attach_to_screen_session for '{server_name}'"
-        )
-        response = api_utils.attach_to_screen_session(server_name)
-        logger.debug(f"API response from attach_to_screen_session: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error attaching to console.")
-            print(f"{_ERROR_PREFIX}{message}")
+        if loop:
+            while True:
+                click.clear()
+                click.secho(
+                    "--- Bedrock Servers Status (Press CTRL+C to exit) ---",
+                    fg="magenta",
+                )
+                response = api_application.get_all_servers_data()
+                servers = response.get("servers", [])
+                _print_server_table(servers)
+                time.sleep(5)
         else:
-            logger.debug(f"CLI: Screen attach command executed for '{server_name}'.")
+            # Run once
+            click.secho("--- Bedrock Servers Status ---", fg="magenta")
+            response = api_application.get_all_servers_data()
+            servers = response.get("servers", [])
+            _print_server_table(servers)
 
+    except (KeyboardInterrupt, click.Abort):
+        click.secho("\nExiting status monitor.", fg="green")
     except BSMError as e:
-        print(
-            f"{_ERROR_PREFIX}An application error occurred while trying to attach: {e}"
+        click.secho(f"An error occurred: {e}", fg="red")
+
+
+@click.command("attach-console")
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server's screen session to attach to.",
+)
+def attach_console(server_name: str):
+    """Attaches the terminal to a server's screen session (Linux only)."""
+    if platform.system() != "Linux":
+        click.secho(
+            "Error: This command requires 'screen' and is only available on Linux.",
+            fg="red",
         )
-        logger.error(f"CLI: BSMError attaching console for '{server_name}': {e}")
-    except Exception as e:
-        print(
-            f"{_ERROR_PREFIX}An unexpected error occurred while trying to attach: {e}"
-        )
-        logger.error(
-            f"CLI: Unexpected error attaching console for '{server_name}': {e}",
-            exc_info=True,
-        )
+        return
+
+    click.echo(f"Attempting to attach to console for server '{server_name}'...")
+    # Note: The attach_to_screen_session API might not return in the typical way
+    # if it successfully execs into 'screen'. If it returns, it's likely an error
+    # or a preliminary check message.
+    try:
+        response = api_utils.attach_to_screen_session(server_name)
+        # If attach_to_screen_session returns (e.g. error before exec), handle it.
+        # A successful screen attach might mean this Python script segment is no longer running.
+        _handle_api_response(response, "Attach command issued. Check your terminal.")
+    except BSMError as e:
+        # This handles errors raised directly by the API call itself (e.g., server not found by API)
+        click.secho(f"An application error occurred: {e}", fg="red")
+        # No click.Abort() here as it might be redundant if _handle_api_response raises it

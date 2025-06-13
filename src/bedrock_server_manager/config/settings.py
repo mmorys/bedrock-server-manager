@@ -110,21 +110,36 @@ class Settings:
         """
         Loads settings from the JSON configuration file.
 
-        If the file doesn't exist or is invalid, it initializes with default
-        settings and attempts to write a new configuration file.
-        Ensures all critical directories defined in settings exist.
+        If the file doesn't exist, it initializes with default settings and
+        writes a new configuration file. If the file is invalid, it logs a
+        warning but continues with defaults.
         """
-        self._settings = self.default_config.copy()
-        try:
-            if os.path.exists(self.config_path):
+        # Always start with a fresh copy of the defaults
+        default_settings = self.default_config.copy()
+
+        if os.path.exists(self.config_path):
+            # File exists, try to load and merge it
+            try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     user_config = json.load(f)
-                    self._settings.update(user_config)
-        except (FileNotFoundError, ValueError, OSError) as e:
-            logger.warning(
-                f"Error loading config {self.config_path}: {e}. Using defaults/writing new."
+                    # Update defaults with user settings
+                    default_settings.update(user_config)
+            except (ValueError, OSError) as e:
+                # File is corrupt or unreadable, log a warning and use defaults
+                logger.warning(
+                    f"Could not load config file at {self.config_path}: {e}. "
+                    "Using default settings. The corrupt file will be overwritten on the next settings change."
+                )
+        else:
+            # File does NOT exist, so create it with default values
+            logger.info(
+                f"Configuration file not found at {self.config_path}. Creating with default settings."
             )
-            self._write_config()  # Create/overwrite with defaults if load fails
+            self._settings = default_settings
+            self._write_config()
+
+        # Set the final settings and ensure directories exist
+        self._settings = default_settings
         self._ensure_dirs_exist()
 
     def _ensure_dirs_exist(self) -> None:

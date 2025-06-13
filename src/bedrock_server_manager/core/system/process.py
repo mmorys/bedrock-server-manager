@@ -17,7 +17,7 @@ import logging
 import subprocess
 import platform
 import sys
-from typing import Optional, List, Tuple, Callable
+from typing import Optional, List, Tuple, Callable, Union
 
 try:
     import psutil
@@ -221,28 +221,28 @@ def launch_detached_process(
 def verify_process_identity(
     pid: int,
     expected_executable_path: Optional[str] = None,
-    expected_command_arg: Optional[str] = None,
+    expected_command_args: Optional[Union[str, List[str]]] = None,
     custom_verification_callback: Optional[Callable[[List[str]], bool]] = None,
 ) -> None:
     """
     Verifies if the process with the given PID matches an expected signature. (Generic)
-    Checks executable path, optionally a specific command line argument, or a custom callback.
+    Checks executable path, optionally specific command line arguments, or a custom callback.
 
     Args:
         pid: The process ID to verify.
         expected_executable_path: Optional. The expected path of the main executable.
                                   If None, executable path is not checked.
-        expected_command_arg: Optional. A specific argument expected in the command line.
-                                  If None, argument presence is not checked.
+        expected_command_args: Optional. A specific argument or list of arguments
+                                   expected in the command line.
         custom_verification_callback: Optional. A callable that takes the process's
-                                      cmdline (List[str]) and returns True if it's a match, False otherwise.
-                                      If provided, this callback is used for verification instead of
-                                      expected_executable_path and expected_command_arg.
+                                      cmdline (List[str]) and returns True if it's a match.
 
     Raises:
         SystemError: If psutil is not available or if process info cannot be retrieved.
         ServerProcessError: If the process does not match the expected signature.
+        PermissionsError: If access to process information is denied.
         UserInputError: If an invalid combination of verification methods is provided.
+        MissingArgumentError: If required verification arguments are not provided.
     """
     function_name = "core.process.verify_process_identity"
 
@@ -250,30 +250,16 @@ def verify_process_identity(
         raise SystemError("psutil package is required for process verification.")
 
     if custom_verification_callback and (
-        expected_executable_path or expected_command_arg
+        expected_executable_path or expected_command_args
     ):
         raise UserInputError(
-            "Cannot provide both a custom_verification_callback and expected_executable_path/expected_command_arg."
+            "Cannot provide both a custom_verification_callback and expected_executable_path/expected_command_args."
         )
     if not custom_verification_callback and not (
-        expected_executable_path or expected_command_arg
+        expected_executable_path or expected_command_args
     ):
         raise MissingArgumentError(
-            "At least one verification method (executable path, command arg, or custom callback) must be provided."
-        )
-
-    if custom_verification_callback and (
-        expected_executable_path or expected_command_arg
-    ):
-        raise UserInputError(
-            "Cannot provide both a custom_verification_callback and expected_executable_path/expected_command_arg."
-        )
-    # If custom_verification_callback is NOT provided, THEN we need standard args.
-    if (
-        not custom_verification_callback and not expected_executable_path
-    ):  # At least exe path needed for standard
-        raise MissingArgumentError(
-            "If not using a custom_verification_callback, 'expected_executable_path' must be provided for standard verification."
+            "At least one verification method (executable path, command args, or custom callback) must be provided."
         )
 
     try:
@@ -306,6 +292,7 @@ def verify_process_identity(
             f"Process PID {pid} (Name: {proc_name}) has an empty command line. Cannot verify."
         )
 
+    # --- Custom Verification ---
     if custom_verification_callback:
         if not custom_verification_callback(cmdline):
             raise ServerProcessError(
@@ -314,24 +301,16 @@ def verify_process_identity(
         logger.info(f"{function_name}: Process {pid} verified by custom callback.")
         return
 
-    # Standard verification using expected_executable_path and expected_command_arg
+    # --- Standard Verification ---
     executable_matches = True
     if expected_executable_path:
         executable_matches = False
         try:
-            # os.path.realpath resolves symlinks and normalizes paths.
-            # On Windows, os.path.samefile can sometimes fail across different drive letters or network paths.
-            # For robustness across Windows and Linux, `realpath` and then string comparison is generally reliable.
             actual_proc_exe_resolved = os.path.realpath(cmdline[0])
             expected_exe_resolved = os.path.realpath(expected_executable_path)
-            if actual_proc_exe_resolved == expected_exe_resolved:
+            if actual_proc_exe_resolved.lower() == expected_exe_resolved.lower():
                 executable_matches = True
-        except (
-            OSError,
-            FileNotFoundError,
-            IndexError,
-        ):  # IndexError if cmdline[0] is missing
-            # Fallback to basename comparison if realpath fails
+        except (OSError, FileNotFoundError, IndexError):
             if cmdline and os.path.basename(cmdline[0]) == os.path.basename(
                 expected_executable_path
             ):
@@ -344,19 +323,32 @@ def verify_process_identity(
                     f"{function_name}: Could not resolve or match executable for PID {pid}. Cmdline[0]: {cmdline[0] if cmdline else 'N/A'}, Expected: {expected_executable_path}"
                 )
 
-    argument_present = True
-    if expected_command_arg:
-        argument_present = expected_command_arg in cmdline[1:]
+    arguments_present = True
+    if expected_command_args:
+        args_to_check = []
+        if isinstance(expected_command_args, str):
+            args_to_check = [expected_command_args]
+        elif isinstance(expected_command_args, list):
+            args_to_check = expected_command_args
 
-    if not (executable_matches and argument_present):
+        if args_to_check:
+            proc_args = cmdline[1:]
+            arguments_present = all(arg in proc_args for arg in args_to_check)
+
+    if not (executable_matches and arguments_present):
         verification_details = f"Executable match: {executable_matches}" + (
             f" (Expected: '{expected_executable_path}')"
             if expected_executable_path
             else ""
         )
-        if expected_command_arg:
+        if expected_command_args:
+            expected_args_str = (
+                f"'{' '.join(expected_command_args)}'"
+                if isinstance(expected_command_args, list)
+                else f"'{expected_command_args}'"
+            )
             verification_details += (
-                f", Argument '{expected_command_arg}' present: {argument_present}"
+                f", Arguments {expected_args_str} present: {arguments_present}"
             )
 
         mismatched_msg = (

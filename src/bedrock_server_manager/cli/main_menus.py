@@ -1,351 +1,305 @@
 # bedrock_server_manager/cli/main_menus.py
 """
-Defines the main interactive menu flows for the Bedrock Server Manager CLI.
+Defines the main interactive menu flows using `questionary`.
 
-Handles displaying options, getting user input, and dispatching calls to
-specific CLI handler functions based on user selections.
+These menus drive the application by invoking the underlying `click`
+commands, providing a user-friendly alternative to direct command-line use.
 """
 
-import os
-import platform
 import logging
-import sys
 from typing import Optional
 
-# Third-party imports
-try:
-    from colorama import Fore, Style
+import click
+import questionary
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-
-# Local imports
-from bedrock_server_manager.utils.general import (
-    _ERROR_PREFIX,
-    _WARN_PREFIX,
-    _INFO_PREFIX,
-)
 from bedrock_server_manager.utils.get_utils import _get_splash_text
 from bedrock_server_manager.config.const import app_name_title
-from bedrock_server_manager.cli import (
-    utils as cli_utils,
-    server_install_config as cli_server_install_config,
-    server as cli_server,
-    world as cli_world,
-    addon as cli_addon,
-    system as cli_system,
-    task_scheduler as cli_task_scheduler,
-    backup_restore as cli_backup_restore,
-)
 from bedrock_server_manager.error import UserExitError
+
+# We will get the command objects from the context, so direct imports of CLI functions are no longer needed here.
+# However, we still need our interactive helper for selecting a server.
+from .utils import get_server_name_interactively, list_servers
 
 logger = logging.getLogger(__name__)
 
 
-def main_menu() -> None:
-    """Displays the main application menu and handles top-level user choices."""
+def _world_management_menu(ctx: click.Context, server_name: str):
+    """Displays a sub-menu for world management actions."""
+    world_group = ctx.obj["cli"].get_command(ctx, "world")
+    if not world_group:
+        click.secho("Error: World command group not found.", fg="red")
+        return
+
+    while True:
+        choice = questionary.select(
+            f"World Management for '{server_name}':",
+            choices=["Install World", "Export World", "Reset World", "Back"],
+            use_indicator=True,
+        ).ask()
+
+        if choice is None or choice == "Back":
+            return
+
+        cmd_name = None
+        if choice == "Install World":
+            cmd_name = "install"
+        elif choice == "Export World":
+            cmd_name = "export"
+        elif choice == "Reset World":
+            cmd_name = "reset"
+
+        if cmd_name:
+            cmd = world_group.get_command(ctx, cmd_name)
+            if cmd:
+                ctx.invoke(cmd, server_name=server_name)
+                break  # Exit sub-menu after action
+            else:
+                click.secho(
+                    f"Error: Command '{cmd_name}' not found in world group.", fg="red"
+                )
+        else:
+            click.secho(f"Warning: No action defined for '{choice}'.", fg="yellow")
+
+
+def _backup_restore_menu(ctx: click.Context, server_name: str):
+    """Displays a sub-menu for backup and restore actions."""
+    backup_group = ctx.obj["cli"].get_command(ctx, "backup")
+    if not backup_group:
+        click.secho("Error: Backup command group not found.", fg="red")
+        return
+
+    while True:
+        choice = questionary.select(
+            f"Backup/Restore for '{server_name}':",
+            choices=["Create Backup", "Restore Backup", "Prune Backups", "Back"],
+            use_indicator=True,
+        ).ask()
+
+        if choice is None or choice == "Back":
+            return
+
+        cmd_name = None
+        if choice == "Create Backup":
+            cmd_name = "create"
+        elif choice == "Restore Backup":
+            cmd_name = "restore"
+        elif choice == "Prune Backups":
+            cmd_name = "prune"
+
+        if cmd_name:
+            cmd = backup_group.get_command(ctx, cmd_name)
+            if cmd:
+                # Backup commands use 'server' as parameter name
+                ctx.invoke(cmd, server=server_name)
+                break  # Exit sub-menu after action
+            else:
+                click.secho(
+                    f"Error: Command '{cmd_name}' not found in backup group.", fg="red"
+                )
+        else:
+            click.secho(f"Warning: No action defined for '{choice}'.", fg="yellow")
+
+
+def main_menu(ctx: click.Context):
+    """
+    Displays the main application menu and handles top-level user choices.
+    This function becomes the main loop for interactive mode.
+    """
     while True:
         try:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(f"\n{Fore.MAGENTA}{app_name_title} - Main Menu{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}{_get_splash_text()}{Style.RESET_ALL}")
-            cli_utils.list_servers_status()
+            click.clear()
+            click.secho(f"{app_name_title} - Main Menu", fg="magenta", bold=True)
+            click.secho(_get_splash_text(), fg="yellow")
 
-            print("\nChoose an action:")
-            print("  1) Install New Server")
-            print("  2) Manage Existing Server")
-            print("  3) Install Content")
-            print("  4) Send Command to Server")
-            print("  5) Advanced")
-            print("  6) Exit")
+            # Use the list-servers command to display status
+            ctx.invoke(list_servers, loop=False)
 
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-6]:{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"Main menu choice entered: '{choice}'")
+            choice = questionary.select(
+                "\nChoose an action:",
+                choices=[
+                    "Install New Server",
+                    "Manage Existing Server",
+                    "Exit",
+                ],
+                use_indicator=True,
+            ).ask()
 
-            if choice == "1":
-                cli_server_install_config.install_new_server()
-            elif choice == "2":
-                manage_server()
-            elif choice == "3":
-                install_content()
-            elif choice == "4":
-                server_name = cli_utils.get_server_name()
-                if server_name:
-                    command = input(
-                        f"{Fore.CYAN}Enter command to send:{Style.RESET_ALL} "
-                    ).strip()
-                    if command:
-                        cli_server.send_command(server_name, command)
-                    else:
-                        print(f"{_WARN_PREFIX}No command entered. Canceled.")
-            elif choice == "5":
-                advanced_menu()
-            elif choice == "6":
-                os.system("cls" if platform.system() == "Windows" else "clear")
+            if choice is None or choice == "Exit":
                 raise UserExitError()
-            else:
-                print(
-                    f"{_WARN_PREFIX}Invalid selection '{choice}'. Please choose again."
-                )
 
-            # Pause for user to see output before clearing screen
-            if choice in ["1", "2", "3", "4", "5"]:
-                input("\nPress Enter to continue...")
+            if choice == "Install New Server":
+                # Get the 'install-server' command and invoke it
+                cmd = ctx.obj["cli"].get_command(ctx, "install-server")
+                ctx.invoke(cmd)
+
+            elif choice == "Manage Existing Server":
+                server_name = get_server_name_interactively()
+                if server_name:
+                    manage_server_menu(ctx, server_name)
 
         except UserExitError:
-            print("\nExiting application...")
-            sys.exit(0)
-        except (KeyboardInterrupt, EOFError):
-            print("\nExiting application due to user interruption...")
-            sys.exit(0)
+            click.secho("\nExiting application.", fg="green")
+            raise
+        except (click.Abort, KeyboardInterrupt):
+            # A sub-menu was cancelled, so we just loop back to the main menu.
+            click.echo("\nReturning to main menu...")
+            click.pause()
         except Exception as e:
-            print(
-                f"\n{_ERROR_PREFIX}An unexpected error occurred in the main menu: {e}"
-            )
+            click.secho(f"\nAn unexpected error occurred: {e}", fg="red")
             logger.error(f"Main menu loop error: {e}", exc_info=True)
-            input("Press Enter to continue...")
+            click.pause("Press Enter to continue...")
 
 
-def manage_server() -> None:
-    """Displays the menu for managing an existing server and handles user choices."""
+def manage_server_menu(ctx: click.Context, server_name: str):
+    """Displays the menu for managing a specific, existing server."""
+    # Command Definitions
+    server_group = ctx.obj["cli"].get_command(ctx, "server")
+    # world_group is fetched in _world_management_menu, not needed directly here for menu_map
+    # addon_group = ctx.obj["cli"].get_command(ctx, "addon") # Not used if install-addon is direct
+
+    # Direct commands (not part of a group mentioned above or used directly)
+    install_addon_cmd = ctx.obj["cli"].get_command(ctx, "install-addon")
+    configure_props_cmd = ctx.obj["cli"].get_command(ctx, "configure-properties")
+    configure_allowlist_cmd = ctx.obj["cli"].get_command(ctx, "configure-allowlist")
+    configure_permissions_cmd = ctx.obj["cli"].get_command(ctx, "configure-permissions")
+    attach_console_cmd = ctx.obj["cli"].get_command(ctx, "attach-console")
+    update_server_cmd = ctx.obj["cli"].get_command(ctx, "update-server")
+
+    # Command Groups
+    # backup_group is fetched in _backup_restore_menu
+    system_group = ctx.obj["cli"].get_command(ctx, "system")
+    schedule_group = ctx.obj["cli"].get_command(ctx, "schedule")
+    # Ensure backup_group is available if any direct command from it were used in menu_map
+    # For now, _backup_restore_menu handles backup commands internally.
+    # backup_group = ctx.obj["cli"].get_command(ctx, "backup")
+
+    menu_map = {
+        "Start Server": (server_group.get_command(ctx, "start"), "server_name", {}),
+        "Stop Server": (server_group.get_command(ctx, "stop"), "server_name", {}),
+        "Restart Server": (server_group.get_command(ctx, "restart"), "server_name", {}),
+        "Send Command to Server": (
+            server_group.get_command(ctx, "send-command"),
+            "server_name",
+            {},
+        ),
+        "----": "separator",
+        "Backup or Restore": _backup_restore_menu,  # Handled by its own function
+        "Manage World (Install/Export/Reset)": _world_management_menu,  # Handled by its own function
+        "Install Addon": (install_addon_cmd, "server", {}),
+        "-----": "separator",
+        "Configure Properties": (configure_props_cmd, "server", {}),
+        "Configure Allowlist": (configure_allowlist_cmd, "server", {}),
+        "Configure Permissions": (configure_permissions_cmd, "server", {}),
+        "------": "separator",
+        "Monitor Resource Usage": (
+            system_group.get_command(ctx, "monitor"),
+            "server_name",
+            {},
+        ),
+        "Schedule Tasks": schedule_group,  # Directly use the Click Group, handled in its own logic branch
+        "Attach to Console (Linux only)": (attach_console_cmd, "server_name", {}),
+        "-------": "separator",
+        "Update Server": (update_server_cmd, "server", {}),
+        "Delete Server": (
+            server_group.get_command(ctx, "delete"),
+            "server_name",
+            {"yes": False},  # Let the command handle confirmation interactively
+        ),
+        "--------": "separator",
+        "Back to Main Menu": "back",
+    }
+
     while True:
-        try:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"\n{Fore.MAGENTA}{app_name_title} - Manage Existing Server{Style.RESET_ALL}\n"
-            )
-            cli_utils.list_servers_status()
+        click.clear()
+        click.secho(f"--- Managing Server: {server_name} ---", fg="magenta", bold=True)
+        # Assuming list_servers can handle being called for a deleted server gracefully
+        # or we rely on the loop exiting before it's called again.
+        # ctx.invoke(list_servers, loop=False) # Maybe comment out or make more robust
 
-            print("\nChoose an action:")
-            print("  1) Update Server")
-            print("  2) Start Server")
-            print("  3) Stop Server")
-            print("  4) Restart Server")
-            print("  5) Backup/Restore Menu")
-            print("  6) Delete Server")
-            print("  7) Back to Main Menu")
+        choice = questionary.select(
+            f"\nSelect an action for '{server_name}':",
+            choices=list(menu_map.keys()),
+            use_indicator=True,
+        ).ask()
 
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-7]:{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"Manage server menu choice entered: '{choice}'")
-
-            if choice == "7":
-                return
-
-            # Get server name for actions that need it
-            server_name: Optional[str] = None
-            if choice in ["1", "2", "3", "4", "5", "6"]:
-                server_name = cli_utils.get_server_name()
-                if not server_name:
-                    continue
-
-            if choice == "1":
-                cli_server_install_config.update_server(server_name)
-            elif choice == "2":
-                cli_server.start_server(server_name, "detached")
-            elif choice == "3":
-                cli_server.stop_server(server_name)
-            elif choice == "4":
-                cli_server.restart_server(server_name)
-            elif choice == "5":
-                backup_restore_menu()
-            elif choice == "6":
-                cli_server.delete_server(server_name)
-            else:
-                if choice != "7":
-                    print(f"{_WARN_PREFIX}Invalid selection '{choice}'.")
-
-            input("\nPress Enter to continue...")
-
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to main menu...")
+        if choice is None or choice == "Back to Main Menu":
             return
-        except Exception as e:
-            print(
-                f"\n{_ERROR_PREFIX}An unexpected error occurred in the manage menu: {e}"
-            )
-            logger.error(f"Manage server menu loop error: {e}", exc_info=True)
-            input("Press Enter to continue...")
 
+        action_config = menu_map.get(choice)
 
-def install_content() -> None:
-    """Displays the menu for installing content (worlds, addons) to a server."""
-    while True:
-        try:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"\n{Fore.MAGENTA}{app_name_title} - Install Content{Style.RESET_ALL}\n"
-            )
-            cli_utils.list_servers_status()
+        if action_config == "separator":
+            continue
+        if action_config is None:
+            click.secho(f"Warning: No action defined for '{choice}'.", fg="yellow")
+            continue
 
-            print("\nChoose content type to install:")
-            print("  1) Import World (.mcworld)")
-            print("  2) Install Addon (.mcaddon / .mcpack)")
-            print("  3) Back to Main Menu")
+        if callable(action_config) and not (
+            hasattr(action_config, "commands") or hasattr(action_config, "callback")
+        ):
+            action_config(ctx, server_name)
+        elif isinstance(action_config, tuple):
+            command_obj, server_param_key, kwargs_to_pass = action_config
+            final_kwargs = {}
+            if server_param_key:
+                final_kwargs[server_param_key] = server_name
+            final_kwargs.update(kwargs_to_pass)
 
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-3]:{Style.RESET_ALL}: "
-            ).strip()
-            logger.debug(f"Install content menu choice entered: '{choice}'")
+            if command_obj is None:
+                click.secho(
+                    f"Error: Command object for '{choice}' is None. Check menu_map.",
+                    fg="red",
+                )
+                continue
 
-            if choice == "3":
-                return
-
-            server_name: Optional[str] = None
-            if choice in ["1", "2"]:
-                server_name = cli_utils.get_server_name()
-                if not server_name:
+            if command_obj.name == "send-command":
+                cmd_str = questionary.text("Enter command to send:").ask()
+                if cmd_str is None:
                     continue
-
-            if choice == "1":
-                cli_world.install_worlds(server_name)
-            elif choice == "2":
-                cli_addon.install_addons(server_name)
+                if cmd_str.strip():
+                    final_kwargs["command"] = cmd_str.split()
+                    try:
+                        ctx.invoke(command_obj, **final_kwargs)
+                    except Exception as e:
+                        click.secho(f"Error sending command: {e}", fg="red")
             else:
-                if choice != "3":
-                    print(f"{_WARN_PREFIX}Invalid selection '{choice}'.")
+                try:
+                    ctx.invoke(command_obj, **final_kwargs)
+                    # After a successful invocation, check if the command was 'delete'.
+                    # If so, we must exit this menu.
+                    if command_obj.name == "delete":
+                        # The delete command itself will print success. We just need to exit.
+                        click.echo("\nServer deleted. Returning to the main menu.")
+                        # We add a pause here so the user can read the message before the
+                        # screen clears and returns to the previous menu.
+                        click.pause()
+                        return  # Exit the manage_server_menu function
+                except Exception as e:
+                    # The exception will be caught, so the loop continues, which is fine.
+                    # This means if deletion fails, the user stays in the menu to try again.
+                    click.secho(f"Error executing action '{choice}': {e}", fg="red")
 
-            input("\nPress Enter to continue...")
-
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to main menu...")
-            return
-        except Exception as e:
-            print(
-                f"\n{_ERROR_PREFIX}An unexpected error occurred in the content menu: {e}"
-            )
-            logger.error(f"Install content menu loop error: {e}", exc_info=True)
-            input("Press Enter to continue...")
-
-
-def advanced_menu() -> None:
-    """Displays the advanced options menu and handles user choices."""
-    while True:
-        try:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"\n{Fore.MAGENTA}{app_name_title} - Advanced Options{Style.RESET_ALL}\n"
-            )
-            cli_utils.list_servers_status()
-
-            print("\nChoose an advanced action:")
-            print("  1) Configure Server Properties")
-            print("  2) Configure Allowlist")
-            print("  3) Configure Permissions")
-            print(
-                f"  4) Attach to Server Console{' (Linux Only)' if platform.system() != 'Linux' else ''}"
-            )
-            print("  5) Schedule Server Task")
-            print("  6) View Server Resource Usage")
-            print("  7) Reconfigure Auto-Update / Service")
-            print("  8) Back")
-
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-8]:{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"Advanced menu choice entered: '{choice}'")
-
-            if choice == "8":
-                return
-
-            server_name: Optional[str] = None
-            if choice in ["1", "2", "3", "4", "5", "6", "7"]:
-                server_name = cli_utils.get_server_name()
-                if not server_name:
-                    continue
-
-            if choice == "1":
-                cli_server_install_config.configure_server_properties(server_name)
-            elif choice == "2":
-                cli_server_install_config.configure_allowlist(server_name)
-            elif choice == "3":
-                cli_server_install_config.select_player_for_permission(server_name)
-            elif choice == "4":
-                cli_utils.attach_console(server_name)
-            elif choice == "5":
-                cli_task_scheduler.task_scheduler(server_name)
-            elif choice == "6":
-                cli_system.monitor_service_usage(server_name)
-            elif choice == "7":
-                cli_system.configure_service(server_name)
+        elif hasattr(action_config, "commands"):
+            if action_config.name == "schedule":
+                try:
+                    ctx.invoke(action_config, server_name=server_name)
+                except Exception as e:
+                    click.secho(f"Error in '{action_config.name}' menu: {e}", fg="red")
             else:
-                if choice != "8":
-                    print(f"{_WARN_PREFIX}Invalid selection '{choice}'.")
+                click.secho(
+                    f"Warning: Menu item '{choice}' points to unhandled Click command group '{action_config.name}'.",
+                    fg="yellow",
+                )
+        else:
+            if (
+                action_config is not None
+                and action_config != "back"
+                and action_config != "separator"
+            ):
+                click.secho(
+                    f"Warning: Unhandled menu action type for '{choice}'. Action: {action_config}",
+                    fg="yellow",
+                )
 
-            # Pause unless attaching to console, which takes over the screen
-            if choice != "4":
-                input("\nPress Enter to continue...")
-
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to main menu...")
-            return
-        except Exception as e:
-            print(
-                f"\n{_ERROR_PREFIX}An unexpected error occurred in the advanced menu: {e}"
-            )
-            logger.error(f"Advanced menu loop error: {e}", exc_info=True)
-            input("Press Enter to continue...")
-
-
-def backup_restore_menu() -> None:
-    """Displays the backup and restore options menu and handles user choices."""
-    while True:
-        try:
-            os.system("cls" if platform.system() == "Windows" else "clear")
-            print(
-                f"\n{Fore.MAGENTA}{app_name_title} - Backup / Restore{Style.RESET_ALL}\n"
-            )
-            cli_utils.list_servers_status()
-
-            print("\nChoose an action:")
-            print("  1) Backup Server Menu")
-            print("  2) Restore Server Menu")
-            print("  3) Prune Old Backups")
-            print("  4) Back to Manage Server Menu")
-
-            choice = input(
-                f"{Fore.CYAN}Select an option [1-4]:{Style.RESET_ALL} "
-            ).strip()
-            logger.debug(f"Backup/Restore menu choice entered: '{choice}'")
-
-            if choice == "4":
-                return
-
-            server_name: Optional[str] = None
-            if choice in ["1", "2", "3"]:
-                server_name = cli_utils.get_server_name()
-                if not server_name:
-                    continue
-
-            if choice == "1":
-                cli_backup_restore.backup_menu(server_name)
-            elif choice == "2":
-                cli_backup_restore.restore_menu(server_name)
-            elif choice == "3":
-                cli_backup_restore.prune_old_backups(server_name)
-            else:
-                if choice != "4":
-                    print(f"{_WARN_PREFIX}Invalid selection '{choice}'.")
-
-            input("\nPress Enter to continue...")
-
-        except (KeyboardInterrupt, EOFError):
-            print("\nReturning to previous menu...")
-            return
-        except Exception as e:
-            print(
-                f"\n{_ERROR_PREFIX}An unexpected error occurred in the backup/restore menu: {e}"
-            )
-            logger.error(f"Backup/restore menu loop error: {e}", exc_info=True)
-            input("Press Enter to continue...")
+        # Don't show the server status at the top of the loop anymore,
+        # it might have just been deleted.
+        click.pause("\nPress Enter to continue...")

@@ -1,298 +1,147 @@
 # bedrock_server_manager/cli/server.py
 """
-Command-line interface functions for direct server management actions.
+Click command group for direct server management actions.
 
-Provides handlers for CLI commands like starting, stopping, restarting, deleting,
-and sending commands to Bedrock server instances. Uses print() for user feedback.
+Provides commands for starting, stopping, restarting, deleting,
+and sending commands to Bedrock server instances.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Tuple
 
-# Third-party imports
-try:
-    from colorama import Fore, Style, init
+import click
 
-    COLORAMA_AVAILABLE = True
-except ImportError:
-    # Define dummy Fore, Style, init if colorama is not installed
-    class DummyStyle:
-        def __getattr__(self, name):
-            return ""
-
-    Fore = DummyStyle()
-    Style = DummyStyle()
-
-    def init(*args, **kwargs):
-        pass
-
-
-# Local imports
 from bedrock_server_manager.api import server as server_api
-from bedrock_server_manager.error import (
-    BSMError,
-    InvalidServerNameError,
-    MissingArgumentError,
-)
-from bedrock_server_manager.utils.general import (
-    _INFO_PREFIX,
-    _OK_PREFIX,
-    _ERROR_PREFIX,
-    _WARN_PREFIX,
-)
+from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-def start_server(server_name: str, mode: Optional[str] = "direct") -> None:
-    """
-    CLI handler function to start a specific Bedrock server instance.
-
-    Args:
-        server_name: The name of the server to start.
-        mode: The mode to start the server in (e.g., "direct", "detached").
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Requesting to start server '{server_name}'...")
-    print(f"{_INFO_PREFIX}Attempting to start server '{server_name}'...")
-
-    try:
-        logger.debug(f"Calling API: server_api.start_server for '{server_name}'")
-        response: Dict[str, Any] = server_api.start_server(server_name, mode)
-        logger.debug(f"API response from start_server: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error starting server.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get(
-                "message", f"Server '{server_name}' started successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call start server API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred while starting server: {e}")
-        logger.error(
-            f"CLI: Unexpected error starting server '{server_name}': {e}", exc_info=True
-        )
-
-
-def stop_server(server_name: str) -> None:
-    """
-    CLI handler function to stop a specific Bedrock server instance.
-
-    Args:
-        server_name: The name of the server to stop.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Requesting to stop server '{server_name}'...")
-    print(f"{_INFO_PREFIX}Attempting to stop server '{server_name}'...")
-
-    try:
-        logger.debug(f"Calling API: server_api.stop_server for '{server_name}'")
-        response = server_api.stop_server(server_name)
-        logger.debug(f"API response from stop_server: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error stopping server.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get(
-                "message",
-                f"Server '{server_name}' stopped successfully or was already stopped.",
-            )
-            print(f"{_OK_PREFIX}{message}")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call stop server API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred while stopping server: {e}")
-        logger.error(
-            f"CLI: Unexpected error stopping server '{server_name}': {e}", exc_info=True
-        )
-
-
-def restart_server(server_name: str) -> None:
-    """
-    CLI handler function to restart a specific Bedrock server instance.
-
-    Args:
-        server_name: The name of the server to restart.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Requesting to restart server '{server_name}'...")
-    print(f"{_INFO_PREFIX}Attempting to restart server '{server_name}'...")
-
-    try:
-        logger.debug(f"Calling API: server_api.restart_server for '{server_name}'")
-        response = server_api.restart_server(server_name)
-        logger.debug(f"API response from restart_server: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error restarting server.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get(
-                "message", f"Server '{server_name}' restarted successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call restart server API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(
-            f"{_ERROR_PREFIX}An unexpected error occurred while restarting server: {e}"
-        )
-        logger.error(
-            f"CLI: Unexpected error restarting server '{server_name}': {e}",
-            exc_info=True,
-        )
-
-
-def send_command(server_name: str, command: str) -> None:
-    """
-    CLI handler function to send a command to a running server.
-
-    Args:
-        server_name: The name of the target server.
-        command: The command string to send.
-
-    Raises:
-        MissingArgumentError: If `command` is empty.
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-    if not command or not command.strip():
-        raise MissingArgumentError("Command cannot be empty.")
-
-    trimmed_command = command.strip()
-    logger.debug(
-        f"CLI: Requesting to send command to server '{server_name}': '{trimmed_command}'"
-    )
-
-    try:
-        logger.debug(f"Calling API: server_api.send_command for '{server_name}'")
-        response = server_api.send_command(server_name, trimmed_command)
-        logger.debug(f"API response from send_command: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error sending command.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get("message", "Command sent successfully.")
-            print(f"{_OK_PREFIX}{message}")
-
-    except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call send command API for '{server_name}': {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred while sending command: {e}")
-        logger.error(
-            f"CLI: Unexpected error sending command to '{server_name}': {e}",
-            exc_info=True,
-        )
-
-
-def delete_server(server_name: str, skip_confirmation: bool = False) -> None:
-    """
-    CLI handler function to delete a Bedrock server's data.
-
-    Includes a confirmation prompt unless `skip_confirmation` is True.
-
-    Args:
-        server_name: The name of the server to delete.
-        skip_confirmation: If True, bypass the confirmation prompt (use with caution).
-
-    Raises:
-        InvalidServerNameError: If `server_name` is empty.
-    """
-    if not server_name:
-        raise InvalidServerNameError("Server name cannot be empty.")
-
-    logger.debug(f"CLI: Requesting to delete server '{server_name}'...")
-
-    if not skip_confirmation:
-        print(
-            f"{_WARN_PREFIX}You are about to delete all data for server '{server_name}'."
-        )
-        print(
-            f"{_WARN_PREFIX}This includes the installation directory, configuration, and backups."
-        )
-        confirm = (
-            input(
-                f"{Fore.RED}This action cannot be undone. Are you absolutely sure? (yes/no):{Style.RESET_ALL} "
-            )
-            .strip()
-            .lower()
-        )
-        logger.debug(f"User confirmation input for delete: '{confirm}'")
-
-        if confirm not in ("y", "yes"):
-            print(f"{_INFO_PREFIX}Server deletion canceled by user.")
-            logger.debug(f"Deletion of server '{server_name}' canceled by user.")
-            return
-        logger.warning(f"User confirmed deletion for server '{server_name}'.")
+# Helper to reduce code duplication in API response handling
+def _handle_api_response(response: Dict[str, Any], success_msg: str):
+    """Prints styled success or error message based on API response."""
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
     else:
-        logger.warning(
-            f"Skipping confirmation prompt for deleting server '{server_name}'."
-        )
+        message = response.get("message", success_msg)
+        click.secho(f"Success: {message}", fg="green")
 
-    print(f"{_INFO_PREFIX}Proceeding with deletion of server '{server_name}'...")
+
+@click.group()
+def server():
+    """Commands to manage the lifecycle of individual servers."""
+    pass
+
+
+@server.command("start")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the server to start."
+)
+@click.option(
+    "-m",
+    "--mode",
+    type=click.Choice(["direct", "detached"], case_sensitive=False),
+    default="detached",
+    show_default=True,
+    help="Mode to start the server in.",
+)
+def start_server(server_name: str, mode: str):
+    """Starts a specific Bedrock server."""
+    click.echo(f"Attempting to start server '{server_name}'...")
     try:
-        logger.debug(f"Calling API: server_api.delete_server_data for '{server_name}'")
-        response = server_api.delete_server_data(server_name)
-        logger.debug(f"API response from delete_server_data: {response}")
-
-        if response.get("status") == "error":
-            message = response.get("message", "Unknown error deleting server.")
-            print(f"{_ERROR_PREFIX}{message}")
-        else:
-            message = response.get(
-                "message", f"Server '{server_name}' deleted successfully."
-            )
-            print(f"{_OK_PREFIX}{message}")
-
+        response = server_api.start_server(server_name, mode)
+        _handle_api_response(response, f"Server '{server_name}' started successfully.")
     except BSMError as e:
-        print(f"{_ERROR_PREFIX}{e}")
-        logger.error(
-            f"CLI: Failed to call delete server API for '{server_name}': {e}",
-            exc_info=True,
+        click.secho(f"Failed to start server: {e}", fg="red")
+        raise click.Abort()
+
+
+@server.command("stop")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the server to stop."
+)
+def stop_server(server_name: str):
+    """Stops a specific Bedrock server."""
+    click.echo(f"Attempting to stop server '{server_name}'...")
+    try:
+        response = server_api.stop_server(server_name)
+        _handle_api_response(response, f"Stop signal sent to server '{server_name}'.")
+    except BSMError as e:
+        click.secho(f"Failed to stop server: {e}", fg="red")
+        raise click.Abort()
+
+
+@server.command("restart")
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server to restart.",
+)
+def restart_server(server_name: str):
+    """Restarts a specific Bedrock server."""
+    click.echo(f"Attempting to restart server '{server_name}'...")
+    try:
+        response = server_api.restart_server(server_name)
+        _handle_api_response(
+            response, f"Restart signal sent to server '{server_name}'."
         )
-    except Exception as e:
-        print(f"{_ERROR_PREFIX}An unexpected error occurred while deleting server: {e}")
-        logger.error(
-            f"CLI: Unexpected error deleting server '{server_name}': {e}", exc_info=True
+    except BSMError as e:
+        click.secho(f"Failed to restart server: {e}", fg="red")
+        raise click.Abort()
+
+
+@server.command("delete")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the server to delete."
+)
+@click.option("-y", "--yes", is_flag=True, help="Bypass the confirmation prompt.")
+def delete_server(server_name: str, yes: bool):
+    """Deletes all data for a server, including worlds and backups."""
+    if not yes:
+        click.secho(
+            f"WARNING: This will delete all data for server '{server_name}', including the installation, worlds, and all backups.",
+            fg="yellow",
         )
+        # click.confirm with abort=True is the perfect tool for this.
+        # It will exit the command if the user enters 'n'.
+        click.confirm(
+            f"Are you absolutely sure you want to delete '{server_name}'?", abort=True
+        )
+
+    click.echo(f"Proceeding with deletion of server '{server_name}'...")
+    try:
+        response = server_api.delete_server_data(server_name)
+        _handle_api_response(
+            response, f"Server '{server_name}' and all its data have been deleted."
+        )
+    except BSMError as e:
+        click.secho(f"Failed to delete server: {e}", fg="red")
+        raise click.Abort()
+
+
+@server.command("send-command")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the target server."
+)
+@click.argument("command", nargs=-1, required=True)
+def send_command(server_name: str, command: Tuple[str]):
+    """Sends a command to a running server (e.g., /say hello world)."""
+    # nargs=-1 captures all arguments into a tuple. We join them back into a string.
+    command_string = " ".join(command)
+
+    click.echo(f"Sending command to '{server_name}': {command_string}")
+    try:
+        response = server_api.send_command(server_name, command_string)
+        _handle_api_response(response, "Command sent successfully.")
+    except BSMError as e:
+        click.secho(f"Failed to send command: {e}", fg="red")
+        raise click.Abort()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    server()
