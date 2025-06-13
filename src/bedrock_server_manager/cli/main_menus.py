@@ -100,9 +100,6 @@ def _backup_restore_menu(ctx: click.Context, server_name: str):
             click.secho(f"Warning: No action defined for '{choice}'.", fg="yellow")
 
 
-# _placeholder_menu is removed as it's no longer used.
-
-
 def main_menu(ctx: click.Context):
     """
     Displays the main application menu and handles top-level user choices.

@@ -8,6 +8,7 @@ and deleting scheduled tasks via cron (Linux) or Task Scheduler (Windows).
 
 import logging
 import platform
+from sched import scheduler
 from typing import Dict, List, Any, Optional, Tuple
 
 import click
@@ -324,3 +325,8 @@ def delete_task(ctx):
 
     except (click.Abort, KeyboardInterrupt):
         click.secho("\nDelete operation cancelled.", fg="yellow")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    schedule()

@@ -183,7 +183,5 @@ def monitor_usage(server_name: str):
 
 
 if __name__ == "__main__":
-    # Allows for direct testing of this command group
-    # python -m bedrock_server_manager.cli.system monitor --server my_server
     logging.basicConfig(level=logging.INFO)
     system()

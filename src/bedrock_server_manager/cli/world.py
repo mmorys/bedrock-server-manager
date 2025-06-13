@@ -170,3 +170,8 @@ def reset_world(server_name: str, yes: bool):
     except BSMError as e:
         click.secho(f"An error occurred during reset: {e}", fg="red")
         raise click.Abort()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    world()
