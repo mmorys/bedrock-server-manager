@@ -52,7 +52,7 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
                 "message": f"Server '{server_name}' exists and is valid.",
             }
         else:
-            logger.warning(
+            logger.debug(
                 f"API: Validation failed for '{server_name}'. It is not correctly installed."
             )
             # Providing more specific info from the server object could be useful.
@@ -96,7 +96,7 @@ def validate_server_name_format(server_name: str) -> Dict[str, str]:
         logger.debug(f"API: Format valid for '{server_name}'.")
         return {"status": "success", "message": "Server name format is valid."}
     except UserInputError as e:
-        logger.warning(f"API: Invalid format for '{server_name}': {e}")
+        logger.debug(f"API: Invalid format for '{server_name}': {e}")
         return {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(f"API: Unexpected error for '{server_name}': {e}", exc_info=True)
