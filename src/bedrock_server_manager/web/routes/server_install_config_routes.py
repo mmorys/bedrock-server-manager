@@ -364,8 +364,8 @@ def remove_allowlist_player_api_route(
 ) -> Tuple[Response, int]:
     """API endpoint to remove a specific player from a server's allowlist."""
     try:
-        result = server_install_config.remove_player_from_allowlist(
-            server_name, player_name
+        result = server_install_config.remove_players_from_allowlist(
+            server_name, [player_name]
         )
         return jsonify(result), 200
     except BSMError as e:
@@ -377,6 +377,49 @@ def remove_allowlist_player_api_route(
         )
         return (
             jsonify({"status": "error", "message": "An unexpected error occurred."}),
+            500,
+        )
+
+
+@server_install_config_bp.route(
+    "/api/server/<string:server_name>/allowlist/players",
+    methods=["DELETE"],
+)
+@csrf.exempt
+@auth_required
+def remove_allowlist_players_api_route(server_name: str) -> Tuple[Response, int]:
+    """API endpoint to remove multiple players from a server's allowlist."""
+    try:
+        data = request.get_json()
+        if not data or "players" not in data or not isinstance(data["players"], list):
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "Request body must be a JSON object with a 'players' key containing a list of names.",
+                    }
+                ),
+                400,  # Bad Request
+            )
+
+        player_names = data["players"]
+        # Call the new function that accepts a list
+        result = server_install_config.remove_players_from_allowlist(
+            server_name, player_names
+        )
+        return jsonify(result), 200
+
+    except BSMError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        logger.error(
+            f"API Bulk Remove Allowlist Players '{server_name}': Unexpected error. {e}",
+            exc_info=True,
+        )
+        return (
+            jsonify(
+                {"status": "error", "message": "An unexpected server error occurred."}
+            ),
             500,
         )
 

@@ -411,18 +411,47 @@ def configure_properties(server: str):
         click.secho("\nConfiguration cancelled.", fg="yellow")
 
 
-@click.command("remove-allowlist-player")
+@click.command("remove-allowlist-players")
 @click.option("-s", "--server", required=True, help="Name of the server.")
 @click.argument("players", nargs=-1, required=True)
 def remove_allowlist_players(server: str, players: tuple[str]):
     """Removes one or more players from a server's allowlist."""
-    click.echo(f"Removing {len(players)} player(s) from '{server}' allowlist...")
+    if not players:
+        click.secho("No player names provided.", fg="yellow")
+        return
+
+    click.echo(
+        f"Attempting to remove {len(players)} player(s) from '{server}' allowlist..."
+    )
     try:
+        # Call the new, plural-handling API function
         response = config_api.remove_players_from_allowlist(server, list(players))
-        _handle_api_response(response, "Player removal process finished.")
-        if response.get("details"):
-            for detail in response["details"]:
-                click.echo(f"  - {detail}")
+
+        # Use the generic handler for the main error/success status
+        _handle_api_response(response, "Allowlist update process finished.")
+
+        # Now, parse the detailed response for better user feedback
+        if response.get("status") == "success" and response.get("details"):
+            details = response["details"]
+
+            removed = details.get("removed", [])
+            not_found = details.get("not_found", [])
+
+            if removed:
+                click.secho(
+                    f"\nSuccessfully removed {len(removed)} player(s):", fg="green"
+                )
+                for player in removed:
+                    click.echo(f"  - {player}")
+
+            if not_found:
+                click.secho(
+                    f"\n{len(not_found)} player(s) were not found in the allowlist:",
+                    fg="yellow",
+                )
+                for player in not_found:
+                    click.echo(f"  - {player}")
+
     except BSMError as e:
         click.secho(f"An error occurred: {e}", fg="red")
         raise click.Abort()

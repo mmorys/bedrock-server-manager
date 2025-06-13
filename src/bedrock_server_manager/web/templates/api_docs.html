@@ -963,25 +963,35 @@
         <pre><code class="api-code-block">{"status": "success", "message": "No new players provided or all provided players were duplicates/invalid."}</code></pre>
     </div>
     <div class="api-endpoint">
-        <h3 id="delete-api-server-allowlist-player"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/allowlist/player/{player_name}</code></h3>
-        <p>Removes a player (case-insensitive) from the server's <code class="endpoint-path">allowlist.json</code> file.</p>
+        <h3 id="delete-api-server-allowlist-players"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/allowlist/players</code></h3>
+        <p>Removes one or more players (case-insensitive) from the server's <code class="endpoint-path">allowlist.json</code> file.</p>
         <h4>Authentication:</h4> <p>Required.</p>
         <h4>Path Parameters:</h4>
         <ul>
             <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
-            <li><code class="param-name">player_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: The player name to remove.</li>
         </ul>
-        <!-- No Request Body -->
+        <h4>Request Body:</h4>
+        <p>A JSON object containing an array of player names.</p>
+        <ul>
+            <li><code class="param-name">players</code><span class="param-type">(array of strings)</span><span class="param-required">(Required)</span>: The list of player names to remove.</li>
+        </ul>
+        <pre><code class="api-code-block">{
+    "players": ["Steve", "Alex"]
+}</code></pre>
         <h4>Success Response (`200 OK`):</h4>
+        <p>Returns a summary message and a <code class="param-name">details</code> object categorizing which players were removed and which were not found.</p>
         <pre><code class="api-code-block">{
-        "status": "success",
-        "message": "Player '...' removed successfully..."
-    }</code></pre>
-        <p><em>Or if player not found:</em></p>
-        <pre><code class="api-code-block">{
-        "status": "success",
-        "message": "Player '...' not found in the allowlist..."
-    }</code></pre>
+    "status": "success",
+    "message": "Allowlist update process completed.",
+    "details": {
+        "removed": [
+            "Steve"
+        ],
+        "not_found": [
+            "NonExistentPlayer"
+        ]
+    }
+}</code></pre>
     </div>
 
 

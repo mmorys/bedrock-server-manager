@@ -102,37 +102,62 @@ def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
         }
 
 
-def remove_player_from_allowlist(server_name: str, player_name: str) -> Dict[str, Any]:
-    """Removes a player from the server's allowlist."""
+def remove_players_from_allowlist(
+    server_name: str, player_names: List[str]
+) -> Dict[str, Any]:
+    """
+    Removes one or more players from the server's allowlist.
+
+    Args:
+        server_name: The name of the server.
+        player_names: A list of player names (gamertags) to remove.
+
+    Returns:
+        A dictionary detailing the outcome of the operation.
+    """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
-    if not player_name:
-        raise MissingArgumentError("Player name cannot be empty.")
+    if not player_names:
+        return {
+            "status": "success",
+            "message": "No players specified for removal.",
+            "details": {"removed": [], "not_found": []},
+        }
 
     try:
         server = BedrockServer(server_name)
-        was_removed = server.remove_from_allowlist(player_name)
+        removed_players = []
+        not_found_players = []
 
-        if was_removed:
-            if server.is_running():
-                try:
-                    server.send_command("allowlist reload")
-                except BSMError as e:
-                    logger.warning(
-                        f"API: Player removed, but failed to send reload command: {e}"
-                    )
-            return {
-                "status": "success",
-                "message": f"Player '{player_name}' removed successfully.",
-            }
-        else:
-            return {
-                "status": "success",
-                "message": f"Player '{player_name}' not found in allowlist.",
-            }
+        # Process all players first
+        for player in player_names:
+            was_removed = server.remove_from_allowlist(player)
+            if was_removed:
+                removed_players.append(player)
+            else:
+                not_found_players.append(player)
+
+        # If any player was actually removed and the server is running, reload the allowlist once.
+        if removed_players and server.is_running():
+            try:
+                server.send_command("allowlist reload")
+                logger.info(f"API: Sent 'allowlist reload' to server '{server_name}'.")
+            except BSMError as e:
+                logger.warning(
+                    f"API: Players removed, but failed to send reload command: {e}"
+                )
+
+        return {
+            "status": "success",
+            "message": "Allowlist update process completed.",
+            "details": {
+                "removed": removed_players,
+                "not_found": not_found_players,
+            },
+        }
     except BSMError as e:
         logger.error(
-            f"API: Failed to remove player from allowlist for '{server_name}': {e}",
+            f"API: Failed to remove players from allowlist for '{server_name}': {e}",
             exc_info=True,
         )
         return {
@@ -141,7 +166,7 @@ def remove_player_from_allowlist(server_name: str, player_name: str) -> Dict[str
         }
     except Exception as e:
         logger.error(
-            f"API: Unexpected error removing player for '{server_name}': {e}",
+            f"API: Unexpected error removing players for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Unexpected error: {e}"}

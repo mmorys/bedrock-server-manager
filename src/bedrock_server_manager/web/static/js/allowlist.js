@@ -225,7 +225,7 @@ async function fetchAndUpdateAllowlistDisplay(serverName) {
 
 /**
  * Handles removing a player from the allowlist via API after confirmation.
- * Uses the specific DELETE endpoint for removing a single player.
+ * Adapts to use the bulk DELETE endpoint by sending a single-player array.
  *
  * @async
  * @param {HTMLButtonElement} buttonElement The remove button clicked.
@@ -252,22 +252,27 @@ async function removeAllowlistPlayer(buttonElement, serverName, playerName) {
 
     console.log(`${functionName}: Deletion confirmed for '${playerName}'.`);
 
-    // --- Send API Request using the specific DELETE endpoint ---
-    // Construct the specific path for the player
-    const actionPath = `allowlist/player/${playerName}`;
-    console.log(`${functionName}: Calling sendServerActionRequest (DELETE ${actionPath})...`);
+    // --- Send API Request using the bulk DELETE endpoint ---
+    // The backend now only has a bulk delete endpoint, so we must adapt.
+    const actionPath = 'allowlist/players'; // Use the plural endpoint
+    const requestBody = {
+        players: [playerName] // The API expects an array of players
+    };
+
+    console.log(`${functionName}: Calling sendServerActionRequest (DELETE ${actionPath}) with body:`, requestBody);
 
     const apiResponseData = await sendServerActionRequest(
         serverName,
         actionPath,
-        'DELETE', // HTTP DELETE method
-        null, // No request body needed for this endpoint
-        buttonElement // Pass button for disabling
+        'DELETE',      // HTTP DELETE method
+        requestBody,   // Pass the JSON body
+        buttonElement  // Pass button for disabling
     );
 
     console.log(`${functionName}: Delete allowlist player API call finished. Response data:`, apiResponseData);
 
     // --- Handle API Response ---
+    // The success/error handling logic remains robust enough, as we still get a 'status' field.
     if (apiResponseData && apiResponseData.status === 'success') {
         console.log(`${functionName}: Player '${playerName}' removal reported success by API.`);
         // Remove the list item from the display on success
@@ -291,17 +296,18 @@ async function removeAllowlistPlayer(buttonElement, serverName, playerName) {
             // Fallback: Refresh the whole list if DOM manipulation fails
             fetchAndUpdateAllowlistDisplay(serverName);
         }
-        // Success message shown by sendServerActionRequest based on API response
+        // The bulk endpoint gives a generic success message, which is fine.
         showStatusMessage(apiResponseData.message || `Player ${playerName} processed.`, "success");
     } else {
         console.error(`${functionName}: Player '${playerName}' removal failed or API reported an error.`);
-        // Error message shown by sendServerActionRequest
+        // Error message is shown by sendServerActionRequest
     }
     console.log(`${functionName}: Execution finished.`);
 } // End of removeAllowlistPlayer
 
 
 // --- Initial Setup on DOM Ready ---
+// This part remains unchanged as it is not affected by the deletion logic.
 document.addEventListener('DOMContentLoaded', () => {
     const functionName = 'AllowlistDOMContentLoaded';
     console.log(`${functionName}: DOM fully loaded and parsed.`);
