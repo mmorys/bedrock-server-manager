@@ -11,12 +11,6 @@ from bedrock_server_manager.web.routes.auth_routes import login_required
 doc_bp = Blueprint("doc_routes", __name__, url_prefix="/docs")
 
 
-@doc_bp.route("/getting_started")
-def getting_started():
-    """Renders the 'Getting Started' documentation page."""
-    return render_template("getting_started.html")
-
-
 @doc_bp.route("/")
 def doc_index():
     """Renders the main index page for the documentation."""
@@ -34,8 +28,3 @@ def changelog():
     """Renders the application changelog page."""
     return render_template("changelog.html")
 
-
-@doc_bp.route("/extras")
-def extras():
-    """Renders the 'Extras Configuration' documentation page."""
-    return render_template("extras_config.html")
