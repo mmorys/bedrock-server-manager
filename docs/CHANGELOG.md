@@ -141,3 +141,7 @@
 ### 3.2.4
 
 1. Fix restart-server command in CLI
+
+### 3.2.5
+
+1. Fix download server function to use updated minecraft site
