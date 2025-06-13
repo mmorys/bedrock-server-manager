@@ -197,7 +197,8 @@ def start_server(
                 # Launch a new instance of the manager to run the blocking start command.
                 cli_command_parts = [
                     EXPATH,
-                    "start-server",
+                    "server",
+                    "start",
                     "--server",
                     server_name,
                     "--mode",
