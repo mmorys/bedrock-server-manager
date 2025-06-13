@@ -142,6 +142,41 @@ def send_command(server_name: str, command: Tuple[str]):
         raise click.Abort()
 
 
+@server.command("write-config")
+@click.option(
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server to restart.",
+)
+@click.option(
+    "-k",
+    "--key",
+    "key",
+    required=True,
+    help="Key to change.",
+)
+@click.option(
+    "-v",
+    "--value",
+    "value",
+    required=True,
+    help="Value for Key.",
+)
+def write_server_config(server_name: str, key: str, value: str):
+    """Writes a Key:Value pair to a specific Bedrock server."""
+    click.echo(f"Attempting to write config {key} for server '{server_name}'...")
+    try:
+        response = server_api.write_server_config(server_name, key, value)
+        _handle_api_response(
+            response, f"{key} set to {value} for server '{server_name}'."
+        )
+    except BSMError as e:
+        click.secho(f"Failed to set {key} for server: {e}", fg="red")
+        raise click.Abort()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     server()

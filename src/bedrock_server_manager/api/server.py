@@ -322,11 +322,11 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
                 "message": f"Server '{server_name}' was already stopped.",
             }
 
-        # --- Detached (systemd) Mode for Linux ---
+        # --- Systemd Mode for Linux ---
         if (
-            mode == "detached"
-            and platform.system() == "Linux"
+            platform.system() == "Linux"
             and server.check_systemd_service_file_exists()
+            and server.is_systemd_service_active()
         ):
             logger.debug(
                 f"API: Attempting to stop server '{server_name}' using systemd..."

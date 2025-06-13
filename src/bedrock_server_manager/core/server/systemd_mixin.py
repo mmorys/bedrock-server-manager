@@ -59,7 +59,7 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         # Call the generic utility
         return system_linux_utils.check_service_exists(self.systemd_service_name_full)
 
-    def create_systemd_service_file(self, autoupdate_on_start: bool = False) -> None:
+    def create_systemd_service_file(self) -> None:
         """
         Creates or updates the systemd user service file for this server.
 
@@ -87,18 +87,12 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         exec_start = f'{self.manager_expath} server start --server "{self.server_name}" --mode direct'
         exec_stop = f'{self.manager_expath} server stop --server "{self.server_name}"'
 
+        exec_start_pre = f'{self.manager_expath} server write-config --server "{self.server_name}" --key start_method --value detached'
         exec_start_pre = None
-        if autoupdate_on_start:
-            exec_start_pre = (
-                f'{self.manager_expath} update-server --server "{self.server_name}"'
-            )
-            self.logger.debug(
-                f"Autoupdate enabled for service '{self.systemd_service_name_full}'."
-            )
 
         self.logger.info(
             f"Creating/updating systemd service file '{self.systemd_service_name_full}' "
-            f"for server '{self.server_name}' with autoupdate: {autoupdate_on_start}."
+            f"for server '{self.server_name}'."
         )
         try:
             system_linux_utils.create_systemd_service_file(
