@@ -183,6 +183,125 @@
         <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
     </p>
 
+    {# --- Version 3.3.0 --- #}
+    <h2>Version 3.3.0</h2>
+    <h4>MAJOR BREAKING CHANGES: READ FULL CHANGELOG BEFORE UPDATING</h4>
+    <h4>STOP SERVERS BEFORE UPDATING</h4>
+
+    <p>
+        Start/Stop methods have been revamped and require servers to be restarted with the new method.
+        If you update before turning off your servers, you may need to manually terminate the running process.
+    </p>
+
+    <ol>
+        <li>
+            <strong>Revamped start server actions</strong>
+            <ul>
+                <li>
+                    Windows:
+                    <ul>
+                        <li>Starting a server now creates a named pipe in the background, allowing commands to be sent to the server.</li>
+                    </ul>
+                </li>
+                <li>
+                    Linux:
+                    <ul>
+                        <li>Start remains mostly the same, but the systemd command has also been merged into the base server start command.</li>
+                    </ul>
+                </li>
+                <li>
+                    Now takes an optional <code>-m</code>/<code>--mode</code> variable in the server start command:
+                    <ul>
+                        <li>
+                            Windows:
+                            <ul>
+                                <li><code>detached</code> mode will start a named pipe process in the background (similar to web start).</li>
+                                <li><code>direct</code> mode will start the named pipe process in the foreground (similar to web start).</li>
+                            </ul>
+                        </li>
+                        <li>
+                            Linux:
+                            <ul>
+                                <li><code>detached</code> mode will try to start the server with systemctl. If the service file doesn't exist, it falls back to direct mode.</li>
+                                <li><code>direct</code> mode will start the server directly with screen.</li>
+                                <li>Systemd files must be recreated (use the "Reconfigure autoupdate/service" menu option).</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li>
+                    Removed systemd-specific start/stop methods.
+                </li>
+            </ul>
+        </li>
+        <li>
+            <strong>Added reset-world action</strong>
+            <ul>
+                <li>Deletes the server’s world folder.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Cleaned up various background code such as:</strong>
+            <ul>
+                <li>Removed the old BedrockServer class as it was underutilized.</li>
+                <li>Revamped the <code>core.server_actions.delete_server_data</code> function.</li>
+                <li>Split and renamed various files for better organization.</li>
+                <li>Removed redundant core backup/restore functions as the API layer can now call config/world functions directly.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Fixed stop-web-server killing any process that happened to match the PID saved in the file.</strong>
+            <ul>
+                <li>It now validates that it is the bedrock-server-manager process being killed.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Send command support for various actions</strong> such as sending messages to running servers when shutting down or reloading the allowlist/configurations when changed.
+        </li>
+        <li>
+            <strong>Changed list-backups function</strong>
+            <ul>
+                <li>The <code>--type</code> option for backups changed from <code>config</code> to more specific types: <code>allowlist</code>, <code>properties</code>, and <code>permissions</code>.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>CLI and FILE log levels now use separate values.</strong>
+            <ul>
+                <li>Set <code>CLI_LOG_LEVEL</code> and <code>FILE_LOG_LEVEL</code> in <code>script_config.json</code>.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Refactored <code>core.downloader</code> into a <code>BedorckDownloader</code> class.</strong>
+        </li>
+        <li>
+            <strong>Refactored some global core functions into a <code>BedrockServerManager</code> class.</strong>
+            <ul>
+                <li>Some functions migrated to this class include: Scan for players, List content files, Start web server, and List all servers.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Reintroduced the BedrockServer class in a more capable, feature-complete form.</strong>
+        </li>
+        <li>
+            <strong>Moved main <code>__init__.py</code> to <code>__main__.py</code>.</strong>
+            <ul>
+                <li>Allows running the app with <code>python -m bedrock_server_manager <command></code>.</li>
+                <li>This makes some logic easier, as only <code>sys.executable</code> is needed instead of manually finding the <code>bedrock-server-manager(.exe)</code> in various installation paths.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Migrated task schedulers to their own classes, reducing redundant logic.</strong>
+        </li>
+        <li>
+            <strong>BREAKING CHANGE: Revamped all CLI modules.</strong> All CLI commands, systemd services, and task scheduler commands need to be removed/recreated.
+            <ul>
+                <li>Please see the updated <code>CLI_COMMANDS.md</code> document for an updated list of commands.</li>
+                <li>A few commands were removed and may or may not be replaced with new commands in the future.</li>
+            </ul>
+        </li>
+        <li>Removed getting started guide and extras from web server</li>
+    </ol>
+
     {# --- Version 3.2.5 --- #}
     <h2>Version 3.2.5</h2>
     <ol>
@@ -477,254 +596,6 @@
                 <li><code>LOG_LEVEL</code></li>
             </ul>
         </li>
-    </ol>
-
-    {# --- Version 2.0.2 --- #}
-    <h2>Version 2.0.2</h2>
-    <ol>
-        <li>Revaluated error codes</li>
-        <li>Ensure write permissions before certain operations such as delete server</li>
-    </ol>
-
-    {# --- Version 2.0.1 --- #}
-    <h2>Version 2.0.1</h2>
-    <ol>
-        <li>Better handle send-command</li>
-    </ol>
-
-    {# --- Version 2.0.0 --- #}
-    <h2>Version 2.0.0</h2>
-    <ol>
-        <li>Complete rewrite of script in python</li>
-        <li>
-            Added Windows support
-            <ul>
-                <li>
-                    Windows support has a few limitations such as:
-                    <ul>
-                        <li>No send-command support</li>
-                        <li>No attach to console support</li>
-                        <li>Doesn't auto restart if crashed</li>
-                    </ul>
-                </li>
-            </ul>
-        </li>
-    </ol>
-
-    {# --- Bash vs Python Section --- #}
-    <h3>Bash vs Python Transition</h3>
-    <p>The short lived Bedrock Server Manager Bash script is being discontinued and replaced with a new Python-based version. The Bash script was originally designed to support only Debian-based systems, which limited its usability across different operating systems. The bash script will continue to be available but will no longer receive updates.</p>
-    <p>The switch to python allows cross platform support, standardized processes, and less dependencies. The new script has full feature parity to the bash script</p>
-    <h4>Switching to the Python Version:</h4>
-    <ul>
-        <li>
-            Replace the bash script with the new python script:
-            <ul>
-                <li>Follow install instructions above</li>
-                <li>Place the <code>.py</code> file in the same folder as the <code>.sh</code> file</li>
-                <li>Delete the old <code>.sh</code> file if wanted</li>
-            </ul>
-        </li>
-        <li>Run the script, open the advanced menu then Reconfigure Auto-Update</li>
-    </ul>
-
-    {# --- Version 1.4.2 --- #}
-    <h2>Version 1.4.2</h2>
-    <ol>
-        <li>Removed writing to <code>version.txt</code></li>
-    </ol>
-
-    {# --- Version 1.4.1 --- #}
-    <h2>Version 1.4.1</h2>
-    <ol>
-        <li>Check for internet in update function</li>
-    </ol>
-
-    {# --- Version 1.4.0 --- #}
-    <h2>Version 1.4.0</h2>
-    <ol>
-        <li>
-            Added <code>list-servers</code> command
-            <ul>
-                <li>List all servers, their status, and version</li>
-                <li>Also shows in the menus</li>
-            </ul>
-        </li>
-        <li>
-            Added <code>scan-players</code> command
-            <ul>
-                <li>Scans <code>server_output.txt</code> for players+xuid and saves it to <code>./.config/players.json</code></li>
-                <li>Used to add players to <code>permissions.json</code> file</li>
-                <li>Added to cron scheduler</li>
-            </ul>
-        </li>
-        <li>
-            Added <code>add-players</code> command
-            <ul><li>Manually adds player+xuid to <code>./.config/players.json</code></li></ul>
-        </li>
-        <li>
-            Save script output to <code>./.logs/log_{$timestamp}.log</code>
-            <ul><li>Redirect to file instead of <code>/dev/null</code> when applicable</li></ul>
-        </li>
-        <li>
-            Refactored backups
-            <ul>
-                <li>You can now choose to backup all files, just export the world to a <code>.mcworld</code> file, or backup an individual config file.</li>
-                <li>Backup all executed when running <code>backup-server</code> command</li>
-            </ul>
-        </li>
-        <li>
-            Added Restore menu
-            <ul>
-                <li>You can now restore all most recent files, a specific world file, or specific config file</li>
-                <li>Restore all executed when running <code>update-server</code> command</li>
-            </ul>
-        </li>
-        <li>
-            Moved server configurations such as installed/target version to <code>./.config/$server_name/config.json</code>
-            <ul><li>The script will try to migrate existing configs (server name, installed version, and target version) to the new file</li></ul>
-        </li>
-        <li>Perform validation on <code>server.properties</code> entries</li>
-        <li>Split most of the bigger functions such as <code>download_server</code> into smaller more modular functions</li>
-        <li>
-            Added permissions configuration
-            <ul><li>You can choose players saved in <code>./config/players.json</code> to add to a server permissions file</li></ul>
-        </li>
-        <li>Don't download server if target version is already downloaded</li>
-        <li>
-            Moved script default values to <code>./config/script_config.json</code>
-            <ul><li>Edit this file to set your own servers directory, how many backups and downloads to keep</li></ul>
-        </li>
-        <li>Moved systemd commands to script, reconfigure systemd configuration to update</li>
-    </ol>
-
-    {# --- Version 1.3.0 --- #}
-    <h2>Version 1.3.0</h2>
-    <ol>
-        <li>
-            BREAKING CHANGE: Migrate <code>./bedrock_server_manager</code> to <code>./servers</code>
-            <ul>
-                <li>The script will try to auto migrate servers+systemd services after the user confirms</li>
-                <li>Its recommended to take a backup BEFORE updating the script</li>
-            </ul>
-        </li>
-        <li>Moved backups out of server folder to <code>./backups</code></li>
-        <li>Moved server downloads out of server folder to <code>./.downloads</code></li>
-        <li>Added support for <code>.mcaddon</code> file import (import in bulk)</li>
-    </ol>
-
-    {# --- Version 1.2.1 --- #}
-    <h2>Version 1.2.1</h2>
-    <ol>
-        <li>
-            Added option to enable/disable update on start to systemd flow
-            <ul><li>Added Reconfigure Systemd Service option</li></ul>
-        </li>
-        <li>Fixed Resource Usage page</li>
-    </ol>
-
-    {# --- Version 1.2.0 --- #}
-    <h2>Version 1.2.0</h2>
-    <ol>
-        <li>
-            Added <code>enable-server</code> and <code>disable-server</code> commands
-            <ul><li>Enable or disable systemd autostart service</li></ul>
-        </li>
-        <li>
-            Added interactive cron scheduler
-            <ul><li>You can view add modify delete cron jobs for your servers to automatically run certain script commands such as <code>update-server</code> at scheduled times</li></ul>
-        </li>
-        <li>
-            Backup now makes <code>.mcworld</code> files instead of a <code>.tar.gz</code> file
-            <ul>
-                <li>Added zip as required package</li>
-                <li>Fixed backups not working</li>
-            </ul>
-        </li>
-        <li>View resource usage for server</li>
-        <li>Standardized yes/no prompts</li>
-        <li>Use <code>allowlist reload</code> command when updating allowlist and server is running</li>
-        <li>
-            Rearranged code blocks to a more logical order
-            <ul><li>Centralized/Validate server name before call function</li></ul>
-        </li>
-        <li>Add version to server download file</li>
-        <li>
-            Rearranged menus
-            <ul><li>Added Advanced Menu</li></ul>
-        </li>
-    </ol>
-
-    {# --- Version 1.1.4 --- #}
-    <h2>Version 1.1.4</h2>
-    <ol>
-        <li>Fixed json format for world addon files</li>
-        <li>Set r/w permissions for extracted worlds/addons</li>
-        <li>Ask to restart after installing addon</li>
-    </ol>
-
-    {# --- Version 1.1.3 --- #}
-    <h2>Version 1.1.3</h2>
-    <ol>
-        <li>Better handle send-command arguments</li>
-        <li>Use <code>say</code> instead of <code>tell</code></li>
-    </ol>
-
-    {# --- Version 1.1.2 --- #}
-    <h2>Version 1.1.2</h2>
-    <ol>
-        <li>Check for internet before download to prevent server fail to start (pings example.com)</li>
-        <li>No longer exit when you check for updates with the latest version already installed</li>
-        <li>Call <code>send_command</code> directly throughout script</li>
-        <li>Removed duplicate logging when calling certain functions</li>
-        <li>Backup function now only handles start/stop server if not in update</li>
-    </ol>
-
-    {# --- Version 1.1.1 --- #}
-    <h2>Version 1.1.1</h2>
-    <ol>
-        <li>Optimized <code>$SCRIPTDIR</code> variable</li>
-    </ol>
-
-    {# --- Version 1.1.0 --- #}
-    <h2>Version 1.1.0</h2>
-    <ol>
-        <li>Added option to import <code>.mcworld</code> files from <code>./content/worlds</code> folder</li>
-        <li>Added option to import <code>.mcpack</code> files from <code>./content/addons</code> folder</li>
-        <li>Stop server before backup</li>
-        <li>Use values from <code>server.properties</code> file when reconfiguring server properties</li>
-        <li>Cleaned up some repetitive code</li>
-    </ol>
-
-    {# --- Version 1.0.3 --- #}
-    <h2>Version 1.0.3</h2>
-    <ol>
-        <li>Added <code>update-script</code> command</li>
-        <li>Ask if you want to install pre-request packages first</li>
-        <li>Shutdown server before update if running</li>
-        <li>Send messages to online players about checking for server updates, when its shutting down, and when its restarting</li>
-        <li>Wait 10 seconds before shutdown/restart to allow players time to react to shutdown/restart messages</li>
-    </ol>
-
-    {# --- Version 1.0.2 --- #}
-    <h2>Version 1.0.2</h2>
-    <ol>
-        <li>Execute <code>update-server</code> command and systemd prestart command</li>
-        <li>Make linger command optional</li>
-    </ol>
-
-    {# --- Version 1.0.1 --- #}
-    <h2>Version 1.0.1</h2>
-    <ol>
-        <li>Perform validation on server folder name and level name</li>
-        <li>Fixed getting the scripts current directory</li>
-        <li>Script no longer needs root permissions</li>
-    </ol>
-
-    {# --- Version 1.0.0 --- #}
-    <h2>Version 1.0.0</h2>
-    <ol>
-        <li>Initial Release</li>
     </ol>
 
     {# --- Optional: Back link at the bottom --- #}
