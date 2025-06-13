@@ -190,6 +190,11 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "Configure Properties": (configure_props_cmd, "server", {}),
         "Configure Allowlist": (configure_allowlist_cmd, "server", {}),
         "Configure Permissions": (configure_permissions_cmd, "server", {}),
+        "Configure Auto-Update": (
+            system_group.get_command(ctx, "configure-service"),
+            "server_name",
+            {},
+        ),
         "------": "separator",
         "Monitor Resource Usage": (
             system_group.get_command(ctx, "monitor"),
