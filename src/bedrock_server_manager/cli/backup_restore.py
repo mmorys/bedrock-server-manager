@@ -319,9 +319,7 @@ def prune_backups(server: str):
     """Deletes old backups for a server, keeping the newest N."""
     try:
         click.echo(f"Pruning old backups for server '{server}'...")
-        response = backup_restore_api.prune_old_backups(
-            server_name=server
-        )
+        response = backup_restore_api.prune_old_backups(server_name=server)
         _handle_api_response(response, "Pruning complete.")
     except BSMError as e:
         click.secho(f"An error occurred during pruning: {e}", fg="red")
