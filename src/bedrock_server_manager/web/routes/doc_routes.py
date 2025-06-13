@@ -27,4 +27,3 @@ def api_docs():
 def changelog():
     """Renders the application changelog page."""
     return render_template("changelog.html")
-
