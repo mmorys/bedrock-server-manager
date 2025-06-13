@@ -315,15 +315,12 @@ def restore_backup(server: str, backup_file: Optional[str], no_stop: bool):
 @click.option(
     "-s", "--server", required=True, help="Name of the server whose backups to prune."
 )
-@click.option(
-    "-k", "--keep", type=int, help="Number of backups to keep (overrides settings)."
-)
-def prune_backups(server: str, keep: Optional[int]):
+def prune_backups(server: str):
     """Deletes old backups for a server, keeping the newest N."""
     try:
         click.echo(f"Pruning old backups for server '{server}'...")
         response = backup_restore_api.prune_old_backups(
-            server_name=server, keep_override=keep
+            server_name=server
         )
         _handle_api_response(response, "Pruning complete.")
     except BSMError as e:
