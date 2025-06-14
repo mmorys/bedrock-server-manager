@@ -77,9 +77,10 @@ On Linux, you'll also need:
 ### Install The Package:
 
 1. Run the command 
-```
+```bash
 pip install bedrock-server-manager
 ```
+See the [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/EXTRAS.md) for more information on installing stable, beta, and development versions of the app.
 
 ## Configuration
 
@@ -115,14 +116,16 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 
 For a complete list of commands, see [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CLI_COMMANDS.md)
 
+>Note: If you are using a version of the app prior to 3.3.0, you must run `bedrock-server-manager --help` to see the list of commands for your version.
+
 ### Run the app:
 
-```
+```bash
 bedrock-server-manager <command> [options]
 ```
 or
 
-```
+```bash
 python -m bedrock_server_manager <command> [options] # 3.3.0 and later
 ```
 
@@ -130,24 +133,24 @@ python -m bedrock_server_manager <command> [options] # 3.3.0 and later
 
 ###### Open Main Menu:
 
-```
+```bash
 bedrock-server-manager
 ```
 
 ###### Send Command:
-```
+```bash
 bedrock-server-manager server send-command --server server_name "tell @a hello"
 ```
 
 ##### Export World:
 
-```
+```bash
 bedrock-server-manager world export --server server_name_
 ```
 
 ##### Start the Web Server:
 
-```
+```bash
 bedrock-server-manager web start --host 0.0.0.0 --host "::" --mode direct
 ```
 
@@ -164,11 +167,11 @@ Place .mcworld files in `CONTENT_DIR/worlds` or .mcpack/.mcaddon files in `CONTE
 
 Use the interactive menu to choose which file to install or use the command:
 
-```
+```bash
 bedrock-server-manager world install --server server_name --file '/path/to/WORLD.mcworld'
 ```
 
-```
+```bash
 bedrock-server-manager install-addon --server server_name --file '/path/to/ADDON.mcpack'
 ```
 
@@ -215,7 +218,7 @@ This must be set to the password hash and NOT the plain text password
 
 Use the following command to generate a password:
 
-```
+```bash
 bedrock-server-manager generate-password
 ```
 Follow the on-screen prompt to hash your password
@@ -228,13 +231,13 @@ To change which host to listen to start the web server with the specified host
 
 Example: specify local host only ipv4 and ipv6:
 
-```
+```bash
 bedrock-server-manager web start --host 127.0.0.1 --host "::1"
 ```
 
 Example: specify all ipv4 and ipv6 addresses:
 
-```
+```bash
 bedrock-server-manager web start --host 0.0.0.0 --host "::"
 ```
 
