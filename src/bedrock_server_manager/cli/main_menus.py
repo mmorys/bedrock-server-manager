@@ -129,7 +129,8 @@ def main_menu(ctx: click.Context):
 
             if choice == "Install New Server":
                 # Get the 'install-server' command and invoke it
-                cmd = ctx.obj["cli"].get_command(ctx, "install-server")
+                server_group = ctx.obj["cli"].get_command(ctx, "server")
+                cmd = server_group.get_command(ctx, "install")
                 ctx.invoke(cmd)
 
             elif choice == "Manage Existing Server":
@@ -153,17 +154,21 @@ def main_menu(ctx: click.Context):
 def manage_server_menu(ctx: click.Context, server_name: str):
     """Displays the menu for managing a specific, existing server."""
     # Command Definitions
-    server_group = ctx.obj["cli"].get_command(ctx, "server")
+    cli_group = ctx.obj["cli"]
+    server_group = cli_group.get_command(ctx, "server")
+    properties_group = cli_group.get_command(ctx, "properties")
+    allowlist_group = cli_group.get_command(ctx, "allowlist")
+    permission_group = cli_group.get_command(ctx, "permissions")
+    system_group = cli_group.get_command(ctx, "system")
     # world_group is fetched in _world_management_menu, not needed directly here for menu_map
     # addon_group = ctx.obj["cli"].get_command(ctx, "addon") # Not used if install-addon is direct
 
     # Direct commands (not part of a group mentioned above or used directly)
-    install_addon_cmd = ctx.obj["cli"].get_command(ctx, "install-addon")
-    configure_props_cmd = ctx.obj["cli"].get_command(ctx, "configure-properties")
-    configure_allowlist_cmd = ctx.obj["cli"].get_command(ctx, "configure-allowlist")
-    configure_permissions_cmd = ctx.obj["cli"].get_command(ctx, "configure-permissions")
-    attach_console_cmd = ctx.obj["cli"].get_command(ctx, "attach-console")
-    update_server_cmd = ctx.obj["cli"].get_command(ctx, "update-server")
+    configure_props_cmd = properties_group.get_command(ctx, "set")
+    configure_allowlist_cmd = allowlist_group.get_command(ctx, "add")
+    configure_permissions_cmd = permission_group.get_command(ctx, "set")
+    install_addon_cmd = cli_group.get_command(ctx, "install-addon")
+    attach_console_cmd = cli_group.get_command(ctx, "attach-console")
 
     # Command Groups
     # backup_group is fetched in _backup_restore_menu
@@ -185,11 +190,11 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "----": "separator",
         "Backup or Restore": _backup_restore_menu,  # Handled by its own function
         "Manage World (Install/Export/Reset)": _world_management_menu,  # Handled by its own function
-        "Install Addon": (install_addon_cmd, "server", {}),
+        "Install Addon": (install_addon_cmd, "server_name", {}),
         "-----": "separator",
-        "Configure Properties": (configure_props_cmd, "server", {}),
-        "Configure Allowlist": (configure_allowlist_cmd, "server", {}),
-        "Configure Permissions": (configure_permissions_cmd, "server", {}),
+        "Configure Properties": (configure_props_cmd, "server_name", {}),
+        "Configure Allowlist": (configure_allowlist_cmd, "server_name", {}),
+        "Configure Permissions": (configure_permissions_cmd, "server_name", {}),
         "Configure Auto-Update": (
             system_group.get_command(ctx, "configure-service"),
             "server_name",
@@ -204,7 +209,7 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "Schedule Tasks": schedule_group,  # Directly use the Click Group, handled in its own logic branch
         "Attach to Console (Linux only)": (attach_console_cmd, "server_name", {}),
         "-------": "separator",
-        "Update Server": (update_server_cmd, "server", {}),
+        "Update Server": (server_group.get_command(ctx, "update"), "server_name", {}),
         "Delete Server": (
             server_group.get_command(ctx, "delete"),
             "server_name",

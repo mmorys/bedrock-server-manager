@@ -44,8 +44,10 @@ from bedrock_server_manager.cli import (
     cleanup,
     generate_password,
     player,
-    server,
-    server_install_config,
+    server_actions,
+    server_allowlist,
+    server_permissions,
+    server_properties,
     system,
     task_scheduler,
     utils,
@@ -123,7 +125,10 @@ def cli(ctx: click.Context):
 # Add command groups from our modules
 cli.add_command(backup_restore.backup)
 cli.add_command(player.player)
-cli.add_command(server.server)
+cli.add_command(server_actions.server)
+cli.add_command(server_allowlist.allowlist)
+cli.add_command(server_permissions.permissions)
+cli.add_command(server_properties.properties)
 cli.add_command(system.system)
 cli.add_command(task_scheduler.schedule)
 cli.add_command(web.web)
@@ -135,12 +140,6 @@ cli.add_command(cleanup.cleanup)
 cli.add_command(
     generate_password.generate_password_hash_command, name="generate-password"
 )
-cli.add_command(server_install_config.install_server)
-cli.add_command(server_install_config.update_server)
-cli.add_command(server_install_config.configure_allowlist)
-cli.add_command(server_install_config.configure_permissions)
-cli.add_command(server_install_config.configure_properties)
-cli.add_command(server_install_config.remove_allowlist_players)
 cli.add_command(utils.list_servers)
 cli.add_command(utils.attach_console)
 

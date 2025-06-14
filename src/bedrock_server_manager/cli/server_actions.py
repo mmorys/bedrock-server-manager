@@ -1,4 +1,4 @@
-# bedrock_server_manager/cli/server.py
+# bedrock_server_manager/cli/server_actions.py
 """
 Click command group for direct server management actions.
 
@@ -10,23 +10,22 @@ import logging
 from typing import Dict, Any, Tuple
 
 import click
+import questionary
 
 from bedrock_server_manager.api import server as server_api
+from bedrock_server_manager.api import server_install_config as config_api
+from bedrock_server_manager.cli.server_allowlist import interactive_allowlist_workflow
+from bedrock_server_manager.cli.server_permissions import (
+    interactive_permissions_workflow,
+)
+from bedrock_server_manager.cli.server_properties import interactive_properties_workflow
+from bedrock_server_manager.cli.utils import (
+    handle_api_response as _handle_api_response,
+    ServerNameValidator,
+)
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
-
-
-# Helper to reduce code duplication in API response handling
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """Prints styled success or error message based on API response."""
-    if response.get("status") == "error":
-        message = response.get("message", "An unknown error occurred.")
-        click.secho(f"Error: {message}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
 
 
 @click.group()
@@ -94,6 +93,77 @@ def restart_server(server_name: str):
         raise click.Abort()
 
 
+@server.command("install")
+def install():
+    """Interactively installs and configures a new Bedrock server."""
+    try:
+        click.secho("--- New Bedrock Server Installation ---", bold=True)
+        server_name = questionary.text(
+            "Enter a name for the new server folder:", validate=ServerNameValidator()
+        ).ask()
+        if not server_name:
+            raise click.Abort()
+
+        target_version = questionary.text(
+            "Enter server version (LATEST, PREVIEW, 1.20.81.01):",
+            default="LATEST",
+        ).ask()
+        if not target_version:
+            raise click.Abort()
+
+        click.echo(f"Installing server '{server_name}' version '{target_version}'...")
+        install_result = config_api.install_new_server(server_name, target_version)
+
+        if "already exists" in install_result.get("message", ""):
+            click.secho(install_result.get("message"), fg="yellow")
+            if questionary.confirm("Delete the existing server and reinstall?").ask():
+                click.echo(f"Deleting existing server '{server_name}'...")
+                server_api.delete_server_data(server_name)
+                click.echo("Retrying installation...")
+                install_result = config_api.install_new_server(
+                    server_name, target_version
+                )
+            else:
+                raise click.Abort()
+
+        response = _handle_api_response(install_result, "Server files installed.")
+        click.secho(f"Installed Version: {response.get('version')}", bold=True)
+
+        interactive_properties_workflow(server_name)
+        if questionary.confirm("Configure allowlist now?", default=False).ask():
+            interactive_allowlist_workflow(server_name)
+        if questionary.confirm(
+            "Configure player permissions now?", default=False
+        ).ask():
+            interactive_permissions_workflow(server_name)
+
+        click.secho("\nInstallation and configuration complete!", fg="green", bold=True)
+        if questionary.confirm("Start server now?", default=True).ask():
+            click.secho(f"\nTo start the server, run:", fg="cyan")
+            click.secho(f"  bsm server start -s {server_name}", bold=True)
+
+    except BSMError as e:
+        click.secho(f"An application error occurred: {e}", fg="red")
+        raise click.Abort()
+    except (click.Abort, KeyboardInterrupt):
+        click.secho("\nInstallation cancelled.", fg="yellow")
+
+
+@server.command("update-server")
+@click.option(
+    "-s", "--server-name", required=True, help="Name of the server to update."
+)
+def update(server_name: str):
+    """Checks for and applies updates to an existing server."""
+    click.echo(f"Checking for updates for server '{server_name}'...")
+    try:
+        response = config_api.update_server(server_name)
+        _handle_api_response(response, "Update check complete.")
+    except BSMError as e:
+        click.secho(f"A server update error occurred: {e}", fg="red")
+        raise click.Abort()
+
+
 @server.command("delete")
 @click.option(
     "-s", "--server", "server_name", required=True, help="Name of the server to delete."
@@ -129,7 +199,7 @@ def delete_server(server_name: str, yes: bool):
 )
 @click.argument("command", nargs=-1, required=True)
 def send_command(server_name: str, command: Tuple[str]):
-    """Sends a command to a running server (e.g., /say hello world)."""
+    """Sends a command to a running server (e.g., say hello world)."""
     # nargs=-1 captures all arguments into a tuple. We join them back into a string.
     command_string = " ".join(command)
 
