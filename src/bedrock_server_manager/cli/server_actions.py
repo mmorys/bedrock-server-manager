@@ -154,7 +154,7 @@ def install(ctx: click.Context):
 
 @server.command("update")
 @click.option(
-    "-s", "--server-name", required=True, help="Name of the server to update."
+    "-s", "--server", "server_name", required=True, help="Name of the server to update."
 )
 def update(server_name: str):
     """Checks for and applies updates to an existing server."""

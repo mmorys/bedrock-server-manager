@@ -143,7 +143,7 @@ def properties():
 
 
 @properties.command("get")
-@click.option("-s", "--server-name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 @click.option("-p", "--property-name", help="Get a single property value.")
 def get(server_name: str, property_name: str):
     """Displays server properties. Shows all if no specific property is named."""
@@ -165,7 +165,7 @@ def get(server_name: str, property_name: str):
 
 
 @properties.command("set")
-@click.option("-s", "--server-name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 @click.option(
     "--no-restart", is_flag=True, help="Do not restart the server after applying."
 )

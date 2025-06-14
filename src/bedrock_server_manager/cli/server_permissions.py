@@ -61,7 +61,7 @@ def permissions():
 
 
 @permissions.command("set")
-@click.option("-s", "--server-name", "server_name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 @click.option(
     "-p", "--player", help="The gamertag of the player. Skips interactive mode."
 )
@@ -119,7 +119,7 @@ def set_perm(server_name: str, player: Optional[str], level: Optional[str]):
 
 
 @permissions.command("list")
-@click.option("-s", "--server-name", "server_name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 def list_perms(server_name: str):
     """Lists all configured player permissions for a server."""
     response = config_api.get_server_permissions_api(server_name)
@@ -136,5 +136,5 @@ def list_perms(server_name: str):
     click.secho(f"Permissions for '{server_name}':", bold=True)
     for p in permissions:
         click.echo(
-            f" - {p.get('name', 'Unknown Player')} (XUID: {p['xuid']}): {p['permission']}"
+            f" - {p.get('name', 'Unknown Player')} (XUID: {p['xuid']}): {p['permission_level']}"
         )

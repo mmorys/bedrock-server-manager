@@ -67,7 +67,7 @@ def allowlist():
 
 
 @allowlist.command("add")
-@click.option("-s", "--server-name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 @click.option(
     "-p", "--player", help="The gamertag of the player to add. Skips interactive mode."
 )
@@ -105,7 +105,7 @@ def add(server_name: str, player: Optional[str], ignore_limit: bool):
 
 
 @allowlist.command("remove")
-@click.option("-s", "--server-name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 @click.argument("players", nargs=-1, required=True)
 def remove(server_name: str, players: tuple[str]):
     """Removes one or more players from the allowlist."""
@@ -131,7 +131,7 @@ def remove(server_name: str, players: tuple[str]):
 
 
 @allowlist.command("list")
-@click.option("-s", "--server-name", required=True, help="The name of the server.")
+@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
 def list_players(server_name: str):
     """Lists all players on a server's allowlist."""
     response = config_api.get_server_allowlist_api(server_name)
