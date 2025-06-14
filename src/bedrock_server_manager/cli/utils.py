@@ -18,13 +18,42 @@ from questionary import Validator, ValidationError
 from bedrock_server_manager.api import (
     utils as api_utils,
     application as api_application,
+    server_install_config as config_api,
 )
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-# --- Modernized Interactive Helper ---
+# --- Helpers ---
+
+
+def handle_api_response(response: Dict[str, Any], success_msg: str) -> Dict[str, Any]:
+    """
+    Handles responses from API calls, displaying success or error messages.
+    Raises click.Abort on error. Returns the response on success.
+    """
+    if response.get("status") == "error":
+        message = response.get("message", "An unknown error occurred.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
+
+    message = response.get("message", success_msg)
+    click.secho(f"Success: {message}", fg="green")
+    return response
+
+
+class ServerNameValidator(Validator):
+    """Validates server name format using the utils_api."""
+
+    def validate(self, document):
+        name = document.text.strip()
+        response = api_utils.validate_server_name_format(name)
+        if response.get("status") == "error":
+            raise ValidationError(
+                message=response.get("message", "Invalid server name format."),
+                cursor_position=len(document.text),
+            )
 
 
 class ServerExistsValidator(Validator):
@@ -67,28 +96,20 @@ def get_server_name_interactively() -> Optional[str]:
         return None
 
 
-# --- Utility Commands ---
+class PropertyValidator(Validator):
+    """Validates a server property value using the config_api."""
 
+    def __init__(self, property_name: str):
+        self.property_name = property_name
 
-# Helper similar to other CLI modules for standardized response handling
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """
-    Handles responses from API calls, displaying success or error messages.
-
-    Args:
-        response: The dictionary response from an API call.
-        success_msg: Default message to display on success if API provides no message.
-
-    Raises:
-        click.Abort: If the API response indicates an error.
-    """
-    if response.get("status") == "error":
-        message = response.get("message", "An unknown error occurred.")
-        click.secho(f"Error: {message}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
+    def validate(self, document):
+        value = document.text.strip()
+        response = config_api.validate_server_property_value(self.property_name, value)
+        if response.get("status") == "error":
+            raise ValidationError(
+                message=response.get("message", "Invalid value."),
+                cursor_position=len(document.text),
+            )
 
 
 def _print_server_table(servers: List[Dict[str, Any]]):
@@ -186,7 +207,7 @@ def attach_console(server_name: str):
         response = api_utils.attach_to_screen_session(server_name)
         # If attach_to_screen_session returns (e.g. error before exec), handle it.
         # A successful screen attach might mean this Python script segment is no longer running.
-        _handle_api_response(response, "Attach command issued. Check your terminal.")
+        handle_api_response(response, "Attach command issued. Check your terminal.")
     except BSMError as e:
         # This handles errors raised directly by the API call itself (e.g., server not found by API)
         click.secho(f"An application error occurred: {e}", fg="red")

@@ -15,25 +15,14 @@ import questionary
 
 from bedrock_server_manager.api import addon as addon_api
 from bedrock_server_manager.api import application as api_application
+from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_response
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-# A helper to reduce code duplication in API response handling
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """Prints styled success or error message based on API response."""
-    if response.get("status") == "error":
-        message = response.get("message", "An unknown error occurred.")
-        click.secho(f"Error: {message}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
-
-
 @click.command("install-addon")
-@click.option("-s", "--server", required=True, help="Name of the target server.")
+@click.option("-s", "--server", "server_name", required=True, help="Name of the target server.")
 @click.option(
     "-f",
     "--file",
@@ -41,7 +30,7 @@ def _handle_api_response(response: Dict[str, Any], success_msg: str):
     type=click.Path(exists=True, dir_okay=False, resolve_path=True),
     help="Full path to the addon file (.mcpack, .mcaddon). Skips interactive menu.",
 )
-def install_addon(server: str, addon_file_path: Optional[str]):
+def install_addon(server_name: str, addon_file_path: Optional[str]):
     """
     Installs an addon to the specified Bedrock server.
 
@@ -55,7 +44,7 @@ def install_addon(server: str, addon_file_path: Optional[str]):
         # If no file is provided via CLI option, enter interactive mode
         if not selected_addon_path:
             click.secho(
-                f"Entering interactive addon installation for server: {server}",
+                f"Entering interactive addon installation for server: {server_name}",
                 fg="yellow",
             )
 
@@ -89,12 +78,12 @@ def install_addon(server: str, addon_file_path: Optional[str]):
 
         # At this point, selected_addon_path is guaranteed to be a valid path
         addon_filename = os.path.basename(selected_addon_path)
-        click.echo(f"Installing addon '{addon_filename}' to server '{server}'...")
+        click.echo(f"Installing addon '{addon_filename}' to server '{server_name}'...")
         logger.debug(
             f"CLI: Calling addon_api.import_addon for file: {selected_addon_path}"
         )
 
-        response = addon_api.import_addon(server, selected_addon_path)
+        response = addon_api.import_addon(server_name, selected_addon_path)
 
         success_message = f"Addon '{addon_filename}' installed successfully."
         _handle_api_response(response, success_message)

@@ -14,29 +14,10 @@ import click
 import questionary
 
 from bedrock_server_manager.api import system as system_api
+from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_response
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
-
-
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """
-    Handles responses from API calls, displaying success or error messages.
-
-    Args:
-        response: The dictionary response from an API call.
-        success_msg: Default message to display on success if API provides no message.
-
-    Raises:
-        click.Abort: If the API response indicates an error.
-    """
-    if response.get("status") == "error":
-        message = response.get("message", "An unknown error occurred.")
-        click.secho(f"Error: {message}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
 
 
 @click.group()

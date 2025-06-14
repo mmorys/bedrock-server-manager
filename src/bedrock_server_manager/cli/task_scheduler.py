@@ -17,6 +17,7 @@ import questionary
 from questionary import Validator, ValidationError
 
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
+from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_response
 from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import BSMError
 
@@ -47,16 +48,6 @@ class TimeValidator(Validator):
                 message="Please enter time in HH:MM format (e.g., 09:30 or 22:00).",
                 cursor_position=len(document.text),
             )
-
-
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """Handles API responses, showing success or error messages."""
-    if response.get("status") == "error":
-        click.secho(f"Error: {response.get('message', 'Unknown error')}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
 
 
 def _get_windows_triggers_interactively() -> List[Dict[str, Any]]:

@@ -14,21 +14,10 @@ import click
 import questionary
 
 from bedrock_server_manager.api import backup_restore as backup_restore_api
+from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_response
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
-
-
-# A helper to reduce code duplication in API response handling
-def _handle_api_response(response: Dict[str, Any], success_msg: str):
-    """Prints styled success or error message based on API response."""
-    if response.get("status") == "error":
-        message = response.get("message", "An unknown error occurred.")
-        click.secho(f"Error: {message}", fg="red")
-        raise click.Abort()
-    else:
-        message = response.get("message", success_msg)
-        click.secho(f"Success: {message}", fg="green")
 
 
 # ---- Interactive Menu Helpers ----
