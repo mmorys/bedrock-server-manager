@@ -1,146 +1,8 @@
+<div style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="Bedrock Server Manager Icon" width="200" height="200">
+</div>
 
 ## Bedrock Server Manager:
-
-### 1.0.0
-1. Initial Release
-
-### 1.0.1
-1. Perform validation on server folder name and level name
-2. Fixed getting the scripts current directory
-3. Script no longer needs root permissions
-
-### 1.0.2
-1. Execute update-server command and systemd prestart command
-2. Make linger command optional
-
-### 1.0.3
-1. Added update-script command
-2. Ask if you want to install pre-request packages first
-3. Shutdown server before update if running
-4. Send messages to online players about checking for server updates, when its shutting down, and when its restarting
-5. Wait 10 seconds before shutdown/restart to allow players time to react to shutdown/restart messages
-
-### 1.1.0
-1. Added option to import .mcworld files from ./content/worlds folder
-2. Added option to import .mcpack files from ./content/addons folder
-3. Stop server before backup
-4. Use values from server.properties file when reconfiguring server properties
-5. Cleaned up some repetitive code
-
-### 1.1.1
-1. Optimized $SCRIPTDIR variable
-
-### 1.1.2
-1. Check for internet before download to prevent server fail to start (pings example.com)
-2. No longer exit when you check for updates with the latest version already installed
-3. Call send_command directly throughout script
-4. Removed duplicate logging when calling certain functions
-5. Backup function now only handles start/stop server if not in update
-
-### 1.1.3
-1. Better handle send-command arguments
-2. Use say instead of tell
-
-### 1.1.4
-1. Fixed json format for world addon files
-2. Set r/w permissions for extracted worlds/addons
-3. Ask to restart after installing addon
-
-### 1.2.0
-1. Added enable-server and disable-server commands
-   - Enable or disable systemd autostart service
-2. Added interactive cron scheduler
-   - You can view add modify delete cron jobs for your servers to automatically run certain script commands such as update-server at scheduled times
-3. Backup now makes .mcworld files instead of a .tar.gz file
-   - Added zip as required package
-   - Fixed backups not working
-4. View resource usage for server
-5. Standardized yes/no prompts
-6. Use allowlist reload command when updating allowlist and server is running
-7. Rearranged code blocks to a more logical order
-   - Centralized/Validate server name before call function
-8. Add version to server download file
-9. Rearranged menus
-   - Added Advanced Menu
-
-### 1.2.1
-1. Added option to enable/disable update on start to systemd flow
-   - Added Reconfigure Systemd Service option
-2. Fixed Resource Usage page
-
-### 1.3.0
-1. BREAKING CHANGE: Migrate ./bedrock_server_manager to ./servers
-   - The script will try to auto migrate servers+systemd services after the user confirms
-   - Its recommended to take a backup BEFORE updating the script
-2. Moved backups out of server folder to ./backups
-3. Moved server downloads out of server folder to ./.downloads
-4. Added support for .mcaddon file import (import in bulk)
-
-### 1.4.0
-1. Added list-servers command 
-    - List all servers, their status, and version
-    - Also shows in the menus
-2. Added scan-players command
-    - Scans server_output.txt for players+xuid and saves  it to ./.config/players.json
-    - Used to add players to permissions.json file
-    - Added to cron scheduler
-3. Added add-players command 
-    - Manually adds player+xuid to ./.config/players.json
-4. Save script output to ./.logs/log_{$timestamp}.log
-    - Redirect to file instead of /dev/null when applicable
-5. Refactored backups
-    - You can now choose to backup all files, just export the world to a .mcworld file, or backup an individual config file.
-    - Backup all executed when running backup-server command
-5. Added Restore menu
-    - You can now restore all most recent files, a specific world file, or specific config file
-    - Restore all executed when running update-server command
-6. Moved server configurations such as installed/target version to ./.config/$server_name/config.json
-    - The script will try to migrate existing configs (server name, installed version, and target version) to the new file
-7. Perform validation on server.properties entries
-8. Split most of the bigger functions such as download_server into smaller more modular functions 
-9. Added permissions configuration
-    - You can choose players saved in ./config/players.json to add to a server permissions file
-10. Don't download server if target version is already downloaded
-11. Moved script default values to ./config/script_config.json
-    - Edit this file to set your own servers directory, how many backups and downloads to keep
-12. Moved systemd commands to script, reconfigure systemd configuration to update
-
-### 1.4.1
-1. Check for internet in update function
-
-### 1.4.2
-1. Removed writing to version.txt
-
-### 2.0.0
-1. Complete rewrite of script in python
-2. Added Windows support
-   - Windows support has a few limitations such as:
-     - No send-command support
-     - No attach to console support
-     - Doesn't auto restart if crashed
-
-#### Bash vs Python
-
-The short lived Bedrock Server Manager Bash script is being discontinued and replaced with a new Python-based version. The Bash script was originally designed to support only Debian-based systems, which limited its usability across different operating systems. The bash script will continue to be available but will no longer receive updates.
-
-The switch to python allows cross platform support, standardized processes, and less dependencies. The new script has full feature parity to the bash script
-
-##### To switch to the new version, follow these steps:
-
-- Replace the bash script with the new python script:
-  - Follow install instructions above
-  - Place the .py file in the same folder as the .sh file
-  - Delete the old .sh file if wanted
-- Run the script, open the advanced menu then Reconfigure Auto-Update
-
-### 2.0.1
-
-1. Better handle send-command
-
-### 2.0.2
-
-1. Revaluated error codes
-2. Ensure write permissions before certain operations such as delete server
 
 ### 3.0.0
 1. BREAKING CHANGE: Completely refactored .py script to a pip package
@@ -274,7 +136,7 @@ The switch to python allows cross platform support, standardized processes, and 
 8. Folder path for download prune in http prune api must now be relative to the download folder
 9. /api/servers/{server_name}/ routes are now /api/server/{server_name}
    - Only the read properties route should be affected
-10. Fixed passing host arument to web server
+10. Fixed passing host argument to web server
 
 ### 3.2.4
 
@@ -283,3 +145,57 @@ The switch to python allows cross platform support, standardized processes, and 
 ### 3.2.5
 
 1. Fix download server function to use updated minecraft site
+
+### 3.3.0
+
+#### MAJOR BREAKING CHANGES READ FULL CHANGELOG BEFORE UPDATING
+
+#### STOP SERVERS BEFORE UPDATING
+
+Start/Stop methods have been revamped and require the servers be restarted with the new method, if you update before turning off your servers you may need to manually terminate the running process
+
+1. Revamped start server actions
+    - Windows:
+       - Starting a server now creates a named pipe in the background, allowing commands to be sent to the server
+    - Linux:
+      -  Start remains mostly the same but the systemd command has also been merged into the base server start command
+    - Now takes an optional -m/–mode variable in server start command
+       - Windows:
+          - detached mode will start a named pipe process in the background (similar to web start)
+          - direct mode will start the named pipe process in the foreground (similar to web start)
+        - Linux:
+          - detached mode will try to start the server with systemctl
+             - If service file doesn't exist, or is considered in-active, it falls back to direct
+          - direct mode will start the server directly with screen
+          - Systemd files must be recreated (Reconfigure autoupdate)
+          - Removed systemd specific start/stop methods 
+2. Added reset-world action
+    - Deletes the server’s world folder
+3. Cleaned up various background code such as:
+     - Removed BedrockServer class as it was underutilized 
+     - Revamped core.server_actions.delete_server_data
+     - Splitting/renaming various files 
+     - Removed redundant core backup/restore functions as api.backup module can just call the config/world functions directly
+4. Fixed stop-web-server killing any process that happened to match the  PID saved in the file
+     - It now validates that its the bedrock-server-manager process being killed
+5. Send command for various actions such as sending messages to running servers when shutting down, reloading the allowlist or other configurations when changed
+6. Changed list-backups function
+	- backup-type changed from ’config’ to ‘allowlist’, ‘properties’, ‘permissions’
+7. CLI and FILE log levels now use separate values
+	- Set ‘CLI_LOG_LEVEL’ and ‘FILE_LOG_LEVEL’ in script_config.json
+8. Refactored core.downloader into BedorckDownloader class
+9. Refactored some global core functions into BedrockServerManager class
+	- Some function that were migrated to this class include:
+		- Scan for players
+		- List content files
+		- Start web server
+		- List all servers
+10. Reintroduced the BedrockServer class in a more capable feature complete form
+11. Moved main __init__.py to __main__.py
+	- Allows running app with python -m bedrock_server_manager <command>
+		- Makes some logic easier as only sys.executable is needed instead of needing to manually find the bedrock-server-manager(.exe) in various installation paths
+12. Migrated task schedulers to their own classes reducing redundant logic
+13. BREAKING CHANGE: Revamped all cli modules, anything using the cli commands, such as: systemd, external scripts, and task scheduler commands need to be removed/recreated
+	- Please see the updated CLI_COMMANDS.md doc for an updated list of commands
+    - A few commands were removed, and may or may not be replaced with new command in the future
+14. Removed getting started guide and extras from web server

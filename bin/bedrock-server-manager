@@ -1,7 +1,0 @@
-#!/usr/bin/env python3
-# bedrock-server-manager/bin/bedrock-server-manager
-import sys
-from bedrock_server_manager import main
-
-if __name__ == "__main__":
-    sys.exit(main())
