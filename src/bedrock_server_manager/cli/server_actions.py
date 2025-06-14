@@ -149,7 +149,7 @@ def install():
         click.secho("\nInstallation cancelled.", fg="yellow")
 
 
-@server.command("update-server")
+@server.command("update")
 @click.option(
     "-s", "--server-name", required=True, help="Name of the server to update."
 )
