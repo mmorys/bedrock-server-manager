@@ -252,9 +252,8 @@ async function removeAllowlistPlayer(buttonElement, serverName, playerName) {
 
     console.log(`${functionName}: Deletion confirmed for '${playerName}'.`);
 
-    // --- Send API Request using the bulk DELETE endpoint ---
-    // The backend now only has a bulk delete endpoint, so we must adapt.
-    const actionPath = 'allowlist/players'; // Use the plural endpoint
+    // --- Send API Request DELETE endpoint ---
+    const actionPath = 'allowlist/remove';
     const requestBody = {
         players: [playerName] // The API expects an array of players
     };

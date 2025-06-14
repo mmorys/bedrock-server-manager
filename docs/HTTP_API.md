@@ -36,7 +36,7 @@
     - [`POST /api/players/scan` - Scan Player Logs](#post-apiplayersscan---scan-player-logs)
     - [`GET /api/server/{server_name}/allowlist` - Get Allowlist](#get-apiserverserver_nameallowlist---get-allowlist)
     - [`POST /api/server/{server_name}/allowlist/add` - Add Players to Allowlist](#post-apiserverserver_nameallowlistadd---add-players-to-allowlist)
-    - [`DELETE /api/server/{server_name}/allowlist/player/{player_name}` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistplayerplayer_name---remove-player-from-allowlist)
+    - [`DELETE /api/server/{server_name}/allowlist/remove` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistremove---remove-player-from-allowlist)
     - [`PUT /api/server/{server_name}/permissions` - Update Player Permissions](#put-apiserverserver_namepermissions---update-player-permissions)
   - [Configuration](#configuration)
     - [`POST /api/server/{server_name}/properties` - Update Server Properties](#post-apiserverserver_nameproperties---update-server-properties)
@@ -4165,7 +4165,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `DELETE /api/server/{server_name}/allowlist/players` - Remove Multiple Players from Allowlist
+### `DELETE /api/server/{server_name}/allowlist/remove` - Remove Multiple Players from Allowlist
 
 Removes one or more players from the `allowlist.json` file for the specified server. The operation is atomic: it processes all players and then reloads the server's allowlist once (if running). Player name matching is case-insensitive.
 
@@ -4264,7 +4264,7 @@ curl -X DELETE \
      -H "Authorization: Bearer YOUR_JWT_TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"players": ["Steve", "Alex"]}' \
-     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/players
+     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/remove
 ```
 
 #### PowerShell Example
@@ -4278,7 +4278,7 @@ $body = @{
     players = @('Steve', 'Alex')
 } | ConvertTo-Json
 
-Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/players" -Headers $headers -Body $body
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/remove" -Headers $headers -Body $body
 ```
 
 ---

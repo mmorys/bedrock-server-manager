@@ -354,35 +354,7 @@ def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Remove Player from Allowlist ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/allowlist/player/<string:player_name>",
-    methods=["DELETE"],
-)
-@csrf.exempt
-@auth_required
-def remove_allowlist_player_api_route(
-    server_name: str, player_name: str
-) -> Tuple[Response, int]:
-    """API endpoint to remove a specific player from a server's allowlist."""
-    try:
-        result = server_install_config.remove_players_from_allowlist(
-            server_name, [player_name]
-        )
-        return jsonify(result), 200
-    except BSMError as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-    except Exception as e:
-        logger.error(
-            f"API Remove Allowlist Player '{server_name}': Unexpected error. {e}",
-            exc_info=True,
-        )
-        return (
-            jsonify({"status": "error", "message": "An unexpected error occurred."}),
-            500,
-        )
-
-
-@server_install_config_bp.route(
-    "/api/server/<string:server_name>/allowlist/players",
+    "/api/server/<string:server_name>/allowlist/remove",
     methods=["DELETE"],
 )
 @csrf.exempt
