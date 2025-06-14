@@ -92,9 +92,9 @@ def restart_server(server_name: str):
         click.secho(f"Failed to restart server: {e}", fg="red")
         raise click.Abort()
 
-
 @server.command("install")
-def install():
+@click.pass_context
+def install(ctx: click.Context):
     """Interactively installs and configures a new Bedrock server."""
     try:
         click.secho("--- New Bedrock Server Installation ---", bold=True)
@@ -138,9 +138,12 @@ def install():
             interactive_permissions_workflow(server_name)
 
         click.secho("\nInstallation and configuration complete!", fg="green", bold=True)
-        if questionary.confirm("Start server now?", default=True).ask():
-            click.secho(f"\nTo start the server, run:", fg="cyan")
-            click.secho(f"  bsm server start -s {server_name}", bold=True)
+        start_command = ctx.parent.get_command(ctx, "start")
+        if start_command:
+            click.echo("Invoking start command...")
+            ctx.invoke(start_command, server_name=server_name, mode="detached")
+        else:
+            click.secho("Error: Could not find the 'start' command to invoke.", fg="red")
 
     except BSMError as e:
         click.secho(f"An application error occurred: {e}", fg="red")
