@@ -1,4 +1,4 @@
-# .github/workflows/publish-to-pypi.yml
+# .github/workflows/publish-to-testpypi.yml
 
 name: Publish Python Package
 
@@ -33,5 +33,8 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Publish to PyPI
+      - name: Publish to TestPyPI
+        if: github.event.release.prerelease == true
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
