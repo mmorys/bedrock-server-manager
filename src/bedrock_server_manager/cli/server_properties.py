@@ -156,7 +156,7 @@ def properties():
 @click.option(
     "-s", "--server", "server_name", required=True, help="The name of the server."
 )
-@click.option("-p", "--property-name", help="Get a single property value.")
+@click.option("-p", "--property", "property_name", help="Get a single property value.")
 def get(server_name: str, property_name: str):
     """Displays server properties. Shows all if no specific property is named."""
     response = config_api.get_server_properties_api(server_name)
@@ -183,7 +183,7 @@ def get(server_name: str, property_name: str):
 @click.option(
     "--no-restart", is_flag=True, help="Do not restart the server after applying."
 )
-@click.argument("properties", nargs=-1)
+@click.option("-p", "--properties", "properties", multiple=True, help="'key=value' pair of the property you want to change. Use multiple times for multiple players")
 def set_props(server_name: str, no_restart: bool, properties: tuple[str]):
     """
     Sets one or more server properties.

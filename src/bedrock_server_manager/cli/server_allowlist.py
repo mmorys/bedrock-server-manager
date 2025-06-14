@@ -71,14 +71,18 @@ def allowlist():
     "-s", "--server", "server_name", required=True, help="The name of the server."
 )
 @click.option(
-    "-p", "--player", help="The gamertag of the player to add. Skips interactive mode."
+    "-p",
+    "--player",
+    "player",
+    multiple=True,
+    help="The gamertag of the player to add. Skips interactive mode.",
 )
 @click.option(
     "--ignore-limit",
     is_flag=True,
     help="Player can join even if server is full (used with --player).",
 )
-def add(server_name: str, player: Optional[str], ignore_limit: bool):
+def add(server_name: str, player: tuple[str], ignore_limit: bool):
     """
     Adds players to the allowlist.
 
@@ -95,12 +99,29 @@ def add(server_name: str, player: Optional[str], ignore_limit: bool):
             return
 
         # Direct, non-interactive logic
+        player_data_list = [
+            {"name": p_name, "ignoresPlayerLimit": ignore_limit} for p_name in player
+        ]
+
+        # 2. Provide clear user feedback about the action.
         click.echo(
-            f"Adding player '{player}' to allowlist for server '{server_name}'..."
+            f"Adding {len(player_data_list)} player(s) to allowlist for server '{server_name}'..."
         )
-        player_data = [{"name": player, "ignoresPlayerLimit": ignore_limit}]
-        response = config_api.add_players_to_allowlist_api(server_name, player_data)
-        handle_api_response(response, f"Player '{player}' added successfully.")
+
+        # 3. Call the API with the correctly formatted list.
+        response = config_api.add_players_to_allowlist_api(
+            server_name, player_data_list
+        )
+        if response.get("status") == "success":
+            added_count = response.get("added_count", 0)
+            success_msg = (
+                f"Successfully added {added_count} new player(s) to the allowlist."
+            )
+            # The generic handler will print the success message.
+            handle_api_response(response, success_msg)
+        else:
+            # Let the generic handler print the error message from the response.
+            handle_api_response(response, "An unknown error occurred.")
 
     except (click.Abort, KeyboardInterrupt):
         click.secho("\nOperation cancelled.", fg="yellow")
@@ -110,7 +131,7 @@ def add(server_name: str, player: Optional[str], ignore_limit: bool):
 @click.option(
     "-s", "--server", "server_name", required=True, help="The name of the server."
 )
-@click.argument("players", nargs=-1, required=True)
+@click.option("-p", "--player", "player", multiple=True, required=True)
 def remove(server_name: str, players: tuple[str]):
     """Removes one or more players from the allowlist."""
     click.echo(f"Removing {len(players)} player(s) from '{server_name}' allowlist...")
