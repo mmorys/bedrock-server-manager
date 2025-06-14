@@ -30,16 +30,22 @@ def interactive_properties_workflow(server_name: str):
 
         # Determine the default value for the prompt
         # If the property exists, use it. Otherwise, use the kwarg default.
-        default_for_prompt = original_value_str if original_value_str is not None else kwargs.get("default", "")
+        default_for_prompt = (
+            original_value_str
+            if original_value_str is not None
+            else kwargs.get("default", "")
+        )
 
         # --- Special handling for boolean (confirm) prompts ---
         if prompter == questionary.confirm:
             # Convert the string 'true'/'false' to a boolean for the default
             # All other strings become False, which is a safe default.
-            default_bool = str(default_for_prompt).lower() == 'true'
-            
+            default_bool = str(default_for_prompt).lower() == "true"
+
             # Ask the user. The result will be a pure boolean: True or False
-            new_val_bool = questionary.confirm(message, default=default_bool, **kwargs).ask()
+            new_val_bool = questionary.confirm(
+                message, default=default_bool, **kwargs
+            ).ask()
 
             # If the user cancelled the prompt
             if new_val_bool is None:
@@ -54,15 +60,19 @@ def interactive_properties_workflow(server_name: str):
         else:
             # The original value is already a string, so we can use it directly
             # If it's None, fall back to the kwarg default
-            current_val_str = original_value_str if original_value_str is not None else str(kwargs.get("default", ""))
+            current_val_str = (
+                original_value_str
+                if original_value_str is not None
+                else str(kwargs.get("default", ""))
+            )
 
             # Ask the user. The result will be a string.
             new_val_str = prompter(message, default=current_val_str, **kwargs).ask()
-            
+
             # If the user cancelled the prompt
             if new_val_str is None:
                 return
-            
+
             # Compare the new string value with the original string value
             if new_val_str != current_val_str:
                 changes[prop] = new_val_str
@@ -143,7 +153,9 @@ def properties():
 
 
 @properties.command("get")
-@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="The name of the server."
+)
 @click.option("-p", "--property-name", help="Get a single property value.")
 def get(server_name: str, property_name: str):
     """Displays server properties. Shows all if no specific property is named."""
@@ -165,7 +177,9 @@ def get(server_name: str, property_name: str):
 
 
 @properties.command("set")
-@click.option("-s", "--server", "server_name", required=True, help="The name of the server.")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="The name of the server."
+)
 @click.option(
     "--no-restart", is_flag=True, help="Do not restart the server after applying."
 )

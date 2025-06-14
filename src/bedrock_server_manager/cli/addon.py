@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 @click.command("install-addon")
-@click.option("-s", "--server", "server_name", required=True, help="Name of the target server.")
+@click.option(
+    "-s", "--server", "server_name", required=True, help="Name of the target server."
+)
 @click.option(
     "-f",
     "--file",

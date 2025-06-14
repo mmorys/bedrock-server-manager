@@ -92,6 +92,7 @@ def restart_server(server_name: str):
         click.secho(f"Failed to restart server: {e}", fg="red")
         raise click.Abort()
 
+
 @server.command("install")
 @click.pass_context
 def install(ctx: click.Context):
@@ -143,7 +144,9 @@ def install(ctx: click.Context):
             click.echo("Invoking start command...")
             ctx.invoke(start_command, server_name=server_name, mode="detached")
         else:
-            click.secho("Error: Could not find the 'start' command to invoke.", fg="red")
+            click.secho(
+                "Error: Could not find the 'start' command to invoke.", fg="red"
+            )
 
     except BSMError as e:
         click.secho(f"An application error occurred: {e}", fg="red")
