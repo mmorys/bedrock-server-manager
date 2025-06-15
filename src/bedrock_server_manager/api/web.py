@@ -115,15 +115,19 @@ def start_web_server_api(
                     system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
             command = [str(expected_exe), "web", "start", "--mode", "direct"]
-            host_cmd_args_list = []
-            if host:
-                if isinstance(host, list):
-                    host_cmd_args_list.extend(host)
-                elif isinstance(host, str):
-                    host_cmd_args_list.append(host)
-            if host_cmd_args_list:
-                command.append("--host")
-                command.extend([str(h) for h in host_cmd_args_list if h])
+        
+            # Normalize the host input into a list
+            hosts_to_add = []
+            if isinstance(host, str):
+                hosts_to_add.append(host)
+            elif isinstance(host, list):
+                hosts_to_add.extend(host)
+
+            # Append each host with its own --host flag
+            for h in hosts_to_add:
+                if h:  # Ensure not an empty string
+                    command.extend(["--host", str(h)])
+        
             if debug:
                 command.append("--debug")
 

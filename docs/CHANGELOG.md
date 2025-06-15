@@ -148,54 +148,61 @@
 
 ### 3.3.0
 
-#### MAJOR BREAKING CHANGES READ FULL CHANGELOG BEFORE UPDATING
+#### MAJOR BREAKING CHANGES - READ FULL CHANGELOG BEFORE UPDATING
 
 #### STOP SERVERS BEFORE UPDATING
 
-Start/Stop methods have been revamped and require the servers be restarted with the new method, if you update before turning off your servers you may need to manually terminate the running process
+Start/Stop methods have been revamped and require the servers be restarted with the new method. If you update before turning off your servers you may need to manually terminate the running process.
 
-1. Revamped start server actions
+1.  Revamped all CLI modules: Anything using the CLI commands, such as systemd, external scripts, and task scheduler commands, need to be removed/recreated.
+    - Please see the updated `CLI_COMMANDS.md` doc for an updated list of commands.
+    - A few commands were removed and may or may not be replaced with a new command in the future.
+    - The entire CLI has been revamped to use a more consistent modern structure.
+    - Added `questionary` module for interactive CLI questions and prompts.
+    - Added `click` module for CLI commands.
+    - Vastly improved CLI user experience.
+2.  Changed allowlist remove player route:
+    - Now uses `/api/server/{server_name}/allowlist/remove`
+3.  Revamped start server actions:
     - Windows:
-       - Starting a server now creates a named pipe in the background, allowing commands to be sent to the server
+      - Starting a server now creates a named pipe in the background, allowing commands to be sent to the server.
+      - Takes an optional `-m/-–mode` variable:
+        - `detached` mode will start a named pipe process in the background (similar to web start).
+        - `direct` mode will start the named pipe process in the foreground.
     - Linux:
-      -  Start remains mostly the same but the systemd command has also been merged into the base server start command
-    - Now takes an optional -m/–mode variable in server start command
-       - Windows:
-          - detached mode will start a named pipe process in the background (similar to web start)
-          - direct mode will start the named pipe process in the foreground (similar to web start)
-        - Linux:
-          - detached mode will try to start the server with systemctl
-             - If service file doesn't exist, or is considered in-active, it falls back to direct
-          - direct mode will start the server directly with screen
-          - Systemd files must be recreated (Reconfigure autoupdate)
-          - Removed systemd specific start/stop methods 
-2. Added reset-world action
-    - Deletes the server’s world folder
-3. Cleaned up various background code such as:
-     - Removed BedrockServer class as it was underutilized 
-     - Revamped core.server_actions.delete_server_data
-     - Splitting/renaming various files 
-     - Removed redundant core backup/restore functions as api.backup module can just call the config/world functions directly
-4. Fixed stop-web-server killing any process that happened to match the  PID saved in the file
-     - It now validates that its the bedrock-server-manager process being killed
-5. Send command for various actions such as sending messages to running servers when shutting down, reloading the allowlist or other configurations when changed
-6. Changed list-backups function
-	- backup-type changed from ’config’ to ‘allowlist’, ‘properties’, ‘permissions’
-7. CLI and FILE log levels now use separate values
-	- Set ‘CLI_LOG_LEVEL’ and ‘FILE_LOG_LEVEL’ in script_config.json
-8. Refactored core.downloader into BedorckDownloader class
-9. Refactored some global core functions into BedrockServerManager class
-	- Some function that were migrated to this class include:
-		- Scan for players
-		- List content files
-		- Start web server
-		- List all servers
-10. Reintroduced the BedrockServer class in a more capable feature complete form
-11. Moved main __init__.py to __main__.py
-	- Allows running app with python -m bedrock_server_manager <command>
-		- Makes some logic easier as only sys.executable is needed instead of needing to manually find the bedrock-server-manager(.exe) in various installation paths
-12. Migrated task schedulers to their own classes reducing redundant logic
-13. BREAKING CHANGE: Revamped all cli modules, anything using the cli commands, such as: systemd, external scripts, and task scheduler commands need to be removed/recreated
-	- Please see the updated CLI_COMMANDS.md doc for an updated list of commands
-    - A few commands were removed, and may or may not be replaced with new command in the future
-14. Removed getting started guide and extras from web server
+      - Start remains mostly the same, but the systemd command has also been merged into the base server start command.
+      - Takes an optional `-m/–-mode` variable:
+        - `detached` mode will try to start the server with `systemctl`. If the service file doesn't exist or is considered inactive, it falls back to `direct`.
+        - `direct` mode will start the server directly with `screen`.
+      - Systemd files must be recreated: As part of the start/stop revamp, you must recreate your systemd service files (Reconfigure autostart).
+      - Removed systemd specific start/stop methods.
+4.  Added `reset-world` action:
+    - Deletes the server’s world folder.
+    - Available in the CLI and web ui.
+5.  Added command sending for various actions:
+    - Send messages to running servers when shutting down, reloading the allowlist, or other configurations when changed.
+6.  Application can now be run as a module:
+    - Moved main `__init__.py` to `__main__.py`, allowing you to run the app with `python -m bedrock_server_manager <command>`.
+    - This makes some logic easier, as only `sys.executable` is needed instead of manually finding the bedrock-server-manager(.exe) in various installation paths.
+7.  Changed `list-backups` function:
+    - `backup-type` changed from ’config’ to ‘allowlist’, ‘properties’, ‘permissions’.
+8.  CLI and FILE log levels now use separate values:
+    - Set ‘CLI_LOG_LEVEL’ and ‘FILE_LOG_LEVEL’ in `script_config.json`.
+9.  Fixed `stop-web-server` bug:
+    - The `stop-web-server` command was killing any process that happened to match the PID saved in the file. It now validates that it's the `bedrock-server-manager` process being killed.
+10.  Removed web server content:
+    - Removed the getting started guide and extras from the web server.
+11.  Refactored some global core functions into a `BedrockServerManager` class:
+    - Some functions that were migrated to this class include:
+        - Scan for players
+        - List content files
+        - Start web server
+        - List all servers
+12.  Recreated the `BedrockServer` class in a more capable, feature-complete form.
+13.  Refactored `core.downloader` into a `BedorckDownloader` class.
+14.  Migrated task schedulers to their own classes, reducing redundant logic.
+15.  Cleaned up various background code:
+    - Removed the orignal `BedrockServer` class as it was underutilized.
+    - Revamped `core.server_actions.delete_server_data`.
+    - Splitting/renaming various files.
+    - Removed redundant core backup/restore functions as the `api.backup` module can just call the config/world functions directly.
