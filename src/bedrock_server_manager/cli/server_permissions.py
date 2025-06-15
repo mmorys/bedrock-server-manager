@@ -128,7 +128,7 @@ def set_perm(server_name: str, player_name: Optional[str], level: Optional[str])
         player_data = next(
             (
                 p
-                for p in all_players_resp.get("data", {}).get("players", [])
+                for p in all_players_resp.get("players", [])
                 if p.get("name", "").lower() == player_name.lower()
             ),
             None,
