@@ -1,135 +1,124 @@
-# bedrock_server_manager/cli/commands/server_properties.py
+# bedrock_server_manager/cli/server_properties.py
+"""
+Defines the `bsm properties` command group for server.properties management.
+
+This module provides commands to view and modify settings in a server's
+`server.properties` file. It features a comprehensive interactive workflow
+for guided configuration and direct commands for scriptable changes.
+"""
+from typing import Dict, Optional
+
 import click
 import questionary
 
 from bedrock_server_manager.api import server_install_config as config_api
 from bedrock_server_manager.cli.utils import (
-    handle_api_response,
     PropertyValidator,
+    handle_api_response as _handle_api_response,
 )
+from bedrock_server_manager.error import BSMError
 
 
 def interactive_properties_workflow(server_name: str):
-    """Manages the interactive workflow for configuring server.properties."""
-    click.secho("--- Configure Server Properties ---", bold=True)
-    click.echo("Loading current properties...")
+    """Guides a user through an interactive session to edit server properties.
+
+    This function fetches all current properties, then walks the user through
+    a series of prompts for common settings. It only records a property as
+    changed if the new value differs from the original, and then sends a
+    single API request to apply all changes at once.
+
+    Args:
+        server_name: The name of the server whose properties are being edited.
+
+    Raises:
+        click.Abort: If the user cancels the operation.
+    """
+    click.secho("\n--- Interactive Server Properties Configuration ---", bold=True)
+    click.echo("Loading current server properties...")
 
     properties_response = config_api.get_server_properties_api(server_name)
     if properties_response.get("status") == "error":
-        click.secho(
-            f"Could not load properties: {properties_response.get('message')}", fg="red"
-        )
-        return
+        message = properties_response.get("message", "Could not load properties.")
+        click.secho(f"Error: {message}", fg="red")
+        raise click.Abort()
 
     current_properties = properties_response.get("properties", {})
-    changes = {}
+    changes: Dict[str, str] = {}
 
-    def prompt(prop, message, prompter, **kwargs):
-        # Get the original value from the loaded properties
-        original_value_str = current_properties.get(prop, None)
+    def _prompt(prop: str, message: str, prompter, **kwargs):
+        """A nested helper to abstract the prompting and change-tracking logic."""
+        original_value = current_properties.get(prop)
 
-        # Determine the default value for the prompt
-        # If the property exists, use it. Otherwise, use the kwarg default.
-        default_for_prompt = (
-            original_value_str
-            if original_value_str is not None
-            else kwargs.get("default", "")
-        )
-
-        # --- Special handling for boolean (confirm) prompts ---
         if prompter == questionary.confirm:
-            # Convert the string 'true'/'false' to a boolean for the default
-            # All other strings become False, which is a safe default.
-            default_bool = str(default_for_prompt).lower() == "true"
-
-            # Ask the user. The result will be a pure boolean: True or False
-            new_val_bool = questionary.confirm(
-                message, default=default_bool, **kwargs
-            ).ask()
-
-            # If the user cancelled the prompt
-            if new_val_bool is None:
-                return
-
-            # Compare the new boolean with the original boolean state
-            if new_val_bool != default_bool:
-                # Store the change as a lowercase string, as Minecraft expects
-                changes[prop] = str(new_val_bool).lower()
-
-        # --- Logic for all other prompt types (text, select, etc.) ---
+            default_bool = str(original_value).lower() == "true"
+            new_val = prompter(message, default=default_bool, **kwargs).ask()
+            if new_val is None:
+                return  # User cancelled
+            # Record change only if the boolean state differs
+            if new_val != default_bool:
+                changes[prop] = str(new_val).lower()
         else:
-            # The original value is already a string, so we can use it directly
-            # If it's None, fall back to the kwarg default
-            current_val_str = (
-                original_value_str
-                if original_value_str is not None
-                else str(kwargs.get("default", ""))
-            )
+            new_val = prompter(message, default=str(original_value), **kwargs).ask()
+            if new_val is None:
+                return  # User cancelled
+            # Record change only if the string value differs
+            if new_val != original_value:
+                changes[prop] = new_val
 
-            # Ask the user. The result will be a string.
-            new_val_str = prompter(message, default=current_val_str, **kwargs).ask()
-
-            # If the user cancelled the prompt
-            if new_val_str is None:
-                return
-
-            # Compare the new string value with the original string value
-            if new_val_str != current_val_str:
-                changes[prop] = new_val_str
-
-    prompt(
+    # --- Begin prompting for common properties ---
+    _prompt(
         "server-name",
         "Server name (visible in LAN list):",
         questionary.text,
         validate=PropertyValidator("server-name"),
     )
-    prompt(
+    _prompt(
         "level-name",
         "World folder name:",
         questionary.text,
         validate=PropertyValidator("level-name"),
     )
-    prompt(
+    _prompt(
         "gamemode",
         "Default gamemode:",
         questionary.select,
         choices=["survival", "creative", "adventure"],
     )
-    prompt(
+    _prompt(
         "difficulty",
         "Game difficulty:",
         questionary.select,
         choices=["peaceful", "easy", "normal", "hard"],
     )
-    prompt("allow-cheats", "Allow cheats:", questionary.confirm)
-    prompt(
+    _prompt("allow-cheats", "Allow cheats:", questionary.confirm)
+    _prompt(
         "max-players",
         "Maximum players:",
         questionary.text,
         validate=PropertyValidator("max-players"),
     )
-    prompt("online-mode", "Require Xbox Live authentication:", questionary.confirm)
-    prompt("allow-list", "Enable allowlist:", questionary.confirm)
-    prompt(
+    _prompt("online-mode", "Require Xbox Live authentication:", questionary.confirm)
+    _prompt("allow-list", "Enable allowlist:", questionary.confirm)
+    _prompt(
         "default-player-permission-level",
         "Default permission for new players:",
         questionary.select,
         choices=["visitor", "member", "operator"],
     )
-    prompt(
+    _prompt(
         "view-distance",
         "View distance (chunks):",
         questionary.text,
         validate=PropertyValidator("view-distance"),
     )
-    prompt(
+    _prompt(
         "tick-distance",
         "Tick simulation distance (chunks):",
         questionary.text,
         validate=PropertyValidator("tick-distance"),
     )
-    prompt("level-seed", "Level seed (leave blank for random):", questionary.text)
-    prompt("texturepack-required", "Require Texture Packs:", questionary.confirm)
+    _prompt("level-seed", "Level seed (leave blank for random):", questionary.text)
+    _prompt("texturepack-required", "Require texture packs:", questionary.confirm)
 
     if not changes:
         click.secho("\nNo properties were changed.", fg="cyan")
@@ -137,85 +126,115 @@ def interactive_properties_workflow(server_name: str):
 
     click.secho("\nApplying the following changes:", bold=True)
     for key, value in changes.items():
-        click.echo(f"  - {key}: {value}")
+        original = current_properties.get(key, "not set")
+        click.echo(
+            f"  - {key}: {click.style(original, fg='red')} -> {click.style(value, fg='green')}"
+        )
+
+    if not questionary.confirm("Save these changes?", default=True).ask():
+        raise click.Abort()
 
     update_response = config_api.modify_server_properties(server_name, changes)
-    handle_api_response(update_response, "Server properties updated successfully.")
+    _handle_api_response(update_response, "Server properties updated successfully.")
 
 
 @click.group()
 def properties():
-    """
-    View and modify server.properties settings.
-    Use 'set' without arguments for an interactive wizard.
-    """
+    """Views and modifies settings in server.properties."""
     pass
 
 
 @properties.command("get")
 @click.option(
-    "-s", "--server", "server_name", required=True, help="The name of the server."
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="The name of the target server.",
 )
-@click.option("-p", "--property", "property_name", help="Get a single property value.")
-def get(server_name: str, property_name: str):
-    """Displays server properties. Shows all if no specific property is named."""
+@click.option(
+    "-p", "--property", "property_name", help="Display a single property value."
+)
+def get_props(server_name: str, property_name: Optional[str]):
+    """Displays server properties from server.properties.
+
+    If a specific property name is provided, only its value will be shown.
+    Otherwise, all properties are listed.
+    """
     response = config_api.get_server_properties_api(server_name)
-    data = handle_api_response(response, "Properties fetched.")
-    properties = data.get("properties", {})
+    properties = response.get("properties", {})
+
+    # Let the handler manage API errors
+    if response.get("status") == "error":
+        _handle_api_response(response, "")
+        return
 
     if property_name:
         value = properties.get(property_name)
         if value is not None:
             click.echo(value)
         else:
-            click.secho(f"Property '{property_name}' not found.", fg="red")
+            click.secho(f"Error: Property '{property_name}' not found.", fg="red")
             raise click.Abort()
     else:
-        click.secho(f"Properties for '{server_name}':", bold=True)
+        click.secho(f"\nProperties for '{server_name}':", bold=True)
+        max_key_len = max(len(k) for k in properties.keys()) if properties else 0
         for key, value in sorted(properties.items()):
-            click.echo(f"  {key}={value}")
+            click.echo(f"  {key:<{max_key_len}} = {value}")
 
 
 @properties.command("set")
 @click.option(
-    "-s", "--server", "server_name", required=True, help="The name of the server."
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="The name of the target server.",
 )
 @click.option(
-    "--no-restart", is_flag=True, help="Do not restart the server after applying."
+    "-p",
+    "--prop",
+    "properties",
+    multiple=True,
+    help="A 'key=value' pair to set. Use multiple times for multiple properties.",
 )
-@click.option("-p", "--properties", "properties", multiple=True, help="'key=value' pair of the property you want to change. Use multiple times for multiple players")
-def set_props(server_name: str, no_restart: bool, properties: tuple[str]):
-    """
-    Sets one or more server properties.
+@click.option(
+    "--no-restart",
+    is_flag=True,
+    help="Do not restart the server after applying changes.",
+)
+def set_props(server_name: str, no_restart: bool, properties: tuple[str, ...]):
+    """Sets one or more server properties directly.
 
-    PROPERTIES should be in key=value format.
-    Example: bsm properties set -s MyServer max-players=15
+    If run without the --prop option, this command launches an interactive
+    editor. Otherwise, it applies the specified key-value pairs.
 
-    If no properties are provided as arguments, an interactive wizard is launched.
+    Example: bsm properties set -s MyServer --prop max-players=15 --prop gamemode=creative
     """
     try:
         if not properties:
             click.secho(
-                f"No properties specified. Starting interactive properties editor for '{server_name}'...",
+                f"No properties specified; starting interactive editor for '{server_name}'...",
                 fg="yellow",
             )
             interactive_properties_workflow(server_name)
             return
 
-        # Direct, non-interactive logic
-        props_to_update = {}
+        props_to_update: Dict[str, str] = {}
         for p in properties:
             if "=" not in p:
                 click.secho(f"Error: Invalid format '{p}'. Use 'key=value'.", fg="red")
                 raise click.Abort()
             key, value = p.split("=", 1)
-            props_to_update[key] = value
+            props_to_update[key.strip()] = value.strip()
 
-        click.echo(f"Updating properties for '{server_name}'...")
+        click.echo(
+            f"Updating {len(props_to_update)} propert(y/ies) for '{server_name}'..."
+        )
         response = config_api.modify_server_properties(
             server_name, props_to_update, restart_after_modify=not no_restart
         )
-        handle_api_response(response, "Properties updated successfully.")
+        _handle_api_response(response, "Properties updated successfully.")
 
-    except (click.Abort, KeyboardInterrupt):
+    except (click.Abort, KeyboardInterrupt, BSMError):
         click.secho("\nOperation cancelled.", fg="yellow")

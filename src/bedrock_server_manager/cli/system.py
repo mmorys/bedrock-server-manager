@@ -1,14 +1,17 @@
 # bedrock_server_manager/cli/system.py
 """
-Click command group for system-level operations related to servers.
+Defines the `bsm system` command group for OS-level server integrations.
 
-Provides commands to create/configure OS services and monitor resource usage.
+This module provides commands to create and manage OS services (e.g.,
+systemd on Linux) for autostarting servers and to monitor the resource
+usage (CPU, memory) of running server processes.
 """
 
-import time
+import functools
 import logging
 import platform
-from typing import Dict, Any
+import time
+from typing import Callable
 
 import click
 import questionary
@@ -20,9 +23,31 @@ from bedrock_server_manager.error import BSMError
 logger = logging.getLogger(__name__)
 
 
+# --- Custom Decorator for OS-specific commands ---
+
+
+def linux_only(func: Callable) -> Callable:
+    """A decorator that restricts a Click command to run only on Linux."""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if platform.system() != "Linux":
+            click.secho(
+                f"Error: The '{func.__name__.replace('_', '-')}' command is only available on Linux.",
+                fg="red",
+            )
+            raise click.Abort()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+# --- Click Command Group ---
+
+
 @click.group()
 def system():
-    """Commands for OS-level integrations and monitoring."""
+    """Manages OS-level integrations and server monitoring."""
     pass
 
 
@@ -35,7 +60,18 @@ def system():
     help="Name of the server to configure.",
 )
 def configure_service(server_name: str):
-    """Interactively configure OS-specific service settings."""
+    """Interactively configures OS-specific service settings.
+
+    This command guides you through setting up system integrations like
+    auto-updating and auto-starting for a server. The available options
+    depend on your operating system (e.g., systemd for Linux).
+
+    Args:
+        server_name: The name of the server to configure.
+
+    Raises:
+        click.Abort: If the user cancels or an error occurs.
+    """
     os_name = platform.system()
     if os_name not in ("Windows", "Linux"):
         click.secho(
@@ -45,32 +81,38 @@ def configure_service(server_name: str):
         return
 
     try:
-        click.secho(f"--- Configuring Service for '{server_name}' ---", bold=True)
+        click.secho(f"\n--- Service Configuration for '{server_name}' ---", bold=True)
+        autoupdate_value = "false"
 
-        # 1. Autoupdate (Common to both OSes)
-        enable_autoupdate = questionary.confirm(
-            "Enable check for updates on server start?", default=False
-        ).ask()
-        if enable_autoupdate is None:
-            raise click.Abort()
+        # 1. Autoupdate (Common to Windows & Linux)
+        if questionary.confirm(
+            "Enable check for updates when the server starts?", default=False
+        ).ask():
+            autoupdate_value = "true"
 
-        autoupdate_value = "true" if enable_autoupdate else "false"
         autoupdate_response = system_api.set_autoupdate(server_name, autoupdate_value)
-        _handle_api_response(autoupdate_response, "Autoupdate setting configured.")
+        _handle_api_response(
+            autoupdate_response,
+            f"Autoupdate setting configured to '{autoupdate_value}'.",
+        )
 
-        # 2. Autostart (Linux only)
+        # 2. Autostart (Linux-only systemd service)
         if os_name == "Linux":
-            click.secho("\n--- Configuring systemd Service (Linux) ---", bold=True)
-            enable_autostart = questionary.confirm(
-                "Enable service to start automatically on system boot?", default=False
-            ).ask()
-            if enable_autostart is None:
-                raise click.Abort()
+            click.secho("\n--- Systemd Service (Linux) ---", bold=True)
+            if questionary.confirm(
+                "Create/update systemd service file now?", default=True
+            ).ask():
+                enable_autostart = questionary.confirm(
+                    "Enable the service to start automatically on system boot?",
+                    default=False,
+                ).ask()
 
-            autostart_response = system_api.create_systemd_service(
-                server_name, enable_autoupdate, enable_autostart
-            )
-            _handle_api_response(autostart_response, "Systemd service configured.")
+                autostart_response = system_api.create_systemd_service(
+                    server_name, autoupdate_value == "true", enable_autostart
+                )
+                _handle_api_response(
+                    autostart_response, "Systemd service configured successfully."
+                )
 
         click.secho("\nService configuration complete.", fg="green", bold=True)
 
@@ -83,15 +125,16 @@ def configure_service(server_name: str):
 
 @system.command("enable-service")
 @click.option(
-    "-s", "--server", "server_name", required=True, help="Name of the server."
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server service to enable.",
 )
+@linux_only
 def enable_service(server_name: str):
-    """Enables the systemd service to autostart (Linux only)."""
-    if platform.system() != "Linux":
-        click.secho("This command is only available on Linux.", fg="red")
-        return
-
-    click.echo(f"Attempting to enable service for '{server_name}'...")
+    """Enables the systemd service to autostart at boot (Linux only)."""
+    click.echo(f"Attempting to enable systemd service for '{server_name}'...")
     try:
         response = system_api.enable_server_service(server_name)
         _handle_api_response(response, "Service enabled successfully.")
@@ -102,15 +145,16 @@ def enable_service(server_name: str):
 
 @system.command("disable-service")
 @click.option(
-    "-s", "--server", "server_name", required=True, help="Name of the server."
+    "-s",
+    "--server",
+    "server_name",
+    required=True,
+    help="Name of the server service to disable.",
 )
+@linux_only
 def disable_service(server_name: str):
-    """Disables the systemd service from autostarting (Linux only)."""
-    if platform.system() != "Linux":
-        click.secho("This command is only available on Linux.", fg="red")
-        return
-
-    click.echo(f"Attempting to disable service for '{server_name}'...")
+    """Disables the systemd service from autostarting at boot (Linux only)."""
+    click.echo(f"Attempting to disable systemd service for '{server_name}'...")
     try:
         response = system_api.disable_server_service(server_name)
         _handle_api_response(response, "Service disabled successfully.")
@@ -128,16 +172,18 @@ def disable_service(server_name: str):
     help="Name of the server to monitor.",
 )
 def monitor_usage(server_name: str):
-    """Continuously monitor CPU and memory usage of a server."""
-    click.secho(f"Starting resource monitoring for server '{server_name}'.", fg="cyan")
-    click.echo("Press CTRL+C to exit.")
+    """Continuously monitors CPU and memory usage of a server process."""
+    click.secho(
+        f"Starting resource monitoring for server '{server_name}'. Press CTRL+C to exit.",
+        fg="cyan",
+    )
     time.sleep(1)
 
     try:
         while True:
             response = system_api.get_bedrock_process_info(server_name)
 
-            click.clear()  # The idiomatic way to clear the screen
+            click.clear()
             click.secho(
                 f"--- Monitoring Server: {server_name} ---", fg="magenta", bold=True
             )
@@ -148,15 +194,20 @@ def monitor_usage(server_name: str):
             if response.get("status") == "error":
                 click.secho(f"Error: {response.get('message')}", fg="red")
             elif response.get("process_info") is None:
-                click.secho("Server process not found (likely stopped).", fg="yellow")
+                click.secho("Server process not found (is it running?).", fg="yellow")
             else:
                 info = response["process_info"]
-                click.echo(f"  {'PID':<12}: {info.get('pid', 'N/A')}")
-                click.echo(f"  {'CPU Usage':<12}: {info.get('cpu_percent', 0.0):.1f}%")
+                pid_str = info.get("pid", "N/A")
+                cpu_str = f"{info.get('cpu_percent', 0.0):.1f}%"
+                mem_str = f"{info.get('memory_mb', 0.0):.1f} MB"
+                uptime_str = info.get("uptime", "N/A")
+
+                click.echo(f"  {'PID':<15}: {click.style(str(pid_str), fg='cyan')}")
+                click.echo(f"  {'CPU Usage':<15}: {click.style(cpu_str, fg='green')}")
                 click.echo(
-                    f"  {'Memory Usage':<12}: {info.get('memory_mb', 0.0):.1f} MB"
+                    f"  {'Memory Usage':<15}: {click.style(mem_str, fg='green')}"
                 )
-                click.echo(f"  {'Uptime':<12}: {info.get('uptime', 'N/A')}")
+                click.echo(f"  {'Uptime':<15}: {click.style(uptime_str, fg='white')}")
 
             time.sleep(2)
     except (KeyboardInterrupt, click.Abort):

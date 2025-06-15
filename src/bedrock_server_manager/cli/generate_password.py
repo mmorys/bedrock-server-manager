@@ -1,8 +1,10 @@
 # bedrock_server_manager/cli/generate_password.py
 """
-Utility script to generate a secure password hash for the web interface.
+Generates a secure password hash for web interface authentication.
 
-This file provides a 'click' command for generating a password hash.
+This module provides a CLI command to interactively create a salted and
+hashed password suitable for use with the BSM web server. It ensures that
+plaintext passwords are not stored, improving security.
 """
 
 import click
@@ -13,12 +15,11 @@ from bedrock_server_manager.config.const import env_name
 
 @click.command("generate-password")
 def generate_password_hash_command():
-    """
-    Generates a secure password hash for the web server.
+    """Generates a secure password hash for web authentication.
 
-    This interactive command prompts for a password, confirms it,
-    and then outputs the generated hash along with instructions
-    on how to use it as an environment variable.
+    This interactive command prompts for a password, confirms it, and then
+    prints the resulting hash. The hash should be used to set the
+    BSM_PASSWORD environment variable for securing the web interface.
     """
     click.secho(
         "--- Bedrock Server Manager Password Hash Generator ---", fg="cyan", bold=True
@@ -33,44 +34,42 @@ def generate_password_hash_command():
             prompt_suffix=": ",
         )
 
-        # A simple validation check after the prompt
+        # click.prompt with confirmation will not return an empty string,
+        # but this check remains as a safeguard.
         if not plaintext_password:
-            click.echo("Error: Password cannot be empty.", err=True)
+            click.secho("Error: Password cannot be empty.", fg="red")
             raise click.Abort()
 
         click.echo("\nGenerating password hash...")
 
-        # Hashing logic remains the same
         hashed_password = generate_password_hash(
             plaintext_password, method="pbkdf2:sha256", salt_length=16
         )
 
         click.secho("Hash generated successfully.", fg="green")
 
-        # Use click.secho for styled output to make instructions clearer
         click.echo("\n" + "=" * 60)
         click.secho("      PASSWORD HASH GENERATED SUCCESSFULLY", fg="green", bold=True)
         click.echo("=" * 60)
-        click.echo("\nSet the following environment variable:")
-        # Style the variable name to make it stand out
+        click.echo("\nSet the following environment variable to secure your web UI:")
         click.echo(
             f"\n  {click.style(f'{env_name}_PASSWORD', fg='yellow')}='{hashed_password}'\n"
         )
         click.echo(
-            "(Ensure the value is enclosed in single quotes if setting manually in a shell,\n"
-            " especially if the hash contains special characters like '$')."
+            "Note: Enclose the value in single quotes if setting it manually in a shell."
         )
         click.echo(
-            f"Also set '{click.style(f'{env_name}_USERNAME', fg='yellow')}' to your desired username."
+            f"You must also set '{click.style(f'{env_name}_USERNAME', fg='yellow')}' "
+            "to your desired username."
         )
         click.echo("\n" + "=" * 60)
 
     except click.Abort:
+        # click.prompt raises Abort on Ctrl+C, so this handles cancellation.
         click.secho("\nOperation cancelled.", fg="red")
 
     except Exception as e:
-        # Catch any other unexpected errors
-        click.echo(f"\nAn unexpected error occurred: {e}", err=True)
+        click.secho(f"\nAn unexpected error occurred: {e}", fg="red")
         raise click.Abort()
 
 

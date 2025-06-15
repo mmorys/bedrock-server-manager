@@ -1,36 +1,60 @@
 # bedrock_server_manager/cli/server_allowlist.py
-from typing import Optional
-import questionary
+"""
+Defines the `bsm allowlist` command group for managing server access.
+
+This module provides a command group for viewing and modifying a server's
+`allowlist.json` file. It includes a reusable interactive workflow for
+guided editing and direct commands for scriptable changes.
+"""
+
+from typing import Tuple
+
 import click
+import questionary
 
 from bedrock_server_manager.api import server_install_config as config_api
 from bedrock_server_manager.cli.utils import (
-    handle_api_response,
+    handle_api_response as _handle_api_response,
 )
+from bedrock_server_manager.error import BSMError
 
 
 def interactive_allowlist_workflow(server_name: str):
-    """Manages the interactive workflow for configuring a server's allowlist."""
+    """Guides the user through an interactive session to edit the allowlist.
+
+    This function fetches the current allowlist, displays it, and then enters
+    a loop to prompt the user for new players to add.
+
+    Args:
+        server_name: The name of the server whose allowlist is being edited.
+
+    Raises:
+        click.Abort: If the user cancels the operation.
+    """
     response = config_api.get_server_allowlist_api(server_name)
     existing_players = response.get("players", [])
 
-    click.secho("--- Configure Allowlist ---", bold=True)
+    click.secho("\n--- Interactive Allowlist Configuration ---", bold=True)
     if existing_players:
         click.echo("Current players in allowlist:")
         for p in existing_players:
-            click.echo(
-                f"  - {p.get('name')} (Ignores Limit: {p.get('ignoresPlayerLimit')})"
+            limit_str = (
+                click.style(" (Ignores Limit)", fg="yellow")
+                if p.get("ignoresPlayerLimit")
+                else ""
             )
+            click.echo(f"  - {p.get('name')}{limit_str}")
     else:
         click.secho("Allowlist is currently empty.", fg="yellow")
 
     new_players_to_add = []
-    click.echo("\nEnter players to add. Press Enter on an empty line to finish.")
+    click.echo("\nEnter new players to add. Press Enter on an empty line to finish.")
     while True:
-        player_name = questionary.text("Enter player name:").ask()
-        if not player_name or player_name.strip() == "":
+        player_name = questionary.text("Player gamertag:").ask()
+        if not player_name or not player_name.strip():
             break
 
+        # Check for duplicates before adding
         if any(
             p["name"].lower() == player_name.lower()
             for p in existing_players + new_players_to_add
@@ -44,25 +68,22 @@ def interactive_allowlist_workflow(server_name: str):
             f"Should '{player_name}' ignore the player limit?", default=False
         ).ask()
         new_players_to_add.append(
-            {"name": player_name, "ignoresPlayerLimit": ignore_limit}
+            {"name": player_name.strip(), "ignoresPlayerLimit": ignore_limit}
         )
 
     if new_players_to_add:
-        click.echo("Adding new players to allowlist...")
+        click.echo("Updating allowlist with new players...")
         save_response = config_api.add_players_to_allowlist_api(
             server_name, new_players_to_add
         )
-        handle_api_response(save_response, "Allowlist updated successfully.")
+        _handle_api_response(save_response, "Allowlist updated successfully.")
     else:
-        click.secho("No new players added. Allowlist remains unchanged.", fg="cyan")
+        click.secho("No new players were added.", fg="cyan")
 
 
 @click.group()
 def allowlist():
-    """
-    Manages server allowlists.
-    Use 'add' without options for an interactive wizard.
-    """
+    """Manages a server's allowlist to control player access."""
     pass
 
 
@@ -73,26 +94,31 @@ def allowlist():
 @click.option(
     "-p",
     "--player",
-    "player",
+    "players",
     multiple=True,
-    help="The gamertag of the player to add. Skips interactive mode.",
+    help="Gamertag of the player to add. Use multiple times for multiple players.",
 )
 @click.option(
     "--ignore-limit",
     is_flag=True,
-    help="Player can join even if server is full (used with --player).",
+    help="Allow player(s) to join even if the server is full.",
 )
-def add(server_name: str, player: tuple[str], ignore_limit: bool):
-    """
-    Adds players to the allowlist.
+def add(server_name: str, players: Tuple[str], ignore_limit: bool):
+    """Adds players to the allowlist.
 
-    If --player is provided, adds a single player directly.
-    If --player is omitted, an interactive wizard is launched to add multiple players.
+    If run without the --player option, this command launches an interactive
+    wizard to view and add multiple players. If --player is used, it adds
+    the specified player(s) directly.
+
+    Args:
+        server_name: The name of the target server.
+        players: A tuple of player gamertags to add.
+        ignore_limit: If True, applies the 'ignoresPlayerLimit' flag to all added players.
     """
     try:
-        if not player:
+        if not players:
             click.secho(
-                f"No player specified. Starting interactive allowlist editor for '{server_name}'...",
+                f"No player specified; starting interactive editor for '{server_name}'...",
                 fg="yellow",
             )
             interactive_allowlist_workflow(server_name)
@@ -100,30 +126,24 @@ def add(server_name: str, player: tuple[str], ignore_limit: bool):
 
         # Direct, non-interactive logic
         player_data_list = [
-            {"name": p_name, "ignoresPlayerLimit": ignore_limit} for p_name in player
+            {"name": p_name, "ignoresPlayerLimit": ignore_limit} for p_name in players
         ]
 
-        # 2. Provide clear user feedback about the action.
         click.echo(
             f"Adding {len(player_data_list)} player(s) to allowlist for server '{server_name}'..."
         )
-
-        # 3. Call the API with the correctly formatted list.
         response = config_api.add_players_to_allowlist_api(
             server_name, player_data_list
         )
-        if response.get("status") == "success":
-            added_count = response.get("added_count", 0)
-            success_msg = (
-                f"Successfully added {added_count} new player(s) to the allowlist."
-            )
-            # The generic handler will print the success message.
-            handle_api_response(response, success_msg)
-        else:
-            # Let the generic handler print the error message from the response.
-            handle_api_response(response, "An unknown error occurred.")
 
-    except (click.Abort, KeyboardInterrupt):
+        added_count = response.get("data", {}).get("added_count", 0)
+        _handle_api_response(
+            response,
+            f"Successfully added {added_count} new player(s) to the allowlist.",
+        )
+
+    except (click.Abort, KeyboardInterrupt, BSMError):
+        # Catch BSMError here as well to provide a consistent cancel message if it aborts.
         click.secho("\nOperation cancelled.", fg="yellow")
 
 
@@ -131,17 +151,29 @@ def add(server_name: str, player: tuple[str], ignore_limit: bool):
 @click.option(
     "-s", "--server", "server_name", required=True, help="The name of the server."
 )
-@click.option("-p", "--player", "player", multiple=True, required=True)
-def remove(server_name: str, players: tuple[str]):
+@click.option(
+    "-p",
+    "--player",
+    "players",
+    multiple=True,
+    required=True,
+    help="Gamertag of the player to remove. Use multiple times for multiple players.",
+)
+def remove(server_name: str, players: Tuple[str]):
     """Removes one or more players from the allowlist."""
-    click.echo(f"Removing {len(players)} player(s) from '{server_name}' allowlist...")
-    response = config_api.remove_players_from_allowlist(server_name, list(players))
+    player_list = list(players)
+    click.echo(
+        f"Removing {len(player_list)} player(s) from '{server_name}' allowlist..."
+    )
+    response = config_api.remove_players_from_allowlist_api(server_name, player_list)
 
+    # Use the handler for errors, but provide custom output for success
     if response.get("status") == "error":
-        handle_api_response(response, "")  # This will print the error and abort
+        _handle_api_response(response, "")  # Will print the error and abort
+        return
 
     click.secho(response.get("message", "Request processed."), fg="cyan")
-    details = response.get("details", {})
+    details = response.get("data", {})
     removed = details.get("removed", [])
     not_found = details.get("not_found", [])
 
@@ -150,7 +182,9 @@ def remove(server_name: str, players: tuple[str]):
         for p in removed:
             click.echo(f"  - {p}")
     if not_found:
-        click.secho(f"\n{len(not_found)} player(s) not found:", fg="yellow")
+        click.secho(
+            f"\n{len(not_found)} player(s) not found in allowlist:", fg="yellow"
+        )
         for p in not_found:
             click.echo(f"  - {p}")
 
@@ -162,14 +196,23 @@ def remove(server_name: str, players: tuple[str]):
 def list_players(server_name: str):
     """Lists all players on a server's allowlist."""
     response = config_api.get_server_allowlist_api(server_name)
-    data = handle_api_response(response, f"Fetched allowlist for '{server_name}'.")
-    players = data.get("players", [])
 
-    if not players:
-        click.secho(f"Allowlist for '{server_name}' is empty.", fg="yellow")
+    # Handle API errors first
+    if response.get("status") == "error":
+        _handle_api_response(response, "")
         return
 
-    click.secho(f"Allowlist for '{server_name}':", bold=True)
+    players = response.get("data", {}).get("players", [])
+
+    if not players:
+        click.secho(f"The allowlist for server '{server_name}' is empty.", fg="yellow")
+        return
+
+    click.secho(f"\nAllowlist for '{server_name}':", bold=True)
     for p in players:
-        limit_str = "(Ignores Limit)" if p.get("ignoresPlayerLimit") else ""
-        click.echo(f" - {p.get('name')} {limit_str}")
+        limit_str = (
+            click.style(" (Ignores Player Limit)", fg="yellow")
+            if p.get("ignoresPlayerLimit")
+            else ""
+        )
+        click.echo(f"  - {p.get('name')}{limit_str}")
