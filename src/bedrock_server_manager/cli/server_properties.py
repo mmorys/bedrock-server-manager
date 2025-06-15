@@ -152,9 +152,7 @@ def properties():
     required=True,
     help="The name of the target server.",
 )
-@click.option(
-    "-p", "--property", "property_name", help="Display a single property value."
-)
+@click.option("-p", "--prop", "property_name", help="Display a single property value.")
 def get_props(server_name: str, property_name: Optional[str]):
     """Displays server properties from server.properties.
 
