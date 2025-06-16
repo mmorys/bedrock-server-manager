@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.2.5"
+version = "3.3.0"
 authors = [
   { name="DMedina559", email="dmedina559-github@outlook.com" },
 ]
 description = "A manager for Minecraft Bedrock Dedicated Servers"
 readme = "README.md"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,11 +30,10 @@ dependencies = [
     "flask >= 3.1.0",
     "flask-wtf >= 1.2.2",
     "flask-jwt-extended >= 4.7.1",
-    "waitress >= 3.0.2"
+    "waitress >= 3.0.2",
+    "click >= 3.2.0",
+    "questionary >= 2.1.0"
 ]
-
-[project.optional-dependencies]
-color = ["colorama"]
 
 keywords = ["minecraft", "bedrock", "server"]
 
@@ -43,11 +43,11 @@ Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["bedrock_server_manager*"]
 
 [project.scripts]
-bedrock-server-manager = "bedrock_server_manager:main"
+bedrock-server-manager = "bedrock_server_manager.__main__:main"
 
 [tool.setuptools.package-data]
 "bedrock_server_manager.web" = [

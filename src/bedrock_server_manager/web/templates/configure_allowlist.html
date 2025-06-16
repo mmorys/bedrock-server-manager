@@ -1,0 +1,96 @@
+<!-- bedrock_server_manager//web/templates/configure_allowlist.html -->
+{# Extends the base layout template #}
+{% extends "base.html" %}
+
+{# --- Page Title Block --- #}
+{% block title %}{{ super() }} - Configure Allowlist: {{ server_name }}{% endblock %}
+
+{# --- Head Scripts Block --- #}
+{% block head_scripts %}
+    {# Core utilities (showStatusMessage, sendServerActionRequest) #}
+<script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    {# Specific JS for allowlist actions (add/remove/refresh) #}
+<script src="{{ url_for('static', filename='js/allowlist.js') }}" defer></script>
+{% endblock %}
+
+
+{# --- Main Content Block --- #}
+{% block content %}
+<h2>Configure Allowlist</h2>
+    {# ADD data-server-name to this paragraph #}
+<p style="margin-bottom: 15px;" data-server-name="{{ server_name | e }}">
+    Server: <strong>{{ server_name }}</strong>
+    {% if new_install %}
+    <br><span class="step-indicator">(Step 2 of 4 for New Installation)</span>
+    {% endif %}
+</p>
+
+    {# --- Status Message Area --- #}
+<div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+    <!-- Status messages from allowlist actions will appear here -->
+</div>
+
+    {# Server-side flash messages (handled by base.html) #}
+    {# {% with messages = get_flashed_messages(with_categories=true) %} ... {% endwith %} #}
+
+    {# --- Section for Adding New Players --- #}
+<section class="allowlist-add-section form-section">
+    <h3>Add Players</h3>
+    <p>Enter player names (Gamertags), one per line, to add them to the allowlist.</p>
+    <div class="form-group">
+        <label for="player-names-add" class="form-label">Player Names to Add:</label>
+        <textarea id="player-names-add" name="player_names_add" class="form-input" rows="5" placeholder="PlayerOne\nAnotherPlayer\nGamertag123"></textarea>
+    </div>
+    <div class="form-group form-group-toggle-container">
+        <div class="form-label-group">
+            <span class="form-label">Ignore Player Limit:</span>
+            <small class="form-help-text">Allow the player(s) being added to join even if the server is full?</small>
+        </div>
+        <div class="toggle-switch-container">
+            <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add-cb" class="toggle-input" value="true"> {# Defaults to unchecked (false) #}
+            <label for="ignore-limit-add" class="toggle-switch"></label>
+        </div>
+        {# Associated hidden input to ensure 'false' is sent when checkbox is unchecked #}
+        <input type="hidden" name="ignore_limit_add" class="toggle-hidden-false" value="false">
+    </div>
+    <div class="form-actions">
+        {# Button triggers the addAllowlistPlayers JS function #}
+        <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name | e }}')" class="action-button start-button">
+            {# Green 'add' button #}
+            Add These Players
+        </button>
+    </div>
+</section>
+
+    {# --- Section to Display Current Allowlist --- #}
+<section class="current-allowlist-section list-section">
+    <h2>Current Allowlist</h2>
+    {# This list is now fully populated by fetchAndUpdateAllowlistDisplay() in allowlist.js #}
+    <ul id="current-allowlist-display" class="item-list">
+        {# Template for the empty list message - JS will manage its visibility #}
+        <li id="no-players-message" style="font-style: italic; color: #aaa; display: none;">No players currently in allowlist.</li>
+        {# Initial loading state added by JS #}
+    </ul>
+</section>
+
+    {# --- Navigation Actions (Conditional) --- #}
+<div class="form-actions navigation-link">
+    {% if new_install %}
+    {# If part of new install, link to next step #}
+    <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">
+        Skip & Go to Permissions » {# Use » for right arrow #}
+    </a>
+    {% else %}
+    {# Standard navigation back to dashboard #}
+    <a href="{{ url_for('main_routes.index') }}" class="action-link">
+        « Back to Dashboard {# Use « for left arrow #}
+    </a>
+    {% endif %}
+</div>
+{% endblock %}
+
+
+{# --- Page-Specific JavaScript Block (at end of body) --- #}
+{# REMOVED - Logic moved inside allowlist.js #}
+{% block body_scripts %}
+{% endblock %}

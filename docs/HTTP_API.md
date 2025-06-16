@@ -1,4 +1,4 @@
-﻿<div style="text-align: center;">
+﻿﻿<div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
@@ -29,13 +29,14 @@
     - [`POST /api/server/{server_name}/restore/all` - Trigger Restore All](#post-apiserverserver_namerestoreall---trigger-restore-all)
   - [World & Addon Management](#world--addon-management)
     - [`POST /api/server/{server_name}/world/export` - Export World](#post-apiserverserver_nameworldexport---export-world)
+    - [`DELETE /api/server/{server_name}/world/reset` - Reset World](#delete-apiserverserver_nameworldreset---reset-world)
     - [`POST /api/server/{server_name}/world/install` - Install World](#post-apiserverserver_nameworldinstall---install-world)
     - [`POST /api/server/{server_name}/addon/install` - Install Addon](#post-apiserverserver_nameaddoninstall---install-addon)
   - [Player Management](#player-management)
     - [`POST /api/players/scan` - Scan Player Logs](#post-apiplayersscan---scan-player-logs)
     - [`GET /api/server/{server_name}/allowlist` - Get Allowlist](#get-apiserverserver_nameallowlist---get-allowlist)
     - [`POST /api/server/{server_name}/allowlist/add` - Add Players to Allowlist](#post-apiserverserver_nameallowlistadd---add-players-to-allowlist)
-    - [`DELETE /api/server/{server_name}/allowlist/player/{player_name}` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistplayerplayer_name---remove-player-from-allowlist)
+    - [`DELETE /api/server/{server_name}/allowlist/remove` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistremove---remove-player-from-allowlist)
     - [`PUT /api/server/{server_name}/permissions` - Update Player Permissions](#put-apiserverserver_namepermissions---update-player-permissions)
   - [Configuration](#configuration)
     - [`POST /api/server/{server_name}/properties` - Update Server Properties](#post-apiserverserver_nameproperties---update-server-properties)
@@ -143,16 +144,16 @@ To enhance robustness and provide immediate feedback, the application implements
         ```json
         {
             "status": "error",
-            "message": "Server '<server_name>' not found." // Or more specific message from validator
+            "message": "Server executable not found at path: /path/to/server/<server_name>/bedrock_server"
         }
         ```
-    *   **For Web UI Requests (Other paths):** The user is **redirected (`302 Found`)** to the main dashboard page (`/`). A flash message containing the error (e.g., "Server '<server_name>' not found.") is typically displayed on the dashboard.
+    *   **For Web UI Requests (Other paths):** The user is **redirected (`302 Found`)** to the main dashboard page (`/`). A flash message containing the error (e.g., "Server executable not found at path: /path/to/server/<server_name>/bedrock_server") is typically displayed on the dashboard.
 *   **Internal Validation Error:** If an unexpected error occurs *during* the validation check itself (e.g., configuration error preventing validation, unexpected exception):
     *   The request is **aborted**, and a **`500 Internal Server Error`** response is returned with a JSON body:
         ```json
         {
             "status": "error",
-            "message": "Internal server error during server validation." // Or similar generic message
+            "message": "Configuration error: BEDROCK_SERVER_MANAGER_USERNAME environment variable not set."
         }
         ```
 *   **No Match / Bypassed:** If the request path does not match the target pattern or is explicitly bypassed, the validation is skipped, and the request proceeds normally.
@@ -223,7 +224,8 @@ Returns a JSON object containing the JWT access token.
     *   If the server is missing the necessary configuration (environment variables `BEDROCK_SERVER_MANAGER_USERNAME` or `BEDROCK_SERVER_MANAGER_PASSWORD` are not set):
         ```json
         {
-            "message": "Server configuration error prevents login."
+            "status": "error",
+            "message": "Configuration error: BEDROCK_SERVER_MANAGER_USERNAME environment variable not set."
         }
         ```
 
@@ -301,18 +303,18 @@ Returns the operating system type and application version.
 #### Error Responses
 
 *   **`500 Internal Server Error`**:
-    *   If there's an issue retrieving the OS type or application version from the core layer (e.g., `__version__` attribute is missing). The message comes from `CoreSystemError` caught within `get_system_and_app_info`.
+    *   If there's an issue retrieving the OS type or application version from the core layer (e.g., `__version__` attribute is missing). The message comes from `ConfigurationError` or `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Application version attribute (__version__) not found."
+            "message": "Configuration error: Application version attribute (__version__) not found."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Could not determine operating system type."
+            "message": "System error: Could not determine operating system type."
         }
         ```
     *   If an unexpected error occurs during the API layer's orchestration logic within `get_system_and_app_info`.
@@ -435,18 +437,18 @@ Returns a list of all detected servers and their details.
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If there's a fundamental issue accessing the base server directory or configuration directory needed to scan for servers (e.g., path doesn't exist, permissions error). The message comes from `DirectoryError` or `FileOperationError` caught within `get_all_servers_status`.
+    *   If there's a fundamental issue accessing the base server directory or configuration directory needed to scan for servers (e.g., path doesn't exist, permissions error). The message comes from `ConfigurationError` or `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Error accessing directories: Base directory does not exist or is not a directory: /path/to/nonexistent/base_dir"
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Error accessing directories: Base configuration directory not set."
+            "message": "File operation error: Error accessing directories: Base configuration directory not set."
         }
         ```
     *   If an unexpected error occurs during the directory scan or processing within `get_all_servers_status`.
@@ -533,22 +535,24 @@ Returns the world name if found successfully.
         ```
         *(Or a more specific message for invalid tokens)*
 
+*   **`404 Not Found`**:
+    *   If the server's `server.properties` file cannot be found. The message comes from `AppFileNotFoundError`.
+        ```json
+        {
+            "status": "error",
+            "message": "server.properties file not found at path: /path/to/servers/MyServer/server.properties"
+        }
+        ```
+
 *   **`500 Internal Server Error`**:
-    *   If the server's `server.properties` file cannot be found or read, or the `level-name` property is missing within the file. The message comes directly from the `FileOperationError` raised by the core logic.
+    *   If the `level-name` property is missing within the `server.properties` file. The message comes from `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to get world name: File not found: /path/to/servers/MyServer/server.properties"
+            "message": "Failed to parse configuration file: Property 'level-name' not found in /path/to/servers/MyServer/server.properties"
         }
         ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to get world name: Property 'level-name' not found in /path/to/servers/MyServer/server.properties"
-        }
-        ```
-    *   If the base directory configuration is invalid or inaccessible.
+    *   If the base directory configuration is invalid or inaccessible. The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
@@ -639,15 +643,15 @@ Returns the running status of the server.
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If there's a configuration issue preventing the check (e.g., invalid `BASE_DIR`, error accessing server files needed for the check like a PID file if used). The message comes from the `FileOperationError`.
+    *   If there's a configuration issue preventing the check (e.g., invalid `BASE_DIR`, error accessing server files needed for the check like a PID file if used). The message comes from `ConfigurationError` or `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration error: Base directory '/invalid/path' not found or accessible."
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
         *or similar configuration-related message*
-    *   If an unexpected error occurs during the process check (e.g., permission issues interacting with the process list, psutil errors).
+    *   If an unexpected error occurs during the process check (e.g., permission issues interacting with the process list, psutil errors). The message comes from `SystemError`.
         ```json
         {
             "status": "error",
@@ -725,18 +729,18 @@ Returns the status string found in the server's configuration file.
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If there's an error accessing or reading the server's configuration directory or specific JSON file (e.g., permissions, file not found, invalid JSON format). The message typically comes from a `FileOperationError`.
+    *   If there's an error accessing or reading the server's configuration directory or specific JSON file (e.g., permissions, file not found, invalid JSON format). The message typically comes from `AppFileNotFoundError` or `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Error retrieving config status: File not found: /path/to/.config/MyServer/MyServer_config.json"
+            "message": "Required file or directory not found at path: /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Error retrieving config status: Permission denied accessing /path/to/.config/MyServer/MyServer_config.json"
+            "message": "Failed to parse configuration file: Error parsing JSON in /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
     *   If an unexpected error occurs during processing.
@@ -817,18 +821,18 @@ Returns the installed version string found in the server's configuration file.
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If there's an error accessing or reading the server's configuration directory or specific JSON file (e.g., permissions, file not found, invalid JSON format). The message comes from the API function's error handling, typically wrapping a `FileOperationError`.
+    *   If there's an error accessing or reading the server's configuration directory or specific JSON file (e.g., permissions, file not found, invalid JSON format). The message comes from `AppFileNotFoundError` or `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Error retrieving installed version: File not found: /path/to/.config/MyServer/MyServer_config.json"
+            "message": "Required file or directory not found at path: /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Error retrieving installed version: Permission denied accessing /path/to/config/MyServer/MyServer_config.json"
+            "message": "Failed to parse configuration file: Error parsing JSON in /path/to/.config/MyServer/MyServer_config.json"
         }
         ```
     *   If an unexpected error occurs during processing (either within the API function or the route handler itself).
@@ -907,28 +911,27 @@ Returned when both the server directory and the `bedrock_server` executable are 
         *(Or a more specific message for invalid tokens)*
 
 *   **`404 Not Found`**:
-    *   Returned specifically when the validation *fails* because either the server's directory or the `bedrock_server` executable within it does not exist. The message comes from the `ServerNotFoundError` raised by the core logic and returned by the API function.
+    *   Returned specifically when the validation *fails* because either the server's directory or the `bedrock_server` executable within it does not exist. The message comes from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Server directory '/path/to/servers/MyServer' not found."
+            "message": "Required file or directory not found at path: /path/to/servers/MyServer"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Server executable '/path/to/servers/MyServer/bedrock_server' not found."
+            "message": "Server executable not found at path: /path/to/servers/MyServer/bedrock_server"
         }
         ```
-        *(Specific message depends on the underlying `ServerNotFoundError`)*
 
 *   **`500 Internal Server Error`**:
-    *   If there is a configuration issue preventing the validation check (e.g., `BASE_DIR` is not configured correctly or inaccessible). The message comes from a `FileOperationError`.
+    *   If there is a configuration issue preventing the validation check (e.g., `BASE_DIR` is not configured correctly or inaccessible). The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration error: Base directory '/invalid/path' not found or accessible."
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
     *   If an unexpected error occurs during the validation process.
@@ -1013,11 +1016,11 @@ Returned regardless of whether the server is running or not, as long as the requ
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -1031,25 +1034,25 @@ Returned regardless of whether the server is running or not, as long as the requ
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`ConfigurationError`).
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If the `psutil` library is required but not installed (`ResourceMonitorError`).
+    *   If the `psutil` library is required but not installed (`SystemError`).
         ```json
         {
             "status": "error",
-            "message": "Error getting process info: 'psutil' is required for process monitoring."
+            "message": "System error: 'psutil' is required for process monitoring but is not installed."
         }
         ```
-    *   If there's an error retrieving process details using `psutil` (e.g., permission denied accessing process info, unexpected OS error) (`ResourceMonitorError`).
+    *   If there's an error retrieving process details using `psutil` (e.g., permission denied accessing process info, unexpected OS error) (`SystemError`).
         ```json
         {
             "status": "error",
-            "message": "Error getting process info: Error getting process details for '<server_name>': ..."
+            "message": "System error: Error getting process details for '<server_name>': ..."
         }
         ```
     *   If an unexpected error occurs during the status retrieval process.
@@ -1171,27 +1174,27 @@ Returns a list of players with their permission levels on this server.
         ```
 
 *   **`404 Not Found`**:
-    *   If the specified `server_name` does not correspond to an existing server directory.
+    *   If the specified `server_name` does not correspond to an existing server directory. The message comes from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Server directory not found: /path/to/server/non_existent_server"
+            "message": "Required file or directory not found at path: /path/to/server/non_existent_server"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If there's a fundamental configuration issue (e.g., essential base directories cannot be determined for the server).
+    *   If there's a fundamental configuration issue (e.g., essential base directories cannot be determined for the server). The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Base directory for servers (BASE_DIR) is not configured."
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
-    *   If critical errors occur while reading or parsing the server's `permissions.json` file (e.g., file unreadable, invalid JSON format).
+    *   If critical errors occur while reading or parsing the server's `permissions.json` file (e.g., file unreadable, invalid JSON format). The message comes from `ConfigParseError` or `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to process server permissions file: [specific error from JSON parsing or file read]"
+            "message": "Failed to parse configuration file: Error parsing JSON in /path/to/server/non_existent_server/permissions.json"
         }
         ```
     *   If an unexpected error occurs within the API logic or route handler.
@@ -1271,62 +1274,62 @@ Returned when the server process is successfully initiated and confirmed to be r
         ```
 
 *   **`404 Not Found`**:
-    *   If the server's executable (`bedrock_server` or `bedrock_server.exe`) is not found within the server's directory (`ServerNotFoundError`).
+    *   If the server's executable (`bedrock_server` or `bedrock_server.exe`) is not found within the server's directory. The message comes from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Server not found: Server executable 'bedrock_server.exe' not found in C:\\path\\to\\servers\\MyServer"
+            "message": "Server executable not found at path: C:\\path\\to\\servers\\MyServer\\bedrock_server.exe"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid. The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If the server is already running (`ServerStartError` from core logic, returned as error status by API layer).
+    *   If the server is already running. The message comes from `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Server '<server_name>' is already running."
+            "message": "Server start error: Server '<server_name>' is already running."
         }
         ```
-    *   If the start process fails due to OS-specific issues (e.g., unsupported OS, systemd/screen failure, Windows process creation failure) (`ServerStartError`).
+    *   If the start process fails due to OS-specific issues (e.g., unsupported OS, systemd/screen failure, Windows process creation failure). The message comes from `ServerStartError` or `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Unsupported operating system: Darwin"
+            "message": "System error: Unsupported operating system: Darwin"
         }
         ```
          *or*
         ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Failed to start server executable 'C:\\path\\to\\bedrock_server.exe': [WinError 5] Access is denied"
+            "message": "Server start error: Failed to start server executable 'C:\\path\\to\\bedrock_server.exe': [WinError 5] Access is denied"
         }
         ```
         *or (Linux screen)*
          ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Failed to start server '<server_name>' using screen. Error: Must be connected to a terminal."
+            "message": "Server start error: Failed to start server '<server_name>' using screen. Error: Must be connected to a terminal."
         }
         ```
-    *   If required commands like `systemctl` or `screen` are not found on Linux (`CommandNotFoundError`).
+    *   If required commands like `systemctl` or `screen` are not found on Linux. The message comes from `CommandNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Command 'screen' not found in system PATH."
+            "message": "System command not found: 'screen'"
         }
         ```
-    *   If the server process starts but fails to confirm running status within the configured timeout (`ServerStartError`).
+    *   If the server process starts but fails to confirm running status within the configured timeout. The message comes from `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to start server '<server_name>': Server '<server_name>' failed to start within the timeout."
+            "message": "Server start error: Server '<server_name>' failed to start within the timeout."
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -1392,11 +1395,11 @@ Returned if the server process stops successfully within the timeout period, or 
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -1410,53 +1413,53 @@ Returned if the server process stops successfully within the timeout period, or 
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid. The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If sending the 'stop' command fails (e.g., `screen` interaction error, process communication issue on Linux) (`SendCommandError`).
+    *   If sending the 'stop' command fails (e.g., `screen` interaction error, process communication issue on Linux). The message comes from `SendCommandError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Error sending command: Failed to find screen session 'bedrock-<server_name>' to send command to."
+            "message": "Send command error: Failed to find screen session 'bedrock-<server_name>' to send command to."
         }
         ```
-    *   If the server process is found, but the corresponding executable file (`bedrock_server`/`.exe`) is missing, preventing certain stop methods (`ServerNotFoundError`).
+    *   If the server process is found, but the corresponding executable file (`bedrock_server`/`.exe`) is missing, preventing certain stop methods. The message comes from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Server '<server_name>' process found but executable missing. Stop failed."
+            "message": "Server executable not found at path: /path/to/servers/<server_name>/bedrock_server. Stop failed."
         }
         ```
-    *   If the server fails to stop within the configured timeout period (`ServerStopError`).
+    *   If the server fails to stop within the configured timeout period. The message comes from `ServerStopError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Server '<server_name>' failed to stop within the timeout. Manual intervention may be required."
+            "message": "Server stop error: Server '<server_name>' failed to stop within the timeout. Manual intervention may be required."
         }
         ```
-    *   If the underlying stop mechanism fails (e.g., `systemctl stop` error, Windows process termination error) (`ServerStopError`).
+    *   If the underlying stop mechanism fails (e.g., `systemctl stop` error, Windows process termination error). The message comes from `ServerStopError` or `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Stopping via systemctl failed (maybe service wasn't running under systemd?): ..."
+            "message": "Server stop error: Stopping via systemctl failed (maybe service wasn't running under systemd?): ..."
         }
         ```
          *or (Windows)*
          ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Unexpected error stopping server '<server_name>': ..."
+            "message": "System error: Unexpected error stopping server '<server_name>': ..."
         }
          ```
-    *   If required commands like `systemctl` or `screen` are not found on Linux (`CommandNotFoundError`).
+    *   If required commands like `systemctl` or `screen` are not found on Linux. The message comes from `CommandNotFoundError`.
          ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Command 'screen' not found in system PATH."
+            "message": "System command not found: 'screen'"
         }
          ```
     *   If an unexpected error occurs during the process.
@@ -1467,11 +1470,11 @@ Returned if the server process stops successfully within the timeout period, or 
         }
         ```
 *   **`501 Not Implemented`**:
-    *   If stopping the server (specifically sending commands for graceful shutdown) is attempted on an unsupported operating system. *(Note: Direct process termination might still work on some OSes like Windows, but sending the 'stop' command is typically Linux-only in this context).*
+    *   If stopping the server (specifically sending commands for graceful shutdown) is attempted on an unsupported operating system. The message comes from `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>': Unsupported operating system: Darwin"
+            "message": "System error: Unsupported operating system: Darwin"
         }
         ```
 
@@ -1531,11 +1534,11 @@ Returned when the restart sequence (stop, if needed, then start) completes succe
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -1549,39 +1552,39 @@ Returned when the restart sequence (stop, if needed, then start) completes succe
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid. The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If the **stop phase** fails (when restarting a running server). This could be due to command sending errors, timeout, OS-specific errors, or the server being in an unexpected state. (`ServerStopError`, `SendCommandError`, `CommandNotFoundError`).
+    *   If the **stop phase** fails. This could be due to `ServerStopError`, `SendCommandError`, or `CommandNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Restart failed during stop phase: Failed to stop server '<server_name>': Server '<server_name>' failed to stop within the timeout. Manual intervention may be required."
-        }
-        ```
-         *or*
-        ```json
-        {
-            "status": "error",
-            "message": "Restart failed during stop phase: Failed to stop server '<server_name>': Error sending command: Failed to find screen session 'bedrock-<server_name>' to send command to."
-        }
-        ```
-    *   If the **start phase** fails (either initially if stopped, or after a successful stop). This could be due to the server executable missing, configuration issues, OS-specific errors, timeout, etc. (`ServerStartError`, `ServerNotFoundError`, `CommandNotFoundError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Restart failed during start phase: Failed to start server '<server_name>': Server executable 'bedrock_server' not found in /path/to/servers/<server_name>"
+            "message": "Restart failed during stop phase: Server stop error: Server '<server_name>' failed to stop within the timeout. Manual intervention may be required."
         }
         ```
          *or*
         ```json
         {
             "status": "error",
-            "message": "Restart failed during start phase: Failed to start server '<server_name>': Server '<server_name>' failed to start within the timeout."
+            "message": "Restart failed during stop phase: Send command error: Failed to find screen session 'bedrock-<server_name>' to send command to."
+        }
+        ```
+    *   If the **start phase** fails. This could be due to `ServerStartError`, `AppFileNotFoundError` (for missing executable), or `CommandNotFoundError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Restart failed during start phase: Server executable not found at path: /path/to/servers/<server_name>/bedrock_server"
+        }
+        ```
+         *or*
+        ```json
+        {
+            "status": "error",
+            "message": "Restart failed during start phase: Server start error: Server '<server_name>' failed to start within the timeout."
         }
         ```
     *   If an unexpected error occurs during the overall restart orchestration.
@@ -1592,18 +1595,18 @@ Returned when the restart sequence (stop, if needed, then start) completes succe
         }
         ```
 *   **`501 Not Implemented`**:
-    *   If the underlying stop or start mechanisms are attempted on an unsupported operating system. This might also manifest as a `SendCommandError` during the stop phase if sending commands isn't supported.
+    *   If the underlying stop or start mechanisms are attempted on an unsupported operating system. The message comes from `SystemError`.
         ```json
         {
              "status": "error",
-             "message": "Restart failed during stop phase: Failed to stop server '<server_name>': Unsupported operating system: Darwin"
+             "message": "Restart failed during stop phase: System error: Unsupported operating system: Darwin"
         }
         ```
          *or*
         ```json
         {
              "status": "error",
-             "message": "Restart failed during start phase: Failed to start server '<server_name>': Unsupported operating system: Darwin"
+             "message": "Restart failed during start phase: System error: Unsupported operating system: Darwin"
         }
         ```
 
@@ -1668,18 +1671,18 @@ Returned when the command is successfully sent to the server's input mechanism. 
             "message": "Invalid or missing JSON request body."
         }
         ```
-    *   If the `command` field is missing, not a string, or empty/whitespace only.
+    *   If the `command` field is missing, not a string, or empty/whitespace only. The message comes from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Request body must contain a non-empty string 'command' field."
+            "message": "User input error: Request body must contain a non-empty string 'command' field."
         }
         ```
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -1691,64 +1694,72 @@ Returned when the command is successfully sent to the server's input mechanism. 
             "message": "Authentication required."
         }
         ```
-
-*   **`404 Not Found`**:
-    *   If the server's executable (`bedrock_server` or `.exe`) is missing, even if trying to send a command (`ServerNotFoundError`). This error occurs during the server object initialization.
+*   **`403 Forbidden`**:
+    *   If the command is in the blocked_commands list. The message comes from `BlockedCommandError`.
         ```json
         {
             "status": "error",
-            "message": "Server not found: Server executable 'bedrock_server' not found in /path/to/servers/MyServer"
+            "message": "Config parse error: Command 'op PlayerName' is blocked by server configuration."
+        }
+        ```
+
+*   **`404 Not Found`**:
+    *   If the server's executable (`bedrock_server` or `.exe`) is missing. The message comes from `AppFileNotFoundError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Server executable not found at path: /path/to/servers/MyServer/bedrock_server"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid. The message comes from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If the target server process is not running or cannot be communicated with (`ServerNotRunningError`).
+    *   If the target server process is not running or cannot be communicated with. The message comes from `ServerNotRunningError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Server 'MyServer' is not running."
+            "message": "Server process error: Server 'MyServer' is not running."
         }
         ```
          *or (Linux screen)*
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Screen session 'bedrock-MyServer' not found."
+            "message": "Server process error: Screen session 'bedrock-MyServer' not found."
         }
         ```
          *or (Windows pipe)*
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Pipe '\\\\.\\pipe\\BedrockServerMyServer' does not exist. Server likely not running."
+            "message": "Server process error: Pipe '\\\\.\\pipe\\BedrockServerMyServer' does not exist. Server likely not running."
         }
         ```
-    *   If there's an error during the command sending process (e.g., `screen` execution error, Windows pipe write error) (`SendCommandError`).
+    *   If there's an error during the command sending process (e.g., `screen` execution error, Windows pipe write error). The message comes from `SendCommandError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Failed to send command via screen: Command '['/usr/bin/screen', '-S', 'bedrock-MyServer', '-X', 'stuff', 'list\\n']' returned non-zero exit status 1."
+            "message": "Send command error: Failed to send command via screen: Command '['/usr/bin/screen', '-S', 'bedrock-MyServer', '-X', 'stuff', 'list\\n']' returned non-zero exit status 1."
         }
         ```
          *or (Windows pipe)*
          ```json
         {
              "status": "error",
-             "message": "Failed to send command: Windows error sending command: (109, 'CreateFile', 'The pipe has been ended.')"
+             "message": "Send command error: Windows error sending command: (109, 'CreateFile', 'The pipe has been ended.')"
         }
          ```
-    *   If required commands like `screen` are not found on Linux (`CommandNotFoundError`).
+    *   If required commands like `screen` are not found on Linux. The message comes from `CommandNotFoundError`.
          ```json
          {
              "status": "error",
-             "message": "Failed to send command: Command 'screen' not found. Is it installed?"
+             "message": "System command not found: 'screen'. Is it installed?"
          }
          ```
     *   If an unexpected error occurs during the process.
@@ -1759,18 +1770,18 @@ Returned when the command is successfully sent to the server's input mechanism. 
         }
         ```
 *   **`501 Not Implemented`**:
-    *   If sending commands is attempted on an unsupported operating system.
+    *   If sending commands is attempted on an unsupported operating system. The message comes from `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Sending commands not supported on Darwin"
+            "message": "System error: Sending commands not supported on Darwin"
         }
         ```
-    *   If required Windows components (`pywin32`) are missing.
+    *   If required Windows components (`pywin32`) are missing. The message comes from `SystemError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to send command: Cannot send command on Windows: 'pywin32' module not found."
+            "message": "System error: Cannot send command on Windows: 'pywin32' module not found."
         }
         ```
 
@@ -1842,11 +1853,11 @@ Returned when the update check and/or process completes successfully.
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -1860,82 +1871,82 @@ Returned when the update check and/or process completes successfully.
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR`, `DOWNLOAD_DIR`, or `BACKUP_DIR` are missing or invalid (`FileOperationError`, `DirectoryError`).
+    *   If essential configuration settings like `BASE_DIR`, `DOWNLOAD_DIR`, or `BACKUP_DIR` are missing or invalid. Messages from `ConfigurationError` or `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or File error: BACKUP_DIR setting missing."
+            "message": "Configuration error: BACKUP_DIR setting missing."
         }
         ```
-    *   If reading the server's configuration (e.g., `target_version`) fails (`FileOperationError`).
+    *   If reading the server's configuration (e.g., `target_version`) fails. Message from `AppFileNotFoundError` or `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration/File error: Error reading config for server '<server_name>': File not found: /path/to/.config/<server_name>/<server_name>_config.json"
+            "message": "Required file or directory not found at path: /path/to/.config/<server_name>/<server_name>_config.json"
         }
         ```
-    *   If checking internet connectivity fails (`InternetConnectivityError`).
+    *   If checking internet connectivity fails. Message from `InternetConnectivityError`.
         ```json
         {
             "status": "error",
-            "message": "Server Update failed: Failed to verify internet connectivity: No internet connection detected."
+            "message": "Network error: Failed to verify internet connectivity: No internet connection detected."
         }
         ```
-    *   If looking up the download URL fails (e.g., cannot reach minecraft.net, page structure changed) (`InternetConnectivityError`, `DownloadExtractError`).
+    *   If looking up the download URL fails. Message from `InternetConnectivityError` or `DownloadError`.
         ```json
         {
             "status": "error",
-            "message": "Server Update failed: Failed to fetch download page 'https://www.minecraft.net/en-us/download/server/bedrock': ..."
-        }
-        ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "Server Update failed: Could not find a download URL matching OS 'Linux' and version type 'LATEST' on page ..."
-        }
-        ```
-    *   If downloading the server ZIP file fails (`InternetConnectivityError`, `FileOperationError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Server Update failed: Download failed for '<download_url>': 404 Client Error: Not Found for url: <download_url>"
-        }
-        ```
-    *   If stopping the server before the update fails (e.g., timeout, command error) (`ServerStopError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Server Update failed: Failed to stop server '<server_name>' before update."
-        }
-        ```
-    *   If backing up the server before the update fails (`BackupWorldError`, `FileOperationError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Server Update failed: Backup failed before update for '<server_name>'."
-        }
-        ```
-    *   If extracting the downloaded ZIP file fails (e.g., corrupted file, permissions, disk full) (`DownloadExtractError`, `FileOperationError`).
-        ```json
-        {
-            "status": "error",
-            "message": "Server Update failed: Invalid ZIP file: '/path/to/downloads/stable/bedrock-server-1.20.xx.xx.zip'. Bad magic number for file header"
+            "message": "Network error: Failed to fetch download page 'https://www.minecraft.net/en-us/download/server/bedrock': ..."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Server Update failed: Error during file extraction: [Errno 13] Permission denied: '/path/to/servers/<server_name>/bedrock_server'"
+            "message": "File error: Could not find a download URL matching OS 'Linux' and version type 'LATEST' on page ..."
+        }
+        ```
+    *   If downloading the server ZIP file fails. Message from `DownloadError`.
+        ```json
+        {
+            "status": "error",
+            "message": "File error: Download failed for '<download_url>': 404 Client Error: Not Found for url: <download_url>"
+        }
+        ```
+    *   If stopping the server before the update fails. Message from `ServerStopError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Server stop error: Failed to stop server '<server_name>' before update."
+        }
+        ```
+    *   If backing up the server before the update fails. Message from `BackupRestoreError` or `FileOperationError`.
+        ```json
+        {
+            "status": "error",
+            "message": "File operation error: Backup failed before update for '<server_name>'."
+        }
+        ```
+    *   If extracting the downloaded ZIP file fails. Message from `ExtractError` or `FileOperationError`.
+        ```json
+        {
+            "status": "error",
+            "message": "File error: Invalid ZIP file: '/path/to/downloads/stable/bedrock-server-1.20.xx.xx.zip'. Bad magic number for file header"
+        }
+        ```
+        *or*
+        ```json
+        {
+            "status": "error",
+            "message": "File operation error: Error during file extraction: [Errno 13] Permission denied: '/path/to/servers/<server_name>/bedrock_server'"
         }
         ```
     *   If setting permissions after extraction fails (logged as warning, usually doesn't cause API error unless it prevents server start).
-    *   If writing the new version/status to the server's config file fails (`FileOperationError`).
+    *   If writing the new version/status to the server's config file fails. Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or File error: Failed to write version/status config for '<server_name>'."
+            "message": "File operation error: Failed to write version/status config for '<server_name>'."
         }
         ```
     *   If restarting the server after the update fails (logged as error, usually doesn't cause API error, but manual start needed).
@@ -1995,11 +2006,11 @@ Returned when all associated server data (installation, config, backups) has bee
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). The message comes from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -2013,7 +2024,7 @@ Returned when all associated server data (installation, config, backups) has bee
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR`, `BACKUP_DIR`, or the main config directory path cannot be determined (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR`, `BACKUP_DIR`, or the main config directory path cannot be determined. Messages from `ConfigurationError`.
         ```json
         {
             "status": "error",
@@ -2027,18 +2038,18 @@ Returned when all associated server data (installation, config, backups) has bee
             "message": "Configuration error: Base configuration directory is not set or available."
         }
         ```
-    *   If the server is running and the attempt to stop it before deletion fails (e.g., timeout, command error). Deletion is aborted in this case. (`ServerStopError`)
+    *   If the server is running and the attempt to stop it before deletion fails (e.g., timeout, command error). Deletion is aborted in this case. Message from `ServerStopError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server '<server_name>' before deletion: Failed to stop server '<server_name>': Server '<server_name>' failed to stop within the timeout. Manual intervention may be required.. Deletion aborted."
+            "message": "Server stop error: Failed to stop server '<server_name>' before deletion. Server '<server_name>' failed to stop within the timeout. Manual intervention may be required. Deletion aborted."
         }
         ```
-    *   If deleting the server's installation, configuration, or backup directories fails (e.g., permission errors, files in use) (`DirectoryError`). The message may list multiple failed items.
+    *   If deleting the server's installation, configuration, or backup directories fails (e.g., permission errors, files in use). Message from `FileOperationError`. The message may list multiple failed items.
         ```json
         {
             "status": "error",
-            "message": "Error deleting server directories: Failed to completely delete server '<server_name>'. Failed items: installation directory '/path/to/servers/<server_name>' ([Errno 13] Permission denied)"
+            "message": "File operation error: Failed to completely delete server '<server_name>'. Failed items: installation directory '/path/to/servers/<server_name>' ([Errno 13] Permission denied)"
         }
         ```
     *   If an unexpected error occurs during the stop or deletion process.
@@ -2118,32 +2129,32 @@ Returned when the pruning process for all backup types completes without errors,
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
-    *   If the `keep` value in the JSON body is provided but is not a valid integer.
+    *   If the `keep` value in the JSON body is provided but is not a valid integer. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid 'keep' value. Must be an integer."
+            "message": "User input error: Invalid 'keep' value. Must be an integer."
         }
         ```
-    *   If the resolved `keep` value (from request or settings) is negative or otherwise invalid.
+    *   If the resolved `keep` value (from request or settings) is negative or otherwise invalid. Message from `ConfigurationError` or `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or input error: Invalid BACKUP_KEEP setting: must be non-negative integer"
+            "message": "Configuration error: Invalid BACKUP_KEEP setting: must be non-negative integer"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Configuration or input error: Invalid backup_keep parameter: Cannot be negative"
+            "message": "User input error: Invalid backup_keep parameter: Cannot be negative"
         }
         ```
 
@@ -2158,27 +2169,27 @@ Returned when the pruning process for all backup types completes without errors,
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or input error: BACKUP_DIR setting missing."
+            "message": "Configuration error: BACKUP_DIR setting missing."
         }
         ```
-    *   If the server-specific backup directory path exists but is not a directory (`DirectoryError`).
+    *   If the server-specific backup directory path exists but is not a directory. Message from `FileOperationError`.
         ```json
         {
              "status": "error",
-             "message": "Pruning failed for some backup types: World backups (Backup path '/path/to/backups/MyServer' exists but is not a directory.)"
+             "message": "File operation error: Pruning failed for some backup types: World backups (Backup path '/path/to/backups/MyServer' exists but is not a directory.)"
         }
         ```
-    *   If an error occurs while trying to determine the world name for prefixing world backups (e.g., `server.properties` unreadable). Pruning for world backups might proceed without a prefix in this case, but the overall operation could still fail later.
-        *(No specific distinct error response, but could contribute to a later pruning error)*
-    *   If an error occurs during the file system operations (listing, sorting, deleting) for *any* of the backup types (`FileOperationError`, `OSError`). The message will indicate which type(s) failed.
+    *   If an error occurs while trying to determine the world name for prefixing world backups (e.g., `server.properties` unreadable). Message from `ConfigParseError` or `AppFileNotFoundError`.
+        *(No specific distinct error response, but could contribute to a later pruning error, typically wrapped in a FileOperationError or BackupRestoreError)*
+    *   If an error occurs during the file system operations (listing, sorting, deleting) for *any* of the backup types. Message from `FileOperationError`. The message will indicate which type(s) failed.
         ```json
         {
             "status": "error",
-            "message": "Pruning failed for some backup types: World backups (Failed to delete all required old backups (1 deletion(s) failed). Check logs.); JSON backups (Error pruning backups in '/path/to/backups/MyServer': [Errno 13] Permission denied)"
+            "message": "File operation error: Pruning failed for some backup types: World backups (Failed to delete all required old backups (1 deletion(s) failed). Check logs.); JSON backups (Error pruning backups in '/path/to/backups/MyServer': [Errno 13] Permission denied)"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -2378,25 +2389,25 @@ Returned when the specified backup operation completes successfully.
             "message": "Missing or invalid 'backup_type'. Must be one of: ['world', 'config', 'all']."
         }
         ```
-    *   If `backup_type` is `"config"` but `file_to_backup` is missing or not a string.
+    *   If `backup_type` is `"config"` but `file_to_backup` is missing or not a string. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Missing or invalid 'file_to_backup' (string) required for config backup type."
+            "message": "User input error: Missing or invalid 'file_to_backup' (string) required for config backup type."
         }
         ```
-    *   If the specified `file_to_backup` does not exist within the server directory (`FileNotFoundError`).
+    *   If the specified `file_to_backup` does not exist within the server directory. Message from `AppFileNotFoundError` (wrapped by `BackupRestoreError`).
         ```json
         {
             "status": "error",
-            "message": "Invalid input or file not found: Configuration file not found at: /path/to/servers/MyServer/nonexistent.json"
+            "message": "Backup/restore error: Configuration file not found at: /path/to/servers/MyServer/nonexistent.json"
         }
         ```
-    *   If other input arguments are invalid (`MissingArgumentError`, `InvalidInputError`).
+    *   If other input arguments are invalid. Messages from `MissingArgumentError`, `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input or file not found: Server name cannot be empty."
+            "message": "User input error: Server name cannot be empty."
         }
         ```
 
@@ -2410,53 +2421,53 @@ Returned when the specified backup operation completes successfully.
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration error: BACKUP_DIR setting missing."
+            "message": "Configuration error: BACKUP_DIR setting missing."
         }
         ```
-    *   If an error occurs while stopping or starting the server (if applicable).
+    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server for backup: Server process with PID 1234 not found or already stopped."
+            "message": "Server stop error: Failed to stop server for backup: Server process with PID 1234 not found or already stopped."
         }
         ```
-    *   If the world backup operation fails (e.g., cannot determine world name, cannot create zip archive, directory errors) (`BackupWorldError`, `FileOperationError`, `DirectoryError`).
+    *   If the world backup operation fails (e.g., cannot determine world name, cannot create zip archive, directory errors). Messages from `BackupRestoreError`, `FileOperationError`, `ConfigParseError`, `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "World backup failed: World backup failed for 'MyServer': Could not determine world name for server 'MyServer'. Cannot perform world backup."
+            "message": "Backup/restore error: World backup failed for 'MyServer': Could not determine world name for server 'MyServer'. Cannot perform world backup. (server.properties issue)"
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "World backup failed: World backup failed for 'MyServer': Failed to create world backup archive: [Errno 13] Permission denied: '/path/to/backups/MyServer/world_backup_...mcworld.zip'"
+            "message": "Backup/restore error: World backup failed for 'MyServer': Failed to create world backup archive: [Errno 13] Permission denied: '/path/to/backups/MyServer/world_backup_...mcworld.zip'"
         }
         ```
-    *   If a config file backup operation fails (e.g., cannot copy file, permission errors) (`FileOperationError`).
+    *   If a config file backup operation fails (e.g., cannot copy file, permission errors). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Config file backup for 'server.properties' failed: Failed to copy config file 'server.properties': [Errno 13] Permission denied"
+            "message": "File operation error: Config file backup for 'server.properties' failed: Failed to copy config file 'server.properties': [Errno 13] Permission denied"
         }
         ```
-    *   If the "all" backup fails on any component (`BackupWorldError`, `FileOperationError`).
+    *   If the "all" backup fails on any component. Messages from `BackupRestoreError`, `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Full backup failed: World backup failed during full backup of 'MyServer'."
+            "message": "Backup/restore error: Full backup failed: World backup failed during full backup of 'MyServer'."
         }
         ```
          *or*
         ```json
         {
             "status": "error",
-            "message": "Full backup failed: Full backup completed with errors. Failed to back up config file(s): permissions.json."
+            "message": "File operation error: Full backup completed with errors. Failed to back up config file(s): permissions.json."
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -2541,39 +2552,39 @@ Returned when the restore operation completes successfully.
             "message": "Invalid or missing JSON request body."
         }
         ```
-    *   If `restore_type` or `backup_file` is missing or invalid.
+    *   If `restore_type` or `backup_file` is missing or invalid. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Missing or invalid 'restore_type'. Must be one of: ['world', 'config']."
+            "message": "User input error: Missing or invalid 'restore_type'. Must be one of: ['world', 'config']."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Missing or invalid 'backup_file' path (string) in request."
+            "message": "User input error: Missing or invalid 'backup_file' path (string) in request."
         }
         ```
-    *   If the provided `backup_file` path is outside the configured `BACKUP_DIR`.
+    *   If the provided `backup_file` path is outside the configured `BACKUP_DIR`. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid backup file path: Path is outside the allowed backup directory."
+            "message": "User input error: Invalid backup file path: Path is outside the allowed backup directory."
         }
         ```
-    *   If other input arguments are invalid (`MissingArgumentError`, `InvalidInputError`).
+    *   If other input arguments are invalid. Messages from `MissingArgumentError`, `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input or configuration: Server name cannot be empty."
+            "message": "User input error: Server name cannot be empty."
         }
         ```
-    *   If trying to restore a config backup with an invalid filename format (can't determine original name).
+    *   If trying to restore a config backup with an invalid filename format (can't determine original name). Message from `ConfigParseError`.
          ```json
         {
             "status": "error",
-            "message": "Config restore failed: Could not determine original filename from backup file format: 'bad_backup_name.properties'"
+            "message": "Failed to parse configuration file: Could not determine original filename from backup file format: 'bad_backup_name.properties'"
         }
         ```
 
@@ -2587,41 +2598,41 @@ Returned when the restore operation completes successfully.
         ```
 
 *   **`404 Not Found`**:
-    *   If the specified `backup_file` does not exist at the validated path.
+    *   If the specified `backup_file` does not exist at the validated path. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Backup file not found."
+            "message": "Required file or directory not found at path: /path/to/backups/MyServer/backup_file.mcworld"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Server configuration or file error: BACKUP_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BACKUP_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If an error occurs while stopping or starting the server (if applicable).
+    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server for restore: Server process with PID 1234 not found or already stopped."
+            "message": "Server stop error: Failed to stop server for restore: Server process with PID 1234 not found or already stopped."
         }
         ```
-    *   If the world restore (unzipping/import) fails (`RestoreError`, `AddonExtractError`, `FileOperationError`, `DirectoryError`).
+    *   If the world restore (unzipping/import) fails. Messages from `BackupRestoreError`, `ExtractError`, `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "World restore failed: World import failed for server 'MyServer': Failed to extract archive: Error extracting zip file /path/to/backups/MyServer/world_backup_xyz.mcworld: Bad magic number for file header"
+            "message": "Backup/restore error: World import failed for server 'MyServer': Failed to extract archive: Error extracting zip file /path/to/backups/MyServer/world_backup_xyz.mcworld: Bad magic number for file header"
         }
         ```
-    *   If the config file restore fails (e.g., cannot copy file, permission denied) (`FileOperationError`).
+    *   If the config file restore fails (e.g., cannot copy file, permission denied). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Config file restore failed: Failed to restore config file 'server.properties': [Errno 13] Permission denied"
+            "message": "File operation error: Failed to restore config file 'server.properties': [Errno 13] Permission denied"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -2692,26 +2703,26 @@ Returned when the restore operation for all components completes without errors.
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or input error: BACKUP_DIR setting is missing or empty."
+            "message": "Configuration error: BACKUP_DIR setting is missing or empty."
         }
         ```
     *   If the server's backup directory doesn't exist (note: the API function returns successfully in this case, logged as a warning, but the route would still return 200 OK according to the code).
-    *   If an error occurs while stopping or starting the server (if applicable).
+    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server for restore: Server process with PID 1234 not found or already stopped."
+            "message": "Server stop error: Failed to stop server for restore: Server process with PID 1234 not found or already stopped."
         }
         ```
-    *   If any part of the restore (world or any config file) fails. The error message will indicate the failed components (`RestoreError`).
+    *   If any part of the restore (world or any config file) fails. The error message will indicate the failed components. Messages from `BackupRestoreError`, `FileOperationError`, `AppFileNotFoundError`, `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Restore all failed: Restore failed for server 'MyServer'. Failed components: World (World import failed for server 'MyServer': Failed to extract archive: ...), server.properties (Failed to restore config file 'server.properties': [Errno 13] Permission denied)"
+            "message": "Backup/restore error: Restore failed for server 'MyServer'. Failed components: World (World import failed for server 'MyServer': Failed to extract archive: ...), server.properties (File operation error: Failed to restore config file 'server.properties': [Errno 13] Permission denied)"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -2805,27 +2816,27 @@ Returns a list of world filenames (basenames).
         ```
 
 *   **`404 Not Found`** (Potentially, depending on server setup):
-    *   If the `CONTENT_DIR/worlds` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+    *   If the `CONTENT_DIR/worlds` directory itself does not exist. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Content directory not found or is not a directory: /path/to/content/dir/worlds"
+            "message": "Required file or directory not found at path: /path/to/content/dir/worlds"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "CONTENT_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: CONTENT_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/worlds'"
+            "message": "File operation error: Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/worlds'"
         }
         ```
     *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
@@ -2915,27 +2926,27 @@ Returns a list of addon filenames (basenames).
         ```
 
 *   **`404 Not Found`** (Potentially, depending on server setup):
-    *   If the `CONTENT_DIR/addons` directory itself does not exist. (The current API layer treats this as an error that returns a message, which the route might map to 404 or 500).
+    *   If the `CONTENT_DIR/addons` directory itself does not exist. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Content directory not found or is not a directory: /path/to/content/dir/addons"
+            "message": "Required file or directory not found at path: /path/to/content/dir/addons"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If the main `CONTENT_DIR` setting is missing or not configured in the application.
+    *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "CONTENT_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: CONTENT_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied).
+    *   If an OS-level error occurs while trying to access or list files in the content directory (e.g., permission denied). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/addons'"
+            "message": "File operation error: Error accessing content directory: [Errno 13] Permission denied: '/path/to/content/dir/addons'"
         }
         ```
     *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
@@ -2994,7 +3005,7 @@ Returned when the world export process completes successfully and the `.mcworld`
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty) (`InvalidServerNameError`).
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
@@ -3012,46 +3023,46 @@ Returned when the world export process completes successfully and the `.mcworld`
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or file system error: Required setting 'CONTENT_DIR' is missing."
+            "message": "Configuration error: Required setting 'CONTENT_DIR' is missing."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Configuration or file system error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If the system fails to create the target export directory (`<CONTENT_DIR>/worlds/`) due to permissions or other OS issues (`FileOperationError`).
+    *   If the system fails to create the target export directory (`<CONTENT_DIR>/worlds/`) due to permissions or other OS issues. Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or file system error: Cannot create export directory '/path/to/content/worlds': [Errno 13] Permission denied"
+            "message": "File operation error: Cannot create export directory '/path/to/content/worlds': [Errno 13] Permission denied"
         }
         ```
-    *   If the API fails to determine the current world name for the server (e.g., `server.properties` read error, returned as error status by `api_world.export_world`).
+    *   If the API fails to determine the current world name for the server (e.g., `server.properties` read error). Message from `ConfigParseError` or `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to export world: Could not read world name from properties file: /path/to/server/server.properties"
+            "message": "Failed to parse configuration file: Could not read world name from properties file: /path/to/server/server.properties"
         }
         ```
-    *   If the determined world directory does not exist or is not accessible (`DirectoryError`).
+    *   If the determined world directory does not exist or is not accessible. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "World export process error: World directory 'MyWorldName' not found at expected location: /path/to/server/worlds/MyWorldName"
+            "message": "Required file or directory not found at path: /path/to/server/worlds/MyWorldName"
         }
         ```
-    *   If creating the `.mcworld` ZIP archive fails due to disk space, permissions, or other `shutil` issues (`BackupWorldError`).
+    *   If creating the `.mcworld` ZIP archive fails due to disk space, permissions, or other `shutil` issues. Message from `BackupRestoreError` or `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "World export process error: Failed to create world backup archive: [Errno 28] No space left on device"
+            "message": "Backup/restore error: Failed to create world backup archive: [Errno 28] No space left on device"
         }
         ```
     *   If an unexpected error occurs during the export process.
@@ -3074,6 +3085,94 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world/export" -Headers $headers
+```
+
+---
+
+### `DELETE /api/server/{server_name}/world/reset` - Reset World
+
+Resets the currently active world directory associated with the specified server instance.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance whose world should be exported.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`)
+
+Returned when the world export process completes successfully and the `.mcworld` file is created in the target directory (`<CONTENT_DIR>/worlds/`).
+
+```json
+{
+    "status": "success",
+    "message": "World for server '<server_name>' reset successfully.",
+}
+```
+
+#### Error Responses
+
+*   **`400 Bad Request`**:
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). Message from `InvalidServerNameError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Invalid server name provided: Server name cannot be empty."
+        }
+        ```
+
+*   **`401 Unauthorized`**:
+    *   If authentication (JWT or Session) is missing or invalid.
+        ```json
+        {
+            "error": "Unauthorized",
+            "message": "Authentication required."
+        }
+        ```
+
+*   **`500 Internal Server Error`**:
+    *   If the API fails to determine the current world name for the server (e.g., `server.properties` read error). Message from `ConfigParseError` or `AppFileNotFoundError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to parse configuration file: Could not read world name from properties file: /path/to/server/server.properties"
+        }
+        ```
+    *   If the determined world directory does not exist or is not accessible. Message from `AppFileNotFoundError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Required file or directory not found at path: /path/to/server/worlds/MyWorldName"
+        }
+        ```
+    *   If an unexpected error occurs during the reset process (e.g. deleting files). Message from `FileOperationError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Unexpected error during world reset: <original error message>"
+        }
+        ```
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/world/reset
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world/reset" -Headers $headers
 ```
 
 ---
@@ -3124,32 +3223,32 @@ Returned when the world file is found, validated, and successfully extracted int
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid or missing JSON request body."
+            "message": "User input error: Invalid or missing JSON request body."
         }
         ```
-    *   If the `filename` field is missing or not a string.
+    *   If the `filename` field is missing or not a string. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Missing or invalid 'filename' in request body. Expected relative path to .mcworld file."
+            "message": "User input error: Missing or invalid 'filename' in request body. Expected relative path to .mcworld file."
         }
         ```
-    *   If the resolved `filename` path attempts to go outside the allowed `content/worlds` directory (Path Traversal attempt).
+    *   If the resolved `filename` path attempts to go outside the allowed `content/worlds` directory (Path Traversal attempt). Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid filename: Filename must be within the allowed content directory."
+            "message": "User input error: Invalid filename: Filename must be within the allowed content directory."
         }
         ```
-    *   If other input validation fails (e.g., empty `server_name`).
+    *   If other input validation fails (e.g., empty `server_name`). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "World installation error: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -3163,48 +3262,48 @@ Returned when the world file is found, validated, and successfully extracted int
         ```
 
 *   **`404 Not Found`**:
-    *   If the specified `.mcworld` file (resolved from `filename`) does not exist at the calculated path within `content/worlds`.
+    *   If the specified `.mcworld` file (resolved from `filename`) does not exist at the calculated path within `content/worlds`. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Selected world file not found: /path/to/content/worlds/nonexistent.mcworld"
+            "message": "Required file or directory not found at path: /path/to/content/worlds/nonexistent.mcworld"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "World installation error: Configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If an error occurs while stopping or starting the server (if applicable).
+    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server for import: Server process with PID 1234 not found or already stopped."
+            "message": "Server stop error: Failed to stop server for import: Server process with PID 1234 not found or already stopped."
         }
         ```
-    *   If the target world name cannot be determined from the server's `server.properties` file (`FileOperationError`).
+    *   If the target world name cannot be determined from the server's `server.properties` file. Message from `ConfigParseError` or `AppFileNotFoundError`.
         ```json
         {
              "status": "error",
-             "message": "World installation error: World import failed: Cannot import world: Failed to get world name for server '<server_name>'."
+             "message": "Failed to parse configuration file: Cannot import world: Failed to get world name for server '<server_name>'."
         }
         ```
-    *   If the world extraction fails (e.g., invalid `.mcworld` file format, disk full, permission denied) (`DownloadExtractError`, `FileOperationError`, `DirectoryError`).
+    *   If the world extraction fails (e.g., invalid `.mcworld` file format, disk full, permission denied). Messages from `ExtractError`, `FileOperationError`.
         ```json
         {
              "status": "error",
-             "message": "World installation error: World import failed: Error extracting archive '/path/to/content/worlds/MyCoolWorld.mcworld': File is not a zip file"
+             "message": "File error: World import failed: Error extracting archive '/path/to/content/worlds/MyCoolWorld.mcworld': File is not a zip file"
         }
         ```
         *or*
         ```json
         {
              "status": "error",
-             "message": "World installation error: World import failed: Failed to remove existing world directory '/path/to/servers/MyServer/worlds/Bedrock level': [Errno 13] Permission denied"
+             "message": "File operation error: World import failed: Failed to remove existing world directory '/path/to/servers/MyServer/worlds/Bedrock level': [Errno 13] Permission denied"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -3279,53 +3378,53 @@ Returned when the addon file is found, validated, processed, and successfully in
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid or missing JSON request body."
+            "message": "User input error: Invalid or missing JSON request body."
         }
         ```
-    *   If the `filename` field is missing or not a string.
+    *   If the `filename` field is missing or not a string. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Missing or invalid 'filename' in request body. Expected relative path to .mcaddon/.mcpack file."
+            "message": "User input error: Missing or invalid 'filename' in request body. Expected relative path to .mcaddon/.mcpack file."
         }
         ```
-    *   If the resolved `filename` path attempts to go outside the allowed `content/addons` directory (Path Traversal attempt).
+    *   If the resolved `filename` path attempts to go outside the allowed `content/addons` directory (Path Traversal attempt). Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid filename: Filename must be within the allowed content directory."
+            "message": "User input error: Invalid filename: Filename must be within the allowed content directory."
         }
         ```
-    *   If the specified addon file (`filename`) has an unsupported extension (not `.mcaddon` or `.mcpack`). (`InvalidAddonPackTypeError`)
+    *   If the specified addon file (`filename`) has an unsupported extension (not `.mcaddon` or `.mcpack`). Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Unsupported addon file type: 'MyAddon.zip'. Only .mcaddon and .mcpack are supported."
+            "message": "User input error: Unsupported addon file type: 'MyAddon.zip'. Only .mcaddon and .mcpack are supported."
         }
         ```
-    *   If the addon file (`.mcpack` or contained within `.mcaddon`) has an invalid or missing `manifest.json`. (`AddonExtractError`)
+    *   If the addon file (`.mcpack` or contained within `.mcaddon`) has an invalid or missing `manifest.json`. Message from `ExtractError` or `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Invalid manifest structure in /path/to/temp/..../manifest.json. Missing fields: ['uuid']"
+            "message": "File error: Invalid manifest structure in /path/to/temp/..../manifest.json. Missing fields: ['uuid']"
         }
         ```
         *or*
          ```json
         {
             "status": "error",
-            "message": "Addon installation error: Manifest not found in pack: /path/to/temp/..."
+            "message": "File error: Manifest not found in pack: /path/to/temp/..."
         }
         ```
-    *   If other input validation fails (e.g., empty `server_name`). (`MissingArgumentError`)
+    *   If other input validation fails (e.g., empty `server_name`). Message from `InvalidServerNameError` or `MissingArgumentError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -3339,55 +3438,55 @@ Returned when the addon file is found, validated, processed, and successfully in
         ```
 
 *   **`404 Not Found`**:
-    *   If the specified addon file (resolved from `filename`) does not exist at the calculated path within `content/addons`.
+    *   If the specified addon file (resolved from `filename`) does not exist at the calculated path within `content/addons`. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Selected addon file not found: /path/to/content/addons/nonexistent.mcpack"
+            "message": "Required file or directory not found at path: /path/to/content/addons/nonexistent.mcpack"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` or `CONTENT_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Configuration error: BASE_DIR setting is missing or empty in configuration."
+            "message": "Configuration error: BASE_DIR setting is missing or empty in configuration."
         }
         ```
-    *   If an error occurs while stopping or starting the server (if applicable).
+    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to stop server before import: Server process with PID 1234 not found or already stopped."
+            "message": "Server stop error: Failed to stop server before import: Server process with PID 1234 not found or already stopped."
         }
         ```
-    *   If the target world name cannot be determined from the server's `server.properties` file (needed for placing packs). (`FileOperationError`)
+    *   If the target world name cannot be determined from the server's `server.properties` file (needed for placing packs). Message from `ConfigParseError` or `AppFileNotFoundError`.
          ```json
         {
             "status": "error",
-            "message": "Addon installation error: Failed to determine world name or paths for server '<server_name>': Could not determine world name for server '<server_name>'."
+            "message": "Failed to parse configuration file: Failed to determine world name or paths for server '<server_name>': Could not determine world name for server '<server_name>'."
         }
         ```
-    *   If the addon file is corrupted or not a valid ZIP archive (`.mcaddon`, `.mcpack`). (`AddonExtractError`)
+    *   If the addon file is corrupted or not a valid ZIP archive (`.mcaddon`, `.mcpack`). Message from `ExtractError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Invalid .mcpack file (not a zip): CoolBehaviorPack.mcpack"
+            "message": "File error: Invalid .mcpack file (not a zip): CoolBehaviorPack.mcpack"
         }
         ```
-    *   If file system errors occur during extraction or installation (copying pack files, creating directories, updating world JSON files, permissions, disk full). (`FileOperationError`, `DirectoryError`)
+    *   If file system errors occur during extraction or installation (copying pack files, creating directories, updating world JSON files, permissions, disk full). Messages from `FileOperationError`, `ExtractError`.
         ```json
         {
             "status": "error",
-            "message": "Addon installation error: Failed to copy behavior pack files: [Errno 13] Permission denied: '/path/to/servers/MyServer/worlds/Bedrock level/behavior_packs/CoolPack_1.0.0/script.js'"
+            "message": "File operation error: Failed to copy behavior pack files: [Errno 13] Permission denied: '/path/to/servers/MyServer/worlds/Bedrock level/behavior_packs/CoolPack_1.0.0/script.js'"
         }
         ```
         *or*
         ```json
         {
              "status": "error",
-             "message": "Addon installation error: Failed to update world activation JSON 'world_resource_packs.json': Failed to write world pack JSON: world_resource_packs.json"
+             "message": "File operation error: Failed to update world activation JSON 'world_resource_packs.json': Failed to write world pack JSON: world_resource_packs.json"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -3482,32 +3581,32 @@ Indicates the scan process initiated and completed, potentially finding players.
         *(Or a more specific message for invalid tokens)*
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration directories (`BASE_DIR` or the application's main config directory) are missing, invalid, or inaccessible (`FileOperationError`, `DirectoryError`).
+    *   If essential configuration directories (`BASE_DIR` or the application's main config directory) are missing, invalid, or inaccessible. Messages from `ConfigurationError` or `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or directory error: Base directory '/path/to/servers' does not exist or is not a directory."
+            "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Configuration or directory error: Base configuration directory is not set or available."
+            "message": "Configuration error: Base configuration directory is not set or available."
         }
         ```
-    *   If errors occurred while scanning log files for *some* servers (e.g., read permissions), but the process attempted to complete for others.
+    *   If errors occurred while scanning log files for *some* servers (e.g., read permissions), but the process attempted to complete for others. Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Scan completed with errors for server(s): ServerA, ServerC. Player data found in other logs was saved."
+            "message": "File operation error: Scan completed with errors for server(s): ServerA (Permission denied), ServerC (File not found). Player data found in other logs was saved."
         }
         ```
-    *   If an error occurred while trying to save the collected player data to `players.json` (e.g., write permissions, invalid JSON loaded, disk full) (`FileOperationError`).
+    *   If an error occurred while trying to save the collected player data to `players.json` (e.g., write permissions, invalid JSON loaded, disk full). Message from `FileOperationError` or `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Error saving player data to JSON: Failed to write players data to '/path/to/.config/players.json': [Errno 13] Permission denied"
+            "message": "File operation error: Failed to write players data to '/path/to/.config/players.json': [Errno 13] Permission denied"
         }
         ```
         *(Note: If both scan and save errors occur, the message might combine them)*
@@ -3590,39 +3689,39 @@ Indicates that the players were successfully processed and saved/updated in `pla
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `players` field is missing from the JSON body, is not a list, or the list is empty.
+    *   If the `players` field is missing from the JSON body, is not a list, or the list is empty. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "'players' field is required and must be a list."
+            "message": "User input error: 'players' field is required and must be a list."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Player list cannot be empty."
+            "message": "User input error: Player list cannot be empty."
         }
         ```
-    *   If any player string in the `players` list is not in the valid `"PlayerName:PlayerXUID"` format, or if name/XUID are empty.
+    *   If any player string in the `players` list is not in the valid `"PlayerName:PlayerXUID"` format, or if name/XUID are empty. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to add players: Invalid player data format in argument: 'PlayerOneXUIDWoops'. Expected 'name:xuid'."
+            "message": "User input error: Invalid player data format in argument: 'PlayerOneXUIDWoops'. Expected 'name:xuid'."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Failed to add players: Invalid player data in argument: 'PlayerOne:'. Name and XUID cannot be empty."
+            "message": "User input error: Invalid player data in argument: 'PlayerOne:'. Name and XUID cannot be empty."
         }
         ```
-    *   If the request JSON body is empty or malformed.
+    *   If the request JSON body is empty or malformed. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Request JSON body is empty or malformed."
+            "message": "User input error: Request JSON body is empty or malformed."
         }
         ```
 
@@ -3646,21 +3745,21 @@ Indicates that the players were successfully processed and saved/updated in `pla
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined for saving `players.json`).
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined for saving `players.json`). Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
-            "message": "Configuration or file system error: Base configuration directory is not set or available."
+            "message": "Configuration error: Base configuration directory is not set or available."
         }
         ```
         *or from the API layer if it catches a FileOperationError during save:*
         ```json
         {
             "status": "error",
-            "message": "Failed to add players: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"
+            "message": "File operation error: Failed to write players data to '/path/to/config/players.json': [Errno 13] Permission denied"
         }
         ```
-    *   If an OS-level error occurs while trying to create directories or write the `players.json` file (e.g., permission denied, disk full).
+    *   If an OS-level error occurs while trying to create directories or write the `players.json` file (e.g., permission denied, disk full). Message from `FileOperationError`.
     *   If an unexpected critical error occurs within the Flask route handler or the API/core functions.
         ```json
         {
@@ -3789,32 +3888,32 @@ Returns a list of all known players.
         *(Note: The exact message might vary based on your auth implementation.)*
 
 *   **`500 Internal Server Error`**:
-    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined).
+    *   If there's a fundamental configuration issue (e.g., the main application config directory cannot be determined). Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
             "message": "Configuration error: Base configuration directory is not set or available."
         }
         ```
-    *   If the `players.json` file has an invalid JSON format or a structure that cannot be parsed correctly (e.g., not an object with a "players" list).
+    *   If the `players.json` file has an invalid JSON format or a structure that cannot be parsed correctly (e.g., not an object with a "players" list). Message from `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid format in 'players.json'. Expected JSON object with a 'players' list."
+            "message": "Failed to parse configuration file: Invalid format in 'players.json'. Expected JSON object with a 'players' list."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "Invalid JSON in players.json: Expecting value: line 1 column 1 (char 0)"
+            "message": "Failed to parse configuration file: Invalid JSON in players.json: Expecting value: line 1 column 1 (char 0)"
         }
         ```
-    *   If an OS-level error occurs while trying to read the `players.json` file (e.g., permission denied).
+    *   If an OS-level error occurs while trying to read the `players.json` file (e.g., permission denied). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Could not read players file: [Errno 13] Permission denied: '/path/to/config/players.json'"
+            "message": "File operation error: Could not read players file: [Errno 13] Permission denied: '/path/to/config/players.json'"
         }
         ```
     *   If an unexpected critical error occurs within the Flask route handler or the API function.
@@ -3916,25 +4015,25 @@ Returns the list of players currently in the `allowlist.json` file. The list wil
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If `server_name` is invalid (e.g., empty) (`MissingArgumentError`, `InvalidServerNameError`).
+    *   If `server_name` is invalid (e.g., empty). Message from `InvalidServerNameError` or `MissingArgumentError`.
         ```json
-        { "status": "error", "message": "Error retrieving allowlist: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
-    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found (`FileOperationError`, `DirectoryError`).
+    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found. Messages from `ConfigurationError` or `AppFileNotFoundError`.
         ```json
-        { "status": "error", "message": "Error retrieving allowlist: Server directory not found: /path/to/servers/<server_name>" }
+        { "status": "error", "message": "Required file or directory not found at path: /path/to/servers/<server_name>" }
         ```
          *or*
         ```json
-        { "status": "error", "message": "Error retrieving allowlist: Configuration error: BASE_DIR setting is missing..." }
+        { "status": "error", "message": "Configuration error: BASE_DIR setting is missing..." }
         ```
-    *   If reading the `allowlist.json` file fails due to permissions or other OS errors (`FileOperationError`).
+    *   If reading the `allowlist.json` file fails due to permissions or other OS errors. Message from `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error retrieving allowlist: Failed to read allowlist file: /path/to/servers/<server_name>/allowlist.json" }
+        { "status": "error", "message": "File operation error: Failed to read allowlist file: /path/to/servers/<server_name>/allowlist.json" }
         ```
-    *   If the `allowlist.json` file contains invalid JSON and cannot be parsed (`FileOperationError` wrapping `JSONDecodeError`).
+    *   If the `allowlist.json` file contains invalid JSON and cannot be parsed. Message from `ConfigParseError`.
         ```json
-        { "status": "error", "message": "Error retrieving allowlist: Invalid JSON in allowlist file: /path/to/servers/<server_name>/allowlist.json" }
+        { "status": "error", "message": "Failed to parse configuration file: Invalid JSON in allowlist file: /path/to/servers/<server_name>/allowlist.json" }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -4007,21 +4106,21 @@ Returned when the operation completes, even if no new players were actually adde
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If the `players` key is missing or its value is not a list.
+    *   If the `players` key is missing or its value is not a list. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Request body must contain a 'players' list (can be empty)." }
+        { "status": "error", "message": "User input error: Request body must contain a 'players' list (can be empty)." }
         ```
-    *   If the `ignoresPlayerLimit` key is present but its value is not a boolean (`true` or `false`).
+    *   If the `ignoresPlayerLimit` key is present but its value is not a boolean (`true` or `false`). Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "'ignoresPlayerLimit' must be true or false." }
+        { "status": "error", "message": "User input error: 'ignoresPlayerLimit' must be true or false." }
         ```
-    *   If `server_name` is invalid (e.g., empty).
+    *   If `server_name` is invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
-        { "status": "error", "message": "Error saving allowlist: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -4031,17 +4130,17 @@ Returned when the operation completes, even if no new players were actually adde
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found (`FileOperationError`, `DirectoryError`).
+    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found. Messages from `ConfigurationError` or `AppFileNotFoundError`.
         ```json
-        { "status": "error", "message": "Error saving allowlist: Failed to access allowlist: Server directory not found: /path/to/servers/<server_name>" }
+        { "status": "error", "message": "Required file or directory not found at path: /path/to/servers/<server_name>" }
         ```
-    *   If reading the existing `allowlist.json` fails (e.g., permissions, invalid JSON format). (`FileOperationError`).
+    *   If reading the existing `allowlist.json` fails (e.g., permissions, invalid JSON format). Messages from `FileOperationError` or `ConfigParseError`.
         ```json
-        { "status": "error", "message": "Error saving allowlist: Failed to read allowlist file: /path/to/servers/<server_name>/allowlist.json" }
+        { "status": "error", "message": "File operation error: Failed to read allowlist file: /path/to/servers/<server_name>/allowlist.json" }
         ```
-    *   If writing the updated `allowlist.json` fails (e.g., permissions, disk full). (`FileOperationError`).
+    *   If writing the updated `allowlist.json` fails (e.g., permissions, disk full). Message from `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error saving allowlist: Failed to write allowlist file: /path/to/servers/<server_name>/allowlist.json" }
+        { "status": "error", "message": "File operation error: Failed to write allowlist file: /path/to/servers/<server_name>/allowlist.json" }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -4066,9 +4165,9 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `DELETE /api/server/{server_name}/allowlist/player/{player_name}` - Remove Player from Allowlist
+### `DELETE /api/server/{server_name}/allowlist/remove` - Remove Multiple Players from Allowlist
 
-Removes a specific player from the `allowlist.json` file for the specified server instance. The player name matching is case-insensitive.
+Removes one or more players from the `allowlist.json` file for the specified server. The operation is atomic: it processes all players and then reloads the server's allowlist once (if running). Player name matching is case-insensitive.
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -4079,46 +4178,55 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 #### Path Parameters
 
 *   `**server_name**` (*string*, required): The unique name of the server instance.
-*   `**player_name**` (*string*, required): The name of the player to remove from the allowlist (case-insensitive).
 
 #### Request Body
 
-None.
+A JSON object containing a list of player names to remove.
+
+*   `**players**` (*array of strings*, required): The list of player names to remove.
+
+**Example Body:**
+```json
+{
+    "players": ["Steve", "Alex", "NonExistentPlayer"]
+}
+```
 
 #### Success Response (`200 OK`)
 
-Returned when the operation completes. The message indicates whether the player was found and removed, or if the player was not found on the list.
+Returned when the operation completes. The response includes a `details` object that categorizes which players were successfully removed and which were not found in the allowlist.
 
-*   *Player found and removed:*
-    ```json
-    {
-        "status": "success",
-        "message": "Player '<player_name>' removed successfully from allowlist for server '<server_name>'."
+```json
+{
+    "status": "success",
+    "message": "Allowlist update process completed.",
+    "details": {
+        "removed": [
+            "Steve",
+            "Alex"
+        ],
+        "not_found": [
+            "NonExistentPlayer"
+        ]
     }
-    ```
-*   *Player not found:*
-    ```json
-    {
-        "status": "success",
-        "message": "Player '<player_name>' not found in the allowlist for server '<server_name}'. No changes made."
-    }
-    ```
+}
+```
 
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If `server_name` or `player_name` path parameters are missing or empty (`MissingArgumentError`).
+    *   If the request body is missing, not valid JSON, or does not contain a `players` array.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Player name cannot be empty."
+            "message": "Request body must be a JSON object with a 'players' key containing a list of names."
         }
         ```
-        *or*
+    *   If `server_name` is missing or invalid. Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid input: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -4132,56 +4240,45 @@ Returned when the operation completes. The message indicates whether the player 
         ```
 
 *   **`404 Not Found`**:
-    *   If the specified server's directory cannot be found (`DirectoryError`).
+    *   If the specified server's directory cannot be found. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Server directory not found or inaccessible: Server directory not found: C:\\path\\to\\servers\\NonExistentServer"
+            "message": "Required file or directory not found at path: C:\\path\\to\\servers\\NonExistentServer"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like `BASE_DIR` is missing (`FileOperationError` during `get_base_dir`).
+    *   For any underlying file operation, configuration, or unexpected errors during the process (see single player endpoint for more detailed examples).
         ```json
         {
             "status": "error",
-            "message": "File operation error during allowlist update: BASE_DIR setting is missing or empty in configuration."
-        }
-        ```
-    *   If reading or writing the `allowlist.json` file fails due to permissions, disk errors, or invalid JSON content (`FileOperationError` from core).
-        ```json
-        {
-            "status": "error",
-            "message": "File operation error during allowlist update: Failed to write updated allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
-        }
-        ```
-        *or*
-         ```json
-        {
-            "status": "error",
-            "message": "File operation error during allowlist update: Invalid JSON in allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
-        }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        {
-            "status": "error",
-            "message": "Unexpected error during player removal: <original error message>"
+            "message": "File operation error: Failed to write updated allowlist file: C:\\path\\to\\servers\\MyServer\\allowlist.json"
         }
         ```
 
 #### `curl` Example (Bash)
 
 ```bash
-curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>
+curl -X DELETE \
+     -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"players": ["Steve", "Alex"]}' \
+     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/remove
 ```
 
 #### PowerShell Example
 
 ```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/player/<player_name>" -Headers $headers
+$headers = @{
+    Authorization = 'Bearer YOUR_JWT_TOKEN'
+    'Content-Type' = 'application/json'
+}
+$body = @{
+    players = @('Steve', 'Alex')
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/remove" -Headers $headers -Body $body
 ```
 
 ---
@@ -4237,19 +4334,19 @@ Returned if all submitted, valid permission changes were successfully applied, o
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing, not valid JSON, or does not contain the required `permissions` key.
+    *   If the request body is missing, not valid JSON, or does not contain the required `permissions` key. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Request body must contain a 'permissions' object." }
+        { "status": "error", "message": "User input error: Request body must contain a 'permissions' object." }
         ```
-    *   If the value associated with the `permissions` key is not a JSON object.
+    *   If the value associated with the `permissions` key is not a JSON object. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "'permissions' value must be an object mapping XUIDs to levels." }
+        { "status": "error", "message": "User input error: 'permissions' value must be an object mapping XUIDs to levels." }
         ```
-    *   If one or more permission levels provided in the `permissions` map are invalid (not "visitor", "member", or "operator"). The response includes an `errors` object detailing the failures.
+    *   If one or more permission levels provided in the `permissions` map are invalid (not "visitor", "member", or "operator"). The response includes an `errors` object detailing the failures. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Validation failed for one or more permission levels.",
+            "message": "User input error: Validation failed for one or more permission levels.",
             "errors": {
                 "2535411111111111": "Invalid level 'guest'. Must be one of ('visitor', 'member', 'operator')."
             }
@@ -4261,19 +4358,24 @@ Returned if all submitted, valid permission changes were successfully applied, o
         ```json
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
+*   **`404 Not Found`**:
+    *   If the server's `permissions.json` file is not found. Message from `AppFileNotFoundError`.
+        ```json
+        { "status": "error", "message": "Required file or directory not found at path: /path/to/servers/<server_name>/permissions.json" }
+        ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found (`FileOperationError`, `DirectoryError`).
+    *   If essential configuration like `BASE_DIR` is missing or the server directory cannot be found. Messages from `ConfigurationError` or `AppFileNotFoundError`.
         ```json
-        { "status": "error", "message": "Configuration or File error: Server directory not found: /path/to/servers/<server_name>" }
+        { "status": "error", "message": "Configuration error: Server directory not found: /path/to/servers/<server_name>" }
         ```
-    *   If reading or writing the `permissions.json` file fails for *any* player update (e.g., permissions, invalid JSON in file, disk full) (`FileOperationError`). The response includes an `errors` object detailing which XUID(s) failed and why.
+    *   If reading or writing the `permissions.json` file fails for *any* player update (e.g., permissions, invalid JSON in file, disk full). Messages from `FileOperationError` or `ConfigParseError`. The response includes an `errors` object detailing which XUID(s) failed and why.
         ```json
         {
             "status": "error",
             "message": "One or more errors occurred while setting permissions for '<server_name>'.",
             "errors": {
-                "2535457894355891": "Failed to configure permission: Failed to write permissions file: /path/to/servers/<server_name>/permissions.json"
+                "2535457894355891": "File operation error: Failed to write permissions file: /path/to/servers/<server_name>/permissions.json"
             }
         }
         ```
@@ -4376,40 +4478,40 @@ Returned when the provided properties are successfully validated and written to 
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If validation fails for one or more provided property values (based on type, range, or format checks). The response includes an `errors` object detailing the specific failures.
+    *   If validation fails for one or more provided property values (based on type, range, or format checks). The response includes an `errors` object detailing the specific failures. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Validation failed for one or more properties.",
+            "message": "User input error: Validation failed for one or more properties.",
             "errors": {
                 "server-port": "Invalid value for 'server-port'. Must be a number between 1024 and 65535.",
                 "difficulty": "Invalid value for 'difficulty'. Must be one of peaceful, easy, normal, hard."
             }
         }
         ```
-    *   If the `server.properties` file cannot be found for the specified server (`FileNotFoundError`).
+    *   If the `server.properties` file cannot be found for the specified server. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Error updating properties: server.properties file not found at: /path/to/servers/<server_name>/server.properties"
+            "message": "Required file or directory not found at path: /path/to/servers/<server_name>/server.properties"
         }
         ```
-    *   If the input `property_value` contains invalid control characters (`InvalidInputError` from core).
+    *   If the input `property_value` contains invalid control characters. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Error updating properties: Property value for 'some-key' contains invalid control characters."
+            "message": "User input error: Property value for 'some-key' contains invalid control characters."
         }
         ```
-    *   If the `server_name` is invalid (`InvalidServerNameError`).
+    *   If the `server_name` is invalid. Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Error updating properties: Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -4420,11 +4522,11 @@ Returned when the provided properties are successfully validated and written to 
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If reading or writing the `server.properties` file fails due to file system errors (e.g., permissions, disk full) (`FileOperationError`).
+    *   If reading or writing the `server.properties` file fails due to file system errors (e.g., permissions, disk full). Message from `FileOperationError` or `ConfigParseError`.
         ```json
         {
             "status": "error",
-            "message": "Error updating properties: Failed to modify server.properties: [Errno 13] Permission denied: '/path/to/servers/<server_name>/server.properties'"
+            "message": "File operation error: Failed to modify server.properties: [Errno 13] Permission denied: '/path/to/servers/<server_name>/server.properties'"
         }
         ```
     *   If an unexpected error occurs during the process.
@@ -4504,11 +4606,11 @@ Returns a dictionary of all key-value pairs found in the server's `server.proper
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is invalid (e.g., empty).
+    *   If the `server_name` path parameter is invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "Server name cannot be empty."
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -4519,27 +4621,34 @@ Returns a dictionary of all key-value pairs found in the server's `server.proper
         ```
 
 *   **`404 Not Found`**:
-    *   If the `server.properties` file cannot be found for the specified `server_name` at the determined path.
+    *   If the `server.properties` file cannot be found for the specified `server_name` at the determined path. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "server.properties file not found at: /path/to/your/servers/the_server_name/server.properties"
+            "message": "Required file or directory not found at path: /path/to/your/servers/the_server_name/server.properties"
         }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If there's a fundamental configuration issue (e.g., `BASE_DIR` not set and no `base_dir` query param provided).
+    *   If there's a fundamental configuration issue (e.g., `BASE_DIR` not set and no `base_dir` query param provided). Message from `ConfigurationError`.
         ```json
         {
             "status": "error",
             "message": "Configuration error: Base directory for servers (BASE_DIR) is not configured."
         }
         ```
-    *   If an OS-level error occurs while trying to read the file (e.g., permission denied).
+    *   If an OS-level error occurs while trying to read the file (e.g., permission denied). Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to read server.properties: [Errno 13] Permission denied: '/path/to/server.properties'"
+            "message": "File operation error: Failed to read server.properties: [Errno 13] Permission denied: '/path/to/server.properties'"
+        }
+        ```
+    *   If the file is corrupt or cannot be parsed. Message from `ConfigParseError`.
+        ```json
+        {
+            "status": "error",
+            "message": "Failed to parse configuration file: Error parsing /path/to/server.properties"
         }
         ```
     *   If an unexpected error occurs during file parsing or within the route handler.
@@ -4631,21 +4740,21 @@ Returned when the OS-specific configuration is successfully applied.
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   **Linux:** If `autoupdate` or `autostart` keys are present but not boolean values.
+    *   **Linux:** If `autoupdate` or `autostart` keys are present but not boolean values. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "'autoupdate' and 'autostart' must be boolean values." }
+        { "status": "error", "message": "User input error: 'autoupdate' and 'autostart' must be boolean values." }
         ```
-    *   **Windows:** If `autoupdate` key is present but not a boolean value.
+    *   **Windows:** If `autoupdate` key is present but not a boolean value. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "'autoupdate' must be a boolean value." }
+        { "status": "error", "message": "User input error: 'autoupdate' must be a boolean value." }
         ```
-    *   If `server_name` is invalid (`InvalidServerNameError`).
+    *   If `server_name` is invalid. Message from `InvalidServerNameError`.
         ```json
-        { "status": "error", "message": "Invalid input: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -4654,36 +4763,36 @@ Returned when the OS-specific configuration is successfully applied.
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden` / `500 Internal Server Error` (OS Mismatch):**
-    *   If this endpoint is called on an OS other than Linux or Windows. The API route handler returns 403, but the underlying API functions might return a 500 error dict if called directly on the wrong OS.
+*   **`501 Not Implemented` (OS Mismatch):**
+    *   If this endpoint is called on an OS other than Linux or Windows. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Service configuration is not supported on this operating system (Darwin)." } // Example for macOS
+        { "status": "error", "message": "System error: Service configuration is not supported on this operating system (Darwin)." } // Example for macOS
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` are missing or invalid (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR` are missing or invalid. Message from `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Error configuring service: Configuration error: BASE_DIR setting is missing..." }
+        { "status": "error", "message": "Configuration error: BASE_DIR setting is missing..." }
         ```
-    *   **Linux:** If creating the systemd directory or writing the service file fails (permissions, disk full) (`ServiceError`).
+    *   **Linux:** If creating the systemd directory or writing the service file fails (permissions, disk full). Message from `FileOperationError`.
         ```json
-        { "status": "error", "message": "Failed to configure systemd service: Failed to write service file '/home/user/.config/systemd/user/bedrock-<server_name>.service': [Errno 13] Permission denied" }
+        { "status": "error", "message": "File operation error: Failed to write service file '/home/user/.config/systemd/user/bedrock-<server_name>.service': [Errno 13] Permission denied" }
         ```
-    *   **Linux:** If the `systemctl` command is not found (`CommandNotFoundError`).
+    *   **Linux:** If the `systemctl` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Failed to configure systemd service: Command 'systemctl' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'systemctl'" }
         ```
-    *   **Linux:** If reloading the systemd daemon fails (`SystemdReloadError`).
+    *   **Linux:** If reloading the systemd daemon fails. Message from `SystemError`.
         ```json
-        { "status": "error", "message": "Failed to configure systemd service: Failed to reload systemd user daemon. Error: Failed to connect to bus: $DBUS_SESSION_BUS_ADDRESS ..." }
+        { "status": "error", "message": "System error: Failed to reload systemd user daemon. Error: Failed to connect to bus: $DBUS_SESSION_BUS_ADDRESS ..." }
         ```
-    *   **Linux:** If enabling or disabling the service via `systemctl` fails (`ServiceError`).
+    *   **Linux:** If enabling or disabling the service via `systemctl` fails. Message from `SystemError`.
         ```json
-        { "status": "error", "message": "Failed to configure systemd service: Failed to enable systemd service 'bedrock-<server_name>'. Error: Failed to execute operation: No such file or directory" }
+        { "status": "error", "message": "System error: Failed to enable systemd service 'bedrock-<server_name>'. Error: Failed to execute operation: No such file or directory" }
         ```
-    *   **Windows:** If writing the `autoupdate` flag to the server's JSON config fails (`FileOperationError`).
+    *   **Windows:** If writing the `autoupdate` flag to the server's JSON config fails. Message from `FileOperationError` or `ConfigParseError`.
         ```json
-        { "status": "error", "message": "Failed to set autoupdate config: Failed to write config file: /path/to/.config/<server_name>/<server_name>_config.json" }
+        { "status": "error", "message": "File operation error: Failed to write config file: /path/to/.config/<server_name>/<server_name>_config.json" }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -4754,46 +4863,46 @@ Indicates that the pruning process completed successfully (even if no files were
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing, not valid JSON, or empty.
+    *   If the request body is missing, not valid JSON, or empty. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid or missing JSON request body."
+            "message": "User input error: Invalid or missing JSON request body."
         }
         ```
-    *   If the required `directory` field is missing from the JSON body.
+    *   If the required `directory` field is missing from the JSON body. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Missing required 'directory' field in request body."
+            "message": "User input error: Missing required 'directory' field in request body."
         }
         ```
-    *   If the provided `keep` value is not an integer.
+    *   If the provided `keep` value is not an integer. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Invalid 'keep' value. Must be an integer."
+            "message": "User input error: Invalid 'keep' value. Must be an integer."
         }
         ```
-    *   If the provided `directory` value is an empty string.
+    *   If the provided `directory` value is an empty string. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Download directory cannot be empty."
+            "message": "User input error: Download directory cannot be empty."
         }
         ```
-    *   If the resolved `keep` value (from request or settings) is negative or invalid.
+    *   If the resolved `keep` value (from request or settings) is negative or invalid. Message from `ConfigurationError` or `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to prune downloads: Keep count cannot be negative"
+            "message": "User input error: Keep count cannot be negative"
         }
         ```
         *or*
         ```json
         {
              "status": "error",
-             "message": "Failed to prune downloads: Invalid DOWNLOAD_KEEP setting ('abc'): could not convert string to int: 'abc'"
+             "message": "Configuration error: Invalid DOWNLOAD_KEEP setting ('abc'): could not convert string to int: 'abc'"
         }
         ```
 
@@ -4806,27 +4915,35 @@ Indicates that the pruning process completed successfully (even if no files were
         }
         ```
         *(Or a more specific message for invalid tokens)*
-
-*   **`500 Internal Server Error`**:
-    *   If the specified `directory` does not exist or is not a directory (`DirectoryError`).
+*   **`404 Not Found`**:
+    *   If the specified `directory` does not exist. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to prune downloads: Download directory '/path/does/not/exist' does not exist or is not a directory. Cannot prune."
+            "message": "Required file or directory not found at path: /path/to/your/downloads/non_existent_dir. Cannot prune."
         }
         ```
-    *   If there's an error accessing files within the directory or deleting an old file (e.g., permission denied, disk errors) (`FileOperationError`, `OSError`).
+
+*   **`500 Internal Server Error`**:
+    *   If the specified `directory` is not a directory. Message from `FileOperationError`.
         ```json
         {
             "status": "error",
-            "message": "Failed to prune downloads: Failed to delete old server download '/path/to/cache/bedrock-server-old.zip': [Errno 13] Permission denied"
+            "message": "File operation error: Download path '/path/is/a/file' is not a directory. Cannot prune."
+        }
+        ```
+    *   If there's an error accessing files within the directory or deleting an old file (e.g., permission denied, disk errors). Message from `FileOperationError`.
+        ```json
+        {
+            "status": "error",
+            "message": "File operation error: Failed to delete old server download '/path/to/cache/bedrock-server-old.zip': [Errno 13] Permission denied"
         }
         ```
         *or if multiple deletions were attempted but some failed:*
         ```json
         {
             "status": "error",
-            "message": "Failed to prune downloads: Failed to delete all required old downloads (1 failed). Check logs."
+            "message": "File operation error: Failed to delete all required old downloads (1 failed). Check logs."
         }
         ```
     *   If an unexpected error occurs during the pruning process.
@@ -4925,30 +5042,30 @@ None.
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If `server_name` or `server_version` fields are missing or not strings.
+    *   If `server_name` or `server_version` fields are missing or not strings. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Server name (string) is required." }
+        { "status": "error", "message": "User input error: Server name (string) is required." }
         ```
          *or*
         ```json
-        { "status": "error", "message": "Server version (string) is required." }
+        { "status": "error", "message": "User input error: Server version (string) is required." }
         ```
-    *   If the `overwrite` field is present but not a boolean (`true` or `false`).
+    *   If the `overwrite` field is present but not a boolean (`true` or `false`). Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "'overwrite' flag must be true or false." }
+        { "status": "error", "message": "User input error: 'overwrite' flag must be true or false." }
         ```
-    *   If the provided `server_name` contains invalid characters or format based on validation rules.
+    *   If the provided `server_name` contains invalid characters or format based on validation rules. Message from `InvalidServerNameError`.
         ```json
-        { "status": "error", "message": "Server name format is invalid: Cannot contain spaces." }
+        { "status": "error", "message": "Invalid server name provided: Server name format is invalid: Cannot contain spaces." }
         ```
         *(Example validation message)*
-    *   If other input validation fails (`TypeError`, `MissingArgumentError`).
+    *   If other input validation fails. Message from `MissingArgumentError`.
         ```json
-        { "status": "error", "message": "Invalid input: ..." }
+        { "status": "error", "message": "User input error: Missing required argument." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -4958,30 +5075,30 @@ None.
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR`, `DOWNLOAD_DIR`, `BACKUP_DIR`, or the main config directory cannot be determined (`FileOperationError`).
+    *   If essential configuration settings like `BASE_DIR`, `DOWNLOAD_DIR`, `BACKUP_DIR`, or the main config directory cannot be determined. Message from `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Configuration or File error: BASE_DIR setting is missing or empty in configuration." }
+        { "status": "error", "message": "Configuration error: BASE_DIR setting is missing or empty in configuration." }
         ```
-    *   If `overwrite` is `true` but deleting the existing server data fails (`DirectoryError` or errors from the delete process).
+    *   If `overwrite` is `true` but deleting the existing server data fails. Message from `FileOperationError` or other errors from the delete process.
         ```json
-        { "status": "error", "message": "Failed to delete existing server data before overwrite: Failed to stop server '<server_name>' before deletion: ... Deletion aborted." }
+        { "status": "error", "message": "File operation error: Failed to delete existing server data before overwrite: Failed to stop server '<server_name>' before deletion: ... Deletion aborted." }
         ```
-    *   If writing the initial server configuration fails (`FileOperationError`).
+    *   If writing the initial server configuration fails. Message from `FileOperationError` or `ConfigParseError`.
         ```json
-        { "status": "error", "message": "Failed to write initial configuration for server '<server_name>'. Error: ..." }
+        { "status": "error", "message": "File operation error: Failed to write initial configuration for server '<server_name>'. Error: ..." }
         ```
     *   If any step of the `download_and_install_server` process fails:
-        *   Internet connectivity check (`InternetConnectivityError`).
-        *   Download URL lookup (`InternetConnectivityError`, `DownloadExtractError`).
-        *   File download (`InternetConnectivityError`, `FileOperationError`).
-        *   File extraction (`DownloadExtractError`, `FileOperationError`).
-        *   Final config write (version/status) (`FileOperationError`).
+        *   Internet connectivity check. Message from `InternetConnectivityError`.
+        *   Download URL lookup. Message from `InternetConnectivityError`, `DownloadError`.
+        *   File download. Message from `DownloadError`, `FileOperationError`.
+        *   File extraction. Message from `ExtractError`, `FileOperationError`.
+        *   Final config write (version/status). Message from `FileOperationError`.
         ```json
-        { "status": "error", "message": "Server Installation failed: Failed to fetch download page ..." }
+        { "status": "error", "message": "Network error: Server Installation failed: Failed to fetch download page ..." }
         ```
         *or*
         ```json
-        { "status": "error", "message": "Server Installation failed: Failed to extract server files ..." }
+        { "status": "error", "message": "File error: Server Installation failed: Failed to extract server files ..." }
         ```
         *(Specific error message from the underlying failure will be included)*
     *   If an unexpected error occurs during the process.
@@ -5067,17 +5184,17 @@ Returned when the cron job line is successfully added to the crontab.
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If the `new_cron_job` field is missing, not a string, or empty/whitespace only.
+    *   If the `new_cron_job` field is missing, not a string, or empty/whitespace only. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Cron job string ('new_cron_job') is required in request body." }
+        { "status": "error", "message": "User input error: Cron job string ('new_cron_job') is required in request body." }
         ```
-    *   If `server_name` is invalid (e.g. empty) (`MissingArgumentError` from API).
+    *   If `server_name` is invalid (e.g. empty). Message from `InvalidServerNameError` or `MissingArgumentError`.
         ```json
-        { "status": "error", "message": "Invalid input: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5086,20 +5203,20 @@ Returned when the cron job line is successfully added to the crontab.
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Linux operating system.
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Linux operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Adding cron jobs is only supported on Linux." }
+        { "status": "error", "message": "System error: Adding cron jobs is only supported on Linux." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If the `crontab` command is not found (`CommandNotFoundError`).
+    *   If the `crontab` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Error adding cron job: Command 'crontab' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'crontab'" }
         ```
-    *   If reading or writing the crontab file fails (permissions, OS errors) (`ScheduleError`).
+    *   If reading or writing the crontab file fails (permissions, OS errors). Message from `SystemError` or `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error adding cron job: Failed to write updated crontab. Return code: 1. Stderr: ..." }
+        { "status": "error", "message": "System error: Failed to write updated crontab. Return code: 1. Stderr: ..." }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -5179,21 +5296,21 @@ Returned when the specified `old_cron_job` is found and successfully replaced wi
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If `old_cron_job` or `new_cron_job` fields are missing, not strings, or empty/whitespace only.
+    *   If `old_cron_job` or `new_cron_job` fields are missing, not strings, or empty/whitespace only. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Original cron job string ('old_cron_job') is required." }
+        { "status": "error", "message": "User input error: Original cron job string ('old_cron_job') is required." }
         ```
         *or*
         ```json
-        { "status": "error", "message": "New cron job string ('new_cron_job') is required." }
+        { "status": "error", "message": "User input error: New cron job string ('new_cron_job') is required." }
         ```
-    *   If `server_name` is invalid (e.g. empty).
+    *   If `server_name` is invalid (e.g. empty). Message from `InvalidServerNameError`.
         ```json
-        { "status": "error", "message": "Invalid input: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5202,26 +5319,25 @@ Returned when the specified `old_cron_job` is found and successfully replaced wi
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Linux operating system.
-        ```json
-        { "status": "error", "message": "Modifying cron jobs is only supported on Linux." }
-        ```
-
 *   **`404 Not Found`**:
-    *   If the exact `old_cron_job` string is not found in the current user's crontab (`ScheduleError` from core).
+    *   If the exact `old_cron_job` string is not found in the current user's crontab. Message from `UserInputError` (as the job to modify wasn't found).
         ```json
-        { "status": "error", "message": "Could not modify: Cron job to modify was not found in the current crontab: '<old_cron_job_string>'" }
+        { "status": "error", "message": "User input error: Cron job to modify was not found in the current crontab: '<old_cron_job_string>'" }
+        ```
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Linux operating system. Message from `NotImplementedError` or `SystemError`.
+        ```json
+        { "status": "error", "message": "System error: Modifying cron jobs is only supported on Linux." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If the `crontab` command is not found (`CommandNotFoundError`).
+    *   If the `crontab` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Error modifying cron job: Command 'crontab' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'crontab'" }
         ```
-    *   If reading or writing the crontab file fails (permissions, OS errors) (`ScheduleError`).
+    *   If reading or writing the crontab file fails (permissions, OS errors). Message from `SystemError` or `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error modifying cron job: Failed to write modified crontab. Return code: 1. Stderr: ..." }
+        { "status": "error", "message": "System error: Failed to write modified crontab. Return code: 1. Stderr: ..." }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -5291,13 +5407,13 @@ Returned when the deletion attempt completes. This response is returned even if 
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the `cron_string` query parameter is missing or empty.
+    *   If the `cron_string` query parameter is missing or empty. Message from `MissingArgumentError`.
         ```json
-        { "status": "error", "message": "Cron job string ('cron_string') is required as a query parameter." }
+        { "status": "error", "message": "User input error: Cron job string ('cron_string') is required as a query parameter." }
         ```
-    *   If `server_name` is invalid (e.g. empty).
+    *   If `server_name` is invalid (e.g. empty). Message from `InvalidServerNameError`.
         ```json
-        { "status": "error", "message": "Invalid input: Server name cannot be empty." }
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5306,20 +5422,20 @@ Returned when the deletion attempt completes. This response is returned even if 
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Linux operating system.
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Linux operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Deleting cron jobs is only supported on Linux." }
+        { "status": "error", "message": "System error: Deleting cron jobs is only supported on Linux." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If the `crontab` command is not found (`CommandNotFoundError`).
+    *   If the `crontab` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Error deleting cron job: Command 'crontab' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'crontab'" }
         ```
-    *   If reading or writing the crontab file fails (permissions, OS errors) (`ScheduleError`).
+    *   If reading or writing the crontab file fails (permissions, OS errors). Message from `SystemError` or `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error deleting cron job: Failed to write updated crontab after deletion. Return code: 1. Stderr: ..." }
+        { "status": "error", "message": "System error: Failed to write updated crontab after deletion. Return code: 1. Stderr: ..." }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -5414,29 +5530,29 @@ Returned when the task XML is generated and successfully imported into Task Sche
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If the `command` field is missing or not one of the allowed values.
+    *   If the `command` field is missing or not one of the allowed values. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing 'command'. Must be one of: [...]" }
+        { "status": "error", "message": "User input error: Invalid or missing 'command'. Must be one of: [...]" }
         ```
-    *   If the `triggers` list is missing, empty, or contains invalid trigger objects (missing `type`/`start`, invalid type, invalid interval/day/month format).
+    *   If the `triggers` list is missing, empty, or contains invalid trigger objects (missing `type`/`start`, invalid type, invalid interval/day/month format). Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Missing or invalid 'triggers' list in request body. At least one trigger is required." }
-        ```
-        *or*
-        ```json
-        { "status": "error", "message": "Invalid input: Weekly trigger requires a list of 'days'." }
+        { "status": "error", "message": "User input error: Missing or invalid 'triggers' list in request body. At least one trigger is required." }
         ```
         *or*
         ```json
-        { "status": "error", "message": "Invalid input: Invalid day of week: 'Munday'. Use name, abbreviation, or number 1-7 (Mon-Sun)." }
+        { "status": "error", "message": "User input error: Weekly trigger requires a list of 'days'." }
         ```
-    *   If `server_name` is invalid.
+        *or*
         ```json
-        { "status": "error", "message": "Invalid input: Server name cannot be empty." }
+        { "status": "error", "message": "User input error: Invalid day of week: 'Munday'. Use name, abbreviation, or number 1-7 (Mon-Sun)." }
+        ```
+    *   If `server_name` is invalid. Message from `InvalidServerNameError`.
+        ```json
+        { "status": "error", "message": "Invalid server name provided: Server name cannot be empty." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5445,28 +5561,28 @@ Returned when the task XML is generated and successfully imported into Task Sche
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Windows operating system.
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Adding Windows tasks is only supported on Windows." }
+        { "status": "error", "message": "System error: Adding Windows tasks is only supported on Windows." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory or `EXPATH` (path to manager script) cannot be determined (`FileOperationError`).
+    *   If essential configuration like the main config directory or `EXPATH` (path to manager script) cannot be determined. Message from `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Error creating task: Base configuration directory is not set or available." }
+        { "status": "error", "message": "Configuration error: Base configuration directory is not set or available." }
         ```
-    *   If creating the task XML file fails (permissions, disk full) (`TaskError`).
+    *   If creating the task XML file fails (permissions, disk full). Message from `FileOperationError`.
         ```json
-        { "status": "error", "message": "Error creating task: Failed to write task XML file: [Errno 13] Permission denied: 'C:\\path\\config\\MyServer\\task_....xml'" }
+        { "status": "error", "message": "File operation error: Failed to write task XML file: [Errno 13] Permission denied: 'C:\\path\\config\\MyServer\\task_....xml'" }
         ```
-    *   If the `schtasks` command is not found (`CommandNotFoundError`).
+    *   If the `schtasks` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Error creating task: Command 'schtasks' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'schtasks'" }
         ```
-    *   If importing the generated XML using `schtasks /Create` fails (e.g., access denied, invalid XML content) (`TaskError`).
+    *   If importing the generated XML using `schtasks /Create` fails (e.g., access denied, invalid XML content). Message from `SystemError`.
         ```json
-        { "status": "error", "message": "Error creating task: Failed to import task '<task_name>' using 'schtasks /Create'. Return Code: 1. Error: ERROR: Access is denied." }
+        { "status": "error", "message": "System error: Failed to import task '<task_name>' using 'schtasks /Create'. Return Code: 1. Error: ERROR: Access is denied." }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -5559,13 +5675,13 @@ Returned when the task XML file is found and successfully parsed.
 #### Error Responses
 
 *   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If the `task_name` field is missing or not a string.
+    *   If the `task_name` field is missing or not a string. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Missing or invalid 'task_name' in request body." }
+        { "status": "error", "message": "User input error: Missing or invalid 'task_name' in request body." }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5574,30 +5690,29 @@ Returned when the task XML file is found and successfully parsed.
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Windows operating system.
-        ```json
-        { "status": "error", "message": "Windows Task Scheduler functions are only supported on Windows." }
-        ```
-
 *   **`404 Not Found`**:
-    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`.config/<server_name>/...xml`).
+    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`.config/<server_name>/...xml`). Message from `AppFileNotFoundError`.
         ```json
-        { "status": "error", "message": "Task configuration not found: Configuration XML file for task '<task_name>' not found." }
+        { "status": "error", "message": "Required file or directory not found at path: Configuration XML file for task '<task_name>' not found." }
+        ```
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
+        ```json
+        { "status": "error", "message": "System error: Windows Task Scheduler functions are only supported on Windows." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory cannot be determined (`FileOperationError`).
+    *   If essential configuration like the main config directory cannot be determined. Message from `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Configuration or input error: Base configuration directory not set." }
+        { "status": "error", "message": "Configuration error: Base configuration directory not set." }
         ```
-    *   If the found XML file cannot be parsed (invalid XML, missing essential elements) (`TaskError`).
+    *   If the found XML file cannot be parsed (invalid XML, missing essential elements). Message from `ConfigParseError`.
         ```json
-        { "status": "error", "message": "Error parsing task configuration: Error parsing task configuration XML: no element found: line 1, column 0" }
+        { "status": "error", "message": "Failed to parse configuration file: Error parsing task configuration XML: no element found: line 1, column 0" }
         ```
         *or*
         ```json
-        { "status": "error", "message": "Error parsing task configuration: Invalid or incomplete task XML structure: ..." }
+        { "status": "error", "message": "Failed to parse configuration file: Invalid or incomplete task XML structure: ..." }
         ```
     *   If an unexpected error occurs during the process.
         ```json
@@ -5676,13 +5791,13 @@ Returned when the old task is successfully deleted (or wasn't found) and the new
         // Flask routing error, not JSON response
         404 Not Found
         ```
-    *   If the request body is missing or not valid JSON.
+    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing JSON request body." }
+        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If validation of the *new* `command` or `triggers` in the request body fails (see "Add Windows Task" errors).
+    *   If validation of the *new* `command` or `triggers` in the request body fails (see "Add Windows Task" errors). Message from `UserInputError`.
         ```json
-        { "status": "error", "message": "Invalid or missing 'command'. Must be one of: [...]" }
+        { "status": "error", "message": "User input error: Invalid or missing 'command'. Must be one of: [...]" }
         ```
 
 *   **`401 Unauthorized`**:
@@ -5691,20 +5806,20 @@ Returned when the old task is successfully deleted (or wasn't found) and the new
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Windows operating system.
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Modifying Windows tasks is only supported on Windows." }
+        { "status": "error", "message": "System error: Modifying Windows tasks is only supported on Windows." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If deleting the *old* task from Task Scheduler fails (e.g., access denied) (`TaskError`).
+    *   If deleting the *old* task from Task Scheduler fails (e.g., access denied). Message from `SystemError`.
         ```json
-        { "status": "error", "message": "Error modifying task: Access denied deleting task '<old_task_name>'. Try running as Administrator." }
+        { "status": "error", "message": "System error: Access denied deleting task '<old_task_name>'. Try running as Administrator." }
         ```
-    *   If creating or importing the *new* task fails (config errors, XML errors, `schtasks` errors - see "Add Windows Task" errors) (`TaskError`, `FileOperationError`, `CommandNotFoundError`).
+    *   If creating or importing the *new* task fails (config errors, XML errors, `schtasks` errors - see "Add Windows Task" errors). Messages from `SystemError`, `FileOperationError`, `CommandNotFoundError`, `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Error modifying task: Error creating task: Failed to import task '<new_task_name>' using 'schtasks /Create'. ... " }
+        { "status": "error", "message": "System error: Error creating task: Failed to import task '<new_task_name>' using 'schtasks /Create'. ... " }
         ```
     *   If an unexpected error occurs during the delete or create phases.
         ```json
@@ -5795,28 +5910,28 @@ Returned when the task deletion from Task Scheduler completes (or if the task wa
         { "error": "Unauthorized", "message": "Authentication required." }
         ```
 
-*   **`403 Forbidden`**:
-    *   If the request is made on a non-Windows operating system.
+*   **`501 Not Implemented`**:
+    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "Deleting Windows tasks is only supported on Windows." }
+        { "status": "error", "message": "System error: Deleting Windows tasks is only supported on Windows." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory cannot be determined (`FileOperationError`).
+    *   If essential configuration like the main config directory cannot be determined. Message from `ConfigurationError`.
         ```json
-        { "status": "error", "message": "Configuration or input error: Base configuration directory not set." }
+        { "status": "error", "message": "Configuration error: Base configuration directory not set." }
         ```
-    *   If deleting the task from Task Scheduler using `schtasks /Delete` fails (e.g., access denied) (`TaskError`).
+    *   If deleting the task from Task Scheduler using `schtasks /Delete` fails (e.g., access denied). Message from `SystemError`.
         ```json
-        { "status": "error", "message": "Task deletion completed with errors: Scheduler deletion failed (Access denied deleting task '<task_name>'. Try running as Administrator.)" }
+        { "status": "error", "message": "System error: Scheduler deletion failed (Access denied deleting task '<task_name>'. Try running as Administrator.)" }
         ```
-    *   If deleting the task's XML configuration file fails (e.g., permissions) (`FileOperationError`, reported in message).
+    *   If deleting the task's XML configuration file fails (e.g., permissions). Message from `FileOperationError` (reported in message).
         ```json
-        { "status": "error", "message": "Task deletion completed with errors: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\.config\\<server_name>\\<task_name>.xml')" }
+        { "status": "error", "message": "File operation error: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\.config\\<server_name>\\<task_name>.xml')" }
         ```
-    *   If the `schtasks` command is not found (`CommandNotFoundError`).
+    *   If the `schtasks` command is not found. Message from `CommandNotFoundError`.
         ```json
-        { "status": "error", "message": "Error deleting task: Command 'schtasks' not found in system PATH." }
+        { "status": "error", "message": "System command not found: 'schtasks'" }
         ```
     *   If an unexpected error occurs during the process.
         ```json

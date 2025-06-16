@@ -1,0 +1,10 @@
+# bedrock_server_manager/__init__.py
+from bedrock_server_manager.config.const import get_installed_version
+from bedrock_server_manager.config.settings import Settings
+from bedrock_server_manager.core.manager import BedrockServerManager
+from bedrock_server_manager.core.downloader import BedrockDownloader
+from bedrock_server_manager.core.bedrock_server import BedrockServer
+from bedrock_server_manager.core.system.task_scheduler import LinuxTaskScheduler
+from bedrock_server_manager.core.system.task_scheduler import WindowsTaskScheduler
+
+__version__ = get_installed_version()

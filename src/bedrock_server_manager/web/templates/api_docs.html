@@ -1,0 +1,1281 @@
+﻿<!-- bedrock_server_manager//web/templates/api_docs.html -->
+{% extends "base.html" %}
+
+{# --- Page Title --- #}
+{% block title %}API Quick Reference - {{ super() }}{% endblock %}
+
+{# --- Specific Styles for API Docs --- #}
+{% block head_styles %}
+    {# Add specific styles for API docs elements on top of base CSS #}
+<style>
+    /* --- Table of Contents --- */
+    #api-toc {
+        background-color: #3a3a3a;
+        padding: 15px 20px;
+        margin-bottom: 30px;
+        border: 1px solid #505050;
+        max-width: 800px; /* Limit width */
+    }
+
+        #api-toc h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            color: #eee;
+            border-bottom: 1px solid #5f5f5f;
+            padding-bottom: 8px;
+        }
+
+        #api-toc ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            column-count: 2; /* Two columns for TOC */
+            column-gap: 20px;
+        }
+
+            #api-toc ul li {
+                margin-bottom: 8px;
+            }
+
+                #api-toc ul li a {
+                    color: #b3e5fc; /* Light blue */
+                    text-decoration: none;
+                    font-size: 0.95em;
+                    display: block; /* Ensure full clickable area */
+                }
+
+                    #api-toc ul li a:hover {
+                        color: #e1f5fe; /* Lighter blue on hover */
+                        text-decoration: underline;
+                    }
+    /* Responsive TOC */
+    @media (max-width: 768px) {
+        #api-toc ul {
+            column-count: 1; /* Single column on smaller screens */
+        }
+    }
+
+
+    /* --- Section & Endpoint Structure --- */
+    .api-section {
+        margin-bottom: 35px;
+        padding-bottom: 25px;
+        border-bottom: 1px solid #555; /* Separator between major sections */
+    }
+
+        .api-section:last-child {
+            border-bottom: none; /* No border after the last section */
+        }
+
+    .api-endpoint {
+        margin-bottom: 25px;
+        padding: 15px 20px;
+        background-color: #3f3f3f; /* Slightly lighter background for endpoints */
+        border: 1px solid #505050;
+        border-radius: 0;
+        position: relative; /* For potential future absolute elements if needed */
+    }
+    /* Don't add extra bottom margin to the last endpoint in a section */
+    .api-section .api-endpoint:last-child {
+        margin-bottom: 0;
+    }
+
+    /* --- Headings --- */
+    h1.api-title { /* Specific style for the main H1 of this page */
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #666;
+        font-size: 1.8em; /* Slightly smaller than main site title */
+    }
+
+    .api-section > h2 { /* Major section titles (Auth, Server Actions...) */
+        margin-top: 0;
+        margin-bottom: 25px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed #555;
+        font-size: 1.6em;
+        color: #eee;
+    }
+
+    .api-endpoint h3 { /* Endpoint title (includes method tag & path) */
+        margin-top: 0;
+        margin-bottom: 15px;
+        display: flex; /* Align method tag and text */
+        align-items: center;
+        flex-wrap: wrap; /* Allow wrapping on small screens */
+        gap: 10px; /* Space between tag and text */
+        font-size: 1.4em;
+        color: #f0f0f0;
+        line-height: 1.3;
+    }
+
+    .api-endpoint h4 { /* Sub-headings within an endpoint (Auth, Body, Response...) */
+        margin-top: 20px;
+        margin-bottom: 8px;
+        font-size: 1.1em;
+        color: #ddd;
+        border-bottom: 1px dotted #5f5f5f;
+        padding-bottom: 5px;
+        font-weight: 600;
+    }
+
+        .api-endpoint h4:first-of-type {
+            margin-top: 15px; /* Reduce top margin for the very first h4 */
+        }
+
+    /* --- Method Tags --- */
+    .method-tag {
+        display: inline-block;
+        padding: 3px 8px;
+        font-size: 0.75em; /* Smaller font */
+        font-weight: bold;
+        line-height: 1.2;
+        border-radius: 0; /* Keep sharp */
+        color: #fff;
+        text-transform: uppercase;
+        vertical-align: middle; /* Align nicely with text */
+        flex-shrink: 0; /* Prevent shrinking */
+        border-width: 1px;
+        border-style: solid;
+    }
+
+    .method-get {
+        background-color: #4CAF50;
+        border-color: #66BB6A;
+    }
+    /* Green */
+    .method-post {
+        background-color: #1E88E5;
+        border-color: #42A5F5;
+    }
+    /* Blue */
+    .method-put {
+        background-color: #FB8C00;
+        border-color: #FFB74D;
+    }
+    /* Orange */
+    .method-delete {
+        background-color: #D32F2F;
+        border-color: #E57373;
+    }
+    /* Red */
+
+    /* --- Endpoint Path --- */
+    .endpoint-path {
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        background-color: #4a4a4a;
+        padding: 2px 6px;
+        border-radius: 0;
+        font-size: 0.95em;
+        color: #eee;
+        word-break: break-all; /* Allow long paths to wrap */
+    }
+
+    /* --- Code Blocks --- */
+    /* Base style for elements explicitly marked as .api-code-block
+       AND for <pre> tags directly within an .api-endpoint */
+    .api-code-block,
+    .api-endpoint pre {
+        background-color: #282828; /* Darker background for contrast */
+        color: #f0f0f0;
+        border: 1px solid #444;
+        padding: 12px 15px;
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-size: 0.9em;
+        line-height: 1.4;
+        overflow-x: auto; /* Enable horizontal scroll */
+        white-space: pre; /* Preserve whitespace */
+        border-radius: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+        box-sizing: border-box;
+        display: block; /* Ensure block display */
+        max-width: 100%; /* Prevent overflow issues */
+    }
+
+        /* Reset padding/border if <code> is directly inside a styled <pre> */
+        .api-endpoint pre > code {
+            padding: 0;
+            border: none;
+            background: none; /* Inherit from pre */
+            color: inherit; /* Inherit from pre */
+            font-family: inherit; /* Inherit from pre */
+            font-size: inherit; /* Inherit from pre */
+            white-space: inherit; /* Inherit from pre */
+            display: inline; /* Code is inline within pre */
+            /* Remove any specific .api-code-block styles if <code> has it */
+            margin: 0;
+            max-width: none;
+            overflow-x: visible;
+            box-sizing: content-box; /* Reset from parent pre */
+        }
+
+    /* Style for the back link */
+    .back-to-docs-link {
+        display: inline-block; /* Or block if you want it on its own line */
+        margin-bottom: 1.5em;
+        font-size: 0.95em;
+    }
+
+        .back-to-docs-link a {
+            color: #90CAF9;
+            text-decoration: none;
+        }
+
+            .back-to-docs-link a:hover {
+                color: #BBDEFB;
+                text-decoration: underline;
+            }
+
+    /* --- Lists & Parameters --- */
+    .api-endpoint ul {
+        list-style: disc;
+        margin-left: 25px; /* Indent list */
+        padding: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+    }
+
+    .api-endpoint ol { /* Style for ordered lists */
+        list-style: decimal;
+        margin-left: 25px;
+        padding: 0;
+        margin-top: 8px;
+        margin-bottom: 15px;
+    }
+
+    .api-endpoint li {
+        margin-bottom: 6px;
+        line-height: 1.5;
+    }
+
+        .api-endpoint li code { /* Inline code within list items */
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            background-color: #4f4f4f; /* Slightly different inline code bg */
+            padding: 1px 5px;
+            font-size: 0.9em;
+            border-radius: 0;
+            color: #eee;
+        }
+
+    .param-name { /* Style for parameter names */
+        font-family: "Consolas", "Monaco", "Courier New", monospace;
+        font-weight: bold;
+        color: #ddd;
+    }
+
+    .param-type { /* Style for parameter types (string, boolean...) */
+        font-style: italic;
+        color: #bbb;
+        margin-left: 5px;
+        font-size: 0.95em;
+    }
+
+    .param-required { /* Style for "(Required)" text */
+        font-weight: normal;
+        font-style: normal;
+        color: #ffb74d; /* Amber color */
+        font-size: 0.85em;
+        margin-left: 8px;
+    }
+
+    .param-optional { /* Style for "(Optional)" text */
+        font-weight: normal;
+        font-style: normal;
+        color: #90caf9; /* Light blue color */
+        font-size: 0.85em;
+        margin-left: 8px;
+    }
+
+    /* --- Responsive Adjustments (Complementary to base CSS) --- */
+    @media (max-width: 768px) {
+        .api-endpoint h3 {
+            font-size: 1.3em;
+        }
+
+        .api-endpoint h4 {
+            font-size: 1.05em;
+        }
+
+        .api-endpoint {
+            padding: 12px 15px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .api-endpoint h3 {
+            font-size: 1.2em;
+            gap: 8px;
+        }
+
+        .method-tag {
+            font-size: 0.7em;
+            padding: 2px 6px;
+        }
+
+        .endpoint-path {
+            font-size: 0.9em;
+        }
+
+        .api-endpoint h4 {
+            font-size: 1em;
+        }
+
+        .api-endpoint {
+            padding: 10px 12px;
+        }
+
+            .api-endpoint ul {
+                margin-left: 20px;
+            }
+
+            .api-code-block, .api-endpoint pre { /* Ensure responsive font for code blocks */
+                font-size: 0.85em;
+                padding: 10px;
+            }
+    }
+</style>
+{% endblock %}
+
+{# --- Main Content Area --- #}
+{% block content %}
+<h1 class="api-title">Bedrock Server Manager - HTTP API Quick Reference</h1>
+
+    {# --- Link back to the Documentation Index --- #}
+<p class="back-to-docs-link">
+    <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+</p>
+
+<p>This document provides a concise overview of the HTTP API endpoints for interacting with the Bedrock Server Manager.</p>
+
+{# --- Table of Contents --- #}
+<nav id="api-toc">
+    <h3>Table of Contents</h3>
+    <ul>
+        <li><a href="#section-introduction">Introduction</a></li>
+        <li><a href="#section-global-validation">Global Validation</a></li>
+        <li><a href="#section-authentication">Authentication</a></li>
+        <li><a href="#section-application-information">Application Information</a></li>
+        <li><a href="#section-server-information">Server Information</a></li>
+        <li><a href="#section-server-actions">Server Actions</a></li>
+        <li><a href="#section-backup-restore">Backup & Restore</a></li>
+        <li><a href="#section-world-addon">World & Addon Mgmt</a></li>
+        <li><a href="#section-player-management">Player Management</a></li>
+        <li><a href="#section-configuration">Configuration</a></li>
+        <li><a href="#section-downloads">Downloads</a></li>
+        <li><a href="#section-server-installation">Server Installation</a></li>
+        <li><a href="#section-task-scheduler">Task Scheduler (OS Specific)</a></li>
+    </ul>
+</nav>
+
+
+{# --- Introduction Section (copied from MD) --- #}
+<div class="api-section" id="section-introduction">
+    <h2>Introduction</h2>
+    <h4>Base URL:</h4>
+    <p>All endpoint paths are relative to the base URL where the manager's web server is running. Replace <code class="endpoint-path">http://<your-manager-host>:<port></code> with the actual address. The default port is <code class="endpoint-path">11325</code> (configurable via the <code class="param-name">WEB_PORT</code> setting).</p>
+
+    <h4>Authentication:</h4>
+    <p>Most API endpoints require authentication. This is done by providing a JSON Web Token (JWT) obtained from the <code class="endpoint-path">/api/login</code> endpoint. Include the token in the <code class="param-name">Authorization</code> header as a Bearer token:</p>
+    <pre><code class="api-code-block">Authorization: Bearer YOUR_JWT_TOKEN</code></pre>
+    <p>The token expiration duration is configurable via the <code class="param-name">TOKEN_EXPIRES_WEEKS</code> setting, defaulting to 4 weeks.</p>
+
+    <h4>Content-Type:</h4>
+    <p>For requests that include data in the body (POST, PUT), the <code class="param-name">Content-Type</code> header should be set to <code class="endpoint-path">application/json</code>. Responses from the API will typically have a <code class="param-name">Content-Type</code> of <code class="endpoint-path">application/json</code>.</p>
+
+    <h4>Standard Responses:</h4>
+    <ul>
+        <li>
+            <strong>Success:</strong> Typically returns HTTP status <code>200 OK</code>, <code>201 Created</code> with a JSON body like:
+            <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Operation completed successfully.",
+    "data_key": "optional_data"
+}</code></pre>
+            <em>(Specific <code class="param-name">data_key</code> names vary by endpoint)</em>
+        </li>
+        <li>
+            <strong>Error:</strong> Typically returns HTTP status <code>4xx</code> (Client Error) or <code>5xx</code> (Server Error) with a JSON body like:
+            <pre><code class="api-code-block">{
+    "status": "error",
+    "message": "A description of the error.",
+    "errors": { // Optional: Field-specific validation errors
+        "field_name": "Specific error for this field."
+    }
+}</code></pre>
+            Common error codes:
+            <ul>
+                <li><code>400 Bad Request</code>: Invalid input, missing parameters, validation failed, invalid format (e.g., not JSON).</li>
+                <li><code>401 Unauthorized</code>: Authentication token missing or invalid (for JWT protected routes).</li>
+                <li><code>403 Forbidden</code>: Authenticated user lacks permission (or OS mismatch for platform-specific endpoints like scheduling).</li>
+                <li><code>404 Not Found</code>: Server, task, file, or endpoint not found.</li>
+                <li><code>500 Internal Server Error</code>: An unexpected error occurred on the server during processing (e.g., file operation failure, configuration issue).</li>
+                <li><code>501 Not Implemented</code>: Feature not supported on the current OS (e.g., sending commands on Windows).</li>
+            </ul>
+        </li>
+    </ul>
+</div>
+
+{# --- Global Server Validation Section --- #}
+<div class="api-section" id="section-global-validation">
+    <h2>Global Server Validation (Request Pre-Processing)</h2>
+    <p>To enhance robustness and provide immediate feedback, the application implements a global pre-request validation check. This check runs <strong>before</strong> the actual route handler for most requests involving a specific server instance.</p>
+
+    <h4>Mechanism:</h4>
+    <ul>
+        <li>Uses Flask's <code class="param-name">@app.before_request</code> decorator.</li>
+        <li>Runs on <strong>every</strong> request received by the application.</li>
+    </ul>
+
+    <h4>Targeted URLs:</h4>
+    <ul>
+        <li>The validation logic specifically targets URL paths that contain the pattern <code class="endpoint-path">/server/<server_name>/</code>, where <code class="param-name"><server_name></code> is a segment in the path.</li>
+        <li>Examples: <code class="endpoint-path">/server/MyServer/status_info</code>, <code class="endpoint-path">/api/server/AnotherServer/stop</code>.</li>
+    </ul>
+
+    <h4>Bypassed URLs:</h4>
+    <ul>
+        <li>Paths related to server creation are excluded. Currently bypassed paths start with:</li>
+        <li><code class="endpoint-path">/server/install</code></li>
+        <li><code class="endpoint-path">/api/server/install</code></li>
+    </ul>
+
+    <h4>Validation Process:</h4>
+    <ol>
+        <li>If the path matches the target pattern (and isn't bypassed), <code class="param-name"><server_name></code> is extracted.</li>
+        <li>The internal function <code class="param-name">validate_server_exist</code> is called.</li>
+        <li>The result determines the outcome.</li>
+    </ol>
+
+    <h4>Outcomes:</h4>
+    <ul>
+        <li><strong>Success:</strong> Request proceeds normally.</li>
+        <li>
+            <strong>Failure (Server Not Found):</strong>
+            <ul>
+                <li>
+                    <strong>API Requests (<code class="endpoint-path">/api/...</code>):</strong> Aborted with <code>404 Not Found</code>.
+                    <pre><code class="api-code-block">{ "status": "error", "message": "Server '<server_name>' not found." }</code></pre>
+                </li>
+                <li><strong>Web UI Requests:</strong> Redirected to dashboard (<code class="endpoint-path">/</code>) with a flash message.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Internal Validation Error:</strong> Aborted with <code>500 Internal Server Error</code>.
+            <pre><code class="api-code-block">{ "status": "error", "message": "Internal server error during server validation." }</code></pre>
+        </li>
+        <li><strong>No Match / Bypassed:</strong> Validation skipped.</li>
+    </ul>
+
+    <h4>Implications for API Users:</h4>
+    <ul>
+        <li>Requests to <code class="endpoint-path">/api/server/<server_name>/...</code> for a non-existent server will get an immediate <code>404</code>.</li>
+        <li>Ensure <code class="param-name">server_name</code> corresponds to a valid, existing server.</li>
+    </ul>
+</div>
+
+
+{# --- Authentication Section --- #}
+<div class="api-section" id="section-authentication">
+    <h2 id="auth-h2">Authentication</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-login"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/login</code></h3>
+        <p>Authenticates using username/password and returns a JWT.</p>
+        <h4>Authentication:</h4> <p>None.</p>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "username": "your_username",
+    "password": "your_plain_text_password"
+}</code></pre>
+        <ul>
+            <li><code class="param-name">username</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">password</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "access_token": "YOUR_JWT_TOKEN" }</code></pre>
+    </div>
+</div>
+
+{# --- Application Information Section --- #}
+<div class="api-section" id="section-application-information">
+    <h2 id="application-info-h2">Application Information</h2>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-info"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/info</code></h3>
+        <p>Retrieves the operating system type and the current application version.</p>
+        <h4>Authentication:</h4> <p>None.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+        "status": "success",
+        "data": {
+            "os_type": "Linux",  // Or "Windows"
+            "app_version": "3.2.1" // Application version
+        }
+    }</code></pre>
+        <p><em>(Error responses like <code class="http-status">500 Internal Server Error</code> can occur if an internal issue arises.)</em></p>
+    </div>
+</div> {# Closing section-application-information, was missing a /div before #}
+
+{# --- Server Information Section --- #}
+<div class="api-section" id="section-server-information">
+    <h2 id="server-info-h2">Server Information</h2>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-servers"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/servers</code></h3>
+        <p>Lists all detected server instances with configured status/version.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "servers": [
+        { "name": "server1", "status": "RUNNING", "version": "1.20.81.01" },
+        { "name": "server2", "status": "STOPPED", "version": "1.20.73.02" }
+        // ...
+    ]
+}</code></pre>
+        <p><em>(May include an optional <code class="param-name">message</code> field if errors occurred reading some server configs.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-world-name"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/world_name</code></h3>
+        <p>Gets the <code class="param-name">level-name</code> from <code class="endpoint-path">server.properties</code>.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "status": "success", "world_name": "Bedrock level" }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-running-status"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/running_status</code></h3>
+        <p>Checks if the server process is running.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "status": "success", "is_running": true | false }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-config-status"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/config_status</code></h3>
+        <p>Gets status stored in manager's config file for the server.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "status": "success", "config_status": "Installed | Stopped | Running | ..." }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-version"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/version</code></h3>
+        <p>Gets installed version stored in manager's config file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "status": "success", "installed_version": "1.20.81.01 | UNKNOWN" }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-validate"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/validate</code></h3>
+        <p>Checks if server directory and executable exist.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Responses:</h4>
+        <ul>
+            <li><code>200 OK</code>: Server exists. <pre><code class="api-code-block">{"status": "success", "message": "Server '...' exists and is valid."}</code></pre></li>
+            <li><code>404 Not Found</code>: Directory or executable missing. <pre><code class="api-code-block">{"status": "error", "message": "Server directory '...' not found."}</code></pre></li>
+        </ul>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-status-info"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/status_info</code></h3>
+        <p>Gets runtime process info (PID, CPU, Mem, Uptime) if running.</p>
+        <p><em>Note: CPU % is relative to previous check (first check is 0%).</em></p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <ul>
+            <li>
+                If running: <pre><code class="api-code-block">{
+    "status": "success",
+    "process_info": { "pid": ..., "cpu_percent": ..., "memory_mb": ..., "uptime": "..." }
+}</code></pre>
+            </li>
+            <li>
+                If not running: <pre><code class="api-code-block">{
+    "status": "success", "process_info": null, "message": "Server '...' is not running."
+}</code></pre>
+            </li>
+        </ul>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-server-player-permissions"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/<server_name>/permissions_data</code></h3>
+        <p>Retrieves player permissions from the server's <code>permissions.json</code>, optionally enriching with names from global <code>players.json</code>.</p>
+        <p>Path Parameter: <code>server_name</code> (string, required).</p>
+        <p>Query Parameters: <code>base_dir</code> (optional), <code>config_dir</code> (optional for name lookup).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "data": {
+        "permissions": [
+            { "xuid": "...", "name": "...", "permission_level": "..." }
+            // ... more players with permissions
+        ]
+    },
+    "message": "Optional contextual message (e.g., 'Server permissions file not found.')"
+}</code></pre>
+        <p><em>(If server's <code>permissions.json</code> is not found/empty, the <code>permissions</code> list will be empty. Error responses like <code class="http-status">400</code>, <code class="http-status">401</code>, <code class="http-status">404</code>, or <code class="http-status">500</code> can occur.)</em></p>
+    </div>
+</div>
+
+{# --- Server Actions Section --- #}
+<div class="api-section" id="section-server-actions">
+    <h2 id="server-actions-h2">Server Actions</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-start"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/start</code></h3>
+        <p>Starts the specified server instance.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server '...' started successfully."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-stop"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/stop</code></h3>
+        <p>Stops the specified server instance (graceful if possible).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server '...' stopped successfully."}</code></pre>
+        <em>or</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server '...' was already stopped."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-restart"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restart</code></h3>
+        <p>Restarts the server (stops if running, then starts).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server '...' restarted successfully."}</code></pre>
+        <em>or</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server '...' was not running and was started."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-send-command"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/send_command</code></h3>
+        <p>Sends command to running server console (Linux: screen, Windows: Named Pipes).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "command": "your server command" }</code></pre>
+        <ul><li><code class="param-name">command</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Command '...' sent successfully."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-update"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/update</code></h3>
+        <p>Checks for and installs latest/preview/specific version based on server config.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <ul>
+            <li>If updated: <pre><code class="api-code-block">{"status": "success", "updated": true, "new_version": "...", "message": "Server '...' update process completed. New version: ..." }</code></pre></li>
+            <li>If up-to-date: <pre><code class="api-code-block">{"status": "success", "updated": false, "new_version": "...", "message": "Server is already up-to-date." }</code></pre></li>
+        </ul>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="delete-api-server-delete"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/delete</code></h3>
+        <p><strong>Irreversibly deletes</strong> server instance (installation, config, backups).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "All data for server '...' deleted successfully."}</code></pre>
+    </div>
+</div>
+
+{# --- Backup & Restore Section --- #}
+<div class="api-section" id="section-backup-restore">
+    <h2 id="backup-restore-h2">Backup & Restore</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-backups-prune"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/backups/prune</code></h3>
+        <p>Deletes old backups, keeping specified number.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>, optional):</h4>
+        <pre><code class="api-code-block">{ "keep": number }</code></pre>
+        <ul><li><code class="param-name">keep</code><span class="param-type">(integer)</span><span class="param-optional">(Optional)</span>: Defaults to `BACKUP_KEEP` setting.</li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Backup pruning completed for server '...'."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-list-server-backup-filenames"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/<server_name>/backups/list/<backup_type></code></h3>
+        <p>Lists available backup **filenames (basenames only)** for a server and backup type ("world" or "config").</p>
+        <p>Path Parameters: <code>server_name</code> (required), <code>backup_type</code> (required: "world" or "config").</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "backups": [
+        "backup_file1.mcworld",
+        "backup_file2.mcworld"
+        // ... (empty list if no backups)
+    ]
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-backup-action"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/backup/action</code></h3>
+        <p>Triggers a backup (world, config file, or all).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <ul>
+            <li><pre><code class="api-code-block">{"backup_type": "world"}</code></pre></li>
+            <li><pre><code class="api-code-block">{"backup_type": "config", "file_to_backup": "relative/path/file.json"}</code></pre></li>
+            <li><pre><code class="api-code-block">{"backup_type": "all"}</code></pre></li>
+        </ul>
+        <ul>
+            <li><code class="param-name">backup_type</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">file_to_backup</code><span class="param-type">(string)</span><span class="param-required">(Required if `type` is `config`)</span></li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "... backup completed successfully ..."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-restore-action"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restore/action</code></h3>
+        <p><strong>Overwrites current files</strong> to restore world or config from specific backup.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <ul>
+            <li><pre><code class="api-code-block">{"restore_type": "world", "backup_file": "backup.mcworld"}</code></pre></li>
+            <li><pre><code class="api-code-block">{"restore_type": "config", "backup_file": "config_backup.json"}</code></pre></li>
+        </ul>
+        <ul>
+            <li><code class="param-name">restore_type</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: `"world"` or `"config"`.</li>
+            <li><code class="param-name">backup_file</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Relative path to the backup file inside `BACKUP_DIR`/{server_name}.</li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Restoration from '...' (type: ...) completed successfully."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-restore-all"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/restore/all</code></h3>
+        <p><strong>Overwrites current files</strong> to restore world and standard configs from *latest* backups.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Restore all completed successfully for server '...'."}</code></pre>
+    </div>
+</div>
+
+{# --- World & Addon Management Section --- #}
+<div class="api-section" id="section-world-addon">
+    <h2 id="world-addon-h2">World & Addon Management</h2>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-list-content-worlds"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/content/worlds</code></h3>
+        <p>Lists available world **filenames (basenames only)** from <code>CONTENT_DIR/worlds</code> (typically <code>.mcworld</code> files).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "files": [
+        "MyWorld.mcworld",
+        "AnotherWorld.mcworld"
+        // ... (empty list if no files)
+    ],
+    "message": "No matching files found." // Optional: if files list is empty
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-list-content-addons"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/content/addons</code></h3>
+        <p>Lists available addon **filenames (basenames only)** from <code>CONTENT_DIR/addons</code> (e.g., <code>.mcpack</code>, <code>.mcaddon</code>, <code>.zip</code> files).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "files": [
+        "MyBehaviorPack.mcpack",
+        "CoolTextures.mcaddon"
+        // ... (empty list if no files)
+    ],
+    "message": "No matching files found." // Optional: if files list is empty
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-world-export"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/export</code></h3>
+        <p>Exports the server's current world to a <code class="endpoint-path">.mcworld</code> file in the <code class="endpoint-path">content/worlds</code> directory.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <!-- No Request Body for this endpoint -->
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+        "status": "success",
+        "message": "World for server '...' exported successfully as '....mcworld'.",
+        "export_file": "/full/path/to/content/worlds/....mcworld"
+    }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-world-reset"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/world/reset</code></h3>
+        <p>Resets the server's current world.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <!-- No Request Body for this endpoint -->
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+        "status": "success",
+        "message": "World for server '...' reset successfull.",
+    }</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-world-install"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/world/install</code></h3>
+        <p><strong>Overwrites current world</strong> to install <code class="endpoint-path">.mcworld</code> from <code class="endpoint-path">content/worlds</code> dir.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "filename": "relative/path/to/world.mcworld" }</code></pre>
+        <ul><li><code class="param-name">filename</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Path relative to `content/worlds`.</li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "World '...' installed successfully for server '...'."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-addon-install"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/addon/install</code></h3>
+        <p>Installs <code class="endpoint-path">.mcpack</code>/<code class="endpoint-path">.mcaddon</code> from <code class="endpoint-path">content/addons</code> dir into server's world.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "filename": "relative/path/to/addon.mcpack" }</code></pre>
+        <ul><li><code class="param-name">filename</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Path relative to `content/addons`.</li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Addon '...' installed successfully for server '...'."}</code></pre>
+    </div>
+</div>
+
+{# --- Player Management Section --- #}
+<div class="api-section" id="section-player-management">
+    <h2 id="player-mgmt-h2">Player Management</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-players-scan"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/players/scan</code></h3>
+        <p>Scans all server logs for player connections, updates central <code class="endpoint-path">players.json</code>.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{ "status": "success", "players_found": true|false, "message": "Player scan completed..." }</code></pre>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="post-api-add-players"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/players/add</code></h3>
+        <p>Adds or updates players in the global <code>players.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Request Body (JSON):</h4>
+        <pre><code class="api-code-block">{
+    "players": [ "PlayerName1:XUID1", "PlayerName2:XUID2", /* ... */ ]
+}</code></pre>
+        <p>Each player string must be in <code>"PlayerName:PlayerXUID"</code> format.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Players added successfully."
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, <code class="http-status">415 Unsupported Media Type</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-all-players"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/players/get</code></h3>
+        <p>Retrieves a list of all known players from the central <code>players.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "players": [
+        { "name": "PlayerOne", "xuid": "2535414141111111" },
+        { "name": "AnotherPlayer", "xuid": "2535414141222222" }
+        // ...
+    ]
+    // "message" field may be present if players.json was not found
+}</code></pre>
+        <p><em>(If <code>players.json</code> is missing or empty, <code class="param-name">players</code> will be an empty list. Error responses like <code class="http-status">401 Unauthorized</code> or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="get-api-server-allowlist"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/allowlist</code></h3>
+        <p>Gets content of server's <code class="endpoint-path">allowlist.json</code>.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "existing_players": [ { "ignoresPlayerLimit": ..., "name": "..." }, ... ],
+    "message": "Successfully retrieved X players from allowlist."
+}</code></pre>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="post-api-server-allowlist-add"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/allowlist/add</code></h3>
+        <p>Adds players to <code class="endpoint-path">allowlist.json</code> (does not remove existing).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "players": ["Player1", "Player2"],
+    "ignoresPlayerLimit": false | true
+}</code></pre>
+        <ul>
+            <li><code class="param-name">players</code><span class="param-type">(list[string])</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">ignoresPlayerLimit</code><span class="param-type">(boolean)</span><span class="param-optional">(Optional, default: false)</span></li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Allowlist saved successfully with X player(s)."}</code></pre>
+        <em>or</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "No new players provided or all provided players were duplicates/invalid."}</code></pre>
+    </div>
+    <div class="api-endpoint">
+        <h3 id="delete-api-server-allowlist-remove"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/allowlist/remove</code></h3>
+        <p>Removes one or more players (case-insensitive) from the server's <code class="endpoint-path">allowlist.json</code> file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+        </ul>
+        <h4>Request Body:</h4>
+        <p>A JSON object containing an array of player names.</p>
+        <ul>
+            <li><code class="param-name">players</code><span class="param-type">(array of strings)</span><span class="param-required">(Required)</span>: The list of player names to remove.</li>
+        </ul>
+        <pre><code class="api-code-block">{
+    "players": ["Steve", "Alex"]
+}</code></pre>
+        <h4>Success Response (`200 OK`):</h4>
+        <p>Returns a summary message and a <code class="param-name">details</code> object categorizing which players were removed and which were not found.</p>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Allowlist update process completed.",
+    "details": {
+        "removed": [
+            "Steve"
+        ],
+        "not_found": [
+            "NonExistentPlayer"
+        ]
+    }
+}</code></pre>
+    </div>
+
+
+    <div class="api-endpoint">
+        <h3 id="put-api-server-permissions"><span class="method-tag method-put">PUT</span> <code class="endpoint-path">/api/server/{server_name}/permissions</code></h3>
+        <p>Updates player permission levels in <code class="endpoint-path">permissions.json</code>.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "permissions": {
+        "XUID_string": "visitor | member | operator",
+        ...
+    }
+}</code></pre>
+        <ul>
+            <li><code class="param-name">permissions</code><span class="param-type">(object)</span><span class="param-required">(Required)</span>: Map of XUIDs (string) to levels (string).</li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Permissions updated successfully for X player(s) ..."}</code></pre>
+        <em>or</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "No valid permission changes submitted."}</code></pre>
+    </div>
+</div>
+
+{# --- Configuration Section --- #}
+<div class="api-section" id="section-configuration">
+    <h2 id="configuration-h2">Configuration</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-properties"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/properties</code></h3>
+        <p>Updates specified allowed keys in <code class="endpoint-path">server.properties</code>.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "property-key": "new-value", ... }</code></pre>
+        <p>See full docs for list of allowed keys.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Server properties for '...' updated successfully."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="get-api-server-properties"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/read_properties</code></h3>
+        <p>Retrieves the parsed content of a server's <code>server.properties</code> file.</p>
+        <p>Path Parameter: <code>server_name</code> (string, required).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "properties": {
+        "level-name": "Bedrock level",
+        "gamemode": "survival",
+        "difficulty": "normal"
+        // ... and other properties
+    }
+}</code></pre>
+        <p><em>(Error responses like <code class="http-status">400 Bad Request</code>, <code class="http-status">401 Unauthorized</code>, <code class="http-status">404 Not Found</code>, or <code class="http-status">500 Internal Server Error</code> can occur.)</em></p>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-service"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/service</code></h3>
+        <p>Configures OS-specific service settings (Linux: systemd; Windows: config flag).</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <ul>
+            <li>Linux: <pre><code class="api-code-block">{ "autoupdate": boolean, "autostart": boolean }</code></pre></li>
+            <li>Windows: <pre><code class="api-code-block">{ "autoupdate": boolean }</code></pre></li>
+        </ul>
+        <ul>
+            <li><code class="param-name">autoupdate</code><span class="param-type">(boolean)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">autostart</code><span class="param-type">(boolean)</span><span class="param-required">(Required, Linux only)</span></li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Systemd service created and enabled successfully."}</code></pre> <em>(Linux Example)</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "Autoupdate setting for '...' updated to true."}</code></pre> <em>(Windows Example)</em>
+    </div>
+</div>
+
+{# --- Downloads Section --- #}
+<div class="api-section" id="section-downloads">
+    <h2 id="downloads-h2">Downloads</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-downloads-prune"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/downloads/prune</code></h3>
+        <p>Deletes old downloaded server archives from specified directory.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "directory": "/absolute/path/to/cache",
+    "keep": number
+}</code></pre>
+        <ul>
+            <li><code class="param-name">directory</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">keep</code><span class="param-type">(integer)</span><span class="param-optional">(Optional)</span>: Defaults to `DOWNLOAD_KEEP` setting.</li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Download cache pruned successfully for '...'."}</code></pre>
+    </div>
+</div>
+
+{# --- Server Installation Section --- #}
+<div class="api-section" id="section-server-installation">
+    <h2 id="server-install-h2">Server Installation</h2>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-install"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/install</code></h3>
+        <p>Installs new server instance. Requires confirmation if server name exists and `overwrite` is false.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "server_name": "NewServer",
+    "server_version": "LATEST | PREVIEW | 1.x.y.z",
+    "overwrite": false | true
+}</code></pre>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">server_version</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">overwrite</code><span class="param-type">(boolean)</span><span class="param-optional">(Optional, default: false)</span></li>
+        </ul>
+        <h4>Success Responses:</h4>
+        <ul>
+            <li>
+                <code>201 Created</code> (New/Overwrite): <pre><code class="api-code-block">{
+    "status": "success", "server_name": "...", "version": "...", "message": "...", "next_step_url": "..."
+}</code></pre>
+            </li>
+            <li>
+                <code>200 OK</code> (Confirmation Needed): <pre><code class="api-code-block">{
+    "status": "confirm_needed", "message": "Server '...' already exists...", "server_name": "...", "server_version": "..."
+}</code></pre>
+            </li>
+        </ul>
+    </div>
+</div>
+
+{# --- Task Scheduler Section --- #}
+<div class="api-section" id="section-task-scheduler">
+    <h2 id="task-scheduler-h2">Task Scheduler (OS Specific)</h2>
+    <p><em>Note: These endpoints interact with Linux <code>cron</code> or Windows Task Scheduler based on the host OS.</em></p>
+
+    {# --- Linux Cron Endpoints --- #}
+    <h4>Linux (Cron)</h4>
+    <div class="api-endpoint">
+        <h3 id="post-api-server-cron-add"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/add</code> (Linux Only)</h3>
+        <p>Adds raw cron job line for manager's user.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Linux Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "new_cron_job": "0 3 * * * /path/to/cmd --args" }</code></pre>
+        <ul><li><code class="param-name">new_cron_job</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`201 Created`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Cron job added successfully."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-cron-modify"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/modify</code> (Linux Only)</h3>
+        <p>Replaces existing cron job line by exact match.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Linux Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "old_cron_job": "exact old string",
+    "new_cron_job": "replacement string"
+}</code></pre>
+        <ul>
+            <li><code class="param-name">old_cron_job</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">new_cron_job</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Cron job modified successfully."}</code></pre>
+        <em>or</em>
+        <pre><code class="api-code-block">{"status": "success", "message": "No modification needed, jobs are identical."}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="delete-api-server-cron-delete"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/cron_scheduler/delete</code> (Linux Only)</h3>
+        <p>Deletes cron job line by exact match.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Linux Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Query Parameters:</h4>
+        <ul><li><code class="param-name">cron_string</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: URL-encoded exact string of job to delete.</li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{"status": "success", "message": "Cron job deleted successfully (if it existed)."}</code></pre>
+    </div>
+
+    {# --- Windows Task Scheduler Endpoints --- #}
+    <h4 style="margin-top:30px;">Windows (Task Scheduler)</h4>
+    <div class="api-endpoint">
+        <h3 id="post-api-server-task-add"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/add</code> (Windows Only)</h3>
+        <p>Creates new Windows scheduled task.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Windows Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{
+    "command": "backup-all | update-server | ...",
+    "triggers": [ { "type": "Daily|Weekly|...", "start": "ISO8601", ... } ]
+}</code></pre>
+        <ul>
+            <li><code class="param-name">command</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: See full docs for list.</li>
+            <li><code class="param-name">triggers</code><span class="param-type">(list[object])</span><span class="param-required">(Required)</span>: See full docs for trigger structure.</li>
+        </ul>
+        <h4>Success Response (`201 Created`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Windows task '...' created successfully.",
+    "created_task_name": "..."
+}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="post-api-server-task-details"><span class="method-tag method-post">POST</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/details</code> (Windows Only)</h3>
+        <p>Gets details by parsing task's stored XML file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Windows Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul><li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <pre><code class="api-code-block">{ "task_name": "full_task_name" }</code></pre>
+        <ul><li><code class="param-name">task_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li></ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "task_details": { "command_path": "...", "command_args": "...", "base_command": "...", "triggers": [...] }
+}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="put-api-server-task-modify"><span class="method-tag method-put">PUT</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/task/{task_name}</code> (Windows Only)</h3>
+        <p>Modifies task by deleting old (<code class="param-name">task_name</code>) and creating new based on body.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Windows Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">task_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Task to replace (URL encode if needed).</li>
+        </ul>
+        <h4>Request Body (<code class="endpoint-path">application/json</code>):</h4>
+        <p>Same as "Add Windows Task" body, defining the new task.</p>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Windows task modified successfully.",
+    "new_task_name": "..."
+}</code></pre>
+    </div>
+
+    <div class="api-endpoint">
+        <h3 id="delete-api-server-task-delete"><span class="method-tag method-delete">DELETE</span> <code class="endpoint-path">/api/server/{server_name}/task_scheduler/task/{task_name}</code> (Windows Only)</h3>
+        <p>Deletes Windows task and its associated XML file.</p>
+        <h4>Authentication:</h4> <p>Required.</p>
+        <h4>Platform:</h4> <p>Windows Only.</p>
+        <h4>Path Parameters:</h4>
+        <ul>
+            <li><code class="param-name">server_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span></li>
+            <li><code class="param-name">task_name</code><span class="param-type">(string)</span><span class="param-required">(Required)</span>: Task to delete (URL encode if needed).</li>
+        </ul>
+        <h4>Success Response (`200 OK`):</h4>
+        <pre><code class="api-code-block">{
+    "status": "success",
+    "message": "Task '...' and its definition file deleted successfully."
+}</code></pre>
+    </div>
+</div> {# --- End Task Scheduler Section --- #}
+
+
+{# --- Optional: Back link at the bottom --- #}
+<p class="back-to-docs-link" style="margin-top: 30px;">
+    <a href="{{ url_for('doc_routes.doc_index') }}">← Back to Documentation Index</a>
+</p>
+
+{% endblock %}
+
+{# --- Page Specific Scripts --- #}
+{% block body_scripts %}
+{% endblock %}

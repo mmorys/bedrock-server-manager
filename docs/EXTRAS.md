@@ -1,6 +1,94 @@
 # Extra Configuration & Customization
 
-## Custom Web Server Panorama
+### Installation: Stable, Beta, and Development
+
+There are three ways to install Bedrock Server Manager, depending on your needs. For most users, the stable version is recommended.
+
+---
+
+#### 1. Stable Version (Recommended)
+
+This is the latest official, stable release. It has been tested and is suitable for most use cases.
+
+```bash
+pip install bedrock-server-manager
+```
+
+To upgrade to the latest stable version:
+
+```bash
+pip install --upgrade bedrock-server-manager
+```
+
+**Installing a Specific Version**
+
+If you need to install a specific version, you can do so by specifying the version with `==`.
+
+```bash
+# Example: Install exactly version 3.2.5
+pip install bedrock-server-manager==3.2.5
+```
+
+You can find a list of all available versions in the [**Release History on PyPI**](https://pypi.org/project/bedrock-server-manager/#history).
+
+---
+
+#### 2. Beta / Pre-Release Versions (For Testers)
+
+Occasionally pre-release versions will be published to PyPI for testing. These versions contain new features and are generally stable but may contain minor bugs.
+
+To install the latest pre-release version, use the `--pre` flag with pip:
+
+```bash
+pip install --pre bedrock-server-manager
+```
+
+If you wish to return to the stable version later, you can run:
+`pip install --force-reinstall bedrock-server-manager`
+
+**Previewing the Next Release**
+
+The `dev` branch is where all beta developments are merged before being bundled into a new stable release. To see the latest changes that are being prepared, you can browse the code and documentation on the [**`dev` branch**](https://github.com/DMedina559/bedrock-server-manager/tree/dev).
+
+---
+
+#### 3. Development Versions (For Advanced Users & Contributors)
+
+These versions are at the cutting edge and reflect the latest code, but they are not guaranteed to be stable. Use them if you want to test a specific new feature that isn't in a beta yet, or if you are contributing to the project.
+
+There are two ways to get a development version:
+
+**Option A: Install Directly from a GitHub Branch**
+
+This is the easiest way to test the code from a specific branch.
+
+```bash
+# Install the latest code from the 'main' branch
+pip install git+https://github.com/DMedina559/bedrock-server-manager.git@main
+
+# Or install from a specific feature branch
+pip install git+https://github.com/DMedina559/bedrock-server-manager.git@name-of-the-branch
+```
+
+**Option B: Download from CI Artifacts**
+
+Every time code is pushed to a branch, our Continuous Integration (CI) server builds a development package. These are useful for testing the result of a specific pull request or commit.
+
+1.  Go to the [**Actions tab**](https://github.com/DMedina559/bedrock-server-manager/actions) in the GitHub repository.
+2.  Find the workflow run for the branch or commit you want to test. Click on it to go to its summary page.
+3.  Scroll down to the **Artifacts** section. You will see a file named something like `bedrock-server-manager-3.3.0.a1b2c3d`.
+4.  Download and unzip the artifact. Inside, you will find a `.whl` (wheel) file.
+5.  Install the package directly from the downloaded wheel file:
+    ```bash
+    # Navigate your terminal to the directory where you unzipped the files
+    pip install bedrock_server_manager-3.3.0+a1b2c3d-py3-none-any.whl
+    ```
+    *(Note: The exact filename will be different. Just use the `.whl` file you downloaded.)*
+
+ 1. 
+## Web Server Extras:
+
+### Custom Web Server Panorama
 
 You can personalize the background panorama displayed on the main web server page.
 
@@ -18,7 +106,7 @@ If the file `./.config/panorama.jpeg` is not found or is not a valid JPEG image,
 
 ---
 
-## World Icons
+### World Icons
 
 The "Servers List" within the web interface can display unique icons for each of your Minecraft worlds, making them easier to identify at a glance.
 
@@ -40,5 +128,5 @@ The server manager looks for a file named `world_icon.jpeg` inside each world's 
 
 If a `world_icon.jpeg` file is not found within a specific world's directory, the default Bedrock Server Manager icon will be displayed for that world in the server list.
 
-## Home Assistant Integration:
+### Home Assistant Integration:
 If you use home assistant check out the [bedrock-server-manager integration](https://github.com/DMedina559/bsm-home-assistant-integration)
