@@ -275,7 +275,11 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
 
             # After successful setup, update the stored version
             self.set_version(actual_version_to_download)  # From ServerStateMixin
-            self.set_status_in_config("STOPPED")  # Mark as stopped, ready to be started
+
+            if not is_update_op:
+                self.set_status_in_config("INSTALLED")  # Mark as INSTALLED
+            else:
+                self.set_status_in_config("UPDATED")
 
             self.logger.info(
                 f"Server '{self.server_name}' successfully installed/updated to version '{actual_version_to_download}'."
