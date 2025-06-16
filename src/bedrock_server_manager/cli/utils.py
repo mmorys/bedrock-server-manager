@@ -208,17 +208,22 @@ def _print_server_table(servers: List[Dict[str, Any]]):
 
             color_map = {
                 "RUNNING": "green",
+                "STOPPED": "red",
                 "STARTING": "yellow",
                 "STOPPING": "yellow",
-                "STOPPED": "red",
-                "INSTALLED": "blue",
+                "INSTALLING": "bright_cyan",
+                "UPDATING": "bright_cyan", 
+                "INSTALLED": "bright_magenta",
+                "UPDATED": "bright_magenta",
+                "UNKNOWN": "bright_black",
             }
             status_color = color_map.get(status, "red")
 
             status_styled = click.style(f"{status:<10}", fg=status_color)
             name_styled = click.style(name, fg="cyan")
+            version_styled = click.style(version, fg="bright_white")
 
-            click.echo(f"  {name_styled:<38} {status_styled:<20} {version}")
+            click.echo(f"  {name_styled:<38} {status_styled:<20} {version_styled}")
     click.echo("-" * 65)
 
 
