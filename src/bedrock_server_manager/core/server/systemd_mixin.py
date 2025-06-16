@@ -63,10 +63,6 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
         """
         Creates or updates the systemd user service file for this server.
 
-        Args:
-            autoupdate_on_start: If True, adds an ExecStartPre command to update
-                                 the server before starting.
-
         Raises:
             SystemError: If not on Linux.
             AppFileNotFoundError: If the BSM manager executable path is not found.
