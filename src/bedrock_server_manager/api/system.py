@@ -56,9 +56,7 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
         }
 
 
-def create_systemd_service(
-    server_name: str, autostart: bool = False
-) -> Dict[str, str]:
+def create_systemd_service(server_name: str, autostart: bool = False) -> Dict[str, str]:
     """
     Creates (or updates) and optionally enables a systemd user service for the server.
     """

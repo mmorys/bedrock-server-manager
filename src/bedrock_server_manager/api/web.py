@@ -115,7 +115,7 @@ def start_web_server_api(
                     system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
             command = [str(expected_exe), "web", "start", "--mode", "direct"]
-        
+
             # Normalize the host input into a list
             hosts_to_add = []
             if isinstance(host, str):
@@ -127,7 +127,7 @@ def start_web_server_api(
             for h in hosts_to_add:
                 if h:  # Ensure not an empty string
                     command.extend(["--host", str(h)])
-        
+
             if debug:
                 command.append("--debug")
 
