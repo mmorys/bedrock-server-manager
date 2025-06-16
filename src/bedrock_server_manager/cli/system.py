@@ -108,7 +108,7 @@ def configure_service(server_name: str):
                 ).ask()
 
                 autostart_response = system_api.create_systemd_service(
-                    server_name, autoupdate_value == "true", enable_autostart
+                    server_name, enable_autostart
                 )
                 _handle_api_response(
                     autostart_response, "Systemd service configured successfully."

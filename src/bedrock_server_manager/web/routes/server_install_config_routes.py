@@ -662,7 +662,7 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
                     f"API: Setting autostart to {autostart} for '{server_name}'."
                 )
                 result = system_api.create_systemd_service(
-                    server_name, autoupdate, autostart
+                    server_name, autostart
                 )
 
                 if result.get("status") != "success":

@@ -57,7 +57,7 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
 
 
 def create_systemd_service(
-    server_name: str, autoupdate: bool = False, autostart: bool = False
+    server_name: str, autostart: bool = False
 ) -> Dict[str, str]:
     """
     Creates (or updates) and optionally enables a systemd user service for the server.
@@ -68,7 +68,7 @@ def create_systemd_service(
     try:
         server = BedrockServer(server_name)
         # The mixin method will raise NotImplementedError on non-Linux systems.
-        server.create_systemd_service_file(autoupdate_on_start=autoupdate)
+        server.create_systemd_service_file()
 
         if autostart:
             server.enable_systemd_service()
