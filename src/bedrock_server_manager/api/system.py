@@ -35,8 +35,9 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
 
         if process_info is None:
             return {
-                "status": "error",
-                "message": f"Server process '{server_name}' not found or information is inaccessible.",
+                "status": "success",
+                "message": f"Server process '{server_name}' not found or is inaccessible.",
+                "process_info": None,
             }
         else:
             return {"status": "success", "process_info": process_info}

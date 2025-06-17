@@ -1005,8 +1005,8 @@ Returned regardless of whether the server is running or not, as long as the requ
     ```json
     {
         "status": "success",
-        "process_info": null,
-        "message": "Server '<server_name>' is not running."
+        "message": "Server process '<server_name>' not found or is inaccessible.",
+        "process_info": null
     }
     ```
     *   `status`: "success"
