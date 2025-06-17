@@ -206,3 +206,9 @@ Start/Stop methods have been revamped and require the servers be restarted with 
     - Revamped `core.server_actions.delete_server_data`.
     - Splitting/renaming various files.
     - Removed redundant core backup/restore functions as the `api.backup` module can just call the config/world functions directly.
+
+## 3.3.1
+
+1. Fix panorama in web ui
+2. Fix server process in web api
+3. Fix task commands in web ui
