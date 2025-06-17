@@ -13,7 +13,7 @@ import zipfile
 import tempfile
 import json
 import re
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Optional
 
 # Local imports
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
@@ -533,4 +533,314 @@ class ServerAddonMixin(BedrockServerBaseMixin):
         except OSError as e:
             raise FileOperationError(
                 f"Failed to write world pack JSON '{json_filename_basename}': {e}"
+            ) from e
+
+    def list_world_addons(
+        self, world_name: Optional[str] = None
+    ) -> Dict[str, List[Dict]]:
+        """
+        Lists all installed and activated addons for a given world, comparing
+        physical pack folders with world activation JSON files.
+
+        If no world_name is provided, it defaults to the server's active world.
+
+        Returns:
+            A dictionary with 'behavior_packs' and 'resource_packs' keys.
+            Each key contains a list of pack dictionaries with details like
+            name, uuid, version, and status ('ACTIVE', 'INACTIVE', or 'ORPHANED').
+        """
+        if world_name is None:
+            world_name = self.get_world_name()  # Get active world from StateMixin
+
+        self.logger.info(
+            f"Listing addons for world '{world_name}' in server '{self.server_name}'."
+        )
+
+        world_dir = os.path.join(self.server_dir, "worlds", world_name)
+        if not os.path.isdir(world_dir):
+            raise AppFileNotFoundError(world_dir, f"World directory for '{world_name}'")
+
+        # --- Process Behavior Packs ---
+        physical_bps = self._scan_physical_packs(world_dir, "behavior_packs")
+        activated_bps_list = self._read_world_activation_json(
+            os.path.join(world_dir, "world_behavior_packs.json")
+        )
+
+        # --- Process Resource Packs ---
+        physical_rps = self._scan_physical_packs(world_dir, "resource_packs")
+        activated_rps_list = self._read_world_activation_json(
+            os.path.join(world_dir, "world_resource_packs.json")
+        )
+
+        # --- Compare and build results ---
+        behavior_pack_results = self._compare_physical_and_activated(
+            physical_bps, activated_bps_list
+        )
+        resource_pack_results = self._compare_physical_and_activated(
+            physical_rps, activated_rps_list
+        )
+
+        return {
+            "behavior_packs": behavior_pack_results,
+            "resource_packs": resource_pack_results,
+        }
+
+    def _scan_physical_packs(self, world_dir: str, pack_folder_name: str) -> List[Dict]:
+        """Scans a world's pack folder (e.g., 'behavior_packs') and reads manifests."""
+        pack_base_dir = os.path.join(world_dir, pack_folder_name)
+        if not os.path.isdir(pack_base_dir):
+            return []
+
+        installed_packs = []
+        for pack_dir_name in os.listdir(pack_base_dir):
+            pack_full_path = os.path.join(pack_base_dir, pack_dir_name)
+            if os.path.isdir(pack_full_path):
+                try:
+                    _pack_type, uuid, version, name = self._extract_manifest_info(
+                        pack_full_path
+                    )
+                    installed_packs.append(
+                        {
+                            "name": name,
+                            "uuid": uuid,
+                            "version": version,
+                            "path": pack_full_path,
+                        }
+                    )
+                except (AppFileNotFoundError, ConfigParseError) as e:
+                    self.logger.warning(
+                        f"Could not read manifest for pack in '{pack_full_path}'. Skipping. Reason: {e}"
+                    )
+        return installed_packs
+
+    def _read_world_activation_json(self, world_json_file_path: str) -> List[Dict]:
+        """Safely reads a world's pack activation JSON file."""
+        if not os.path.exists(world_json_file_path):
+            return []
+
+        try:
+            with open(world_json_file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                if not content.strip():
+                    return []
+                data = json.loads(content)
+                if isinstance(data, list):
+                    return data
+                else:
+                    self.logger.warning(
+                        f"File '{world_json_file_path}' does not contain a JSON list. Treating as empty."
+                    )
+                    return []
+        except (ValueError, OSError) as e:
+            self.logger.error(f"Failed to read or parse '{world_json_file_path}': {e}")
+            return []
+
+    def _compare_physical_and_activated(
+        self, physical: List[Dict], activated: List[Dict]
+    ) -> List[Dict]:
+        """Compares physical packs with activated pack entries to determine status."""
+        results = []
+        activated_uuids = {
+            entry["pack_id"] for entry in activated if "pack_id" in entry
+        }
+
+        # Process physically present packs
+        for p_pack in physical:
+            pack_info = {
+                "name": p_pack["name"],
+                "uuid": p_pack["uuid"],
+                "version": p_pack["version"],
+                "status": "ACTIVE" if p_pack["uuid"] in activated_uuids else "INACTIVE",
+            }
+            results.append(pack_info)
+
+        # Find orphaned activations (activated but not physically present)
+        physical_uuids = {p["uuid"] for p in physical}
+        orphaned_uuids = activated_uuids - physical_uuids
+
+        for orphan_uuid in orphaned_uuids:
+            # Find the corresponding entry in the activated list to get version info
+            orphan_entry = next(
+                (a for a in activated if a.get("pack_id") == orphan_uuid), None
+            )
+            orphan_version = (
+                orphan_entry.get("version", [0, 0, 0]) if orphan_entry else [0, 0, 0]
+            )
+
+            results.append(
+                {
+                    "name": "Unknown (Orphaned)",
+                    "uuid": orphan_uuid,
+                    "version": orphan_version,
+                    "status": "ORPHANED",
+                }
+            )
+
+        return sorted(results, key=lambda x: x["name"])
+
+    def export_addon(
+        self,
+        pack_uuid: str,
+        pack_type: str,
+        export_dir: str,
+        world_name: Optional[str] = None,
+    ) -> str:
+        """
+        Exports a specific addon from a world into a .mcpack file.
+
+        Args:
+            pack_uuid: The UUID of the pack to export.
+            pack_type: The type of pack ('behavior' or 'resource').
+            export_dir: The directory where the .mcpack file will be saved.
+            world_name: The name of the world to export from. Defaults to active world.
+
+        Returns:
+            The full path to the created .mcpack file.
+
+        Raises:
+            MissingArgumentError: If required arguments are missing.
+            AppFileNotFoundError: If the specified pack cannot be found.
+            FileOperationError: If the export fails.
+        """
+        if not pack_uuid or not pack_type:
+            raise MissingArgumentError("Pack UUID and pack type are required.")
+        if pack_type not in ("behavior", "resource"):
+            raise UserInputError("Pack type must be 'behavior' or 'resource'.")
+
+        if world_name is None:
+            world_name = self.get_world_name()
+
+        self.logger.info(
+            f"Exporting {pack_type} pack '{pack_uuid}' from world '{world_name}'."
+        )
+
+        world_dir = os.path.join(self.server_dir, "worlds", world_name)
+        pack_folder_name = f"{pack_type}_packs"
+        physical_packs = self._scan_physical_packs(world_dir, pack_folder_name)
+
+        target_pack = next((p for p in physical_packs if p["uuid"] == pack_uuid), None)
+        if not target_pack:
+            raise AppFileNotFoundError(
+                f"pack with UUID {pack_uuid}",
+                f"{pack_folder_name} in world '{world_name}'",
+            )
+
+        pack_name = target_pack["name"]
+        pack_version = ".".join(map(str, target_pack["version"]))
+        pack_source_path = target_pack["path"]
+
+        safe_pack_name = re.sub(r'[<>:"/\\|?* ]', "_", pack_name)
+        export_filename = f"{safe_pack_name}_{pack_version}.mcpack"
+        export_file_path = os.path.join(export_dir, export_filename)
+
+        os.makedirs(export_dir, exist_ok=True)
+
+        try:
+            # Use zipfile to create the archive correctly without including parent dirs
+            self.logger.debug(f"Zipping '{pack_source_path}' to '{export_file_path}'")
+            with zipfile.ZipFile(export_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for root, _dirs, files in os.walk(pack_source_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        # Archive name is relative to the pack's source directory
+                        archive_name = os.path.relpath(file_path, pack_source_path)
+                        zipf.write(file_path, archive_name)
+            self.logger.info(
+                f"Successfully exported addon '{pack_name}' to '{export_file_path}'."
+            )
+            return export_file_path
+        except (OSError, zipfile.BadZipFile) as e:
+            self.logger.error(f"Failed to create .mcpack file: {e}", exc_info=True)
+            raise FileOperationError(
+                f"Could not create addon archive for '{pack_name}': {e}"
+            ) from e
+
+    def remove_addon(
+        self, pack_uuid: str, pack_type: str, world_name: Optional[str] = None
+    ) -> None:
+        """
+        Removes a specific addon from a world, deleting its files and deactivating it.
+
+        Args:
+            pack_uuid: The UUID of the pack to remove.
+            pack_type: The type of pack ('behavior' or 'resource').
+            world_name: The name of the world to remove from. Defaults to active world.
+
+        Raises:
+            MissingArgumentError: If required arguments are missing.
+            AppFileNotFoundError: If the specified pack cannot be found.
+            FileOperationError: If the removal fails.
+        """
+        if not pack_uuid or not pack_type:
+            raise MissingArgumentError("Pack UUID and pack type are required.")
+        if pack_type not in ("behavior", "resource"):
+            raise UserInputError("Pack type must be 'behavior' or 'resource'.")
+
+        if world_name is None:
+            world_name = self.get_world_name()
+
+        self.logger.info(
+            f"Removing {pack_type} pack '{pack_uuid}' from world '{world_name}'."
+        )
+
+        world_dir = os.path.join(self.server_dir, "worlds", world_name)
+        pack_folder_name = f"{pack_type}_packs"
+        physical_packs = self._scan_physical_packs(world_dir, pack_folder_name)
+
+        target_pack = next((p for p in physical_packs if p["uuid"] == pack_uuid), None)
+        if not target_pack:
+            # If pack files are already gone, we should still try to clean the JSON file.
+            self.logger.warning(
+                f"Pack files for UUID '{pack_uuid}' not found. Attempting to clean activation JSON."
+            )
+        else:
+            pack_name = target_pack["name"]
+            pack_source_path = target_pack["path"]
+            try:
+                self.logger.debug(f"Deleting pack folder: {pack_source_path}")
+                shutil.rmtree(pack_source_path)
+                self.logger.info(f"Successfully deleted files for pack '{pack_name}'.")
+            except OSError as e:
+                raise FileOperationError(
+                    f"Failed to delete addon folder for '{pack_name}': {e}"
+                ) from e
+
+        # Always attempt to remove from activation JSON
+        world_json_path = os.path.join(world_dir, f"world_{pack_folder_name}.json")
+        self._remove_pack_from_world_json(world_json_path, pack_uuid)
+
+    def _remove_pack_from_world_json(
+        self, world_json_file_path: str, pack_uuid: str
+    ) -> None:
+        """Removes a pack entry from a world's pack activation JSON file."""
+        json_filename = os.path.basename(world_json_file_path)
+        if not os.path.exists(world_json_file_path):
+            self.logger.debug(
+                f"Activation file '{json_filename}' not found. Nothing to remove."
+            )
+            return
+
+        original_packs_list = self._read_world_activation_json(world_json_file_path)
+        if not original_packs_list:
+            return  # Nothing to do
+
+        updated_packs_list = [
+            p for p in original_packs_list if p.get("pack_id") != pack_uuid
+        ]
+
+        if len(original_packs_list) == len(updated_packs_list):
+            self.logger.debug(
+                f"Pack UUID '{pack_uuid}' not found in '{json_filename}'. No changes made."
+            )
+            return
+
+        try:
+            with open(world_json_file_path, "w", encoding="utf-8") as f:
+                json.dump(updated_packs_list, f, indent=2, sort_keys=True)
+            self.logger.info(
+                f"Removed pack '{pack_uuid}' from activation file '{json_filename}'."
+            )
+        except OSError as e:
+            raise FileOperationError(
+                f"Failed to write updated activation file '{json_filename}': {e}"
             ) from e
