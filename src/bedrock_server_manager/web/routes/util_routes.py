@@ -106,7 +106,7 @@ def serve_custom_panorama() -> Response:
     """Serves a custom `panorama.jpeg` background image if it exists."""
     logger.debug("Request received to serve custom panorama background.")
     try:
-        config_dir = settings.get("CONFIG_DIR")
+        config_dir = settings.config_dir
         if not config_dir:
             raise AppFileNotFoundError("CONFIG_DIR not set in settings.", "Setting")
 
