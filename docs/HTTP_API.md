@@ -1,5 +1,5 @@
 ﻿﻿<div style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
+    <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
 - [Bedrock Server Manager - HTTP API Documentation](#bedrock-server-manager---http-api-documentation)
@@ -36,7 +36,7 @@
     - [`POST /api/players/scan` - Scan Player Logs](#post-apiplayersscan---scan-player-logs)
     - [`GET /api/server/{server_name}/allowlist` - Get Allowlist](#get-apiserverserver_nameallowlist---get-allowlist)
     - [`POST /api/server/{server_name}/allowlist/add` - Add Players to Allowlist](#post-apiserverserver_nameallowlistadd---add-players-to-allowlist)
-    - [`DELETE /api/server/{server_name}/allowlist/remove` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistremove---remove-player-from-allowlist)
+    - [`DELETE /api/server/{server_name}/allowlist/remove` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistremove---remove-players-from-allowlist)
     - [`PUT /api/server/{server_name}/permissions` - Update Player Permissions](#put-apiserverserver_namepermissions---update-player-permissions)
   - [Configuration](#configuration)
     - [`POST /api/server/{server_name}/properties` - Update Server Properties](#post-apiserverserver_nameproperties---update-server-properties)
@@ -4165,7 +4165,7 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `DELETE /api/server/{server_name}/allowlist/remove` - Remove Multiple Players from Allowlist
+### `DELETE /api/server/{server_name}/allowlist/remove` - Remove Players from Allowlist
 
 Removes one or more players from the `allowlist.json` file for the specified server. The operation is atomic: it processes all players and then reloads the server's allowlist once (if running). Player name matching is case-insensitive.
 

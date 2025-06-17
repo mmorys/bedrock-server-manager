@@ -1,5 +1,5 @@
 <div style="text-align: center;">
-    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="Bedrock Server Manager Icon" width="200" height="200">
+    <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="Bedrock Server Manager Icon" width="200" height="200">
 </div>
 
 **Notice: Deprecation and End of Support**
