@@ -212,7 +212,7 @@ def _print_server_table(servers: List[Dict[str, Any]]):
                 "STARTING": "yellow",
                 "STOPPING": "yellow",
                 "INSTALLING": "bright_cyan",
-                "UPDATING": "bright_cyan", 
+                "UPDATING": "bright_cyan",
                 "INSTALLED": "bright_magenta",
                 "UPDATED": "bright_magenta",
                 "UNKNOWN": "bright_black",
