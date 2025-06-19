@@ -49,6 +49,7 @@ backup_restore_bp = Blueprint(
 
 # --- HTML Routes ---
 
+
 @backup_restore_bp.route("/server/<string:server_name>/backup", methods=["GET"])
 @login_required
 def backup_menu_route(server_name: str) -> Response:
@@ -84,6 +85,7 @@ def backup_config_select_route(server_name: str) -> Response:
         server_name=server_name,
     )
 
+
 @backup_restore_bp.route("/server/<string:server_name>/restore", methods=["GET"])
 @login_required
 def restore_menu_route(server_name: str) -> Response:
@@ -96,6 +98,7 @@ def restore_menu_route(server_name: str) -> Response:
         "restore_menu.html",
         server_name=server_name,
     )
+
 
 @backup_restore_bp.route(
     "/server/<string:server_name>/restore/select", methods=["POST"]
@@ -163,6 +166,7 @@ def restore_select_backup_route(server_name: str) -> Response:
 # ------
 
 # --- API Routes ---
+
 
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/backup/list/<string:backup_type>",
@@ -365,9 +369,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
                 exc_info=True,
             )
             return (
-                jsonify(
-                    status="error", message="An unexpected server error occurred."
-                ),
+                jsonify(status="error", message="An unexpected server error occurred."),
                 500,
             )
 
