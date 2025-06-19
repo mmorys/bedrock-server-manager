@@ -23,7 +23,6 @@ from flask import (
 from bedrock_server_manager.api import task_scheduler as api_task_scheduler
 from bedrock_server_manager.error import (
     BSMError,
-    UserInputError,
 )
 from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.config.const import EXPATH
@@ -45,7 +44,7 @@ schedule_tasks_bp = Blueprint(
 )
 
 
-# --- Route: Schedule Tasks Page (Linux/Cron) ---
+# --- HTML Routes ---
 @schedule_tasks_bp.route("/server/<string:server_name>/cron_scheduler", methods=["GET"])
 @login_required
 def schedule_tasks_route(server_name: str) -> Response:
@@ -96,143 +95,6 @@ def schedule_tasks_route(server_name: str) -> Response:
         EXPATH=EXPATH,
     )
 
-
-# --- API Route: Add Cron Job ---
-@schedule_tasks_bp.route(
-    "/api/server/<string:server_name>/cron_scheduler/add", methods=["POST"]
-)
-@csrf.exempt
-@auth_required
-def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to add a new Linux cron job."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Add cron job request by '{identity}' (context: '{server_name}')."
-    )
-
-    if not isinstance(
-        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
-    ):
-        return (
-            jsonify(status="error", message="Cron jobs are only supported on Linux."),
-            403,
-        )
-
-    data = request.get_json(silent=True)
-    if not data or not (cron_string := data.get("new_cron_job")):
-        return (
-            jsonify(
-                status="error", message="Cron job string ('new_cron_job') is required."
-            ),
-            400,
-        )
-
-    try:
-        result = api_task_scheduler.add_cron_job(cron_string)
-        if result.get("status") == "success":
-            return jsonify(result), 201  # Created
-        return jsonify(result), 500
-    except BSMError as e:
-        return jsonify(status="error", message=str(e)), 400
-    except Exception as e:
-        logger.error(f"API Add Cron Job: Unexpected error: {e}", exc_info=True)
-        return jsonify(status="error", message="An unexpected error occurred."), 500
-
-
-# --- API Route: Modify Cron Job ---
-@schedule_tasks_bp.route(
-    "/api/server/<string:server_name>/cron_scheduler/modify", methods=["POST"]
-)
-@csrf.exempt
-@auth_required
-def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to modify an existing Linux cron job."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Modify cron job request by '{identity}' (context: '{server_name}')."
-    )
-
-    if not isinstance(
-        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
-    ):
-        return (
-            jsonify(status="error", message="Cron jobs are only supported on Linux."),
-            403,
-        )
-
-    data = request.get_json(silent=True)
-    if (
-        not data
-        or not (old_cron := data.get("old_cron_job"))
-        or not (new_cron := data.get("new_cron_job"))
-    ):
-        return (
-            jsonify(
-                status="error",
-                message="'old_cron_job' and 'new_cron_job' are required.",
-            ),
-            400,
-        )
-
-    try:
-        result = api_task_scheduler.modify_cron_job(old_cron, new_cron)
-        if result.get("status") == "success":
-            return jsonify(result), 200
-        # Check for "not found" which is a client error (404)
-        if "not found" in (result.get("message") or "").lower():
-            return jsonify(result), 404
-        return jsonify(result), 500
-    except BSMError as e:
-        status_code = 404 if "not found" in str(e).lower() else 400
-        return jsonify(status="error", message=str(e)), status_code
-    except Exception as e:
-        logger.error(f"API Modify Cron Job: Unexpected error: {e}", exc_info=True)
-        return jsonify(status="error", message="An unexpected error occurred."), 500
-
-
-# --- API Route: Delete Cron Job ---
-@schedule_tasks_bp.route(
-    "/api/server/<string:server_name>/cron_scheduler/delete", methods=["DELETE"]
-)
-@csrf.exempt
-@auth_required
-def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to delete a specific Linux cron job."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Delete cron job request by '{identity}' (context: '{server_name}')."
-    )
-
-    if not isinstance(
-        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
-    ):
-        return (
-            jsonify(status="error", message="Cron jobs are only supported on Linux."),
-            403,
-        )
-
-    cron_string = request.args.get("cron_string")
-    if not cron_string:
-        return (
-            jsonify(
-                status="error", message="'cron_string' query parameter is required."
-            ),
-            400,
-        )
-
-    try:
-        result = api_task_scheduler.delete_cron_job(cron_string)
-        if result.get("status") == "success":
-            return jsonify(result), 200
-        return jsonify(result), 500
-    except BSMError as e:
-        return jsonify(status="error", message=str(e)), 400
-    except Exception as e:
-        logger.error(f"API Delete Cron Job: Unexpected error: {e}", exc_info=True)
-        return jsonify(status="error", message="An unexpected error occurred."), 500
-
-
-# --- Route: Schedule Tasks Page (Windows) ---
 @schedule_tasks_bp.route("/server/<string:server_name>/task_scheduler", methods=["GET"])
 @login_required
 def schedule_tasks_windows_route(server_name: str) -> Response:
@@ -284,8 +146,142 @@ def schedule_tasks_windows_route(server_name: str) -> Response:
         "schedule_tasks_windows.html", server_name=server_name, tasks=tasks
     )
 
+# ------
 
-# --- API Route: Add Windows Task ---
+# --- API Endpoints ---
+
+@schedule_tasks_bp.route(
+    "/api/server/<string:server_name>/cron_scheduler/add", methods=["POST"]
+)
+@csrf.exempt
+@auth_required
+def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """API endpoint to add a new Linux cron job."""
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Add cron job request by '{identity}' (context: '{server_name}')."
+    )
+
+    if not isinstance(
+        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
+    ):
+        return (
+            jsonify(status="error", message="Cron jobs are only supported on Linux."),
+            403,
+        )
+
+    data = request.get_json(silent=True)
+    if not data or not (cron_string := data.get("new_cron_job")):
+        return (
+            jsonify(
+                status="error", message="Cron job string ('new_cron_job') is required."
+            ),
+            400,
+        )
+
+    try:
+        result = api_task_scheduler.add_cron_job(cron_string)
+        if result.get("status") == "success":
+            return jsonify(result), 201  # Created
+        return jsonify(result), 500
+    except BSMError as e:
+        return jsonify(status="error", message=str(e)), 400
+    except Exception as e:
+        logger.error(f"API Add Cron Job: Unexpected error: {e}", exc_info=True)
+        return jsonify(status="error", message="An unexpected error occurred."), 500
+
+
+@schedule_tasks_bp.route(
+    "/api/server/<string:server_name>/cron_scheduler/modify", methods=["POST"]
+)
+@csrf.exempt
+@auth_required
+def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """API endpoint to modify an existing Linux cron job."""
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Modify cron job request by '{identity}' (context: '{server_name}')."
+    )
+
+    if not isinstance(
+        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
+    ):
+        return (
+            jsonify(status="error", message="Cron jobs are only supported on Linux."),
+            403,
+        )
+
+    data = request.get_json(silent=True)
+    if (
+        not data
+        or not (old_cron := data.get("old_cron_job"))
+        or not (new_cron := data.get("new_cron_job"))
+    ):
+        return (
+            jsonify(
+                status="error",
+                message="'old_cron_job' and 'new_cron_job' are required.",
+            ),
+            400,
+        )
+
+    try:
+        result = api_task_scheduler.modify_cron_job(old_cron, new_cron)
+        if result.get("status") == "success":
+            return jsonify(result), 200
+        # Check for "not found" which is a client error (404)
+        if "not found" in (result.get("message") or "").lower():
+            return jsonify(result), 404
+        return jsonify(result), 500
+    except BSMError as e:
+        status_code = 404 if "not found" in str(e).lower() else 400
+        return jsonify(status="error", message=str(e)), status_code
+    except Exception as e:
+        logger.error(f"API Modify Cron Job: Unexpected error: {e}", exc_info=True)
+        return jsonify(status="error", message="An unexpected error occurred."), 500
+
+
+@schedule_tasks_bp.route(
+    "/api/server/<string:server_name>/cron_scheduler/delete", methods=["DELETE"]
+)
+@csrf.exempt
+@auth_required
+def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
+    """API endpoint to delete a specific Linux cron job."""
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Delete cron job request by '{identity}' (context: '{server_name}')."
+    )
+
+    if not isinstance(
+        api_task_scheduler.scheduler, api_task_scheduler.core_task.LinuxTaskScheduler
+    ):
+        return (
+            jsonify(status="error", message="Cron jobs are only supported on Linux."),
+            403,
+        )
+
+    cron_string = request.args.get("cron_string")
+    if not cron_string:
+        return (
+            jsonify(
+                status="error", message="'cron_string' query parameter is required."
+            ),
+            400,
+        )
+
+    try:
+        result = api_task_scheduler.delete_cron_job(cron_string)
+        if result.get("status") == "success":
+            return jsonify(result), 200
+        return jsonify(result), 500
+    except BSMError as e:
+        return jsonify(status="error", message=str(e)), 400
+    except Exception as e:
+        logger.error(f"API Delete Cron Job: Unexpected error: {e}", exc_info=True)
+        return jsonify(status="error", message="An unexpected error occurred."), 500
+
+
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/task_scheduler/add", methods=["POST"]
 )
@@ -358,7 +354,6 @@ def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
         return jsonify(status="error", message="An unexpected error occurred."), 500
 
 
-# --- API Route: Modify/Delete Windows Task ---
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/task_scheduler/task/<path:task_name>",
     methods=["PUT", "DELETE"],

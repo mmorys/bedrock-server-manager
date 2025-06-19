@@ -39,10 +39,7 @@ util_bp = Blueprint(
 
 
 # --- Route: Serve World Icon ---
-## Refactor: This route is now much cleaner. It instantiates a BedrockServer object
-## and uses its `world_icon_filesystem_path` property. This removes all the complex
-## API calls and path joining from the route itself.
-@util_bp.route("/server_icon/<string:server_name>/world_icon.jpeg")
+@util_bp.route("/api/server/<string:server_name>/word/icon")
 @login_required
 def serve_world_icon(server_name: str) -> Response:
     """Serves the `world_icon.jpeg` file for a specific server's world."""
@@ -101,7 +98,7 @@ def serve_world_icon(server_name: str) -> Response:
 
 
 # --- Route: Serve Custom Panorama ---
-@util_bp.route("/background/custom_panorama.jpeg")
+@util_bp.route("/api/panorama")
 def serve_custom_panorama() -> Response:
     """Serves a custom `panorama.jpeg` background image if it exists."""
     logger.debug("Request received to serve custom panorama background.")
