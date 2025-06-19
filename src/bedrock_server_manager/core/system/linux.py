@@ -10,22 +10,27 @@ like `systemctl` and `screen`.
 
 import platform
 import os
+import re
+import signal
+import threading
 import logging
 import subprocess
 import shutil
-from datetime import datetime
+import time
 from typing import Optional
 
 # Local imports
+from bedrock_server_manager.core.system import process as core_process
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.error import (
     CommandNotFoundError,
     ServerNotRunningError,
     SendCommandError,
     SystemError,
-    InvalidServerNameError,
     ServerStartError,
     ServerStopError,
     MissingArgumentError,
+    PermissionsError,
     FileOperationError,
     AppFileNotFoundError,
 )
@@ -327,281 +332,315 @@ def disable_systemd_service(service_name_full: str) -> None:
         ) from e
 
 
-def _linux_start_server(server_name: str, server_dir: str) -> None:
-    """
-    Starts the Bedrock server process within a detached 'screen' session.
+# --- Constants ---
+BEDROCK_EXECUTABLE_NAME = "bedrock_server"
+PIPE_NAME_TEMPLATE = "/tmp/BedrockServerPipe_{server_name}"
 
-    This function is typically called by the systemd service file (`ExecStart`).
-    It clears the log file and launches `bedrock_server` inside screen.
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server (used for screen session name).
-        server_dir: The full path to the server's installation directory.
-
-    Raises:
-        MissingArgumentError: If `server_name` or `server_dir` is empty.
-        AppFileNotFoundError: If `server_dir` or the server executable does not exist.
-        ServerStartError: If the `screen` command fails to execute.
-        CommandNotFoundError: If the 'screen' or 'bash' command is not found.
-        SystemError: If not run on Linux.
-    """
-    if platform.system() != "Linux":
-        logger.error("Attempted to use Linux start method on non-Linux OS.")
-        raise SystemError("Cannot use screen start method on non-Linux OS.")
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-    if not server_dir:
-        raise MissingArgumentError("Server directory cannot be empty.")
-
-    if not os.path.isdir(server_dir):
-        raise AppFileNotFoundError(server_dir, "Server directory")
-    bedrock_exe = os.path.join(server_dir, "bedrock_server")
-    if not os.path.isfile(bedrock_exe):
-        raise AppFileNotFoundError(bedrock_exe, "Server executable")
-    if not os.access(bedrock_exe, os.X_OK):
-        logger.warning(
-            f"Server executable '{bedrock_exe}' is not executable. Attempting start anyway, but it may fail."
-        )
-        # Or raise ServerStartError("Server executable is not executable.")
-
-    screen_cmd = shutil.which("screen")
-    bash_cmd = shutil.which("bash")
-    if not screen_cmd:
-        raise CommandNotFoundError("screen")
-    if not bash_cmd:
-        raise CommandNotFoundError("bash")
-
-    log_file_path = os.path.join(server_dir, "server_output.txt")
-    logger.info(
-        f"Starting server '{server_name}' via screen session 'bedrock-{server_name}'..."
-    )
-    logger.debug(f"Working directory: {server_dir}, Log file: {log_file_path}")
-
-    # Clear/Initialize the server output log file
-    try:
-        # Open with 'w' to truncate if exists, create if not
-        with open(log_file_path, "w", encoding="utf-8") as f:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{timestamp}] Starting Server via screen...\n")
-        logger.debug(f"Initialized server log file: {log_file_path}")
-    except OSError as e:
-        # Log warning but don't necessarily fail the start if log init fails
-        logger.warning(
-            f"Failed to clear/initialize server log file '{log_file_path}': {e}. Continuing start...",
-            exc_info=True,
-        )
-
-    # Construct the command to run inside screen
-    # Use exec to replace the bash process with bedrock_server
-    command_in_screen = f'cd "{server_dir}" && LD_LIBRARY_PATH=. exec ./bedrock_server'
-    screen_session_name = f"bedrock-{server_name}"
-
-    # Build the full screen command list
-    full_screen_command = [
-        screen_cmd,
-        "-dmS",
-        screen_session_name,  # Detached, named session
-        "-L",  # Enable logging
-        "-Logfile",
-        log_file_path,  # Specify log file
-        bash_cmd,  # Shell to run command in
-        "-c",  # Option to run command string
-        command_in_screen,
-    ]
-    logger.debug(f"Executing screen command: {' '.join(full_screen_command)}")
-
-    try:
-        process = subprocess.run(
-            full_screen_command, check=True, capture_output=True, text=True
-        )
-        logger.info(
-            f"Server '{server_name}' initiated successfully in screen session '{screen_session_name}'."
-        )
-        logger.debug(f"Screen command output: {process.stdout}{process.stderr}")
-    except subprocess.CalledProcessError as e:
-        error_msg = (
-            f"Failed to start server '{server_name}' using screen. Error: {e.stderr}"
-        )
-        logger.error(error_msg, exc_info=True)
-        raise ServerStartError(error_msg) from e
-    except FileNotFoundError as e:  # Should be caught by shutil.which, but safeguard
-        logger.error(f"Command not found during screen execution: {e}", exc_info=True)
-        raise CommandNotFoundError(e.filename) from e
+# Module-level event to signal foreground mode shutdown (e.g., by Ctrl+C)
+_foreground_server_shutdown_event = threading.Event()
 
 
-def _linux_send_command(server_name: str, command: str) -> None:
-    """
-    Sends a command to a Bedrock server running in a 'screen' session.
-    (Linux-specific)
+def _handle_os_signals(sig, frame):
+    """Signal handler for SIGINT and SIGTERM to gracefully shut down the foreground server."""
+    logger.info(f"OS Signal {sig} received. Setting foreground shutdown event.")
+    _foreground_server_shutdown_event.set()
 
-    Args:
-        server_name: The name of the server (used for screen session name).
-        command: The command to send to the server.
 
-    Raises:
-        MissingArgumentError: If `server_name` or `command` is empty.
-        CommandNotFoundError: If the 'screen' command is not found.
-        ServerNotRunningError: If the screen session for the server is not found.
-        SendCommandError: If sending the command via screen fails unexpectedly.
-    """
-    if not server_name:
-        raise MissingArgumentError("server_name cannot be empty.")
-    if not command:
-        raise MissingArgumentError("command cannot be empty.")
+# --- Named Pipe (FIFO) Server Helper (No changes needed) ---
+def _main_pipe_server_listener_thread(
+    pipe_path: str,
+    bedrock_process: subprocess.Popen,
+    server_name: str,
+    overall_shutdown_event: threading.Event,
+):
+    """Main listener thread for the named pipe (FIFO). Serially handles clients."""
+    logger.info(f"MAIN_PIPE_LISTENER: Starting for pipe '{pipe_path}'.")
 
-    screen_cmd_path = shutil.which("screen")
-    if not screen_cmd_path:
-        logger.error(
-            "'screen' command not found. Cannot send command. Is 'screen' installed and in PATH?"
-        )
-        raise CommandNotFoundError(
-            "screen", message="'screen' command not found. Is it installed?"
-        )
-
-    try:
-        screen_session_name = f"bedrock-{server_name}"
-        # Ensure the command ends with a newline, as 'stuff' simulates typing
-        command_with_newline = command if command.endswith("\n") else command + "\n"
-
-        process = subprocess.run(
-            [
-                screen_cmd_path,
-                "-S",
-                screen_session_name,
-                "-X",
-                "stuff",
-                command_with_newline,
-            ],
-            check=True,  # Raise CalledProcessError on non-zero exit
-            capture_output=True,  # Capture stdout and stderr
-            text=True,  # Decode stdout/stderr as text
-        )
-        logger.debug(
-            f"'screen' command executed successfully for server '{server_name}'. stdout: {process.stdout}, stderr: {process.stderr}"
-        )
-        logger.info(f"Sent command '{command}' to server '{server_name}' via screen.")
-
-    except subprocess.CalledProcessError as e:
-        # screen -X stuff usually exits 0, but if session doesn't exist,
-        # it might exit non-zero on some versions or print to stderr.
-        # More reliably, check stderr for the "No screen session found" message.
-        if "No screen session found" in e.stderr or (
-            hasattr(e, "stdout") and "No screen session found" in e.stdout
-        ):  # Check stdout too, just in case
-            logger.error(
-                f"Failed to send command: Screen session '{screen_session_name}' not found. "
-                f"Is the server running correctly in screen? stderr: {e.stderr}, stdout: {e.stdout}"
+    while not overall_shutdown_event.is_set() and bedrock_process.poll() is None:
+        try:
+            logger.info(
+                f"MAIN_PIPE_LISTENER: Waiting for a client to connect to '{pipe_path}'..."
             )
-            raise ServerNotRunningError(
-                f"Screen session '{screen_session_name}' not found."
-            ) from e
-        else:
+            with open(pipe_path, "r") as pipe_file:
+                logger.info(f"MAIN_PIPE_LISTENER: Client connected to '{pipe_path}'.")
+                for command_str in pipe_file:
+                    if overall_shutdown_event.is_set():
+                        break
+                    command_str = command_str.strip()
+                    if not command_str:
+                        continue
+
+                    logger.info(
+                        f"MAIN_PIPE_LISTENER: Received command: '{command_str}'"
+                    )
+                    if bedrock_process.stdin and not bedrock_process.stdin.closed:
+                        bedrock_process.stdin.write(
+                            (command_str + "\n").encode("utf-8")
+                        )
+                        bedrock_process.stdin.flush()
+                    else:
+                        logger.warning(
+                            f"MAIN_PIPE_LISTENER: Stdin for server '{server_name}' is closed."
+                        )
+                        break
+            if not overall_shutdown_event.is_set():
+                logger.info(
+                    f"MAIN_PIPE_LISTENER: Client disconnected. Awaiting next connection."
+                )
+        except Exception as e:
+            if overall_shutdown_event.is_set():
+                break
             logger.error(
-                f"Failed to send command via screen for server '{server_name}': {e}. "
-                f"stdout: {e.stdout}, stderr: {e.stderr}",
+                f"MAIN_PIPE_LISTENER: Unexpected error for '{pipe_path}': {e}",
                 exc_info=True,
             )
-            raise SendCommandError(
-                f"Failed to send command to '{server_name}' via screen: {e}"
-            ) from e
-    except FileNotFoundError:
-        # This would typically only happen if 'screen' was deleted *after* shutil.which found it,
-        # or if shutil.which somehow returned a path that became invalid.
-        # The primary check for 'screen' not existing is handled before the try block.
-        logger.error(
-            f"'screen' command (path: {screen_cmd_path}) not found unexpectedly "
-            f"when trying to send command to '{server_name}'."
-        )
-        raise CommandNotFoundError(
-            "screen",
-            message=f"'screen' command not found unexpectedly at path: {screen_cmd_path}.",
-        ) from None
-    except Exception as e:  # Catch-all for other unexpected errors
-        logger.error(
-            f"An unexpected error occurred while trying to send command to server '{server_name}': {e}",
-            exc_info=True,
-        )
-        raise SendCommandError(
-            f"Unexpected error sending command to '{server_name}': {e}"
-        ) from e
+            time.sleep(1)
 
-
-# -- UNUSED --
-def _linux_stop_server(server_name: str, server_dir: str) -> None:
-    """
-    Stops the Bedrock server running within a 'screen' session.
-
-    This function is typically called by the systemd service file (`ExecStop`).
-    It sends the "stop" command to the server via screen.
-    (Linux-specific)
-
-    Args:
-        server_name: The name of the server (used for screen session name).
-        server_dir: The server's installation directory (used for logging/context).
-
-    Raises:
-        MissingArgumentError: If `server_name` or `server_dir` is empty.
-        ServerStopError: If sending the stop command via screen fails unexpectedly.
-        CommandNotFoundError: If the 'screen' command is not found.
-        SystemError: If not run on Linux.
-    """
-    if platform.system() != "Linux":
-        logger.error("Attempted to use Linux stop method on non-Linux OS.")
-        raise SystemError("Cannot use screen stop method on non-Linux OS.")
-    if not server_name:
-        raise MissingArgumentError("Server name cannot be empty.")
-    if not server_dir:
-        raise MissingArgumentError(
-            "Server directory cannot be empty."
-        )  # Although not strictly used here
-
-    screen_cmd = shutil.which("screen")
-    if not screen_cmd:
-        raise CommandNotFoundError("screen")
-
-    screen_session_name = f"bedrock-{server_name}"
     logger.info(
-        f"Attempting to stop server '{server_name}' by sending 'stop' command to screen session '{screen_session_name}'..."
+        f"MAIN_PIPE_LISTENER: Main pipe listener thread for '{pipe_path}' has EXITED."
     )
 
+
+# --- REFACTORED START SERVER ---
+def _linux_start_server(server_name: str, server_dir: str, config_dir: str) -> None:
+    """Starts Bedrock server on Linux in foreground, manages PID & named pipe (FIFO). Blocks until shutdown."""
+    if not all([server_name, server_dir, config_dir]):
+        raise MissingArgumentError(
+            "server_name, server_dir, and config_dir are required."
+        )
+
+    logger.info(
+        f"Starting server '{server_name}' in FOREGROUND blocking mode (Linux)..."
+    )
+    _foreground_server_shutdown_event.clear()
+
+    # --- Pre-start Check ---
+    if core_process.get_verified_bedrock_process(server_name, server_dir, config_dir):
+        msg = f"Server '{server_name}' appears to be already running and verified. Aborting start."
+        logger.warning(msg)
+        raise ServerStartError(msg)
+    else:
+        try:
+            pid_file_path = core_process.get_bedrock_server_pid_file_path(
+                server_name, config_dir
+            )
+            core_process.remove_pid_file_if_exists(pid_file_path)
+        except (AppFileNotFoundError, FileOperationError) as e:
+            logger.warning(
+                f"Could not clean up stale PID file for '{server_name}': {e}. Proceeding."
+            )
+            pass
+
+    # --- Setup ---
+    server_exe_path = os.path.join(server_dir, BEDROCK_EXECUTABLE_NAME)
+    if not os.path.isfile(server_exe_path):
+        raise AppFileNotFoundError(server_exe_path, "Server executable")
+    if not os.access(server_exe_path, os.X_OK):
+        raise PermissionsError(
+            f"Server executable is not executable: {server_exe_path}"
+        )
+
+    output_file = os.path.join(server_dir, "server_output.txt")
+    pipe_path = PIPE_NAME_TEMPLATE.format(server_name=re.sub(r"\W+", "_", server_name))
+
+    # Setup signals and pipe
+    signal.signal(signal.SIGINT, _handle_os_signals)
+    signal.signal(signal.SIGTERM, _handle_os_signals)
     try:
-        # Send the "stop" command, followed by newline, to the screen session
-        # Use 'stuff' to inject the command
-        process = subprocess.run(
-            [screen_cmd, "-S", screen_session_name, "-X", "stuff", "stop\n"],
-            check=False,  # Don't raise if screen session doesn't exist
-            capture_output=True,
-            text=True,
+        if os.path.exists(pipe_path):
+            os.remove(pipe_path)
+        os.mkfifo(pipe_path, mode=0o600)
+    except OSError as e:
+        raise SystemError(f"Failed to create named pipe '{pipe_path}': {e}") from e
+
+    bedrock_process: Optional[subprocess.Popen] = None
+    server_stdout_handle = None
+    main_pipe_listener_thread_obj: Optional[threading.Thread] = None
+
+    try:
+        # --- Launch Process ---
+        with open(output_file, "wb") as f:
+            f.write(f"Starting Bedrock Server '{server_name}'...\n".encode("utf-8"))
+        server_stdout_handle = open(output_file, "ab")
+
+        bedrock_process = subprocess.Popen(
+            [server_exe_path],
+            cwd=server_dir,
+            env={**os.environ, "LD_LIBRARY_PATH": "."},
+            stdin=subprocess.PIPE,
+            stdout=server_stdout_handle,
+            stderr=subprocess.STDOUT,
+            text=False,
+            bufsize=0,
+        )
+        logger.info(
+            f"Bedrock Server '{server_name}' started with PID: {bedrock_process.pid}."
         )
 
-        if process.returncode == 0:
-            logger.info(
-                f"'stop' command sent successfully to screen session '{screen_session_name}'."
-            )
-            # Note: This only sends the command. The server still needs time to shut down.
-        elif "No screen session found" in process.stderr:
-            logger.info(
-                f"Screen session '{screen_session_name}' not found. Server likely already stopped."
-            )
-            # Not an error in this context
-        else:
-            # Screen command failed for other reasons
-            error_msg = (
-                f"Failed to send 'stop' command via screen. Error: {process.stderr}"
-            )
-            logger.error(error_msg, exc_info=True)
-            raise ServerStopError(error_msg)
+        # --- Manage PID and Pipe ---
+        pid_file_path = core_process.get_bedrock_server_pid_file_path(
+            server_name, config_dir
+        )
+        core_process.write_pid_to_file(pid_file_path, bedrock_process.pid)
 
-    except FileNotFoundError:  # Should be caught by shutil.which, but safeguard
-        logger.error("'screen' command not found unexpectedly during stop.")
-        raise CommandNotFoundError("screen") from None
-    except Exception as e:
+        main_pipe_listener_thread_obj = threading.Thread(
+            target=_main_pipe_server_listener_thread,
+            args=(
+                pipe_path,
+                bedrock_process,
+                server_name,
+                _foreground_server_shutdown_event,
+            ),
+            daemon=True,
+        )
+        main_pipe_listener_thread_obj.start()
+
+        # --- Main Blocking Loop ---
+        logger.info(
+            f"Server '{server_name}' is running. Holding console. Press Ctrl+C to stop."
+        )
+        while (
+            not _foreground_server_shutdown_event.is_set()
+            and bedrock_process.poll() is None
+        ):
+            try:
+                _foreground_server_shutdown_event.wait(timeout=1.0)
+            except KeyboardInterrupt:
+                _foreground_server_shutdown_event.set()
+
+        if bedrock_process.poll() is not None:
+            logger.warning(
+                f"Bedrock server '{server_name}' terminated unexpectedly. Shutting down."
+            )
+            _foreground_server_shutdown_event.set()
+
+    except Exception as e_start:
+        raise ServerStartError(
+            f"Failed to start or manage server '{server_name}': {e_start}"
+        ) from e_start
+    finally:
+        # --- Cleanup ---
+        logger.info(f"Initiating cleanup for wrapper of '{server_name}'...")
+        _foreground_server_shutdown_event.set()
+
+        try:  # Unblock the pipe listener
+            with open(pipe_path, "w") as f:
+                pass
+        except OSError:
+            pass
+        if main_pipe_listener_thread_obj and main_pipe_listener_thread_obj.is_alive():
+            main_pipe_listener_thread_obj.join(timeout=3.0)
+
+        if bedrock_process and bedrock_process.poll() is None:
+            logger.info(f"Sending 'stop' command to Bedrock server '{server_name}'.")
+            try:
+                if bedrock_process.stdin and not bedrock_process.stdin.closed:
+                    bedrock_process.stdin.write(b"stop\n")
+                    bedrock_process.stdin.flush()
+                    bedrock_process.stdin.close()
+                bedrock_process.wait(
+                    timeout=settings.get("SERVER_STOP_TIMEOUT_SEC", 30)
+                )
+            except (subprocess.TimeoutExpired, OSError, ValueError):
+                logger.warning(
+                    f"Graceful stop failed for '{server_name}'. Terminating process."
+                )
+                core_process.terminate_process_by_pid(bedrock_process.pid)
+
+        try:
+            pid_file_path_final = core_process.get_bedrock_server_pid_file_path(
+                server_name, config_dir
+            )
+            core_process.remove_pid_file_if_exists(pid_file_path_final)
+            if os.path.exists(pipe_path):
+                os.remove(pipe_path)
+        except (AppFileNotFoundError, FileOperationError, OSError) as e:
+            logger.debug(f"Could not remove PID/pipe file during cleanup: {e}")
+
+        if server_stdout_handle and not server_stdout_handle.closed:
+            server_stdout_handle.close()
+
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        logger.info(f"Cleanup for server '{server_name}' finished.")
+
+
+# --- SEND COMMAND (No changes needed) ---
+def _linux_send_command(server_name: str, command: str) -> None:
+    """Sends a command to a running Bedrock server via its named pipe (FIFO)."""
+    if not all([server_name, command]):
+        raise MissingArgumentError("server_name and command cannot be empty.")
+
+    pipe_path = PIPE_NAME_TEMPLATE.format(server_name=re.sub(r"\W+", "_", server_name))
+    if not os.path.exists(pipe_path):
+        raise ServerNotRunningError(
+            f"Pipe '{pipe_path}' not found. Server likely not running."
+        )
+
+    try:
+        with open(pipe_path, "w") as pipe_file:
+            pipe_file.write(command + "\n")
+            pipe_file.flush()
+        logger.info(f"Sent command '{command}' to server '{server_name}'.")
+    except (FileNotFoundError, BrokenPipeError) as e:
+        raise ServerNotRunningError(
+            f"Pipe '{pipe_path}' disconnected. Server likely not running."
+        ) from e
+    except OSError as e:
+        raise SendCommandError(f"Failed to send command to '{pipe_path}': {e}") from e
+
+
+# --- REFACTORED STOP SERVER ---
+def _linux_stop_server(server_name: str, config_dir: str) -> None:
+    """Stops the Bedrock server on Linux by sending 'stop' command, with PID termination as fallback."""
+    if not all([server_name, config_dir]):
+        raise MissingArgumentError("server_name and config_dir are required.")
+
+    logger.info(f"Attempting to stop server '{server_name}' on Linux...")
+
+    # First, try the graceful 'stop' command via the pipe.
+    try:
+        _linux_send_command(server_name, "stop")
+        logger.info(
+            f"'stop' command sent to '{server_name}'. Please allow time for it to shut down."
+        )
+        # We don't wait here; the caller can poll for status if needed.
+        return
+    except ServerNotRunningError:
+        logger.warning(
+            f"Could not send 'stop' command because pipe not found. Attempting to stop by PID."
+        )
+    except SendCommandError as e:
         logger.error(
-            f"An unexpected error occurred while sending stop command via screen: {e}",
-            exc_info=True,
+            f"Failed to send 'stop' command to '{server_name}': {e}. Attempting to stop by PID."
         )
-        raise ServerStopError(f"Unexpected error sending stop via screen: {e}") from e
 
+    # If sending the command fails or the pipe isn't there, fall back to PID termination.
+    try:
+        pid_file_path = core_process.get_bedrock_server_pid_file_path(
+            server_name, config_dir
+        )
+        pid_to_stop = core_process.read_pid_from_file(pid_file_path)
 
-# ---
+        if pid_to_stop is None or not core_process.is_process_running(pid_to_stop):
+            logger.info(
+                f"No running process found for PID from file. Cleaning up stale PID file if it exists."
+            )
+            core_process.remove_pid_file_if_exists(pid_file_path)
+            return
+
+        logger.info(
+            f"Found running server '{server_name}' with PID {pid_to_stop}. Terminating process..."
+        )
+        core_process.terminate_process_by_pid(pid_to_stop)
+        core_process.remove_pid_file_if_exists(
+            pid_file_path
+        )  # Clean up after termination
+        logger.info(f"Stop-by-PID sequence for server '{server_name}' completed.")
+
+    except (AppFileNotFoundError, FileOperationError):
+        logger.info(f"No PID file found for '{server_name}'. Assuming already stopped.")
+    except (ServerStopError, SystemError) as e:
+        raise ServerStopError(
+            f"Failed to stop server '{server_name}' by PID: {e}"
+        ) from e
