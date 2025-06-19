@@ -40,35 +40,6 @@ api_info_bp = Blueprint("api_info_routes", __name__)
 # --- Server Info Endpoints ---
 
 
-@api_info_bp.route("/api/server/<string:server_name>/world_name", methods=["GET"])
-@csrf.exempt
-@auth_required
-def get_world_name_api_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to get the configured world name (level-name) for a server."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Request for world name for server '{server_name}' by user '{identity}'."
-    )
-    result = {}
-    status_code = 500
-    try:
-        result = api_world.get_world_name(server_name)
-        status_code = (
-            200
-            if result.get("status") == "success"
-            else 500 if result.get("status") == "error" else 500
-        )
-    except BSMError as e:
-        status_code = 400 if isinstance(e, UserInputError) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API World Name '{server_name}': Unexpected error: {e}", exc_info=True
-        )
-        result = {"status": "error", "message": "Unexpected error getting world name."}
-    return jsonify(result), status_code
-
-
 @api_info_bp.route("/api/server/<string:server_name>/running_status", methods=["GET"])
 @csrf.exempt
 @auth_required
