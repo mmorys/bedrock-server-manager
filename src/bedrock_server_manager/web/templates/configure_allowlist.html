@@ -1,5 +1,4 @@
 <!-- bedrock_server_manager//web/templates/configure_allowlist.html -->
-{# Extends the base layout template #}
 {% extends "base.html" %}
 
 {# --- Page Title Block --- #}
@@ -7,17 +6,13 @@
 
 {# --- Head Scripts Block --- #}
 {% block head_scripts %}
-    {# Core utilities (showStatusMessage, sendServerActionRequest) #}
 <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
-    {# Specific JS for allowlist actions (add/remove/refresh) #}
 <script src="{{ url_for('static', filename='js/allowlist.js') }}" defer></script>
 {% endblock %}
-
 
 {# --- Main Content Block --- #}
 {% block content %}
 <h2>Configure Allowlist</h2>
-    {# ADD data-server-name to this paragraph #}
 <p style="margin-bottom: 15px;" data-server-name="{{ server_name | e }}">
     Server: <strong>{{ server_name }}</strong>
     {% if new_install %}
@@ -26,14 +21,9 @@
 </p>
 
     {# --- Status Message Area --- #}
-<div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
-    <!-- Status messages from allowlist actions will appear here -->
-</div>
+<div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;"></div>
 
-    {# Server-side flash messages (handled by base.html) #}
-    {# {% with messages = get_flashed_messages(with_categories=true) %} ... {% endwith %} #}
-
-    {# --- Section for Adding New Players --- #}
+    {# --- Section for Adding New Players (Unchanged) --- #}
 <section class="allowlist-add-section form-section">
     <h3>Add Players</h3>
     <p>Enter player names (Gamertags), one per line, to add them to the allowlist.</p>
@@ -47,16 +37,13 @@
             <small class="form-help-text">Allow the player(s) being added to join even if the server is full?</small>
         </div>
         <div class="toggle-switch-container">
-            <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add-cb" class="toggle-input" value="true"> {# Defaults to unchecked (false) #}
+            <input type="checkbox" id="ignore-limit-add" name="ignore_limit_add-cb" class="toggle-input" value="true">
             <label for="ignore-limit-add" class="toggle-switch"></label>
         </div>
-        {# Associated hidden input to ensure 'false' is sent when checkbox is unchecked #}
         <input type="hidden" name="ignore_limit_add" class="toggle-hidden-false" value="false">
     </div>
     <div class="form-actions">
-        {# Button triggers the addAllowlistPlayers JS function #}
         <button type="button" onclick="addAllowlistPlayers(this, '{{ server_name | e }}')" class="action-button start-button">
-            {# Green 'add' button #}
             Add These Players
         </button>
     </div>
@@ -65,32 +52,118 @@
     {# --- Section to Display Current Allowlist --- #}
 <section class="current-allowlist-section list-section">
     <h2>Current Allowlist</h2>
-    {# This list is now fully populated by fetchAndUpdateAllowlistDisplay() in allowlist.js #}
+
+    {# This list is populated by the JavaScript in body_scripts #}
     <ul id="current-allowlist-display" class="item-list">
-        {# Template for the empty list message - JS will manage its visibility #}
-        <li id="no-players-message" style="font-style: italic; color: #aaa; display: none;">No players currently in allowlist.</li>
-        {# Initial loading state added by JS #}
+        {# Loading indicator will be placed here by JS and then replaced #}
     </ul>
+
+    {# Template for the empty list message - JS will manage its visibility #}
+    <template id="no-players-template">
+        <li class="list-item-empty">No players currently in allowlist.</li>
+    </template>
+
+    {# Template for a single player item - JS will clone and populate this #}
+    <template id="player-item-template">
+        <li class="list-item">
+            <div class="item-details">
+                <span class="item-name">PlayerName</span>
+                <span class="item-tag ignores-limit-tag" style="display: none;">Ignores Player Limit</span>
+            </div>
+            <button type="button" class="action-button danger-button remove-button">Remove</button>
+        </li>
+    </template>
+
 </section>
 
-    {# --- Navigation Actions (Conditional) --- #}
+    {# --- Navigation Actions (Unchanged) --- #}
 <div class="form-actions navigation-link">
     {% if new_install %}
-    {# If part of new install, link to next step #}
     <a href="{{ url_for('install_config_routes.configure_permissions_route', server_name=server_name, new_install='True') }}" class="action-link">
-        Skip & Go to Permissions » {# Use » for right arrow #}
+        Skip & Go to Permissions »
     </a>
     {% else %}
-    {# Standard navigation back to dashboard #}
     <a href="{{ url_for('main_routes.index') }}" class="action-link">
-        « Back to Dashboard {# Use « for left arrow #}
+        « Back to Dashboard
     </a>
     {% endif %}
 </div>
 {% endblock %}
 
-
-{# --- Page-Specific JavaScript Block (at end of body) --- #}
-{# REMOVED - Logic moved inside allowlist.js #}
+{# --- Page-Specific JavaScript Block --- #}
 {% block body_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const serverName = document.querySelector('[data-server-name]').dataset.serverName;
+        const allowlistDisplay = document.getElementById('current-allowlist-display');
+        const playerItemTemplate = document.getElementById('player-item-template');
+        const noPlayersTemplate = document.getElementById('no-players-template');
+
+        // This function can be called to refresh the list at any time
+        window.fetchAndUpdateAllowlistDisplay = async () => {
+            console.log('Fetching and updating allowlist display...');
+            // 1. Show loader
+            allowlistDisplay.innerHTML = `<div class="loader-container-small"><div class="spinner"></div><p>Loading...</p></div>`;
+
+            try {
+                const response = await fetch(`/api/server/${serverName}/allowlist/get`);
+                const data = await response.json();
+
+                if (!response.ok || data.status !== 'success') {
+                    throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                }
+
+                // 2. Clear the list (removes loader)
+                allowlistDisplay.innerHTML = '';
+
+                // 3. Populate the list
+                if (data.existing_players && data.existing_players.length > 0) {
+                    data.existing_players.forEach(player => {
+                        const playerClone = playerItemTemplate.content.cloneNode(true);
+                        const nameSpan = playerClone.querySelector('.item-name');
+                        const tagSpan = playerClone.querySelector('.ignores-limit-tag');
+                        const removeButton = playerClone.querySelector('.remove-button');
+
+                        nameSpan.textContent = player.name;
+                        if (String(player.ignoresPlayerLimit).toLowerCase() === 'true') {
+                            tagSpan.style.display = 'inline-block';
+                        }
+
+                        // The removeAllowlistPlayer function is expected to be in allowlist.js
+                        if (window.removeAllowlistPlayer) {
+                            removeButton.onclick = () => removeAllowlistPlayer(removeButton, serverName, player.name);
+                        } else {
+                            removeButton.style.display = 'none'; // Hide if function doesn't exist
+                            console.warn('removeAllowlistPlayer function not found in allowlist.js');
+                        }
+
+                        allowlistDisplay.appendChild(playerClone);
+                    });
+                } else {
+                    // Show the "no players" message
+                    const noPlayersClone = noPlayersTemplate.content.cloneNode(true);
+                    allowlistDisplay.appendChild(noPlayersClone);
+                }
+            } catch (error) {
+                console.error('Failed to load allowlist:', error);
+                // Replace loader with an error message
+                allowlistDisplay.innerHTML = `<li class="list-item-error">Error loading allowlist: ${error.message}</li>`;
+            }
+        };
+
+        // --- Toggle Switch Logic (for the "add" section) ---
+        const toggleInput = document.getElementById('ignore-limit-add');
+        if (toggleInput) {
+            const hiddenFalseInput = document.querySelector('input[name="ignore_limit_add"]');
+            const syncHiddenFalse = () => {
+                if (hiddenFalseInput) hiddenFalseInput.disabled = toggleInput.checked;
+            };
+            toggleInput.addEventListener('change', syncHiddenFalse);
+            syncHiddenFalse(); // Initial sync
+        }
+
+        // Initial load of the allowlist
+        fetchAndUpdateAllowlistDisplay();
+    });
+</script>
 {% endblock %}

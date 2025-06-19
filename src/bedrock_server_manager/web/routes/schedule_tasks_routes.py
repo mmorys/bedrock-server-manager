@@ -95,6 +95,7 @@ def schedule_tasks_route(server_name: str) -> Response:
         EXPATH=EXPATH,
     )
 
+
 @schedule_tasks_bp.route("/server/<string:server_name>/task_scheduler", methods=["GET"])
 @login_required
 def schedule_tasks_windows_route(server_name: str) -> Response:
@@ -146,9 +147,11 @@ def schedule_tasks_windows_route(server_name: str) -> Response:
         "schedule_tasks_windows.html", server_name=server_name, tasks=tasks
     )
 
+
 # ------
 
 # --- API Endpoints ---
+
 
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/cron_scheduler/add", methods=["POST"]

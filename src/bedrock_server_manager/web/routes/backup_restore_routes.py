@@ -169,6 +169,45 @@ def restore_select_backup_route(server_name: str) -> Response:
 
 
 @backup_restore_bp.route(
+    "/api/server/<string:server_name>/backups/prune", methods=["POST"]
+)
+@csrf.exempt
+@auth_required
+def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to prune old backups (world, configs) for a specific server.
+    The number of backups to keep is determined by application settings.
+    """
+    identity = get_current_identity() or "Unknown"
+    logger.info(
+        f"API: Request to prune backups for server '{server_name}' by user '{identity}'."
+    )
+
+    logger.debug(f"API Prune Backups: Server='{server_name}'")
+
+    result = {}
+    status_code = 500
+    try:
+        # Call the backup API function
+        result = backup_restore_api.prune_old_backups(server_name)
+        status_code = (
+            200
+            if result.get("status") == "success"
+            else 500 if result.get("status") == "error" else 500
+        )
+    except BSMError as e:
+        status_code = 400 if isinstance(e, UserInputError) else 500
+        result = {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(
+            f"API Prune Backups '{server_name}': Unexpected error: {e}", exc_info=True
+        )
+        result = {"status": "error", "message": "Unexpected error pruning backups."}
+
+    return jsonify(result), status_code
+
+
+@backup_restore_bp.route(
     "/api/server/<string:server_name>/backup/list/<string:backup_type>",
     methods=["GET"],
 )

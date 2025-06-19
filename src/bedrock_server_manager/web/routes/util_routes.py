@@ -132,16 +132,6 @@ def serve_custom_panorama() -> Response:
         return "Error serving panorama image", 500
 
 
-# --- Route: Server Monitor Page ---
-@util_bp.route("/server/<string:server_name>/monitor")
-@login_required
-def monitor_server_route(server_name: str) -> Response:
-    """Renders the server monitoring page for a specific server."""
-    identity = get_current_identity()
-    logger.info(f"User '{identity}' accessed monitor page for server '{server_name}'.")
-    return render_template("monitor.html", server_name=server_name)
-
-
 # --- Catch-all Route ---
 @util_bp.route("/<path:unused_path>")
 def catch_all(unused_path: str) -> Response:

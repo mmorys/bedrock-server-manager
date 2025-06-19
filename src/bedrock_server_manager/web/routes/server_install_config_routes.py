@@ -52,7 +52,7 @@ server_install_config_bp = Blueprint(
 )
 
 
-# --- Route: Install Server Page ---
+# --- HTML Routes ---
 @server_install_config_bp.route("/install", methods=["GET"])
 @login_required
 def install_server_route() -> Response:
@@ -62,7 +62,105 @@ def install_server_route() -> Response:
     return render_template("install.html")
 
 
-# --- API Route: Install Server ---
+@server_install_config_bp.route(
+    "/server/<string:server_name>/configure_properties", methods=["GET"]
+)
+@login_required
+def configure_properties_route(server_name: str) -> Response:
+    """Renders the page for configuring the server.properties file."""
+    identity = get_current_identity()
+    logger.info(
+        f"User '{identity}' accessed configure properties for server '{server_name}'."
+    )
+
+    return render_template(
+        "configure_properties.html",
+        server_name=server_name,
+        new_install=request.args.get("new_install", "false").lower() == "true",
+    )
+
+
+@server_install_config_bp.route(
+    "/server/<string:server_name>/configure_allowlist", methods=["GET"]
+)
+@login_required
+def configure_allowlist_route(server_name: str) -> Response:
+    """Renders the page for configuring the server's allowlist."""
+    identity = get_current_identity()
+    logger.info(
+        f"User '{identity}' accessed configure allowlist for server '{server_name}'."
+    )
+
+    return render_template(
+        "configure_allowlist.html",
+        server_name=server_name,
+        new_install=request.args.get("new_install", "false").lower() == "true",
+    )
+
+
+# --- Route: Configure Permissions Page ---
+@server_install_config_bp.route(
+    "/server/<string:server_name>/configure_permissions", methods=["GET"]
+)
+@login_required
+def configure_permissions_route(server_name: str) -> Response:
+    """
+    Renders the page for configuring player permission levels.
+    """
+    identity = get_current_identity()
+    logger.info(
+        f"User '{identity}' accessed configure permissions for server '{server_name}'."
+    )
+
+    return render_template(
+        "configure_permissions.html",
+        server_name=server_name,
+        new_install=request.args.get("new_install", "false").lower() == "true",
+    )
+
+
+@server_install_config_bp.route(
+    "/server/<string:server_name>/configure_service", methods=["GET"]
+)
+@login_required
+def configure_service_route(server_name: str) -> Response:
+    """Renders the page for configuring OS-specific service settings."""
+    identity = get_current_identity()
+    logger.info(
+        f"User '{identity}' accessed configure service page for server '{server_name}'."
+    )
+
+    try:
+        service_status = False  # system_api.get_service_status(server_name)
+        # if service_status.get("status") == "error":
+        #    flash(
+        #        f"Could not get service status: {service_status.get('message')}",
+        #        "warning",
+        #    )
+
+        template_data = {
+            "server_name": server_name,
+            "os": platform.system(),
+            "new_install": request.args.get("new_install", "false").lower() == "true",
+            "service_exists": False,  # service_status.get("exists", False),
+            "autostart_enabled": False,  # service_status.get("autostart_enabled", False),
+            "autoupdate_enabled": False,  # service_status.get("autoupdate_enabled", False),
+        }
+        return render_template("configure_service.html", **template_data)
+    except Exception as e:
+        flash("An unexpected error occurred loading service settings.", "danger")
+        logger.error(
+            f"Unexpected error loading service page for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return render_template(
+            "configure_service.html",
+            os=platform.system(),
+            new_install=request.args.get("new_install", "false").lower() == "true",
+        )
+
+
+# --- API Routes ---
 @server_install_config_bp.route("/api/server/install", methods=["POST"])
 @csrf.exempt
 @auth_required
@@ -144,47 +242,8 @@ def install_server_api_route() -> Tuple[Response, int]:
     return jsonify(result), status_code
 
 
-# --- Route: Configure Server Properties Page ---
 @server_install_config_bp.route(
-    "/server/<string:server_name>/configure_properties", methods=["GET"]
-)
-@login_required
-def configure_properties_route(server_name: str) -> Response:
-    """Renders the page for configuring the server.properties file."""
-    identity = get_current_identity()
-    logger.info(
-        f"User '{identity}' accessed configure properties for server '{server_name}'."
-    )
-
-    try:
-        properties_response = server_install_config.get_server_properties_api(
-            server_name
-        )
-        if properties_response.get("status") == "error":
-            flash(
-                f"Error loading properties: {properties_response.get('message', 'Unknown error')}",
-                "error",
-            )
-            return redirect(url_for("main_routes.index"))
-
-        return render_template(
-            "configure_properties.html",
-            server_name=server_name,
-            properties=properties_response.get("properties", {}),
-            new_install=request.args.get("new_install", "false").lower() == "true",
-        )
-    except Exception as e:
-        flash("An unexpected error occurred while loading server properties.", "danger")
-        logger.error(
-            f"Unexpected error loading properties page for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return redirect(url_for("main_routes.index"))
-
-
-# --- API Route: Configure Server Properties ---
-@server_install_config_bp.route(
-    "/api/server/<string:server_name>/properties", methods=["POST"]
+    "/api/server/<string:server_name>/properties/set", methods=["POST"]
 )
 @csrf.exempt
 @auth_required
@@ -235,9 +294,8 @@ def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), status_code
 
 
-# --- API Route: Get Server Properties ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/read_properties", methods=["GET"]
+    "/api/server/<string:server_name>/properties/get", methods=["GET"]
 )
 @csrf.exempt
 @auth_required
@@ -251,44 +309,6 @@ def get_server_properties_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), 500
 
 
-# --- Route: Configure Allowlist Page ---
-@server_install_config_bp.route(
-    "/server/<string:server_name>/configure_allowlist", methods=["GET"]
-)
-@login_required
-def configure_allowlist_route(server_name: str) -> Response:
-    """Renders the page for configuring the server's allowlist."""
-    identity = get_current_identity()
-    logger.info(
-        f"User '{identity}' accessed configure allowlist for server '{server_name}'."
-    )
-
-    try:
-        result = server_install_config.get_server_allowlist_api(server_name)
-        if result.get("status") == "error":
-            flash(
-                f"Error loading allowlist: {result.get('message', 'Unknown error')}",
-                "error",
-            )
-
-        return render_template(
-            "configure_allowlist.html",
-            server_name=server_name,
-            existing_players=result.get("players", []),
-            new_install=request.args.get("new_install", "false").lower() == "true",
-        )
-    except Exception as e:
-        flash("An unexpected error occurred loading the allowlist.", "error")
-        logger.error(
-            f"Unexpected error loading allowlist page for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return render_template(
-            "configure_allowlist.html", server_name=server_name, existing_players=[]
-        )
-
-
-# --- API Route: Add Players to Allowlist ---
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/allowlist/add", methods=["POST"]
 )
@@ -333,9 +353,8 @@ def add_to_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
         )
 
 
-# --- API Route: Get Allowlist ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/allowlist", methods=["GET"]
+    "/api/server/<string:server_name>/allowlist/get", methods=["GET"]
 )
 @csrf.exempt
 @auth_required
@@ -352,7 +371,6 @@ def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), 500
 
 
-# --- API Route: Remove Player from Allowlist ---
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/allowlist/remove",
     methods=["DELETE"],
@@ -396,94 +414,8 @@ def remove_allowlist_players_api_route(server_name: str) -> Tuple[Response, int]
         )
 
 
-# --- Route: Configure Permissions Page ---
 @server_install_config_bp.route(
-    "/server/<string:server_name>/configure_permissions", methods=["GET"]
-)
-@login_required
-def configure_permissions_route(server_name: str) -> Response:
-    """
-    Renders the page for configuring player permission levels.
-    """
-    identity = get_current_identity()
-    logger.info(
-        f"User '{identity}' accessed configure permissions for server '{server_name}'."
-    )
-
-    all_players: list = []
-    permissions_map: dict = {}
-
-    try:
-        # --- STEP 1: Fetch ALL known players from the global player list ---
-        logger.debug("Calling Player API to get all known players...")
-        players_response = player_api.get_all_known_players_api()
-
-        if players_response.get("status") == "success":
-            all_players = players_response.get("players", [])
-            logger.info(f"Loaded {len(all_players)} players from global player API.")
-        else:
-            flash(
-                f"Warning: Could not load global player list: {players_response.get('message')}",
-                "warning",
-            )
-
-        # --- STEP 2: Fetch permissions for server ---
-        logger.debug(f"Calling Server API to get permissions for '{server_name}'...")
-        permissions_response = server_install_config.get_server_permissions_api(
-            server_name
-        )
-        server_permissions_list = permissions_response.get("data", {}).get(
-            "permissions", []
-        )
-
-        # --- STEP 3: MERGE the two data sources ---
-        permissions_map = {
-            str(p.get("xuid")): str(p.get("permission_level"))
-            for p in server_permissions_list
-            if p.get("xuid")
-        }
-        logger.debug(
-            f"Created permissions map with {len(permissions_map)} entries for '{server_name}'."
-        )
-
-        known_player_xuids = {str(p.get("xuid")) for p in all_players if p.get("xuid")}
-        xuids_only_in_permissions = set(permissions_map.keys()) - known_player_xuids
-
-        if xuids_only_in_permissions:
-            logger.info(
-                f"Found {len(xuids_only_in_permissions)} players in server permissions not in global list. Adding them."
-            )
-            for xuid in xuids_only_in_permissions:
-                all_players.append({"xuid": xuid, "name": f"Unknown (XUID: {xuid})"})
-
-        all_players.sort(key=lambda p: p.get("name", "").lower())
-
-    except Exception as e:
-        flash(
-            "An unexpected error occurred while preparing the permissions page.",
-            "danger",
-        )
-        logger.error(
-            f"Failed to orchestrate permissions page for '{server_name}': {e}",
-            exc_info=True,
-        )
-        all_players = []
-        permissions_map = {}
-
-    new_install = request.args.get("new_install", "false").lower() == "true"
-
-    return render_template(
-        "configure_permissions.html",
-        server_name=server_name,
-        players=all_players,
-        permissions=permissions_map,
-        new_install=new_install,
-    )
-
-
-# --- API Route: Configure Permissions ---
-@server_install_config_bp.route(
-    "/api/server/<string:server_name>/permissions", methods=["PUT"]
+    "/api/server/<string:server_name>/permissions/set", methods=["PUT"]
 )
 @csrf.exempt
 @auth_required
@@ -543,9 +475,8 @@ def configure_permissions_api_route(server_name: str) -> Tuple[Response, int]:
         )
 
 
-# --- API Route: Get Permissions Data ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/permissions_data", methods=["GET"]
+    "/api/server/<string:server_name>/permissions/get", methods=["GET"]
 )
 @csrf.exempt
 @auth_required
@@ -559,51 +490,9 @@ def get_server_permissions_data_route(server_name: str) -> Tuple[Response, int]:
     return jsonify(result), 500
 
 
-# --- Route: Configure Service Page ---
-@server_install_config_bp.route(
-    "/server/<string:server_name>/configure_service", methods=["GET"]
-)
-@login_required
-def configure_service_route(server_name: str) -> Response:
-    """Renders the page for configuring OS-specific service settings."""
-    identity = get_current_identity()
-    logger.info(
-        f"User '{identity}' accessed configure service page for server '{server_name}'."
-    )
-
-    try:
-        service_status = False  # system_api.get_service_status(server_name)
-        # if service_status.get("status") == "error":
-        #    flash(
-        #        f"Could not get service status: {service_status.get('message')}",
-        #        "warning",
-        #    )
-
-        template_data = {
-            "server_name": server_name,
-            "os": platform.system(),
-            "new_install": request.args.get("new_install", "false").lower() == "true",
-            "service_exists": False,  # service_status.get("exists", False),
-            "autostart_enabled": False,  # service_status.get("autostart_enabled", False),
-            "autoupdate_enabled": False,  # service_status.get("autoupdate_enabled", False),
-        }
-        return render_template("configure_service.html", **template_data)
-    except Exception as e:
-        flash("An unexpected error occurred loading service settings.", "danger")
-        logger.error(
-            f"Unexpected error loading service page for '{server_name}': {e}",
-            exc_info=True,
-        )
-        return render_template(
-            "configure_service.html",
-            os=platform.system(),
-            new_install=request.args.get("new_install", "false").lower() == "true",
-        )
-
-
 # --- API Route: Configure Service ---
 @server_install_config_bp.route(
-    "/api/server/<string:server_name>/service", methods=["POST"]
+    "/api/server/<string:server_name>/service/update", methods=["POST"]
 )
 @csrf.exempt
 @auth_required
