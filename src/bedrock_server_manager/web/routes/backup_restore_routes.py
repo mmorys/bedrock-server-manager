@@ -165,7 +165,7 @@ def restore_select_backup_route(server_name: str) -> Response:
 # --- API Routes ---
 
 @backup_restore_bp.route(
-    "/api/server/<string:server_name>/backups/list/<string:backup_type>",
+    "/api/server/<string:server_name>/backup/list/<string:backup_type>",
     methods=["GET"],
 )
 @csrf.exempt
