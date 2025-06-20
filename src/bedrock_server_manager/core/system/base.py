@@ -1,10 +1,10 @@
 # bedrock_server_manager/core/system/base.py
-"""
-Provides base system utilities and cross-platform functionalities.
+"""Provides base system utilities and cross-platform functionalities.
 
-Includes prerequisite checks, internet connectivity verification, permission setting,
-and process status/resource monitoring using platform-agnostic approaches where possible,
-or acting as a dispatcher to platform-specific implementations.
+This module includes functions for checking prerequisites, verifying internet
+connectivity, setting filesystem permissions, and monitoring process status and
+resource usage. It uses platform-agnostic approaches where possible or acts as
+a dispatcher to platform-specific implementations.
 """
 
 import platform
@@ -18,7 +18,7 @@ import time
 from datetime import timedelta
 from typing import Optional, Dict, Any
 
-# Third-party imports
+# Third-party imports. psutil is optional but required for process monitoring.
 try:
     import psutil
 
@@ -26,7 +26,7 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.core.system import process as core_process
 from bedrock_server_manager.error import (
     PermissionsError,
@@ -43,14 +43,13 @@ logger = logging.getLogger(__name__)
 
 
 def check_prerequisites() -> None:
-    """
-    Checks if essential command-line tools are available on the system.
+    """Checks if essential command-line tools are available on the system.
 
-    - Linux: Checks for 'systemctl', 'crontab'.
-    - Windows: Checks for 'schtasks.exe'. Recommends 'psutil' for full functionality.
+    - On Linux, it checks for `systemctl` and `crontab`.
+    - On Windows, it checks for `schtasks.exe` and recommends `psutil`.
 
     Raises:
-        SystemError: If any required packages/commands are missing on Linux.
+        SystemError: If a required command is missing on Linux.
         CommandNotFoundError: If a required command is missing on Windows.
     """
     os_name = platform.system()
@@ -97,21 +96,21 @@ def check_prerequisites() -> None:
 def check_internet_connectivity(
     host: str = "8.8.8.8", port: int = 53, timeout: int = 3
 ) -> None:
-    """
-    Checks for basic internet connectivity by attempting a TCP socket connection.
+    """Checks for basic internet connectivity by attempting a TCP socket connection.
 
     Args:
-        host: The hostname or IP address to connect to.
-        port: The port number to connect to.
+        host: The hostname or IP address to connect to. Defaults to a Google DNS server.
+        port: The port number to connect to. Defaults to the DNS port.
         timeout: The connection timeout in seconds.
 
     Raises:
-        InternetConnectivityError: If the socket connection fails within the timeout.
+        InternetConnectivityError: If the socket connection fails.
     """
     logger.debug(
         f"Checking internet connectivity by attempting connection to {host}:{port}..."
     )
     try:
+        # Attempt to create a socket connection to a reliable external host.
         socket.create_connection((host, port), timeout=timeout).close()
         logger.debug("Internet connectivity check successful.")
     except socket.timeout:
@@ -131,19 +130,19 @@ def check_internet_connectivity(
 
 
 def set_server_folder_permissions(server_dir: str) -> None:
-    """
-    Sets appropriate file and directory permissions for the server installation directory.
+    """Sets appropriate file and directory permissions for a server installation.
 
-    - Linux: Sets 775 for dirs, 664 for files, and 775 for the 'bedrock_server' executable.
-    - Windows: Ensures the 'write' permission (S_IWRITE) is set for all items.
+    - On Linux, it sets 775 for directories and the main executable, and 664 for
+      other files, assigning ownership to the current user and group.
+    - On Windows, it ensures the 'write' permission is set for all items.
 
     Args:
         server_dir: The full path to the server's installation directory.
 
     Raises:
         MissingArgumentError: If `server_dir` is empty.
-        AppFileNotFoundError: If `server_dir` does not exist or is not a directory.
-        PermissionsError: If setting permissions fails due to OS errors.
+        AppFileNotFoundError: If `server_dir` does not exist.
+        PermissionsError: If setting permissions fails.
     """
     if not server_dir:
         raise MissingArgumentError("Server directory cannot be empty.")
@@ -169,11 +168,12 @@ def set_server_folder_permissions(server_dir: str) -> None:
                 for f in files:
                     file_path = os.path.join(root, f)
                     os.chown(file_path, current_uid, current_gid)
+                    # The main executable needs execute permissions.
                     if os.path.basename(file_path) == "bedrock_server":
                         os.chmod(file_path, 0o775)
                     else:
                         os.chmod(file_path, 0o664)
-            # Set top-level permissions last
+            # Set top-level permissions last.
             os.chown(server_dir, current_uid, current_gid)
             os.chmod(server_dir, 0o775)
             logger.info(f"Successfully set Linux permissions for: {server_dir}")
@@ -205,10 +205,9 @@ def set_server_folder_permissions(server_dir: str) -> None:
 
 
 def is_server_running(server_name: str, server_dir: str, config_dir: str) -> bool:
-    """
-    Checks if a Bedrock server process is running using a platform-agnostic PID file check.
+    """Checks if a Bedrock server process is running and verified.
 
-    This method is a simple wrapper around core.process.get_verified_bedrock_process.
+    This method is a simple wrapper around `core_process.get_verified_bedrock_process`.
 
     Args:
         server_name: The name of the server.
@@ -230,34 +229,33 @@ def is_server_running(server_name: str, server_dir: str, config_dir: str) -> boo
 
 
 def _handle_remove_readonly_onerror(func, path, exc_info):
-    """
-    Error handler for shutil.rmtree.
-    If the error is due to a read-only file/dir, it attempts to change
-    its permissions and retry the operation.
+    """An error handler for `shutil.rmtree` to handle read-only files.
+
+    If an `OSError` occurs because a file is read-only, this handler attempts
+    to change its permissions to be writable and then retries the operation.
     """
     if not os.access(path, os.W_OK):
         logger.debug(f"Path '{path}' is read-only. Attempting to make it writable.")
         try:
             os.chmod(path, stat.S_IWUSR | stat.S_IWRITE)
-            func(path)
+            func(path)  # Retry the original function (e.g., os.remove).
         except Exception as e:
             logger.warning(f"Failed to make '{path}' writable and retry operation: {e}")
             raise exc_info[1]
     else:
+        # Re-raise the original exception if it wasn't a read-only issue.
         raise exc_info[1]
 
 
 def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
-    """
-    Deletes a given path (file or directory) robustly.
-    Handles read-only attributes on Windows.
+    """Deletes a file or directory robustly, handling read-only attributes.
 
     Args:
         path_to_delete: The full path to the file or directory to delete.
-        item_description: A human-readable description for logging.
+        item_description: A human-readable description for logging purposes.
 
     Returns:
-        True if deletion was successful or path didn't exist, False otherwise.
+        True if deletion was successful or the path didn't exist, False otherwise.
     """
     if not os.path.exists(path_to_delete):
         logger.debug(
@@ -268,11 +266,13 @@ def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
     logger.info(f"Preparing to delete {item_description}: {path_to_delete}")
     try:
         if os.path.isdir(path_to_delete):
+            # Use the custom error handler for directories.
             shutil.rmtree(path_to_delete, onerror=_handle_remove_readonly_onerror)
             logger.info(
                 f"Successfully deleted {item_description} directory: {path_to_delete}"
             )
         elif os.path.isfile(path_to_delete):
+            # For single files, manually check and set permissions if needed.
             if not os.access(path_to_delete, os.W_OK):
                 os.chmod(path_to_delete, stat.S_IWRITE | stat.S_IWUSR)
             os.remove(path_to_delete)
@@ -294,7 +294,8 @@ def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
 
 
 # --- RESOURCE MONITOR ---
-_last_cpu_times: Dict[int, psutil._common.scpustats] = {}
+# Global state for calculating CPU percentage over time.
+_last_cpu_times: Dict[int, Any] = {}
 _last_timestamp: Optional[float] = None
 # --- End Global State ---
 
@@ -302,11 +303,10 @@ _last_timestamp: Optional[float] = None
 def _get_bedrock_process_info(
     server_name: str, server_dir: str, config_dir: str
 ) -> Optional[Dict[str, Any]]:
-    """
-    Gets resource usage info (PID, CPU%, Mem MB, Uptime) for a running Bedrock server.
+    """Gets resource usage info for a running Bedrock server process.
 
-    This platform-agnostic method uses core.process.get_verified_bedrock_process to
-    efficiently find and verify the process before gathering statistics.
+    This function finds the server process, verifies it, and then uses `psutil`
+    to gather statistics like CPU usage, memory, and uptime.
 
     Args:
         server_name: The name of the server.
@@ -314,9 +314,10 @@ def _get_bedrock_process_info(
         config_dir: The base configuration directory where the PID file is stored.
 
     Returns:
-        A dictionary containing process info, or None if the server is not running/verified.
+        A dictionary containing process info, or `None` if the server is not
+        running, not verified, or `psutil` is unavailable.
     """
-    global _last_timestamp
+    global _last_timestamp, _last_cpu_times
 
     if not all([server_name, server_dir, config_dir]):
         raise MissingArgumentError(
@@ -325,7 +326,7 @@ def _get_bedrock_process_info(
     if not PSUTIL_AVAILABLE:
         raise SystemError("'psutil' is required for process monitoring.")
 
-    # Find and Verify the Bedrock Process
+    # Find and verify the Bedrock process.
     bedrock_process = core_process.get_verified_bedrock_process(
         server_name, server_dir, config_dir
     )
@@ -336,21 +337,24 @@ def _get_bedrock_process_info(
     # Get Process Details
     pid = bedrock_process.pid
     try:
+        # Use oneshot() for performance, as it caches process info for subsequent calls.
         with bedrock_process.oneshot():
             # --- CPU Delta Calculation ---
+            # To get a meaningful CPU percentage, we compare CPU times between two points in time.
             current_cpu_times = bedrock_process.cpu_times()
             current_timestamp = time.time()
             cpu_percent = 0.0
 
             if pid in _last_cpu_times and _last_timestamp is not None:
                 time_delta = current_timestamp - _last_timestamp
-                if time_delta > 0.01:
+                if time_delta > 0.01:  # Avoid division by zero
                     prev_cpu_times = _last_cpu_times[pid]
                     process_delta = (current_cpu_times.user - prev_cpu_times.user) + (
                         current_cpu_times.system - prev_cpu_times.system
                     )
                     cpu_percent = (process_delta / time_delta) * 100
 
+            # Store the current times for the next calculation.
             _last_cpu_times[pid] = current_cpu_times
             _last_timestamp = current_timestamp
             # --- End CPU Delta Calculation ---
@@ -372,6 +376,7 @@ def _get_bedrock_process_info(
         logger.warning(
             f"Process PID {pid} for '{server_name}' disappeared or access denied: {e}"
         )
+        # Clean up stale CPU time data if the process is gone.
         if pid in _last_cpu_times:
             try:
                 del _last_cpu_times[pid]

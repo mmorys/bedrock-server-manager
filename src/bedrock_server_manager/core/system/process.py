@@ -94,7 +94,7 @@ class GuardedProcess:
 
 
 def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
-    """Constructs the full, absolute path for a PID file.
+    """Constructs the full, absolute path for a generic PID file.
 
     Args:
         config_dir: The application's configuration directory.
@@ -115,19 +115,22 @@ def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
 
 
 def get_bedrock_server_pid_file_path(server_name: str, config_dir: str) -> str:
-    """
-    Constructs the standardized, absolute path to a Bedrock server's PID file.
+    """Constructs the standardized path to a Bedrock server's PID file.
+
+    This helper creates a path to a PID file within a server-specific
+    subdirectory of the main application configuration directory.
 
     Args:
         server_name: The name of the server instance.
         config_dir: The main configuration directory for the application.
 
     Returns:
-        The absolute path to where the PID file should be.
+        The absolute path to where the server's PID file should be located.
 
     Raises:
-        MissingArgumentError: If server_name or config_dir is empty.
-        AppFileNotFoundError: If the server-specific config subdir does not exist.
+        MissingArgumentError: If `server_name` or `config_dir` is empty.
+        AppFileNotFoundError: If the server-specific config subdirectory does
+            not exist.
     """
     if not server_name:
         raise MissingArgumentError("Server name cannot be empty.")
@@ -145,17 +148,18 @@ def get_bedrock_server_pid_file_path(server_name: str, config_dir: str) -> str:
 
 
 def read_pid_from_file(pid_file_path: str) -> Optional[int]:
-    """
-    Reads and validates the PID from the given PID file.
+    """Reads and validates a PID from a specified file.
 
     Args:
         pid_file_path: The path to the PID file.
 
     Returns:
-        The PID as an integer if the file exists and is valid, None otherwise.
+        The PID as an integer if the file exists and contains a valid number.
+        Returns `None` if the PID file does not exist.
 
     Raises:
-        FileOperationError: If the file is unreadable or contains invalid content.
+        FileOperationError: If the file exists but is unreadable or contains
+            non-integer content.
     """
     if not os.path.isfile(pid_file_path):
         logger.debug(f"PID file '{pid_file_path}' not found.")
@@ -176,6 +180,8 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
 
 def write_pid_to_file(pid_file_path: str, pid: int):
     """Writes a process ID to the specified file, overwriting existing content.
+
+    This function will create the parent directory if it does not exist.
 
     Args:
         pid_file_path: The path to the PID file.
@@ -244,8 +250,10 @@ def launch_detached_process(command: List[str], pid_file_path: str) -> int:
     creation_flags = 0
     start_new_session = False
     if platform.system() == "Windows":
+        # Prevents the new process from opening a console window.
         creation_flags = subprocess.CREATE_NO_WINDOW
     else:  # Linux, Darwin, etc.
+        # Ensures the child process does not terminate when the parent does.
         start_new_session = True
 
     try:
@@ -273,21 +281,25 @@ def verify_process_identity(
     expected_executable_path: Optional[str] = None,
     expected_cwd: Optional[str] = None,
     expected_command_args: Optional[Union[str, List[str]]] = None,
-) -> None:
-    """
-    Verifies if the process with the given PID matches an expected signature.
-    Checks executable path, CWD, and/or specific command line arguments.
+):
+    """Verifies if a process matches an expected signature.
+
+    Checks the process's executable path, current working directory (CWD),
+    and/or specific command-line arguments to confirm it's the process we
+    expect it to be.
 
     Args:
         pid: The process ID to verify.
-        expected_executable_path: Optional. Expected path of the main executable.
-        expected_cwd: Optional. Expected current working directory of the process.
-        expected_command_args: Optional. Specific argument(s) expected in the command line.
+        expected_executable_path: Optional expected path of the main executable.
+        expected_cwd: Optional expected current working directory of the process.
+        expected_command_args: Optional specific argument(s) expected in the command line.
 
     Raises:
-        SystemError: If psutil is not available or info cannot be retrieved.
-        ServerProcessError: If the process does not match the expected signature.
+        SystemError: If `psutil` is not available or fails.
+        ServerProcessError: If the process does not exist or does not match
+            the expected signature.
         PermissionsError: If access to process information is denied.
+        MissingArgumentError: If no verification criteria are provided.
     """
     if not PSUTIL_AVAILABLE:
         raise SystemError("psutil package is required for process verification.")
@@ -298,6 +310,7 @@ def verify_process_identity(
 
     try:
         proc = psutil.Process(pid)
+        # Use oneshot() for performance, as it caches process info for subsequent calls.
         with proc.oneshot():
             proc_name = proc.name()
             proc_exe = proc.exe()
@@ -356,23 +369,23 @@ def verify_process_identity(
 
 def get_verified_bedrock_process(
     server_name: str, server_dir: str, config_dir: str
-) -> Optional[psutil.Process]:
-    """
-    Finds and verifies the Bedrock server process using its PID file.
+) -> Optional["psutil.Process"]:
+    """Finds and verifies the Bedrock server process using its PID file.
 
     This function encapsulates the entire logic of:
-    1. Finding the PID file.
-    2. Reading the PID.
-    3. Checking if the process is running.
-    4. Verifying the process executable and working directory.
+    1. Finding the server-specific PID file.
+    2. Reading the PID from the file.
+    3. Checking if a process with that PID is running.
+    4. Verifying the process's executable path and working directory.
 
     Args:
         server_name: The name of the server instance.
         server_dir: The server's installation directory.
-        config_dir: The main configuration directory.
+        config_dir: The main application configuration directory.
 
     Returns:
-        A `psutil.Process` object if the server is running and verified, otherwise `None`.
+        A `psutil.Process` object if the server is running and verified,
+        otherwise `None`.
     """
     if not PSUTIL_AVAILABLE:
         logger.error("'psutil' is required for this function. Returning None.")
@@ -389,13 +402,13 @@ def get_verified_bedrock_process(
                 )
             return None
 
-        # Define platform-specific executable name
+        # Define the platform-specific executable name to verify against.
         exe_name = (
             "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
         )
         expected_exe = os.path.join(server_dir, exe_name)
 
-        # Verify the running process
+        # Verify the running process matches our expectations.
         verify_process_identity(
             pid, expected_executable_path=expected_exe, expected_cwd=server_dir
         )
@@ -408,11 +421,11 @@ def get_verified_bedrock_process(
         ServerProcessError,
         PermissionsError,
     ) as e:
-        # These are expected "not running" or "mismatch" scenarios, log them at debug/warning
+        # These are expected "not running" or "mismatch" scenarios.
         logger.debug(f"Verification failed for server '{server_name}': {e}")
         return None
     except (SystemError, Exception) as e:
-        # These are more serious, unexpected errors
+        # These are more serious, unexpected errors.
         logger.error(
             f"Unexpected error getting verified process for '{server_name}': {e}",
             exc_info=True,
@@ -426,7 +439,8 @@ def terminate_process_by_pid(
     """Gracefully terminates, then forcefully kills, a process by its PID.
 
     This function first sends a SIGTERM signal and waits for the process to
-    exit. If it doesn't exit within the timeout, it sends a SIGKILL signal.
+    exit. If it doesn't exit within the `terminate_timeout`, it sends a
+    SIGKILL signal and waits for `kill_timeout`.
 
     Args:
         pid: The PID of the process to terminate.
@@ -442,6 +456,7 @@ def terminate_process_by_pid(
         raise SystemError("psutil package is required to terminate processes.")
     try:
         process = psutil.Process(pid)
+        # 1. Attempt graceful termination first.
         logger.info(f"Attempting graceful termination (SIGTERM) for PID {pid}...")
         process.terminate()
         try:
@@ -449,12 +464,12 @@ def terminate_process_by_pid(
             logger.info(f"Process {pid} terminated gracefully.")
             return
         except psutil.TimeoutExpired:
-            # If graceful termination fails, resort to forceful killing.
+            # 2. If graceful termination fails, resort to forceful killing.
             logger.warning(
                 f"Process {pid} did not terminate gracefully within {terminate_timeout}s. Attempting kill (SIGKILL)..."
             )
             process.kill()
-            process.wait(timeout=kill_timeout)  # Wait for kill confirmation
+            process.wait(timeout=kill_timeout)
             logger.info(f"Process {pid} forcefully killed.")
             return
     except psutil.NoSuchProcess:
