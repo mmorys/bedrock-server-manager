@@ -1,14 +1,20 @@
 # bedrock_server_manager/api/info.py
-"""
-Provides API-level functions for retrieving specific server information or status.
-These functions wrap methods of the BedrockServer class to provide consistent
-dictionary outputs for the API layer.
+"""Provides API functions for retrieving server-specific information.
+
+This module contains functions that wrap methods of the `BedrockServer` class
+to expose server status and details through a consistent API layer. Each
+function returns a dictionary suitable for JSON serialization, indicating the
+outcome of the request.
 """
 
 import logging
 from typing import Dict, Any
 
-# Local imports
+# Plugin system imports to bridge API functionality.
+from bedrock_server_manager.api.server import plugin_manager
+from bedrock_server_manager.plugins.api_bridge import register_api
+
+# Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.error import (
     BSMError,
@@ -17,16 +23,35 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
+# Register API functions with the plugin system's API bridge.
+register_api(
+    "get_server_running_status", lambda **kwargs: get_server_running_status(**kwargs)
+)
+register_api(
+    "get_server_config_status", lambda **kwargs: get_server_config_status(**kwargs)
+)
+register_api(
+    "get_server_installed_version",
+    lambda **kwargs: get_server_installed_version(**kwargs),
+)
+
 
 def get_server_running_status(server_name: str) -> Dict[str, Any]:
-    """
-    Checks if the server process is currently running using the BedrockServer class.
+    """Checks if the server process is currently running.
+
+    This function queries the operating system to determine if the Bedrock
+    server process associated with the given server name is active.
 
     Args:
-        server_name: The name of the server.
+        server_name: The name of the server to check.
 
     Returns:
-        {"status": "success", "is_running": bool} or {"status": "error", "message": str}
+        A dictionary with the result.
+        On success: `{"status": "success", "is_running": bool}`.
+        On error: `{"status": "error", "message": str}`.
+
+    Raises:
+        InvalidServerNameError: If `server_name` is not provided.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -35,17 +60,20 @@ def get_server_running_status(server_name: str) -> Dict[str, Any]:
     try:
         server = BedrockServer(server_name)
         is_running = server.is_running()
-        logger.debug(f"API: is_running() check returned: {is_running}")
+        logger.debug(
+            f"API: is_running() check for '{server_name}' returned: {is_running}"
+        )
         return {"status": "success", "is_running": is_running}
     except BSMError as e:
         logger.error(
-            f"API Running Status '{server_name}': Error during check: {e}",
+            f"API: Error checking running status for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Error checking running status: {e}"}
     except Exception as e:
         logger.error(
-            f"API Running Status '{server_name}': Unexpected error: {e}", exc_info=True
+            f"API: Unexpected error checking running status for '{server_name}': {e}",
+            exc_info=True,
         )
         return {
             "status": "error",
@@ -54,14 +82,23 @@ def get_server_running_status(server_name: str) -> Dict[str, Any]:
 
 
 def get_server_config_status(server_name: str) -> Dict[str, Any]:
-    """
-    Gets the status field ('RUNNING', 'STOPPED', etc.) from the server's config JSON file.
+    """Gets the status from the server's configuration file.
+
+    This function reads the 'status' field (e.g., 'RUNNING', 'STOPPED')
+    from the server's configuration file. Note that this reflects the last
+    known state and may not match the actual process status if the server
+    crashed.
 
     Args:
         server_name: The name of the server.
 
     Returns:
-        {"status": "success", "config_status": str} or {"status": "error", "message": str}
+        A dictionary with the result.
+        On success: `{"status": "success", "config_status": str}`.
+        On error: `{"status": "error", "message": str}`.
+
+    Raises:
+        InvalidServerNameError: If `server_name` is not provided.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -70,17 +107,20 @@ def get_server_config_status(server_name: str) -> Dict[str, Any]:
     try:
         server = BedrockServer(server_name)
         status = server.get_status_from_config()
-        logger.debug(f"API: get_status_from_config() returned: '{status}'")
+        logger.debug(
+            f"API: get_status_from_config() for '{server_name}' returned: '{status}'"
+        )
         return {"status": "success", "config_status": status}
     except BSMError as e:
         logger.error(
-            f"API Config Status '{server_name}': Error calling core method: {e}",
+            f"API: Error retrieving config status for '{server_name}': {e}",
             exc_info=True,
         )
         return {"status": "error", "message": f"Error retrieving config status: {e}"}
     except Exception as e:
         logger.error(
-            f"API Config Status '{server_name}': Unexpected error: {e}", exc_info=True
+            f"API: Unexpected error getting config status for '{server_name}': {e}",
+            exc_info=True,
         )
         return {
             "status": "error",
@@ -89,15 +129,21 @@ def get_server_config_status(server_name: str) -> Dict[str, Any]:
 
 
 def get_server_installed_version(server_name: str) -> Dict[str, Any]:
-    """
-    Gets the 'installed_version' field from the server's config JSON file.
+    """Gets the installed version from the server's configuration file.
+
+    This function reads the 'installed_version' field from the server's
+    configuration file. If the version is not found, it returns 'UNKNOWN'.
 
     Args:
         server_name: The name of the server.
 
     Returns:
-        {"status": "success", "installed_version": str} ('UNKNOWN' if not found)
-        or {"status": "error", "message": str}
+        A dictionary with the result.
+        On success: `{"status": "success", "installed_version": str}`.
+        On error: `{"status": "error", "message": str}`.
+
+    Raises:
+        InvalidServerNameError: If `server_name` is not provided.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
@@ -106,11 +152,11 @@ def get_server_installed_version(server_name: str) -> Dict[str, Any]:
     try:
         server = BedrockServer(server_name)
         version = server.get_version()
-        logger.debug(f"API: get_version() returned: '{version}'")
+        logger.debug(f"API: get_version() for '{server_name}' returned: '{version}'")
         return {"status": "success", "installed_version": version}
     except BSMError as e:
         logger.error(
-            f"API Installed Version '{server_name}': Error calling core method: {e}",
+            f"API: Error retrieving installed version for '{server_name}': {e}",
             exc_info=True,
         )
         return {
@@ -119,7 +165,7 @@ def get_server_installed_version(server_name: str) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(
-            f"API Installed Version '{server_name}': Unexpected error: {e}",
+            f"API: Unexpected error getting installed version for '{server_name}': {e}",
             exc_info=True,
         )
         return {
