@@ -491,6 +491,3 @@ def remove_pid_file_if_exists(pid_file_path: str) -> bool:
             logger.warning(f"Could not remove PID file '{pid_file_path}': {e}")
             return False
     return True
-
-
-print("Conflict resolved successfully.")
