@@ -1,16 +1,16 @@
 # bedrock_server_manager/core/server/installation_mixin.py
-"""
-Provides the ServerInstallationMixin class for BedrockServer.
+"""Provides the ServerInstallationMixin for the BedrockServer class.
 
-This mixin handles validation of server installations, setting filesystem
-permissions, and comprehensive deletion of server data including installation files,
-configurations, backups, and systemd services.
+This mixin handles the validation of server installations, setting filesystem
+permissions, and the comprehensive deletion of all server-related data. This
+includes the server's installation files, its JSON configuration, all backups,
+and any associated systemd services on Linux.
 """
 import os
 import shutil
 import subprocess
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
@@ -23,37 +23,37 @@ from bedrock_server_manager.error import (
 
 
 class ServerInstallationMixin(BedrockServerBaseMixin):
-    """
-    A mixin for the BedrockServer class that provides methods related to
-    the installation state, filesystem permissions, and complete removal
-    of a server instance.
+    """A mixin for BedrockServer providing installation, permission, and deletion methods.
+
+    This class handles the validation of an installation's existence, the setting
+    of appropriate filesystem permissions, and the complete, destructive removal
+    of a server instance and all its associated data.
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initializes the ServerInstallationMixin.
-
-        Calls super().__init__ for proper multiple inheritance setup.
-        Relies on attributes (like server_name, server_dir, logger,
-        bedrock_executable_path, settings, os_type, server_config_dir,
-        get_pid_file_path) and methods (like is_running, stop) from other
-        mixins or the base class.
+        """Initializes the ServerInstallationMixin.
+        This constructor calls `super().__init__` to ensure proper method
+        resolution order in the context of multiple inheritance. It relies on
+        attributes and methods from other mixins or the base class.
         """
         super().__init__(*args, **kwargs)
         # Attributes like self.server_name, self.server_dir, self.logger,
-        # self.bedrock_executable_path are available from BedrockServerBaseMixin.
+        # and self.bedrock_executable_path are available from BedrockServerBaseMixin.
+        # Methods like self.is_running() and self.stop() are expected to be
+        # available from the ProcessMixin on the final BedrockServer class.
 
     def validate_installation(self) -> bool:
-        """
-        Validates if the server installation exists and seems minimally correct.
-        Checks for the existence of the server directory and the server executable.
+        """Validates that the server installation is minimally correct.
+
+        This check ensures that the main server directory and the server
+        executable file within it both exist.
 
         Returns:
             True if the server installation is valid.
 
         Raises:
-            AppFileNotFoundError: If the server directory or the executable file within it
-                                 does not exist.
+            AppFileNotFoundError: If the server directory or the executable
+                file does not exist.
         """
         self.logger.debug(
             f"Validating installation for server '{self.server_name}' in directory: {self.server_dir}"
@@ -73,9 +73,13 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         return True
 
     def is_installed(self) -> bool:
-        """
-        Checks if the server installation is valid without raising an exception.
-        Returns True if valid, False otherwise.
+        """Checks if the server installation is valid without raising an exception.
+
+        This is a convenience method that wraps `validate_installation` in a
+        try-except block.
+
+        Returns:
+            True if the installation is valid, False otherwise.
         """
         try:
             return self.validate_installation()
@@ -85,12 +89,19 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
             )
             return False
 
-    def set_filesystem_permissions(self) -> None:
+    def set_filesystem_permissions(self):
+        """Sets appropriate file and directory permissions for the server.
+
+        This method wraps the core `system_base.set_server_folder_permissions`
+        function to apply the necessary permissions to the server's
+        installation directory, which is crucial for proper operation,
+        especially on Linux.
+
+        Raises:
+            AppFileNotFoundError: If the server is not installed.
+            PermissionsError: If setting permissions fails.
         """
-        Sets appropriate file and directory permissions for this server's installation directory.
-        Wraps system_base.set_server_folder_permissions.
-        """
-        if not self.is_installed():  # Use the non-raising check first
+        if not self.is_installed():
             raise AppFileNotFoundError(self.server_dir, "Server installation directory")
 
         self.logger.info(
@@ -103,10 +114,6 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
             self.logger.error(f"Failed to set permissions for '{self.server_dir}': {e}")
             raise
         except Exception as e_unexp:
-            self.logger.error(
-                f"Unexpected error setting permissions for '{self.server_dir}': {e_unexp}",
-                exc_info=True,
-            )
             raise PermissionsError(
                 f"Unexpected error setting permissions for '{self.server_name}': {e_unexp}"
             ) from e_unexp
@@ -114,20 +121,22 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
     def delete_server_files(
         self, item_description_prefix: str = "server files for"
     ) -> bool:
-        """
-        Deletes this server's entire directory (self.server_dir) robustly.
-        USE WITH EXTREME CAUTION.
+        """Deletes the server's entire installation directory (`self.server_dir`).
+
+        THIS IS A DESTRUCTIVE OPERATION. It uses a robust deletion utility to
+        handle potential file permission issues.
 
         Args:
-            item_description_prefix: A prefix for the logging message.
+            item_description_prefix: A prefix for the logging message to provide
+                context (e.g., "server files for").
 
         Returns:
-            True if deletion was successful or path didn't exist, False otherwise.
+            True if deletion was successful or the directory didn't exist,
+            False otherwise.
         """
         self.logger.warning(
             f"Attempting to delete all files for server '{self.server_name}' at: {self.server_dir}. THIS IS DESTRUCTIVE."
         )
-        # Construct a meaningful description for the robust deletion utility
         description = f"{item_description_prefix} server '{self.server_name}'"
 
         success = system_base.delete_path_robustly(self.server_dir, description)
@@ -141,35 +150,30 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
             )
         return success
 
-    def delete_all_data(
-        self,
-    ) -> None:
-        """
-        Deletes all data associated with this Bedrock server, including its installation
-        directory (self.server_dir), its JSON configuration folder
-        (self.server_config_dir), its backups (if BACKUP_DIR configured),
-        and its systemd service file (on Linux).
+    def delete_all_data(self):
+        """Deletes all data associated with this Bedrock server.
+
+        This is a comprehensive and destructive operation that removes:
+        1. The server's installation directory.
+        2. The server's JSON configuration subdirectory.
+        3. The server's entire backup directory.
+        4. The server's systemd service file (on Linux).
+        5. The server's PID file.
+
+        It will attempt to stop a running server before deletion.
 
         Raises:
-            FileOperationError: If deleting essential directories fails or settings
-                                (BACKUP_DIR) are missing when expected.
+            FileOperationError: If deleting one or more essential directories or
+                files fails.
         """
-        # server_name is self.server_name
-        # base_dir is self.base_dir
-        # effective_config_dir for the server's JSON config is self.server_config_dir
-        # global_app_config_dir for PID files is self.app_config_dir
+        server_install_dir = self.server_dir
+        server_json_config_subdir = self.server_config_dir
 
-        server_install_dir = self.server_dir  # from BaseMixin
-        server_json_config_subdir = self.server_config_dir  # from BaseMixin
-
+        # Determine the server's backup directory path.
         backup_base_dir = self.settings.get("BACKUP_DIR")
-        server_backup_dir_path = None
-        if backup_base_dir:
-            server_backup_dir_path = os.path.join(backup_base_dir, self.server_name)
-        else:
-            self.logger.debug(
-                f"BACKUP_DIR not configured. Skipping backup deletion for '{self.server_name}'."
-            )
+        server_backup_dir_path = (
+            os.path.join(backup_base_dir, self.server_name) if backup_base_dir else None
+        )
 
         self.logger.warning(
             f"!!! Preparing to delete ALL data for server '{self.server_name}' !!!"
@@ -181,16 +185,15 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         if server_backup_dir_path:
             self.logger.debug(f"Target backup directory: {server_backup_dir_path}")
 
-        # Pre-check for existence of any data before attempting complex operations like stopping.
-        # This is important because if directories are already gone, stopping might fail unnecessarily.
+        # Check if any data exists to avoid unnecessary stop attempts.
         primary_data_paths = [server_install_dir, server_json_config_subdir]
         if server_backup_dir_path:
             primary_data_paths.append(server_backup_dir_path)
-
         any_primary_data_exists = any(
             os.path.exists(p) for p in primary_data_paths if p
         )
 
+        # On Linux, also check for a systemd service file.
         systemd_service_file_path = None
         systemd_service_name = f"bedrock-{self.server_name}"
         if self.os_type == "Linux":
@@ -203,27 +206,21 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
 
         if not any_primary_data_exists:
             self.logger.info(
-                f"No data (install, config, backup, or systemd file) found for server '{self.server_name}'. Deletion skipped."
+                f"No data found for server '{self.server_name}'. Deletion skipped."
             )
             return
 
-        # Ensure server is stopped before deleting files
-        # This relies on self.stop() and self.is_running() from ProcessMixin
+        # Ensure the server is stopped before deleting its files.
         if hasattr(self, "is_running") and hasattr(self, "stop"):
             if self.is_running():
                 self.logger.info(
                     f"Server '{self.server_name}' is running. Attempting to stop it before deletion..."
                 )
                 try:
-                    self.stop()  # Timeout is handled by stop()
-                except ServerStopError as e:
+                    self.stop()
+                except (ServerStopError, Exception) as e_stop:
                     self.logger.warning(
-                        f"Failed to stop server '{self.server_name}' cleanly before deletion: {e}. Proceeding with deletion, but server process might linger."
-                    )
-                except Exception as e_stop:
-                    self.logger.error(
-                        f"Unexpected error stopping server '{self.server_name}' before deletion: {e_stop}. Proceeding cautiously.",
-                        exc_info=True,
+                        f"Failed to stop server '{self.server_name}' cleanly before deletion: {e_stop}. Proceeding with deletion, but the process might linger."
                     )
             else:
                 self.logger.info(
@@ -236,19 +233,19 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
 
         deletion_errors = []
 
-        # --- Remove systemd service (Linux) ---
+        # --- 1. Remove systemd service (Linux-only) ---
         if (
             self.os_type == "Linux"
             and systemd_service_file_path
             and os.path.exists(systemd_service_file_path)
         ):
             self.logger.info(
-                f"Processing systemd user service '{systemd_service_name}' for server '{self.server_name}'."
+                f"Processing systemd user service '{systemd_service_name}'..."
             )
             systemctl_cmd = shutil.which("systemctl")
             if systemctl_cmd:
                 try:
-                    # Stop and disable the service using --now
+                    # Disable and stop the service in one command.
                     disable_cmds = [
                         systemctl_cmd,
                         "--user",
@@ -269,7 +266,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                             f"systemctl disable --now {systemd_service_name} failed: {res_disable.stderr.strip()}"
                         )
 
-                    # Remove the service file
+                    # Remove the service file itself.
                     if not system_base.delete_path_robustly(
                         systemd_service_file_path,
                         f"systemd service file for '{self.server_name}'",
@@ -278,14 +275,17 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                             f"systemd service file '{systemd_service_file_path}'"
                         )
                     else:
-                        # Reload systemd daemon
-                        reload_cmds = [systemctl_cmd, "--user", "daemon-reload"]
-                        reset_failed_cmds = [systemctl_cmd, "--user", "reset-failed"]
-                        self.logger.debug(f"Executing: {' '.join(reload_cmds)}")
-                        subprocess.run(reload_cmds, check=False, capture_output=True)
-                        self.logger.debug(f"Executing: {' '.join(reset_failed_cmds)}")
+                        # Reload the systemd daemon to apply changes.
+                        self.logger.debug("Reloading systemd user daemon...")
                         subprocess.run(
-                            reset_failed_cmds, check=False, capture_output=True
+                            [systemctl_cmd, "--user", "daemon-reload"],
+                            check=False,
+                            capture_output=True,
+                        )
+                        subprocess.run(
+                            [systemctl_cmd, "--user", "reset-failed"],
+                            check=False,
+                            capture_output=True,
                         )
                         self.logger.info(
                             f"Systemd service '{systemd_service_name}' removed and daemon reloaded."
@@ -298,7 +298,8 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                     deletion_errors.append(
                         f"systemd service interaction for '{systemd_service_name}'"
                     )
-            else:  # systemctl not found, but file exists
+            else:
+                # If systemctl isn't found, just delete the file.
                 self.logger.warning(
                     f"Systemd service file '{systemd_service_file_path}' exists but 'systemctl' not found. Deleting file directly."
                 )
@@ -310,39 +311,34 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                         f"systemd service file '{systemd_service_file_path}' (no systemctl)"
                     )
 
-        # Remove PID file from global app config dir
-        pid_file_to_delete = self.get_pid_file_path()  # From BaseMixin
+        # --- 2. Remove PID file ---
+        pid_file_to_delete = self.get_pid_file_path()
         if os.path.exists(pid_file_to_delete):
             if not system_base.delete_path_robustly(
                 pid_file_to_delete, f"PID file for '{self.server_name}'"
             ):
                 deletion_errors.append(f"PID file '{pid_file_to_delete}'")
 
-        # --- Remove directories ---
+        # --- 3. Remove all directories ---
         paths_to_delete_map = {
             "backup": server_backup_dir_path,
             "installation": server_install_dir,
             "JSON configuration": server_json_config_subdir,
         }
-
         for dir_type, dir_path_val in paths_to_delete_map.items():
-            if dir_path_val and os.path.exists(
-                dir_path_val
-            ):  # Check existence before deleting
+            if dir_path_val and os.path.exists(dir_path_val):
                 if not system_base.delete_path_robustly(
                     dir_path_val, f"server {dir_type} data for '{self.server_name}'"
                 ):
                     deletion_errors.append(f"{dir_type} directory '{dir_path_val}'")
-            elif dir_path_val:  # Path was defined but doesn't exist
+            elif dir_path_val:
                 self.logger.debug(
                     f"Server {dir_type} data for '{self.server_name}' at '{dir_path_val}' not found, skipping deletion."
                 )
 
+        # --- Final Check ---
         if deletion_errors:
             error_summary = "; ".join(deletion_errors)
-            self.logger.error(
-                f"Deletion of server '{self.server_name}' completed with errors. Failed items: {error_summary}"
-            )
             raise FileOperationError(
                 f"Failed to completely delete server '{self.server_name}'. Failed items: {error_summary}"
             )

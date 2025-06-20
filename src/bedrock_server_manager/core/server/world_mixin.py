@@ -1,11 +1,17 @@
 # bedrock_server_manager/core/server/world_mixin.py
+"""Provides the ServerWorldMixin for the BedrockServer class.
+
+This mixin encapsulates all logic related to managing a server's world files.
+This includes exporting the world to a `.mcworld` archive, importing a world
+from such an archive, and resetting the world by deleting its directory.
+"""
 import os
 import shutil
 import zipfile
 import logging
 from typing import Optional
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base_utils
 from bedrock_server_manager.error import (
@@ -19,65 +25,87 @@ from bedrock_server_manager.error import (
 
 
 class ServerWorldMixin(BedrockServerBaseMixin):
+    """A mixin for BedrockServer providing world management methods."""
+
     def __init__(self, *args, **kwargs):
+        """Initializes the ServerWorldMixin.
+
+        This constructor calls `super().__init__` to ensure proper method
+        resolution order in the context of multiple inheritance. It relies on
+        attributes and methods from other mixins or the base class.
+        """
         super().__init__(*args, **kwargs)
-        # Attributes from BaseMixin:
-        # self.server_name, self.server_dir, self.logger
-        # self.settings (for content dir, etc.)
-        # Method from StateMixin: self.get_world_name()
+        # Attributes from BaseMixin: self.server_name, self.server_dir, self.logger, self.settings.
+        # This mixin also relies on self.get_world_name() being available from the StateMixin.
 
     @property
     def _worlds_base_dir_in_server(self) -> str:
-        """Path to the 'worlds' subdirectory within this server's installation."""
+        """Returns the path to the 'worlds' subdirectory within the server installation."""
         return os.path.join(self.server_dir, "worlds")
 
     def _get_active_world_directory_path(self) -> str:
-        """
-        Determines the full path to the currently active world directory for this server,
-        based on 'level-name' in server.properties.
+        """Determines the full path to the currently active world directory.
 
-        Relies on self.get_world_name() being available (from ServerStateMixin).
+        This path is constructed based on the `level-name` property read from
+        `server.properties`.
+
+        Returns:
+            The absolute path to the active world directory.
+
+        Raises:
+            FileOperationError: If the `get_world_name` method is missing.
+            AppFileNotFoundError: If `server.properties` is not found.
+            ConfigParseError: If `level-name` is missing from `server.properties`.
         """
         if not hasattr(self, "get_world_name"):
-            self.logger.error(
-                "get_world_name method not found on self. Cannot determine active world directory."
-            )
             raise FileOperationError(
                 "Internal error: get_world_name method missing. Cannot determine active world directory."
             )
 
-        active_world_name = (
-            self.get_world_name()
-        )  # This will raise FileOperationError if props/name missing
+        # This method is expected to be on the final class from StateMixin.
+        active_world_name = self.get_world_name()
         return os.path.join(self._worlds_base_dir_in_server, active_world_name)
 
     def extract_mcworld_to_directory(
         self, mcworld_file_path: str, target_world_dir_name: str
     ) -> str:
-        """
-        Extracts a .mcworld file into a specific world directory name within this server's 'worlds' folder.
-        The target directory (e.g., server_dir/worlds/MyNewWorld) will be cleaned before extraction.
+        """Extracts a .mcworld file into a named world directory.
+
+        This method will first delete the target world directory if it already
+        exists to ensure a clean extraction.
+
+        Args:
+            mcworld_file_path: The path to the `.mcworld` file to extract.
+            target_world_dir_name: The name of the directory to create within
+                the server's `worlds` folder for the extracted contents.
+
+        Returns:
+            The full path to the directory where the world was extracted.
+
+        Raises:
+            MissingArgumentError: If required arguments are empty.
+            AppFileNotFoundError: If the source `.mcworld` file does not exist.
+            FileOperationError: If creating or clearing the target directory fails.
+            ExtractError: If the `.mcworld` file is not a valid zip archive.
         """
         if not mcworld_file_path:
             raise MissingArgumentError("Path to the .mcworld file cannot be empty.")
-        if not target_world_dir_name:  # Ensure a name is provided
+        if not target_world_dir_name:
             raise MissingArgumentError("Target world directory name cannot be empty.")
 
-        # Construct the full target path within this server's worlds directory
         full_target_extract_dir = os.path.join(
             self._worlds_base_dir_in_server, target_world_dir_name
         )
-
         mcworld_filename = os.path.basename(mcworld_file_path)
+
         self.logger.info(
-            f"Server '{self.server_name}': Preparing to extract '{mcworld_filename}' "
-            f"into world directory '{target_world_dir_name}' (at '{full_target_extract_dir}')."
+            f"Server '{self.server_name}': Preparing to extract '{mcworld_filename}' into world directory '{target_world_dir_name}'."
         )
 
         if not os.path.isfile(mcworld_file_path):
             raise AppFileNotFoundError(mcworld_file_path, ".mcworld file")
 
-        # Ensure clean target directory
+        # Ensure a clean target directory by removing it if it exists.
         if os.path.exists(full_target_extract_dir):
             self.logger.warning(
                 f"Target world directory '{full_target_extract_dir}' already exists. Removing its contents."
@@ -85,26 +113,19 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             try:
                 shutil.rmtree(full_target_extract_dir)
             except OSError as e:
-                self.logger.error(
-                    f"Failed to remove existing world directory '{full_target_extract_dir}': {e}",
-                    exc_info=True,
-                )
                 raise FileOperationError(
                     f"Failed to clear target world directory '{full_target_extract_dir}': {e}"
                 ) from e
 
-        try:  # Recreate the empty target directory
+        # Recreate the empty target directory.
+        try:
             os.makedirs(full_target_extract_dir, exist_ok=True)
         except OSError as e:
-            self.logger.error(
-                f"Failed to create target world directory '{full_target_extract_dir}': {e}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Failed to create target world directory '{full_target_extract_dir}': {e}"
             ) from e
 
-        # Extract the world archive
+        # Extract the world archive.
         self.logger.info(
             f"Server '{self.server_name}': Extracting '{mcworld_filename}'..."
         )
@@ -116,145 +137,129 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             )
             return full_target_extract_dir
         except zipfile.BadZipFile as e:
-            self.logger.error(
-                f"Failed to extract '{mcworld_filename}': Invalid ZIP. {e}",
-                exc_info=True,
-            )
+            # Clean up the partially created directory on failure.
             if os.path.exists(full_target_extract_dir):
                 shutil.rmtree(full_target_extract_dir, ignore_errors=True)
             raise ExtractError(
-                f"Invalid .mcworld file (not valid zip): {mcworld_filename}"
+                f"Invalid .mcworld file (not a valid zip): {mcworld_filename}"
             ) from e
         except OSError as e:
-            self.logger.error(
-                f"OS error extracting '{mcworld_filename}' to '{full_target_extract_dir}': {e}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Error extracting world '{mcworld_filename}' for server '{self.server_name}': {e}"
             ) from e
         except Exception as e_unexp:
-            self.logger.error(
-                f"Unexpected error extracting '{mcworld_filename}': {e_unexp}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Unexpected error extracting world '{mcworld_filename}' for server '{self.server_name}': {e_unexp}"
             ) from e_unexp
 
     def export_world_directory_to_mcworld(
         self, world_dir_name: str, target_mcworld_file_path: str
-    ) -> None:
-        """
-        Exports a specific world directory from this server's 'worlds' folder into a .mcworld file.
+    ):
+        """Exports a world directory into a .mcworld file.
+
+        This method archives the contents of a specified world directory into a
+        zip file and renames it to have a `.mcworld` extension.
 
         Args:
-            world_dir_name: The name of the world directory under server_dir/worlds/ to export.
-                            Example: "MyBedrockWorld".
-            target_mcworld_file_path: Full path where the resulting .mcworld file should be saved.
-                                      Example: "/path/to/backups/MyBedrockWorld_backup.mcworld".
+            world_dir_name: The name of the world directory to export (e.g., "MyWorld").
+            target_mcworld_file_path: The full path where the resulting
+                `.mcworld` file should be saved.
+
+        Raises:
+            MissingArgumentError: If required arguments are empty.
+            AppFileNotFoundError: If the source world directory does not exist.
+            FileOperationError: If creating the parent directory for the export fails.
+            BackupRestoreError: If creating or renaming the archive fails.
         """
         if not world_dir_name:
             raise MissingArgumentError("Source world directory name cannot be empty.")
         if not target_mcworld_file_path:
             raise MissingArgumentError("Target .mcworld file path cannot be empty.")
 
-        # Construct full path to the source world directory within this server
         full_source_world_dir = os.path.join(
             self._worlds_base_dir_in_server, world_dir_name
         )
-
         mcworld_filename = os.path.basename(target_mcworld_file_path)
+
         self.logger.info(
-            f"Server '{self.server_name}': Exporting world '{world_dir_name}' (from '{full_source_world_dir}') "
-            f"to .mcworld file '{mcworld_filename}' (at '{target_mcworld_file_path}')."
+            f"Server '{self.server_name}': Exporting world '{world_dir_name}' to .mcworld file '{mcworld_filename}'."
         )
 
         if not os.path.isdir(full_source_world_dir):
             raise AppFileNotFoundError(full_source_world_dir, "Source world directory")
 
+        # Ensure the parent directory for the exported file exists.
         target_parent_dir = os.path.dirname(target_mcworld_file_path)
-        if target_parent_dir:  # Ensure parent directory for the .mcworld file exists
+        if target_parent_dir:
             try:
                 os.makedirs(target_parent_dir, exist_ok=True)
             except OSError as e:
-                self.logger.error(
-                    f"Failed to create parent dir '{target_parent_dir}' for .mcworld: {e}",
-                    exc_info=True,
-                )
                 raise FileOperationError(
                     f"Cannot create target directory '{target_parent_dir}': {e}"
                 ) from e
 
         archive_base_name_no_ext = os.path.splitext(target_mcworld_file_path)[0]
-
         temp_zip_path = archive_base_name_no_ext + ".zip"
 
         try:
             self.logger.debug(
                 f"Creating temporary ZIP archive at '{archive_base_name_no_ext}' for world '{world_dir_name}'."
             )
-
+            # Create a zip archive of the world directory's contents.
             shutil.make_archive(
-                base_name=archive_base_name_no_ext,  # Output path without .zip
+                base_name=archive_base_name_no_ext,
                 format="zip",
-                root_dir=full_source_world_dir,  # Go into this directory
-                base_dir=".",  # Archive everything in root_dir
+                root_dir=full_source_world_dir,
+                base_dir=".",
             )
             self.logger.debug(f"Successfully created temporary ZIP: {temp_zip_path}")
 
-            if not os.path.exists(temp_zip_path):  # Double check
+            if not os.path.exists(temp_zip_path):
                 raise BackupRestoreError(
                     f"Archive process completed but temp zip '{temp_zip_path}' not found."
                 )
 
-            if os.path.exists(
-                target_mcworld_file_path
-            ):  # Rename requires target not to exist on Windows
+            # Rename the .zip to .mcworld, overwriting if necessary.
+            if os.path.exists(target_mcworld_file_path):
                 self.logger.warning(
                     f"Target file '{target_mcworld_file_path}' exists. Overwriting."
                 )
                 os.remove(target_mcworld_file_path)
-
             os.rename(temp_zip_path, target_mcworld_file_path)
             self.logger.info(
                 f"Server '{self.server_name}': World export successful. Created: {target_mcworld_file_path}"
             )
 
         except OSError as e:
-            self.logger.error(
-                f"Failed to create/rename archive for world '{world_dir_name}': {e}",
-                exc_info=True,
-            )
             if os.path.exists(temp_zip_path):
-                os.remove(temp_zip_path)  # Cleanup
+                os.remove(temp_zip_path)  # Clean up temporary file on failure.
             raise BackupRestoreError(
                 f"Failed to create .mcworld for server '{self.server_name}', world '{world_dir_name}': {e}"
             ) from e
         except Exception as e_unexp:
-            self.logger.error(
-                f"Unexpected error exporting world '{world_dir_name}': {e_unexp}",
-                exc_info=True,
-            )
             if os.path.exists(temp_zip_path):
-                os.remove(temp_zip_path)  # Cleanup
+                os.remove(temp_zip_path)  # Clean up temporary file on failure.
             raise BackupRestoreError(
                 f"Unexpected error exporting world for server '{self.server_name}', world '{world_dir_name}': {e_unexp}"
             ) from e_unexp
 
     def import_active_world_from_mcworld(self, mcworld_backup_file_path: str) -> str:
-        """
-        Imports a world from a .mcworld backup file into this server's
-        currently active world directory (determined by 'level-name' in server.properties).
-        The active world directory will be cleaned before extraction.
+        """Imports a .mcworld file, replacing the server's active world.
+
+        This is a destructive operation that determines the active world from
+        `server.properties`, then replaces its contents with the extracted
+        contents of the provided `.mcworld` file.
 
         Args:
-            mcworld_backup_file_path: Full path to the source .mcworld backup file.
+            mcworld_backup_file_path: The path to the source `.mcworld` file.
 
         Returns:
-            The name of the world directory that was imported into (the active world name).
+            The name of the world directory that was imported into.
 
-        Raises: (as per original import_world)
+        Raises:
+            MissingArgumentError: If the file path is empty.
+            AppFileNotFoundError: If the source file does not exist.
+            BackupRestoreError: If the import process fails at any stage.
         """
         if not mcworld_backup_file_path:
             raise MissingArgumentError(".mcworld backup file path cannot be empty.")
@@ -267,32 +272,19 @@ class ServerWorldMixin(BedrockServerBaseMixin):
         if not os.path.isfile(mcworld_backup_file_path):
             raise AppFileNotFoundError(mcworld_backup_file_path, ".mcworld backup file")
 
-        # 1. Determine the target active world directory name
-        active_world_dir_name: str
+        # 1. Determine the target active world directory name.
         try:
-            # self.get_world_name() is from ServerStateMixin, raises AppFileNotFoundError/ConfigParseError
+            # This method is expected to be on the final class from StateMixin.
             active_world_dir_name = self.get_world_name()
             self.logger.info(
                 f"Target active world name for server '{self.server_name}' is '{active_world_dir_name}'."
             )
-        except (AppFileNotFoundError, ConfigParseError) as e:  # From get_world_name
-            self.logger.error(
-                f"Cannot determine target world directory for '{self.server_name}': {e}",
-                exc_info=True,
-            )
+        except (AppFileNotFoundError, ConfigParseError, Exception) as e:
             raise BackupRestoreError(
                 f"Cannot import world: Failed to get active world name for '{self.server_name}'."
             ) from e
-        except Exception as e_get_name:  # Other unexpected errors from get_world_name
-            self.logger.error(
-                f"Unexpected error getting active world name for '{self.server_name}': {e_get_name}",
-                exc_info=True,
-            )
-            raise BackupRestoreError(
-                f"Unexpected error getting active world name for '{self.server_name}'."
-            ) from e_get_name
 
-        # 2. Delegate to extract_mcworld_to_directory
+        # 2. Delegate the extraction to the specialized method.
         try:
             self.extract_mcworld_to_directory(
                 mcworld_backup_file_path, active_world_dir_name
@@ -300,89 +292,58 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             self.logger.info(
                 f"Server '{self.server_name}': Active world import from '{mcworld_filename}' completed successfully into '{active_world_dir_name}'."
             )
-            return (
-                active_world_dir_name  # Return the name of the world directory restored
-            )
+            return active_world_dir_name
         except (
             AppFileNotFoundError,
             ExtractError,
             FileOperationError,
             MissingArgumentError,
-        ) as e_extract:  # MissingArgumentError if active_world_dir_name was empty
-            self.logger.error(
-                f"World import failed for server '{self.server_name}' during extraction into '{active_world_dir_name}': {e_extract}",
-                exc_info=True,
-            )
+            Exception,
+        ) as e_extract:
             raise BackupRestoreError(
                 f"World import for server '{self.server_name}' failed into '{active_world_dir_name}': {e_extract}"
             ) from e_extract
-        except (
-            Exception
-        ) as e_unexp_extract:  # Other unexpected errors from extract_mcworld_to_directory
-            self.logger.error(
-                f"Unexpected error during world import for server '{self.server_name}' into '{active_world_dir_name}': {e_unexp_extract}",
-                exc_info=True,
-            )
-            raise BackupRestoreError(
-                f"Unexpected error during world import for server '{self.server_name}' into '{active_world_dir_name}'."
-            ) from e_unexp_extract
 
     def delete_active_world_directory(self) -> bool:
-        """
-        Deletes the currently active world directory for this server.
-        This is a destructive operation.
+        """Deletes the server's currently active world directory.
+
+        This is a destructive operation. The server will generate a new world
+        on its next start.
 
         Returns:
             True if the directory was successfully deleted or did not exist.
-            False if deletion failed.
 
         Raises:
-            FileOperationError: If determining the active world path fails or robust deletion reports an issue.
-            AppFileNotFoundError: If the world directory is not found after path is determined.
-            ConfigParseError: If server.properties is invalid.
+            FileOperationError: If determining the world path fails or if the
+                path exists but is not a directory, or if deletion fails.
+            AppFileNotFoundError: If `server.properties` is missing.
+            ConfigParseError: If `level-name` is missing from `server.properties`.
         """
         try:
-            active_world_dir = (
-                self._get_active_world_directory_path()
-            )  # Can raise AppFileNotFoundError, ConfigParseError
-            active_world_name = os.path.basename(active_world_dir)  # For logging
-        except (AppFileNotFoundError, ConfigParseError) as e:
+            active_world_dir = self._get_active_world_directory_path()
+            active_world_name = os.path.basename(active_world_dir)
+        except (AppFileNotFoundError, ConfigParseError, Exception) as e:
             self.logger.error(
                 f"Server '{self.server_name}': Cannot delete active world, failed to determine path: {e}"
             )
-            raise  # Re-raise error about not finding active world path
-        except (
-            Exception
-        ) as e_path:  # Catch any other unexpected error from path getting
-            self.logger.error(
-                f"Server '{self.server_name}': Unexpected error getting active world path for deletion: {e_path}",
-                exc_info=True,
-            )
-            raise FileOperationError(
-                f"Unexpected error determining active world path for '{self.server_name}'"
-            ) from e_path
+            raise
 
         self.logger.warning(
-            f"Server '{self.server_name}': Attempting to delete active world directory: '{active_world_dir}'."
-            " This is a DESTRUCTIVE operation."
+            f"Server '{self.server_name}': Attempting to delete active world directory: '{active_world_dir}'. THIS IS A DESTRUCTIVE operation."
         )
 
         if not os.path.exists(active_world_dir):
             self.logger.info(
                 f"Server '{self.server_name}': Active world directory '{active_world_dir}' does not exist. Nothing to delete."
             )
-            return True  # Considered success as the goal state (no dir) is met
+            return True
 
         if not os.path.isdir(active_world_dir):
-            # This case should ideally be rare if get_world_name and path construction are correct.
-            self.logger.error(
-                f"Server '{self.server_name}': Path '{active_world_dir}' for active world is not a directory. Deletion aborted."
-            )
             raise FileOperationError(
                 f"Path for active world '{active_world_name}' is not a directory: {active_world_dir}"
             )
 
-        # Use the deletion utility from system_base
+        # Use the robust deletion utility from the system module.
         success = system_base_utils.delete_path_robustly(
             active_world_dir,
             f"active world directory '{active_world_name}' for server '{self.server_name}'",
@@ -393,50 +354,38 @@ class ServerWorldMixin(BedrockServerBaseMixin):
                 f"Server '{self.server_name}': Successfully deleted active world directory '{active_world_dir}'."
             )
         else:
-            # delete_path_robustly already logs errors.
-            # Raise an error here to signal that the operation didn't fully complete as expected.
-            self.logger.error(
-                f"Server '{self.server_name}': Failed to completely delete active world directory '{active_world_dir}'."
-            )
+            # The robust utility already logs errors, but we raise to signal failure.
             raise FileOperationError(
                 f"Failed to completely delete active world directory '{active_world_name}' for server '{self.server_name}'. Check logs."
             )
 
-        return success  # Though if it raises, this won't be reached on failure
+        return success
 
     @property
     def world_icon_filename(self) -> str:
-        """Standard filename for the world icon."""
+        """Returns the standard filename for the world icon."""
         return "world_icon.jpeg"
 
     @property
     def world_icon_filesystem_path(self) -> Optional[str]:
-        """
-        Returns the absolute filesystem path to the world_icon.jpeg for the server's active world.
-        Returns None if the active world name cannot be determined or if the path would be invalid.
+        """Returns the absolute path to the world icon for the active world.
+
+        Returns `None` if the active world name cannot be determined.
         """
         try:
             active_world_dir = self._get_active_world_directory_path()
             return os.path.join(active_world_dir, self.world_icon_filename)
-        except (
-            AppFileNotFoundError,
-            ConfigParseError,
-        ) as e:  # Raised by get_world_name or _get_active_world_directory_path
+        except (AppFileNotFoundError, ConfigParseError, Exception) as e:
             self.logger.warning(
                 f"Server '{self.server_name}': Cannot determine world icon path because active world name is unavailable: {e}"
             )
             return None
-        except Exception as e_unexp:  # Catch any other unexpected errors
-            self.logger.error(
-                f"Server '{self.server_name}': Unexpected error determining world icon path: {e_unexp}",
-                exc_info=True,
-            )
-            return None
 
     def has_world_icon(self) -> bool:
-        """
-        Checks if the world_icon.jpeg file exists for the server's active world.
-        Returns True if the icon exists and is a file, False otherwise.
+        """Checks if the world_icon.jpeg file exists for the active world.
+
+        Returns:
+            True if the icon exists and is a file, False otherwise.
         """
         icon_path = self.world_icon_filesystem_path
         if icon_path and os.path.isfile(icon_path):
@@ -445,9 +394,9 @@ class ServerWorldMixin(BedrockServerBaseMixin):
             )
             return True
 
-        if icon_path:  # Path was determined but file doesn't exist or not a file
+        if icon_path:
             self.logger.debug(
                 f"Server '{self.server_name}': World icon not found or not a file at '{icon_path}'."
             )
-        # If icon_path is None, the warning was already logged by world_icon_filesystem_path property
+        # If icon_path is None, a warning was already logged.
         return False
