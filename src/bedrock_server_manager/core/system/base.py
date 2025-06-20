@@ -317,7 +317,7 @@ def _get_bedrock_process_info(
         A dictionary containing process info, or `None` if the server is not
         running, not verified, or `psutil` is unavailable.
     """
-    global _last_timestamp, _last_cpu_times
+    global _last_timestamp
 
     if not all([server_name, server_dir, config_dir]):
         raise MissingArgumentError(
