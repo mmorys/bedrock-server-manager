@@ -36,7 +36,7 @@ except ImportError:
 # Local application imports.
 from bedrock_server_manager.core.system import process as core_process
 from bedrock_server_manager.config.settings import settings
-from ...error import (
+from bedrock_server_manager.error import (
     MissingArgumentError,
     ServerStartError,
     AppFileNotFoundError,
@@ -188,7 +188,7 @@ def _main_pipe_server_listener_thread(
     for multiple concurrent connections.
 
     Args:
-        pipe_name: The name of the pipe to create (e.g., `\\.\pipe\MyPipe`).
+        pipe_name: The name of the pipe to create (e.g., `\\.\\pipe\\MyPipe`).
         bedrock_process: The `subprocess.Popen` object for the Bedrock server.
         server_name: The name of the server, for logging.
         overall_shutdown_event: A `threading.Event` that signals this thread to exit.
