@@ -6,128 +6,187 @@
 {% block title %}{{ super() }} - Configure Permissions: {{ server_name }}{% endblock %}
 
 {# --- Head Scripts Block --- #}
-{# Include JavaScript files needed for this page #}
 {% block head_scripts %}
-    {# Core utilities #}
-    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
-    {# Contains savePermissions function and potentially toggle logic #}
-    <script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/install_config.js') }}" defer></script>
 {% endblock %}
-
 
 {# --- Main Content Block --- #}
 {% block content %}
-    {# Main heading for the page #}
-    <h2>Configure Player Permissions</h2>
+<h2>Configure Player Permissions</h2>
+<p style="margin-bottom: 15px;" data-server-name="{{ server_name | e }}">
+    Server: <strong>{{ server_name }}</strong>
+    {% if new_install %}
+    <br><span class="step-indicator">(Step 3 of 4 for New Installation)</span>
+    {% endif %}
+</p>
 
-    {# Display server context and installation step if applicable #}
-    <p style="margin-bottom: 15px;">
-        Server: <strong>{{ server_name }}</strong>
+<div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;"></div>
+<div id="validation-error-area" class="message-box message-error" style="margin-bottom: 15px; display: none;"></div>
+
+<section class="permissions-config-section">
+    <p>Set the permission level for each known player found in the global player list or existing permissions file.</p>
+
+    <div class="table-responsive-wrapper">
+        <table class="server-table">
+            <thead>
+                <tr>
+                    <th scope="col">Player Name</th>
+                    <th scope="col">XUID</th>
+                    <th scope="col" style="min-width: 150px;">Permission Level</th>
+                </tr>
+            </thead>
+            <tbody id="permissions-table-body">
+                {# This will be filled by JavaScript. Show a loader initially. #}
+                <tr>
+                    <td colspan="3">
+                        <div id="permissions-loader" class="loader-container-small">
+                            <div class="spinner"></div>
+                            <p>Loading player and permission data...</p>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="form-actions">
+        <button type="button"
+                id="save-permissions-btn"
+                onclick="savePermissions(this, '{{ server_name | e }}', {{ new_install | tojson }})"
+                class="action-button start-button"
+                disabled title="Loading player data...">
+            Save Permissions
+        </button>
         {% if new_install %}
-             {# Indicator for multi-step installation workflow #}
-             <br><span class="step-indicator">(Step 3 of 4 for New Installation)</span>
+        <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">
+            Skip & Go to Service Config »
+        </a>
+        {% else %}
+        <a href="{{ url_for('main_routes.index') }}" class="action-link">
+            « Back to Dashboard
+        </a>
         {% endif %}
-    </p>
-
-    {# --- Status Message Area --- #}
-    {# Targeted by JavaScript (showStatusMessage) for general feedback #}
-    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
-        <!-- Status messages from save actions will appear here -->
     </div>
+</section>
 
-    {# --- Validation Error Area --- #}
-    {# Targeted by JavaScript for displaying overall validation errors from API #}
-    <div id="validation-error-area" class="message-box message-error" style="margin-bottom: 15px; display: none;">
-        <!-- Overall validation errors will appear here -->
-    </div>
-
-    {# Server-side flash messages (handled by base.html) #}
-
-    {# Section containing the permissions table and actions #}
-    <section class="permissions-config-section">
-        <p>Set the permission level for each known player found in the global player list or existing permissions file.</p>
-
-        {# **Crucial wrapper for table responsiveness** #}
-        <div class="table-responsive-wrapper">
-            <table class="server-table"> {# Use standard table style #}
-                <thead>
-                    <tr>
-                        {# Use scope="col" for table header accessibility #}
-                        <th scope="col">Player Name</th>
-                        <th scope="col">XUID</th>
-                        <th scope="col" style="min-width: 150px;">Permission Level</th> {# Give level column min-width #}
-                    </tr>
-                </thead>
-                <tbody>
-                    {# Loop through players passed from the route #}
-                    {% if players %}
-                        {% for player in players %}
-                        <tr>
-                            {# Add data-label for potential CSS stacking on mobile #}
-                            <td data-label="Player Name">{{ player.name | default('N/A') }}</td>
-                            <td data-label="XUID">{{ player.xuid | default('N/A') }}</td>
-                            <td data-label="Permission Level">
-                                {# Dropdown select for permission level #}
-                                {# Name attribute is the player's XUID - JS reads this #}
-                                {# data-xuid is also set for easier selection in JS #}
-                                <select name="{{ player.xuid }}" data-xuid="{{ player.xuid }}" class="form-input permission-select">
-                                    {# Option values match expected backend values #}
-                                    {# Jinja logic sets 'selected' attribute based on current permission map #}
-                                    <option value="visitor" {% if permissions.get(player.xuid) == 'visitor' %}selected{% endif %}>Visitor</option>
-                                    {# Default to 'member' if player not in permissions map #}
-                                    <option value="member" {% if permissions.get(player.xuid, 'member') == 'member' %}selected{% endif %}>Member</option>
-                                    <option value="operator" {% if permissions.get(player.xuid) == 'operator' %}selected{% endif %}>Operator</option>
-                                </select>
-                                {# Placeholder for potential inline validation errors from API response #}
-                                <div class="validation-error inline-error" data-field="{{ player.xuid }}"></div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        {# Displayed if the players list passed from the route is empty #}
-                        {# Using CSS classes from tables.css for consistent styling #}
-                        <tr class="no-servers-row"> {# Re-use class name, style applies #}
-                            <td colspan="3" class="no-servers"> {# Span all columns #}
-                                No players found in global list or permissions file. Cannot set permissions.
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div> {# --- End of .table-responsive-wrapper --- #}
-
-        {# --- Form Actions / Navigation --- #}
-        <div class="form-actions">
-             {# Save button - disabled if no players are loaded #}
-             {# Calls savePermissions JS function onClick #}
-             {# Passes 'this' button, server_name, and boolean new_install flag #}
-             <button type="button"
-                     onclick="savePermissions(this, '{{ server_name | e }}', {{ new_install | tojson }})"
-                     class="action-button start-button" {# Green 'Save' button #}
-                     {% if not players %}disabled title="No players loaded to configure"{% endif %}> {# Disable if no players #}
-                 Save Permissions
-             </button>
-
-            {# Conditional navigation link based on install workflow #}
-            {% if new_install %}
-                {# Link to the next step (Service Configuration) #}
-                <a href="{{ url_for('install_config_routes.configure_service_route', server_name=server_name, new_install='True') }}" class="action-link">
-                    Skip & Go to Service Config »
-                </a>
-            {% else %}
-                {# Standard navigation back to dashboard #}
-                 <a href="{{ url_for('main_routes.index') }}" class="action-link">
-                     « Back to Dashboard
-                 </a>
-            {% endif %}
-        </div>
-    </section> {# --- End of .permissions-config-section --- #}
+    {# --- Templates for JavaScript --- #}
+<template id="player-row-template">
+    <tr>
+        <td data-label="Player Name" class="player-name">PlayerName</td>
+        <td data-label="XUID" class="player-xuid">PlayerXUID</td>
+        <td data-label="Permission Level">
+            <select name="player-xuid" class="form-input permission-select">
+                <option value="visitor">Visitor</option>
+                <option value="member">Member</option>
+                <option value="operator">Operator</option>
+            </select>
+            <div class="validation-error inline-error"></div>
+        </td>
+    </tr>
+</template>
+<template id="no-players-row-template">
+    <tr class="no-servers-row">
+        <td colspan="3" class="no-servers">
+            No players found. Cannot set permissions.
+        </td>
+    </tr>
+</template>
 
 {% endblock %}
 
-{# --- Optional Body Scripts Block --- #}
+
+{# --- Body Scripts Block --- #}
 {% block body_scripts %}
-{# <script>
-    // Any page-specific initialization if needed, e.g., confirming data before save
-</script> #}
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const serverName = document.querySelector('[data-server-name]').dataset.serverName;
+        const tableBody = document.getElementById('permissions-table-body');
+        const saveButton = document.getElementById('save-permissions-btn');
+        const playerRowTemplate = document.getElementById('player-row-template');
+        const noPlayersRowTemplate = document.getElementById('no-players-row-template');
+
+        try {
+            // --- 1. Fetch both data sources in parallel for speed ---
+            console.log("Fetching global players and server permissions in parallel...");
+            const [allPlayersResponse, serverPermissionsResponse] = await Promise.all([
+                fetch('/api/players/get'),
+                fetch(`/api/server/${serverName}/permissions/get`)
+            ]);
+
+            // --- 2. Check responses and parse JSON ---
+            if (!allPlayersResponse.ok) throw new Error(`Failed to load global players: ${allPlayersResponse.statusText}`);
+            if (!serverPermissionsResponse.ok) throw new Error(`Failed to load server permissions: ${serverPermissionsResponse.statusText}`);
+
+            const allPlayersData = await allPlayersResponse.json();
+            const serverPermissionsData = await serverPermissionsResponse.json();
+
+            if (allPlayersData.status !== 'success') throw new Error(`API error loading players: ${allPlayersData.message}`);
+            if (serverPermissionsData.status !== 'success') throw new Error(`API error loading permissions: ${serverPermissionsData.message}`);
+
+            let allPlayers = allPlayersData.players || [];
+            const serverPermissions = serverPermissionsData.data?.permissions || [];
+            console.log(`Loaded ${allPlayers.length} global players and ${serverPermissions.length} server permissions.`);
+
+            // --- 3. Merge the data (replicating the Python logic) ---
+            const permissionsMap = new Map(serverPermissions.map(p => [String(p.xuid), p.permission_level]));
+            const knownPlayerXuids = new Set(allPlayers.map(p => String(p.xuid)));
+
+            // Add any players that exist in permissions but not the global list
+            for (const [xuid, level] of permissionsMap.entries()) {
+                if (!knownPlayerXuids.has(xuid)) {
+                    allPlayers.push({ xuid: xuid, name: `Unknown (XUID: ${xuid})` });
+                    console.log(`Found permission for unknown player ${xuid}, adding to list.`);
+                }
+            }
+
+            // Sort players by name, case-insensitively
+            allPlayers.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+            // --- 4. Render the table ---
+            tableBody.innerHTML = ''; // Clear the loader
+
+            if (allPlayers.length === 0) {
+                tableBody.appendChild(noPlayersRowTemplate.content.cloneNode(true));
+                saveButton.title = "No players loaded to configure";
+                return; // Exit after showing the message
+            }
+
+            const fragment = document.createDocumentFragment();
+            allPlayers.forEach(player => {
+                const rowClone = playerRowTemplate.content.cloneNode(true);
+                const select = rowClone.querySelector('.permission-select');
+
+                rowClone.querySelector('.player-name').textContent = player.name || 'N/A';
+                rowClone.querySelector('.player-xuid').textContent = player.xuid || 'N/A';
+
+                // Set attributes on the select element
+                select.name = player.xuid;
+                select.dataset.xuid = player.xuid;
+
+                // Set the selected option
+                const currentPermission = permissionsMap.get(String(player.xuid)) || 'member'; // Default to member
+                select.value = currentPermission;
+
+                // Set the field for validation errors
+                rowClone.querySelector('.validation-error').dataset.field = player.xuid;
+
+                fragment.appendChild(rowClone);
+            });
+            tableBody.appendChild(fragment);
+
+            // --- 5. Enable the save button ---
+            saveButton.disabled = false;
+            saveButton.title = "Save all player permissions";
+
+        } catch (error) {
+            console.error('Failed to load permissions page data:', error);
+            tableBody.innerHTML = `
+            <tr class="list-item-error">
+                <td colspan="3">Error loading page data: ${error.message}</td>
+            </tr>`;
+            saveButton.title = "Could not load data";
+        }
+    });
+</script>
 {% endblock %}

@@ -53,7 +53,7 @@ class BedrockServer(
         - base_dir (str): Base directory where all server installations reside.
         - server_dir (str): Full path to this server's installation directory.
         - app_config_dir (str): Path to the application's global configuration directory.
-        - _server_specific_config_dir (str): Path to this server's specific JSON config directory.
+        - server_config_dir (str): Path to this server's specific JSON config directory.
         - os_type (str): The current operating system type (e.g., "Linux", "Windows").
         - logger (logging.Logger): An instance-specific logger.
         - bedrock_executable_path (str): Full path to the server's bedrock_server executable.

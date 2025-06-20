@@ -54,7 +54,7 @@ async function updateStatus() {
     }
 
     // --- Fetch Data ---
-    const apiUrl = `/api/server/${serverName}/status_info`; // Corrected API endpoint name based on previous refinement
+    const apiUrl = `/api/server/${serverName}/process_info`;
     console.debug(`[${timestamp}] ${functionName}: Fetching URL: ${apiUrl}`);
 
     try {

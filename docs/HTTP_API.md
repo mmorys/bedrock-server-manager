@@ -1,4 +1,4 @@
-﻿﻿<div style="text-align: center;">
+﻿﻿﻿<div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
@@ -9,12 +9,12 @@
     - [`POST /api/login` - API Login](#post-apilogin---api-login)
   - [Server Information](#server-information)
     - [`GET /api/servers` - Get All Servers List and Status](#get-apiservers---get-all-servers-list-and-status)
-    - [`GET /api/server/{server_name}/world_name` - Get World Name](#get-apiserverserver_nameworld_name---get-world-name)
-    - [`GET /api/server/{server_name}/running_status` - Get Running Status](#get-apiserverserver_namerunning_status---get-running-status)
+    - [`GET /api/server/{server_name}/status` - Get Running Status](#get-apiserverserver_namestatus---get-running-status)
     - [`GET /api/server/{server_name}/config_status` - Get Config Status](#get-apiserverserver_nameconfig_status---get-config-status)
     - [`GET /api/server/{server_name}/version` - Get Installed Version](#get-apiserverserver_nameversion---get-installed-version)
     - [`GET /api/server/{server_name}/validate` - Validate Server Existence](#get-apiserverserver_namevalidate---validate-server-existence)
-    - [`GET /api/server/{server_name}/status_info` - Get Server Status Info](#get-apiserverserver_namestatus_info---get-server-status-info)
+    - [`GET /api/server/{server_name}/process_info` - Get Server Process Info](#get-apiserverserver_nameprocess_info---get-server-process-info)
+    - [`GET /api/server/{server_name}/world/icon` - Get Server World Icon](#get-apiserverserver_nameworldicon---get-server-world-icon)
   - [Server Actions](#server-actions)
     - [`POST /api/server/{server_name}/start` - Start Server](#post-apiserverserver_namestart---start-server)
     - [`POST /api/server/{server_name}/stop` - Stop Server](#post-apiserverserver_namestop---stop-server)
@@ -26,7 +26,6 @@
     - [`POST /api/server/{server_name}/backups/prune` - Prune Server Backups](#post-apiserverserver_namebackupsprune---prune-server-backups)
     - [`POST /api/server/{server_name}/backup/action` - Trigger Backup](#post-apiserverserver_namebackupaction---trigger-backup)
     - [`POST /api/server/{server_name}/restore/action` - Trigger Restore](#post-apiserverserver_namerestoreaction---trigger-restore)
-    - [`POST /api/server/{server_name}/restore/all` - Trigger Restore All](#post-apiserverserver_namerestoreall---trigger-restore-all)
   - [World & Addon Management](#world--addon-management)
     - [`POST /api/server/{server_name}/world/export` - Export World](#post-apiserverserver_nameworldexport---export-world)
     - [`DELETE /api/server/{server_name}/world/reset` - Reset World](#delete-apiserverserver_nameworldreset---reset-world)
@@ -34,15 +33,19 @@
     - [`POST /api/server/{server_name}/addon/install` - Install Addon](#post-apiserverserver_nameaddoninstall---install-addon)
   - [Player Management](#player-management)
     - [`POST /api/players/scan` - Scan Player Logs](#post-apiplayersscan---scan-player-logs)
-    - [`GET /api/server/{server_name}/allowlist` - Get Allowlist](#get-apiserverserver_nameallowlist---get-allowlist)
+    - [`GET /api/server/{server_name}/allowlist/get` - Get Allowlist](#get-apiserverserver_nameallowlistget---get-allowlist)
     - [`POST /api/server/{server_name}/allowlist/add` - Add Players to Allowlist](#post-apiserverserver_nameallowlistadd---add-players-to-allowlist)
     - [`DELETE /api/server/{server_name}/allowlist/remove` - Remove Player from Allowlist](#delete-apiserverserver_nameallowlistremove---remove-players-from-allowlist)
-    - [`PUT /api/server/{server_name}/permissions` - Update Player Permissions](#put-apiserverserver_namepermissions---update-player-permissions)
+    - [`PUT /api/server/{server_name}/permissions/set` - Update Player Permissions](#put-apiserverserver_namepermissionsset---update-player-permissions)
+    - [`GET /api/server/{server_name}/permissions/get` - Get Player Permissions](#get-apiserverserver_namepermissionsget---get-player-permissions)
   - [Configuration](#configuration)
-    - [`POST /api/server/{server_name}/properties` - Update Server Properties](#post-apiserverserver_nameproperties---update-server-properties)
-    - [`POST /api/server/{server_name}/service` - Configure OS Service Settings](#post-apiserverserver_nameservice---configure-os-service-settings)
+    - [`POST /api/server/{server_name}/properties/set` - Update Server Properties](#post-apiserverserver_namepropertiesset---update-server-properties)
+    - [`GET /api/server/{server_name}/properties/get` - Get Server Properties](#get-apiserverserver_namepropertiesget---get-server-properties)
+    - [`POST /api/server/{server_name}/service/update` - Configure OS Service Settings](#post-apiserverserver_nameserviceupdate---configure-os-service-settings)
   - [Downloads](#downloads)
     - [`POST /api/downloads/prune` - Prune Download Cache](#post-apidownloadsprune---prune-download-cache)
+  - [Utility Endpoints](#utility-endpoints)
+    - [`GET /api/panorama` - Get Custom Panorama Image](#get-apipanorama---get-custom-panorama-image)
   - [Server Installation](#server-installation)
     - [`POST /api/server/install` - Install New Server](#post-apiserverinstall---install-new-server)
   - [Task Scheduler](#task-scheduler)
@@ -51,8 +54,7 @@
     - [`DELETE /api/server/{server_name}/cron_scheduler/delete` - Delete Cron Job (Linux Only)](#delete-apiserverserver_namecron_schedulerdelete---delete-cron-job-linux-only)
     - [`POST /api/server/{server_name}/task_scheduler/add` - Add Windows Task (Windows Only)](#post-apiserverserver_nametask_scheduleradd---add-windows-task-windows-only)
     - [`POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)](#post-apiserverserver_nametask_schedulerdetails---get-windows-task-details-windows-only)
-    - [`PUT /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify Windows Task (Windows Only)](#put-apiserverserver_nametask_schedulertasktask_name---modify-windows-task-windows-only)
-    - [`DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Delete Windows Task (Windows Only)](#delete-apiserverserver_nametask_schedulertasktask_name---delete-windows-task-windows-only)
+    - [`PUT/DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify or Delete Windows Task (Windows Only)](#putdelete-apiserverserver_nametask_schedulertasktask_name---modify-or-delete-windows-task-windows-only)
 
 # Bedrock Server Manager - HTTP API Documentation
 
@@ -348,6 +350,43 @@ ___
 
 ## Server Information
 
+### `GET /api/server/{server_name}/world/icon` - Get Server World Icon
+
+Serves the `world_icon.jpeg` file for the specified server's currently configured world. This allows UIs to display a visual representation of the server's world.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`, `image/jpeg`)
+
+Returns the JPEG image data directly. If the specific world icon is not found or an error occurs, a default application icon may be served instead.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**: If authentication is missing or invalid.
+*   **`404 Not Found`**: If the server instance or its `world_icon.jpeg` (and fallback default icon) cannot be found.
+*   **`500 Internal Server Error`**: For other server-side errors (e.g., configuration issues preventing path determination).
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/world/icon --output world_icon.jpeg
+```
+
+---
+
 ### `GET /api/servers` - Get All Servers List and Status
 
 Retrieves a list of all detected Bedrock server instances managed by this application, along with their last known status and installed version as recorded in their respective configuration files.
@@ -482,108 +521,7 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ---
 
-### `GET /api/server/{server_name}/world_name` - Get World Name
-
-Gets the configured world name (`level-name` property) from the `server.properties` file for the specified server.
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The unique name of the server instance.
-
-#### Request Body
-
-None.
-
-#### Success Response (`200 OK`)
-
-Returns the world name if found successfully.
-
-```json
-{
-    "status": "success",
-    "world_name": "Bedrock level"
-}
-```
-*   **`status`**: Always "success".
-*   **`world_name`**: The value of the `level-name` property from the server's `server.properties` file.
-
-#### Error Responses
-
-*   **`400 Bad Request`**:
-    *   If the `server_name` path parameter is considered invalid (e.g., empty, contains disallowed characters - specific rules depend on your `InvalidServerNameError` implementation). The message comes directly from the exception.
-        ```json
-        {
-            "status": "error",
-            "message": "Server name cannot be empty."
-        }
-        ```
-        *or similar validation message*
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid (handled by `@auth_required` decorator).
-        ```json
-        {
-            "error": "Unauthorized",
-            "message": "Authentication required."
-        }
-        ```
-        *(Or a more specific message for invalid tokens)*
-
-*   **`404 Not Found`**:
-    *   If the server's `server.properties` file cannot be found. The message comes from `AppFileNotFoundError`.
-        ```json
-        {
-            "status": "error",
-            "message": "server.properties file not found at path: /path/to/servers/MyServer/server.properties"
-        }
-        ```
-
-*   **`500 Internal Server Error`**:
-    *   If the `level-name` property is missing within the `server.properties` file. The message comes from `ConfigParseError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to parse configuration file: Property 'level-name' not found in /path/to/servers/MyServer/server.properties"
-        }
-        ```
-    *   If the base directory configuration is invalid or inaccessible. The message comes from `ConfigurationError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Failed to get world name: Base directory '/invalid/path' not found or accessible."
-        }
-        ```
-    *   If an unexpected error occurs during processing.
-        ```json
-        {
-            "status": "error",
-            "message": "Unexpected error getting world name."
-        }
-        ```
-
-#### `curl` Example (Bash)
-
-```bash
-curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/world_name
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/world_name" -Headers $headers
-```
-
----
-
-### `GET /api/server/{server_name}/running_status` - Get Running Status
+### `GET /api/server/{server_name}/status` - Get Running Status
 
 Checks if the Bedrock server process for the specified server instance is currently running.
 
@@ -664,14 +602,14 @@ Returns the running status of the server.
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/running_status
+     http://<your-manager-host>:<port>/api/server/<server_name>/status
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/running_status" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/status" -Headers $headers
 ```
 
 ---
@@ -958,7 +896,7 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 
 ---
 
-### `GET /api/server/{server_name}/status_info` - Get Server Status Info
+### `GET /api/server/{server_name}/process_info` - Get Server Process Info
 
 Retrieves runtime status information for a specific server process, including running state and basic resource usage (PID, CPU, Memory, Uptime) if the process is active and accessible.
 
@@ -1067,19 +1005,19 @@ Returned regardless of whether the server is running or not, as long as the requ
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/status_info
+     http://<your-manager-host>:<port>/api/server/<server_name>/process_info
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/status_info" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/process_info" -Headers $headers
 ```
 
 ---
 
-### `GET /api/server/<server_name>/permissions_data` - Get Server Player Permissions
+### `GET /api/server/{server_name}/permissions/get` - Get Server Player Permissions
 
 Retrieves the list of players and their permission levels as defined in the specified server's `permissions.json` file. Optionally, player XUIDs are enriched with names found in the global `players.json` file (if available).
 
@@ -1211,14 +1149,14 @@ Replace `<server_name>` with the actual server name.
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data"
+     "http://<your-manager-host>:<port>/api/server/<server_name>/permissions/get"
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions_data" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions/get" -Headers $headers
 ```
 ---
 
@@ -1229,6 +1167,8 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 Starts the specified Bedrock server instance process. Uses systemd (with screen fallback) on Linux or direct process creation on Windows. Waits for confirmation that the server process is running.
 
 This endpoint is exempt from CSRF protection but requires authentication.
+
+*Note: To restore all components (world and standard configuration files) from their latest backups, use the `restore_type: "all"` option in the payload. This will find the latest backup for the world and each standard config file (`server.properties`, `allowlist.json`, `permissions.json`) and restore them individually.*
 
 #### Authentication
 
@@ -2498,7 +2438,9 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ### `POST /api/server/{server_name}/restore/action` - Trigger Restore
 
-Restores a server's world or a specific configuration file from a specified backup file. **Warning:** This overwrites current files. It's recommended to stop the server before restoring (the API handles this by default). Ensures the backup file path is within the configured `BACKUP_DIR`.
+Restores a server's world, a specific configuration file, or all standard components from backup.
+*   For `"world"` or `"config"` restore types, a specific `backup_file` must be provided.
+*   For `"all"` restore_type, the system attempts to find the latest backup for the world and each standard configuration file (`server.properties`, `allowlist.json`, `permissions.json`) and restores them. **Warning:** This overwrites current files. It's recommended to stop the server before restoring (the API handles this by default). Ensures the backup file path is within the configured `BACKUP_DIR` for specific file restores.
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -2525,10 +2467,16 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
     "backup_file": "server_backup_....properties"
 }
 ```
+*or for "all" type:*
+```json
+{
+    "restore_type": "all"
+}
+```
 
 *   **Fields:**
-    *   `restore_type` (*string*, required): Type of restore. Must be `"world"` or `"config"`. Case-insensitive.
-    *   `backup_file` (*string*, required): The relative path to the backup file to restore *inside* the configured `BACKUP_DIR`/{server_name}.
+    *   `restore_type` (*string*, required): Type of restore. Must be `"world"`, `"config"`, or `"all"`. Case-insensitive.
+    *   `backup_file` (*string*, required if `restore_type` is `"world"` or `"config"`): The relative path to the backup file to restore *inside* the configured `BACKUP_DIR`/{server_name}. This field is ignored if `restore_type` is `"all"`.
 
 #### Success Response (`200 OK`)
 
@@ -2552,21 +2500,21 @@ Returned when the restore operation completes successfully.
             "message": "Invalid or missing JSON request body."
         }
         ```
-    *   If `restore_type` or `backup_file` is missing or invalid. Message from `UserInputError`.
+    *   If `restore_type` or `backup_file` (when required) is missing or invalid. Message from `UserInputError`.
         ```json
         {
             "status": "error",
-            "message": "User input error: Missing or invalid 'restore_type'. Must be one of: ['world', 'config']."
+            "message": "User input error: Missing or invalid 'restore_type'. Must be one of: ['world', 'config', 'all']."
         }
         ```
         *or*
         ```json
         {
             "status": "error",
-            "message": "User input error: Missing or invalid 'backup_file' path (string) in request."
+            "message": "User input error: Missing or invalid 'backup_file' path (string) in request for this restore type."
         }
         ```
-    *   If the provided `backup_file` path is outside the configured `BACKUP_DIR`. Message from `UserInputError`.
+    *   If the provided `backup_file` path (when applicable) is outside the configured `BACKUP_DIR`. Message from `UserInputError`.
         ```json
         {
             "status": "error",
@@ -2657,94 +2605,6 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
 $body = @{ restore_type = 'config'; backup_file = 'server_backup_abc.properties' } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/restore/action" -Headers $headers -Body $body
-```
-
----
-
-### `POST /api/server/{server_name}/restore/all` - Trigger Restore All
-
-Restores the server's world AND standard configuration files (`server.properties`, `allowlist.json`, `permissions.json`) from their respective *latest* available backups found within the server's subdirectory in the configured `BACKUP_DIR`. **Warning:** This overwrites current files. It's recommended to stop the server first (the API handles this by default).
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The unique name of the server instance to restore.
-
-#### Request Body
-
-None.
-
-#### Success Response (`200 OK`)
-
-Returned when the restore operation for all components completes without errors.
-
-```json
-{
-    "status": "success",
-    "message": "Restore all completed successfully for server '<server_name>'."
-}
-```
-*(Note: If the server was stopped for restore and failed to restart, the response will indicate the restart error instead.)*
-
-#### Error Responses
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid.
-        ```json
-        {
-            "error": "Unauthorized",
-            "message": "Authentication required."
-        }
-        ```
-
-*   **`500 Internal Server Error`**:
-    *   If essential configuration settings like `BASE_DIR` or `BACKUP_DIR` are missing or invalid. Message from `ConfigurationError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: BACKUP_DIR setting is missing or empty."
-        }
-        ```
-    *   If the server's backup directory doesn't exist (note: the API function returns successfully in this case, logged as a warning, but the route would still return 200 OK according to the code).
-    *   If an error occurs while stopping or starting the server (if applicable). Messages like `ServerStopError` or `ServerStartError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Server stop error: Failed to stop server for restore: Server process with PID 1234 not found or already stopped."
-        }
-        ```
-    *   If any part of the restore (world or any config file) fails. The error message will indicate the failed components. Messages from `BackupRestoreError`, `FileOperationError`, `AppFileNotFoundError`, `ConfigParseError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Backup/restore error: Restore failed for server 'MyServer'. Failed components: World (World import failed for server 'MyServer': Failed to extract archive: ...), server.properties (File operation error: Failed to restore config file 'server.properties': [Errno 13] Permission denied)"
-        }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        {
-            "status": "error",
-            "message": "An unexpected error occurred during restore all: <original error message>"
-        }
-        ```
-
-#### `curl` Example (Bash)
-
-```bash
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/restore/all
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/restore/all" -Headers $headers
 ```
 
 ---
@@ -3948,7 +3808,7 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/player
 ---
 
 
-### `GET /api/server/{server_name}/allowlist` - Get Allowlist
+### `GET /api/server/{server_name}/allowlist/get` - Get Allowlist
 
 Retrieves the current list of players from the server's `allowlist.json` file.
 
@@ -4044,14 +3904,14 @@ Returns the list of players currently in the `allowlist.json` file. The list wil
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist
+     http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/get
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/allowlist/get" -Headers $headers
 ```
 
 ---
@@ -4283,7 +4143,7 @@ Invoke-RestMethod -Method Delete -Uri "http://<your-manager-host>:<port>/api/ser
 
 ---
 
-### `PUT /api/server/{server_name}/permissions` - Update Player Permissions
+### `PUT /api/server/{server_name}/permissions/set` - Update Player Permissions
 
 Updates the permission levels for one or more players in the server's `permissions.json` file. Takes a JSON object mapping player XUIDs (as strings) to desired permission level strings (`"visitor"`, `"member"`, or `"operator"`). Invalid levels are rejected, and failures for individual players are reported.
 
@@ -4389,7 +4249,7 @@ Returned if all submitted, valid permission changes were successfully applied, o
 ```bash
 curl -X PUT -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
      -d '{"permissions": {"2535416409681153": "operator", "2535457894355891": "member"}}' \
-     http://<your-manager-host>:<port>/api/server/<server_name>/permissions
+     http://<your-manager-host>:<port>/api/server/<server_name>/permissions/set
 ```
 
 #### PowerShell Example
@@ -4403,14 +4263,14 @@ $permBody = @{
     }
 }
 $bodyJson = $permBody | ConvertTo-Json -Depth 3
-Invoke-RestMethod -Method Put -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions" -Headers $headers -Body $bodyJson
+Invoke-RestMethod -Method Put -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/permissions/set" -Headers $headers -Body $bodyJson
 ```
 
 ---
 
 ## Configuration
 
-### `POST /api/server/{server_name}/properties` - Update Server Properties
+### `POST /api/server/{server_name}/properties/set` - Update Server Properties
 
 Updates specified key-value pairs in the `server.properties` file for the given server. Only properties present in a predefined allowlist can be modified. Input values undergo basic validation before being written to the file. The `level-name` property is automatically cleaned by replacing spaces and disallowed characters with underscores (`_`).
 
@@ -4542,7 +4402,7 @@ Returned when the provided properties are successfully validated and written to 
 ```bash
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
      -d '{"max-players": "12", "allow-list": "true"}' \
-     http://<your-manager-host>:<port>/api/server/<server_name>/properties
+     http://<your-manager-host>:<port>/api/server/<server_name>/properties/set
 ```
 
 #### PowerShell Example
@@ -4551,12 +4411,12 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
 # Note: Quotes may be needed around keys with hyphens depending on PowerShell version/parsing
 $body = @{ 'max-players' = '12'; 'allow-list' = 'true' } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/properties" -Headers $headers -Body $body
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/properties/set" -Headers $headers -Body $body
 ```
 
 ---
 
-### `GET /api/server/<server_name>/read_properties` - Get Server Properties
+### `GET /api/server/{server_name}/properties/get` - Get Server Properties
 
 Retrieves the parsed `server.properties` file content for a specified Bedrock server instance. This allows inspection of the server's configuration settings.
 
@@ -4670,18 +4530,18 @@ Returns a dictionary of all key-value pairs found in the server's `server.proper
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-        http://<your-manager-host>:<port>/api/server/<server_name>/read_properties
+        http://<your-manager-host>:<port>/api/server/<server_name>/properties/get
 ```
 
 #### PowerShell Example
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/read_properties" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/properties/get" -Headers $headers
 ```
 ---
 
-### `POST /api/server/{server_name}/service` - Configure OS Service Settings
+### `POST /api/server/{server_name}/service/update` - Configure OS Service Settings
 
 Configures OS-specific service settings for the server instance. The behavior and expected request body depend on the host operating system where the Bedrock Server Manager is running.
 
@@ -4804,7 +4664,7 @@ Returned when the OS-specific configuration is successfully applied.
 ```bash
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
      -d '{"autoupdate": true, "autostart": true}' \
-     http://<your-manager-host>:<port>/api/server/<server_name>/service
+     http://<your-manager-host>:<port>/api/server/<server_name>/service/update
 ```
 
 #### PowerShell Example (Windows)
@@ -4812,7 +4672,7 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
 $body = @{ autoupdate = $true } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/service" -Headers $headers -Body $body
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/service/update" -Headers $headers -Body $body
 ```
 
 ---
@@ -4968,6 +4828,43 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
 $body = @{ directory = 'stable'; keep = 3 } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/downloads/prune" -Headers $headers -Body $body
+```
+
+---
+
+## Utility Endpoints
+
+### `GET /api/panorama` - Get Custom Panorama Image
+
+Serves a custom `panorama.jpeg` background image if it exists in the main configuration directory (`CONFIG_DIR`). If not found, a default panorama image from the application's static assets is served. This is typically used for the web UI background.
+
+This endpoint does not require authentication.
+
+#### Authentication
+
+None.
+
+#### Path Parameters
+
+None.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`, `image/jpeg`)
+
+Returns the JPEG image data directly.
+
+#### Error Responses
+
+*   **`404 Not Found`**: If the custom panorama (and potentially the fallback default) cannot be found.
+*   **`500 Internal Server Error`**: For other server-side errors (e.g., configuration issues like `CONFIG_DIR` not set).
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET http://<your-manager-host>:<port>/api/panorama --output panorama.jpeg
 ```
 
 ---
@@ -5740,9 +5637,13 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `PUT /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify Windows Task (Windows Only)
+### `PUT/DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify or Delete Windows Task (Windows Only)
 
-Modifies an existing Windows scheduled task. This operation actually **deletes** the task specified by `task_name` (and its associated XML config file) and then **creates a new task** based on the details provided in the request body. The newly created task will have a new, timestamped name. **This endpoint is only functional on Windows systems.**
+**To Modify:** Use the `PUT` method. This operation actually **deletes** the task specified by `task_name` (and its associated XML config file) and then **creates a new task** based on the details provided in the request body. The newly created task will have a new, timestamped name.
+
+**To Delete:** Use the `DELETE` method. This deletes the task from Task Scheduler and its corresponding XML configuration file.
+
+**This endpoint is only functional on Windows systems.**
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
@@ -5757,11 +5658,11 @@ Windows Only.
 #### Path Parameters
 
 *   `**server_name**` (*string*, required): The server context for the task.
-*   `**task_name**` (*string*, required): The current, full name of the task to be replaced (as registered in Task Scheduler). URL encoding might be needed if the name contains special characters.
+*   `**task_name**` (*string*, required): The current, full name of the task to be modified or deleted (as registered in Task Scheduler). URL encoding might be needed if the name contains special characters.
 
-#### Request Body (`application/json`)
+#### Request Body (`application/json`) - Required for `PUT` (Modify) only
 
-Same structure as the "Add Windows Task" request body, defining the *new* command and triggers for the replacement task.
+Same structure as the "Add Windows Task" request body, defining the *new* command and triggers for the replacement task. Not used for `DELETE`.
 
 ```json
 {
@@ -5778,8 +5679,15 @@ Returned when the old task is successfully deleted (or wasn't found) and the new
 ```json
 {
     "status": "success",
-    "message": "Windows task modified successfully.", // API function returns this simple message
-    "new_task_name": "bedrock_MyWinServer_restart-server_20240116_090000" // Added by route handler
+    "message": "Windows task modified successfully.", # API function returns this simple message
+    "new_task_name": "bedrock_MyWinServer_restart-server_20240116_090000" # Added by route handler for PUT
+}
+```
+*If `DELETE` was used and successful:*
+```json
+{
+    "status": "success",
+    "message": "Task '<task_name>' and its definition file deleted successfully."
 }
 ```
 
@@ -5791,11 +5699,11 @@ Returned when the old task is successfully deleted (or wasn't found) and the new
         // Flask routing error, not JSON response
         404 Not Found
         ```
-    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
+    *   For `PUT`: If the request body is missing or not valid JSON. Message from `UserInputError`.
         ```json
         { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
         ```
-    *   If validation of the *new* `command` or `triggers` in the request body fails (see "Add Windows Task" errors). Message from `UserInputError`.
+    *   For `PUT`: If validation of the *new* `command` or `triggers` in the request body fails (see "Add Windows Task" errors). Message from `UserInputError`.
         ```json
         { "status": "error", "message": "User input error: Invalid or missing 'command'. Must be one of: [...]" }
         ```
@@ -5809,24 +5717,28 @@ Returned when the old task is successfully deleted (or wasn't found) and the new
 *   **`501 Not Implemented`**:
     *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
         ```json
-        { "status": "error", "message": "System error: Modifying Windows tasks is only supported on Windows." }
+        { "status": "error", "message": "System error: Modifying or deleting Windows tasks is only supported on Windows." }
         ```
 
 *   **`500 Internal Server Error`**:
-    *   If deleting the *old* task from Task Scheduler fails (e.g., access denied). Message from `SystemError`.
+    *   If deleting the *old* task (for `PUT`) or the specified task (for `DELETE`) from Task Scheduler fails (e.g., access denied). Message from `SystemError`.
         ```json
-        { "status": "error", "message": "System error: Access denied deleting task '<old_task_name>'. Try running as Administrator." }
+        { "status": "error", "message": "System error: Access denied deleting task '<task_name>'. Try running as Administrator." }
         ```
-    *   If creating or importing the *new* task fails (config errors, XML errors, `schtasks` errors - see "Add Windows Task" errors). Messages from `SystemError`, `FileOperationError`, `CommandNotFoundError`, `ConfigurationError`.
+    *   For `PUT`: If creating or importing the *new* task fails (config errors, XML errors, `schtasks` errors - see "Add Windows Task" errors). Messages from `SystemError`, `FileOperationError`, `CommandNotFoundError`, `ConfigurationError`.
         ```json
         { "status": "error", "message": "System error: Error creating task: Failed to import task '<new_task_name>' using 'schtasks /Create'. ... " }
+        ```
+    *   For `DELETE`: If deleting the task's XML configuration file fails (e.g., permissions). Message from `FileOperationError`.
+        ```json
+        { "status": "error", "message": "File operation error: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\.config\\<server_name>\\<task_name>.xml')" }
         ```
     *   If an unexpected error occurs during the delete or create phases.
         ```json
         { "status": "error", "message": "An unexpected error occurred: <original error message>" }
         ```
 
-#### `curl` Example (Bash)
+#### `curl` Example (Bash) - Modify (PUT)
 
 ```bash
 # Note: Windows-only endpoint.
@@ -5840,7 +5752,16 @@ curl -X PUT -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applicat
      "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/${ENCODED_OLD_TASK_NAME}"
 ```
 
-#### PowerShell Example
+#### `curl` Example (Bash) - Delete (DELETE)
+```bash
+# Note: Windows-only endpoint.
+TASK_NAME_TO_DELETE="bedrock_MyWinServer_backup-all_..."
+ENCODED_TASK_NAME_TO_DELETE=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("'$TASK_NAME_TO_DELETE'"))')
+curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/${ENCODED_TASK_NAME_TO_DELETE}"
+```
+
+#### PowerShell Example - Modify (PUT)
 
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
@@ -5859,106 +5780,13 @@ $uri = "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/
 Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body $bodyJson
 ```
 
----
-
-### `DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Delete Windows Task (Windows Only)
-
-Deletes an existing Windows scheduled task using `schtasks.exe /Delete` and also attempts to delete its corresponding XML configuration file from the server's configuration subdirectory. **This endpoint is only functional on Windows systems.**
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Platform
-
-Windows Only.
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The server context used to locate the task's XML configuration file.
-*   `**task_name**` (*string*, required): The full name of the task to delete (as registered in Task Scheduler). URL encoding may be needed if the name contains special characters.
-
-#### Request Body
-
-None.
-
-#### Success Response (`200 OK`)
-
-Returned when the task deletion from Task Scheduler completes (or if the task was already gone) and the XML file is successfully deleted (or wasn't found).
-
-```json
-{
-    "status": "success",
-    "message": "Task '<task_name>' and its definition file deleted successfully."
-}
-```
-
-#### Error Responses
-
-*   **`400 Bad Request`**:
-    *   If the `task_name` is missing from the URL path.
-        ```
-        // Flask routing error, not JSON response
-        404 Not Found
-        ```
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid.
-        ```json
-        { "error": "Unauthorized", "message": "Authentication required." }
-        ```
-
-*   **`501 Not Implemented`**:
-    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
-        ```json
-        { "status": "error", "message": "System error: Deleting Windows tasks is only supported on Windows." }
-        ```
-
-*   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory cannot be determined. Message from `ConfigurationError`.
-        ```json
-        { "status": "error", "message": "Configuration error: Base configuration directory not set." }
-        ```
-    *   If deleting the task from Task Scheduler using `schtasks /Delete` fails (e.g., access denied). Message from `SystemError`.
-        ```json
-        { "status": "error", "message": "System error: Scheduler deletion failed (Access denied deleting task '<task_name>'. Try running as Administrator.)" }
-        ```
-    *   If deleting the task's XML configuration file fails (e.g., permissions). Message from `FileOperationError` (reported in message).
-        ```json
-        { "status": "error", "message": "File operation error: XML file deletion failed ([WinError 5] Access is denied: 'C:\\path\\.config\\<server_name>\\<task_name>.xml')" }
-        ```
-    *   If the `schtasks` command is not found. Message from `CommandNotFoundError`.
-        ```json
-        { "status": "error", "message": "System command not found: 'schtasks'" }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        { "status": "error", "message": "An unexpected error occurred: <original error message>" }
-        ```
-     *(Note: The API function attempts both deletions; the response aggregates errors if multiple occur.)*
-
-#### `curl` Example (Bash)
-
-```bash
-# Note: Windows-only endpoint.
-TASK_NAME="bedrock_MyWinServer_backup-all_..."
-# URL Encode the task name if it contains special characters
-ENCODED_TASK_NAME=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("'$TASK_NAME'"))')
-curl -X DELETE -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/${ENCODED_TASK_NAME}"
-```
-
-#### PowerShell Example
-
+#### PowerShell Example - Delete (DELETE)
 ```powershell
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
-$taskName = "bedrock_MyWinServer_backup-all_..."
+$taskNameToDelete = "bedrock_MyWinServer_backup-all_..."
 # URL encode the task name for the URI
-$encodedTaskName = [uri]::EscapeDataString($taskName) # PowerShell Core example
-$uri = "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/$encodedTaskName"
+$encodedTaskNameToDelete = [uri]::EscapeDataString($taskNameToDelete) # PowerShell Core example
+$uri = "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/$encodedTaskNameToDelete"
 Invoke-RestMethod -Method Delete -Uri $uri -Headers $headers
 ```
-
 ---

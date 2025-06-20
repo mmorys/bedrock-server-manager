@@ -43,9 +43,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
     @property
     def _server_specific_json_config_file_path(self) -> str:
         """Returns the path to this server's specific JSON configuration file."""
-        return os.path.join(
-            self._server_specific_config_dir, f"{self.server_name}_config.json"
-        )
+        return os.path.join(self.server_config_dir, f"{self.server_name}_config.json")
 
     def _manage_json_config(
         self,
@@ -82,7 +80,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             )
 
         config_file_path = self._server_specific_json_config_file_path
-        server_json_config_subdir = self._server_specific_config_dir
+        server_json_config_subdir = self.server_config_dir
 
         self.logger.debug(
             f"Managing JSON config for server '{self.server_name}': Key='{key}', Op='{operation}', File='{config_file_path}'"

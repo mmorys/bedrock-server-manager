@@ -3,8 +3,6 @@
 Flask Blueprint defining API endpoints for retrieving server/system information
 and triggering global actions like scans or pruning. Secured via JWT.
 """
-
-from email import utils
 import logging
 import os
 from typing import Tuple, Dict, Any
@@ -16,8 +14,7 @@ from flask import Blueprint, jsonify, Response, request
 from bedrock_server_manager.api import info as info_api
 from bedrock_server_manager.api import player as player_api
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.api import backup_restore as backup_restore_api
-from bedrock_server_manager.api import world as api_world
+from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.api import utils as utils_api
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import misc as misc_api
@@ -40,36 +37,7 @@ api_info_bp = Blueprint("api_info_routes", __name__)
 # --- Server Info Endpoints ---
 
 
-@api_info_bp.route("/api/server/<string:server_name>/world_name", methods=["GET"])
-@csrf.exempt
-@auth_required
-def get_world_name_api_route(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to get the configured world name (level-name) for a server."""
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Request for world name for server '{server_name}' by user '{identity}'."
-    )
-    result = {}
-    status_code = 500
-    try:
-        result = api_world.get_world_name(server_name)
-        status_code = (
-            200
-            if result.get("status") == "success"
-            else 500 if result.get("status") == "error" else 500
-        )
-    except BSMError as e:
-        status_code = 400 if isinstance(e, UserInputError) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API World Name '{server_name}': Unexpected error: {e}", exc_info=True
-        )
-        result = {"status": "error", "message": "Unexpected error getting world name."}
-    return jsonify(result), status_code
-
-
-@api_info_bp.route("/api/server/<string:server_name>/running_status", methods=["GET"])
+@api_info_bp.route("/api/server/<string:server_name>/status", methods=["GET"])
 @csrf.exempt
 @auth_required
 def get_running_status_api_route(server_name: str) -> Tuple[Response, int]:
@@ -178,6 +146,44 @@ def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
             f"API Validate Server '{server_name}': Unexpected error: {e}", exc_info=True
         )
         result = {"status": "error", "message": "Unexpected error validating server."}
+    return jsonify(result), status_code
+
+
+# --- API Route: Server Status ---
+@api_info_bp.route("/api/server/<string:server_name>/process_info", methods=["GET"])
+@csrf.exempt
+@auth_required
+def server_status_api(server_name: str) -> Tuple[Response, int]:
+    """API endpoint to retrieve status information for a specific server."""
+    identity = get_current_identity() or "Unknown"
+    logger.debug(f"API: Status info request for '{server_name}' by user '{identity}'.")
+
+    result: Dict[str, Any]
+    status_code: int
+
+    try:
+        # The system API handles the logic of finding the process or returning None
+        result = system_api.get_bedrock_process_info(server_name)
+        status_code = (
+            200  # This API call is successful even if the process is not found
+        )
+        logger.debug(f"API Status Info '{server_name}': Succeeded.")
+
+    except UserInputError as e:
+        status_code = 400
+        result = {"status": "error", "message": str(e)}
+        logger.warning(f"API Status Info '{server_name}': Input error. {e}")
+    except Exception as e:
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": "An unexpected error occurred getting status.",
+        }
+        logger.error(
+            f"API Status Info '{server_name}': Unexpected error in route. {e}",
+            exc_info=True,
+        )
+
     return jsonify(result), status_code
 
 
@@ -357,43 +363,6 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
             "status": "error",
             "message": "An unexpected error occurred during the pruning process.",
         }
-
-    return jsonify(result), status_code
-
-
-@api_info_bp.route("/api/server/<string:server_name>/backups/prune", methods=["POST"])
-@csrf.exempt
-@auth_required
-def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
-    """
-    API endpoint to prune old backups (world, configs) for a specific server.
-    The number of backups to keep is determined by application settings.
-    """
-    identity = get_current_identity() or "Unknown"
-    logger.info(
-        f"API: Request to prune backups for server '{server_name}' by user '{identity}'."
-    )
-
-    logger.debug(f"API Prune Backups: Server='{server_name}'")
-
-    result = {}
-    status_code = 500
-    try:
-        # Call the backup API function
-        result = backup_restore_api.prune_old_backups(server_name)
-        status_code = (
-            200
-            if result.get("status") == "success"
-            else 500 if result.get("status") == "error" else 500
-        )
-    except BSMError as e:
-        status_code = 400 if isinstance(e, UserInputError) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API Prune Backups '{server_name}': Unexpected error: {e}", exc_info=True
-        )
-        result = {"status": "error", "message": "Unexpected error pruning backups."}
 
     return jsonify(result), status_code
 

@@ -310,7 +310,7 @@ async function saveProperties(buttonElement, serverName, isNewInstall) {
     _clearValidationErrors();
 
     // --- Send API Request ---
-    const apiUrl = `/api/server/${serverName}/properties`;
+    const apiUrl = `/api/server/${serverName}/properties/set`;
     console.log(`${functionName}: Calling sendServerActionRequest to save properties at ${apiUrl}...`);
 
     const apiResponseData = await sendServerActionRequest(null, apiUrl, 'POST', propertiesData, buttonElement);
@@ -383,7 +383,7 @@ async function savePermissions(buttonElement, serverName, isNewInstall) {
     console.debug(`${functionName}: Constructed request body:`, requestBody);
 
     // --- Send API Request (Using PUT) ---
-    const apiUrl = `/api/server/${serverName}/permissions`;
+    const apiUrl = `/api/server/${serverName}/permissions/set`;
     console.log(`${functionName}: Calling sendServerActionRequest to save permissions at ${apiUrl} (PUT)...`);
 
     const apiResponseData = await sendServerActionRequest(null, apiUrl, 'PUT', requestBody, buttonElement);
@@ -488,7 +488,7 @@ async function saveServiceSettings(buttonElement, serverName, currentOs, isNewIn
     _clearValidationErrors(); // Clear any potential previous errors
 
     // --- Call API to Save Settings ---
-    const apiUrl = `/api/server/${serverName}/service`;
+    const apiUrl = `/api/server/${serverName}/service/update`;
     console.log(`${functionName}: Calling sendServerActionRequest to save service settings at ${apiUrl}...`);
 
     const saveResponse = await sendServerActionRequest(null, apiUrl, 'POST', requestBody, buttonElement);

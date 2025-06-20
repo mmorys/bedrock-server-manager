@@ -32,7 +32,6 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
 
     def __init__(self, *args, **kwargs):
         """Initializes the ServerInstallationMixin.
-
         This constructor calls `super().__init__` to ensure proper method
         resolution order in the context of multiple inheritance. It relies on
         attributes and methods from other mixins or the base class.
@@ -168,7 +167,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
                 files fails.
         """
         server_install_dir = self.server_dir
-        server_json_config_subdir = self._server_specific_config_dir
+        server_json_config_subdir = self.server_config_dir
 
         # Determine the server's backup directory path.
         backup_base_dir = self.settings.get("BACKUP_DIR")
