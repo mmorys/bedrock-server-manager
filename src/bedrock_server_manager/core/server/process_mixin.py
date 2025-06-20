@@ -85,7 +85,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
 
         try:
             is_running_flag = system_base.is_server_running(
-                self.server_name, self.base_dir
+                self.server_name, self.server_dir, self.app_config_dir
             )
             self.logger.debug(
                 f"system_base.is_server_running for '{self.server_name}' returned: {is_running_flag}"
@@ -222,28 +222,19 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         start_successful = False
 
         if self.os_type == "Linux":
-            screen_cmd = shutil.which("screen")
-            if not screen_cmd:
-                self.logger.error(
-                    "'screen' command not found. Cannot start server on Linux."
-                )
-                self.set_status_in_config("ERROR")
-                raise CommandNotFoundError(
-                    "screen", message="'screen' command not found. Cannot start server."
-                )
 
             try:
                 # system_linux_proc._linux_start_server uses self.server_name and self.server_dir
-                system_linux_proc._linux_start_server(self.server_name, self.server_dir)
+                system_linux_proc._linux_start_server(
+                    self.server_name, self.server_dir, self.app_config_dir
+                )
                 self.logger.info(
-                    f"Linux server '{self.server_name}' start process initiated via screen."
+                    f"Linux server '{self.server_name}' start process initiated."
                 )
 
                 # Wait for confirmation
                 attempts = 0
-                max_attempts = (
-                    self.settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
-                )  # Default 60s, check every 2s
+                max_attempts = 60 // 2  # Default 60s, check every 2s
                 sleep_interval = 2
                 self.logger.info(
                     f"Waiting up to {max_attempts * sleep_interval}s for '{self.server_name}' to confirm running..."
@@ -553,4 +544,6 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         """
         Gets resource usage information (PID, CPU%, Mem MB, Uptime) for the running server process.
         """
-        return system_base._get_bedrock_process_info(self.server_name, self.base_dir)
+        return system_base._get_bedrock_process_info(
+            self.server_name, self.server_dir, self.app_config_dir
+        )
