@@ -177,8 +177,8 @@ def start_server(
     Handles autoupdating (if enabled) and platform-specific start methods.
     - 'direct': Runs the server in the current process (blocks until server stops).
     - 'detached': Starts the server in the background. On Linux, it uses
-      systemd if available, otherwise it falls back to a 'screen' session. On
-      Windows, it launches a new, independent console window.
+      systemd if a service file is present. Otherwise (and on all other
+      platforms like Windows), it launches a new, independent background process.
 
     Args:
         server_name: The name of the server to start.
@@ -239,42 +239,17 @@ def start_server(
 
         elif mode == "detached":
             server.set_custom_config_value("start_method", "detached")
-            # --- Windows Detached Start ---
-            if platform.system() == "Windows":
-                cli_command_parts = [
-                    EXPATH,
-                    "server",
-                    "start",
-                    "--server",
-                    server_name,
-                    "--mode",
-                    "direct",
-                ]
-                cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
-                launcher_pid_file_path = server.get_pid_file_path()
-                os.makedirs(os.path.dirname(launcher_pid_file_path), exist_ok=True)
-                launcher_pid = system_process.launch_detached_process(
-                    cli_command_str_list, launcher_pid_file_path
-                )
-                logger.info(
-                    f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
-                )
-                result = {
-                    "status": "success",
-                    "message": f"Server '{server_name}' start initiated in detached mode (Launcher PID: {launcher_pid}).",
-                    "pid": launcher_pid,
-                }
-                return result
-            # --- Linux Detached Start ---
-            elif platform.system() == "Linux":
-                # Prefer systemd if the service file exists.
-                if server.check_systemd_service_file_exists():
-                    logger.debug(
-                        f"API: Using systemctl to start server '{server_name}'."
-                    )
-                    systemctl_cmd_path = shutil.which("systemctl")
+
+            # --- Linux/systemd Detached Start (Preferred method on Linux) ---
+            if (
+                platform.system() == "Linux"
+                and server.check_systemd_service_file_exists()
+            ):
+                logger.debug(f"API: Using systemctl to start server '{server_name}'.")
+                systemctl_cmd_path = shutil.which("systemctl")
+                if systemctl_cmd_path:
                     service_name = f"bedrock-{server.server_name}"
-                    if systemctl_cmd_path:
+                    try:
                         subprocess.run(
                             [systemctl_cmd_path, "--user", "start", service_name],
                             check=True,
@@ -284,26 +259,48 @@ def start_server(
                         logger.info(
                             f"Successfully initiated start for systemd service '{service_name}'."
                         )
-                        result = {
+                        return {
                             "status": "success",
                             "message": f"Server '{server_name}' started via systemd.",
                         }
-                        return result
-                    else:
+                    except subprocess.CalledProcessError as e:
                         logger.warning(
-                            "'systemctl' command not found, falling back to screen."
+                            f"systemd service '{service_name}' failed to start: {e.stderr.strip()}. "
+                            "Falling back to generic detached process."
                         )
+                else:
+                    logger.warning(
+                        "'systemctl' command not found, falling back to generic detached process."
+                    )
 
-                # Fallback to using 'screen'.
-                logger.info(
-                    f"API: Starting server '{server_name}' in detached mode via screen."
-                )
-                server.start()
-                result = {
-                    "status": "success",
-                    "message": f"Server '{server_name}' started successfully in a screen session.",
-                }
-                return result
+            # --- Generic Detached Start (Fallback for Linux, Default for Windows/Other) ---
+            logger.info(
+                f"API: Starting server '{server_name}' using generic detached process launcher."
+            )
+            cli_command_parts = [
+                EXPATH,
+                "server",
+                "start",
+                "--server",
+                server_name,
+                "--mode",
+                "direct",  # The detached process runs the server directly
+            ]
+            cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
+            launcher_pid_file_path = server.get_pid_file_path()
+            os.makedirs(os.path.dirname(launcher_pid_file_path), exist_ok=True)
+            launcher_pid = system_process.launch_detached_process(
+                cli_command_str_list, launcher_pid_file_path
+            )
+            logger.info(
+                f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
+            )
+            result = {
+                "status": "success",
+                "message": f"Server '{server_name}' start initiated in detached mode (Launcher PID: {launcher_pid}).",
+                "pid": launcher_pid,
+            }
+            return result
 
         # This should not be reachable.
         result = {
