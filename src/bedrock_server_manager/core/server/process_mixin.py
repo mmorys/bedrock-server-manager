@@ -7,12 +7,7 @@ and retrieving process resource information. It abstracts away platform-specific
 details by using helper functions from the `core.system` module.
 """
 import time
-import os
-import psutil
-from datetime import timedelta
-import shutil
-import subprocess
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, TYPE_CHECKING, NoReturn
 
 # psutil is an optional dependency, but required for process management.
 try:
@@ -44,6 +39,7 @@ from bedrock_server_manager.error import (
     ServerStartError,
     SystemError,
     ServerProcessError,
+    BSMError,
 )
 
 
@@ -174,132 +170,98 @@ class ServerProcessMixin(BedrockServerBaseMixin):
                 f"Unexpected error sending command to '{self.server_name}': {e_unexp}"
             ) from e_unexp
 
-    def start(self):
-        """Starts the Bedrock server process.
+    def start(self) -> NoReturn:
+            """Starts the server process in the current foreground (direct mode).
 
-        This method handles platform-specific start procedures. On Linux, it
-        uses a `screen` session. On Windows, it starts the process directly,
-        which is a blocking call. It manages the server's status in the
-        configuration file throughout the process.
+            This method provides a blocking, direct start for the server. It is
+            the underlying implementation for the 'direct' start mode and is
+    -        designed to not return until the server process has fully terminated,
+            either through a graceful shutdown or an unexpected crash.
 
-        Raises:
-            ServerStartError: If the server is not installed, already running,
-                or fails to start within the configured timeout.
-            CommandNotFoundError: If required commands (like 'screen') are missing.
-        """
-        if not self.is_installed():
-            raise ServerStartError(
-                f"Cannot start server '{self.server_name}': Not installed or invalid installation at {self.server_dir}."
+            The method manages the server's lifecycle status within the configuration
+            file. It sets the status to 'STARTING', relies on the platform helper
+            to set 'RUNNING', and ensures the status is cleaned up to 'STOPPED' or
+            'ERROR' upon termination.
+
+            Raises:
+                ServerStartError: If the server is not installed, is already
+                    running, runs on an unsupported operating system, or if any
+                    error occurs during the startup or execution of the server
+                    process.
+            """
+            # --- Pre-flight Checks ---
+            if not self.is_installed():
+                raise ServerStartError(
+                    f"Cannot start server '{self.server_name}': Not installed or "
+                    f"invalid installation at {self.server_dir}."
+                )
+
+            if self.is_running():
+                self.logger.warning(
+                    f"Attempted to start server '{self.server_name}' but it is already running."
+                )
+                raise ServerStartError(f"Server '{self.server_name}' is already running.")
+
+            # --- Begin Startup Process ---
+            try:
+                self.set_status_in_config("STARTING")
+            except Exception as e:
+                # This is not a fatal error, but it's important to log.
+                self.logger.warning(
+                    f"Failed to set status to STARTING for '{self.server_name}': {e}"
+                )
+
+            self.logger.info(
+                f"Attempting a direct (blocking) start for server '{self.server_name}' "
+                f"on {self.os_type}..."
             )
-
-        if self.is_running():
-            self.logger.warning(
-                f"Attempted to start server '{self.server_name}' but it is already running."
-            )
-            raise ServerStartError(f"Server '{self.server_name}' is already running.")
-
-        try:
-            self.set_status_in_config("STARTING")
-        except Exception as e_stat:
-            self.logger.warning(
-                f"Failed to set status to STARTING for '{self.server_name}': {e_stat}"
-            )
-
-        self.logger.info(
-            f"Attempting to start server '{self.server_name}' on {self.os_type}..."
-        )
-
-        start_successful = False
-        # --- Linux Start Logic ---
-        if self.os_type == "Linux":
 
             try:
-                # system_linux_proc._linux_start_server uses self.server_name and self.server_dir
-                system_linux_proc._linux_start_server(
-                    self.server_name, self.server_dir, self.app_config_dir
-                )
-                self.logger.info(
-                    f"Linux server '{self.server_name}' start process initiated."
-                )
-
-                # Wait for confirmation that the process is running.
-                attempts = 0
-                max_attempts = 60 // 2  # Default 60s, check every 2s
-                sleep_interval = 2
-                self.logger.info(
-                    f"Waiting up to {max_attempts * sleep_interval}s for '{self.server_name}' to confirm running..."
-                )
-
-                while attempts < max_attempts:
-                    if self.is_running():
-                        self.set_status_in_config("RUNNING")
-                        self.logger.info(
-                            f"Server '{self.server_name}' started successfully and confirmed running."
-                        )
-                        start_successful = True
-                        break
-                    self.logger.debug(
-                        f"Waiting for '{self.server_name}' to start... (Attempt {attempts + 1}/{max_attempts})"
+                # --- Platform-Specific Blocking Call ---
+                if self.os_type == "Linux":
+                    system_linux_proc._linux_start_server(
+                        self.server_name, self.server_dir, self.app_config_dir
                     )
-                    time.sleep(sleep_interval)
-                    attempts += 1
-
-                if not start_successful:
-                    self.set_status_in_config("ERROR")
+                elif self.os_type == "Windows":
+                    system_windows_proc._windows_start_server(
+                        self.server_name, self.server_dir, self.app_config_dir
+                    )
+                else:
                     raise ServerStartError(
-                        f"Server '{self.server_name}' failed to start within timeout."
+                        f"Unsupported operating system for start: {self.os_type}"
                     )
 
-            except (CommandNotFoundError, ServerStartError) as e_start_linux:
+                # If execution reaches here, the server process has terminated gracefully.
+                self.logger.info(
+                    f"Direct server session for '{self.server_name}' has ended."
+                )
+
+            except (BSMError, SystemError) as e:
+                # Catch known application or system-level errors during startup.
+                self.logger.error(f"Failed to start server '{self.server_name}': {e}", exc_info=True)
                 self.set_status_in_config("ERROR")
-                raise
-            except Exception as e_unexp_linux:
+                raise ServerStartError(f"Failed to start server '{self.server_name}': {e}") from e
+
+            except Exception as e:
+                # Catch any other unexpected exceptions during the server's runtime.
+                self.logger.error(
+                    f"An unexpected error occurred while running server '{self.server_name}': {e}",
+                    exc_info=True,
+                )
                 self.set_status_in_config("ERROR")
                 raise ServerStartError(
-                    f"Unexpected error starting Linux server '{self.server_name}': {e_unexp_linux}"
-                ) from e_unexp_linux
+                    f"Unexpected error during server '{self.server_name}' execution: {e}"
+                ) from e
 
-        # --- Windows Start Logic ---
-        elif self.os_type == "Windows":
-            self.logger.debug(
-                "Attempting to start server via Windows process creation (foreground blocking call)."
-            )
-            try:
-                system_windows_proc._windows_start_server(
-                    self.server_name, self.server_dir, self.app_config_dir
-                )
-                self.logger.info(
-                    f"Foreground Windows server session for '{self.server_name}' has ended."
-                )
-                # The status should be set to STOPPED by the windows helper on exit.
+            finally:
+                # --- Final Status Cleanup ---
                 final_status = self.get_status_from_config()
-                if final_status == "RUNNING":
+                if final_status not in ("STOPPED", "ERROR"):
                     self.logger.warning(
-                        f"Windows server '{self.server_name}' ended, but status still RUNNING. Setting to STOPPED."
+                        f"Server '{self.server_name}' process ended, but status was "
+                        f"'{final_status}'. Correcting to STOPPED."
                     )
                     self.set_status_in_config("STOPPED")
-                start_successful = final_status not in ("ERROR", "STARTING")
-
-            except (SystemError, ServerStartError) as e_start_win:
-                self.set_status_in_config("ERROR")
-                raise
-            except Exception as e_unexp_win:
-                self.set_status_in_config("ERROR")
-                raise ServerStartError(
-                    f"Unexpected error starting Windows server '{self.server_name}': {e_unexp_win}"
-                ) from e_unexp_win
-        else:
-            self.set_status_in_config("ERROR")
-            raise ServerStartError(
-                f"Unsupported operating system for start: {self.os_type}"
-            )
-
-        if not start_successful and self.os_type != "Windows":
-            if self.get_status_from_config() != "RUNNING":
-                self.set_status_in_config("ERROR")
-                raise ServerStartError(
-                    f"Server '{self.server_name}' start did not complete successfully."
-                )
 
     def stop(self):
         """Stops the Bedrock server process gracefully, with a forceful fallback.
@@ -368,9 +330,6 @@ class ServerProcessMixin(BedrockServerBaseMixin):
             if not self.is_running():
                 self.set_status_in_config("STOPPED")
                 self.logger.info(f"Server '{self.server_name}' stopped successfully.")
-                # On Linux, also clean up the screen session.
-                if self.os_type == "Linux":
-                    system_linux_proc._cleanup_linux_screen_session(self.server_name)
                 return  # Successfully stopped.
 
             self.logger.debug(f"Waiting for '{self.server_name}' to stop...")
