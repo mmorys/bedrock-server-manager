@@ -492,4 +492,5 @@ def remove_pid_file_if_exists(pid_file_path: str) -> bool:
             return False
     return True
 
+
 print("Conflict resolved successfully.")
