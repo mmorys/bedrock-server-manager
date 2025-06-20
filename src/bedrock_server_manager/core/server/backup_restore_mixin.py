@@ -1,10 +1,10 @@
 # bedrock_server_manager/core/server/backup_restore_mixin.py
-"""
-Provides the ServerBackupMixin class for BedrockServer.
+"""Provides the ServerBackupMixin for the BedrockServer class.
 
-This mixin handles all backup and restore operations for a server instance,
-including backing up worlds and configuration files, listing available backups,
-restoring from backups, and pruning old backup files.
+This mixin encapsulates all backup and restore operations for a server
+instance. It handles backing up worlds and configuration files, listing
+available backups, restoring from those backups, and pruning old backup files
+according to retention policies.
 """
 import os
 import glob
@@ -13,7 +13,7 @@ import shutil
 import logging
 from typing import Optional, Dict, TYPE_CHECKING, List, Union
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.error import (
     FileOperationError,
@@ -30,29 +30,39 @@ from bedrock_server_manager.utils import (
 
 
 class ServerBackupMixin(BedrockServerBaseMixin):
-    """
-    A mixin for the BedrockServer class that provides methods for backing up
-    and restoring server data, including worlds and configuration files.
-    It also handles pruning of old backups based on retention settings.
+    """A mixin for BedrockServer providing backup, restore, and prune methods.
+
+    This class handles the logic for managing backups of server data, including
+    worlds and configuration files. It also includes functionality for pruning
+    old backups based on the application's retention settings.
     """
 
     def __init__(self, *args, **kwargs):
-        """
-        Initializes the ServerBackupMixin.
+        """Initializes the ServerBackupMixin.
 
-        Calls super().__init__ for proper multiple inheritance setup.
-        Relies on attributes (like server_name, server_dir, settings, logger) and
-        methods (like get_world_name, export_world_directory_to_mcworld,
-        import_active_world_from_mcworld) from other mixins or the base class.
+        This constructor calls `super().__init__` to ensure proper method
+        resolution order in the context of multiple inheritance. It relies on
+        attributes (like `server_name`, `server_dir`, `settings`, `logger`)
+        and methods (like `get_world_name`) being available from other mixins
+        or the base `BedrockServer` class.
         """
         super().__init__(*args, **kwargs)
-        # Attributes: self.server_name, self.server_dir, self.logger, self.settings
-        # Methods from other mixins: self.get_world_name(), self.export_world_directory_to_mcworld(),
-        #                            self.import_active_world_from_mcworld()
+        # This mixin depends on attributes from BaseMixin: self.server_name, self.server_dir, self.logger, self.settings.
+        # It also depends on methods from other mixins that will be part of the final BedrockServer class, such as:
+        # - self.get_world_name() (from StateMixin)
+        # - self.export_world_directory_to_mcworld() (from WorldMixin)
+        # - self.import_active_world_from_mcworld() (from WorldMixin)
 
     @property
     def server_backup_directory(self) -> Optional[str]:
-        """Returns the path to this server's specific backup directory."""
+        """Returns the path to this server's specific backup directory.
+
+        The path is constructed from the `BACKUP_DIR` setting and the server's name.
+
+        Returns:
+            The absolute path to the backup directory, or `None` if `BACKUP_DIR`
+            is not configured in the settings.
+        """
         backup_base_dir = self.settings.get("BACKUP_DIR")
         if not backup_base_dir:
             self.logger.warning(
@@ -63,33 +73,40 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
     @staticmethod
     def _find_and_sort_backups(pattern: str) -> List[str]:
-        """
-        Private static helper to find files using a glob pattern and sort them by
-        modification time (newest first).
+        """Finds files using a glob pattern and sorts them by modification time.
+
+        Args:
+            pattern: The glob pattern to search for files.
+
+        Returns:
+            A list of file paths sorted from newest to oldest.
         """
         files = glob.glob(pattern)
         if not files:
             return []
-        # Sort by modification time, descending
+        # Sort by modification time, descending (newest first).
         return sorted(files, key=os.path.getmtime, reverse=True)
 
     def list_backups(self, backup_type: str) -> Union[List[str], Dict[str, List[str]]]:
-        """
-        Core logic to retrieve a list of backup files for this server.
+        """Retrieves a list of available backup files for this server.
 
         Args:
-            backup_type: The type of backups to list ("world", "properties", "allowlist", "permissions", or "all").
+            backup_type: The type of backups to list. Valid options are:
+                "world", "properties", "allowlist", "permissions", or "all".
 
         Returns:
-            - A list of backup file paths, sorted newest first.
-            - OR a dictionary of categorized backup file lists for the "all" type.
-            - Returns an empty list/dict if the backup directory doesn't exist.
+            If `backup_type` is specific (e.g., "world"), returns a list of
+            backup file paths, sorted newest first.
+            If `backup_type` is "all", returns a dictionary where keys are
+            backup categories (e.g., "world_backups") and values are the
+            sorted lists of file paths.
+            Returns an empty list or dictionary if the backup directory doesn't exist.
 
         Raises:
             MissingArgumentError: If `backup_type` is empty.
-            UserInputError: If `backup_type` is invalid.
-            ConfigurationError: If BACKUP_DIR setting is missing.
-            FileOperationError: If a filesystem error occurs.
+            UserInputError: If `backup_type` is not a valid option.
+            ConfigurationError: If the `BACKUP_DIR` setting is missing.
+            FileOperationError: If a filesystem error occurs during listing.
         """
         if not backup_type:
             raise MissingArgumentError("Backup type cannot be empty.")
@@ -112,7 +129,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             return {} if backup_type_norm == "all" else []
 
         try:
-            # Define patterns for each backup type
+            # Define glob patterns for each type of backup.
             patterns = {
                 "world": os.path.join(server_bck_dir, "*.mcworld"),
                 "properties": os.path.join(
@@ -126,7 +143,6 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
             if backup_type_norm in patterns:
                 return self._find_and_sort_backups(patterns[backup_type_norm])
-
             elif backup_type_norm == "all":
                 categorized_backups: Dict[str, List[str]] = {}
                 for key, pattern in patterns.items():
@@ -134,7 +150,6 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                     if files:
                         categorized_backups[f"{key}_backups"] = files
                 return categorized_backups
-
             else:
                 valid_types = list(patterns.keys()) + ["all"]
                 raise UserInputError(
@@ -142,23 +157,25 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 )
 
         except OSError as e:
-            self.logger.error(
-                f"Filesystem error while listing backups in '{server_bck_dir}': {e}",
-                exc_info=True,
-            )
-            # Re-raise as a custom, more abstract exception
             raise FileOperationError(
                 f"Error listing backups for '{self.server_name}' due to a filesystem issue: {e}"
             ) from e
 
-    def prune_server_backups(self, component_prefix: str, file_extension: str) -> None:
-        """
-        Removes the oldest backups for a specific component of this server.
-        Uses BACKUP_KEEP setting for the number of backups to retain.
+    def prune_server_backups(self, component_prefix: str, file_extension: str):
+        """Removes the oldest backups for a component, respecting retention settings.
+
+        This method uses the `BACKUP_KEEP` setting to determine how many recent
+        backups of a specific type to retain, deleting any older ones.
 
         Args:
-            component_prefix: Prefix for the backup files (e.g., "MyWorld_backup_", "server.properties_backup_").
-            file_extension: Extension of the backup files (e.g., "mcworld", "json").
+            component_prefix: The prefix of the backup files to target
+                (e.g., "MyWorld_backup_", "server.properties_backup_").
+            file_extension: The extension of the backup files (e.g., "mcworld", "json").
+
+        Raises:
+            ConfigurationError: If the backup directory is not configured.
+            UserInputError: If the `BACKUP_KEEP` setting is invalid.
+            FileOperationError: If an OS error occurs during file deletion.
         """
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
@@ -166,9 +183,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 f"Cannot prune backups for '{self.server_name}': Backup directory not configured."
             )
 
-        backup_keep_count = self.settings.get(
-            "BACKUP_KEEP", 3
-        )  # Default to 3 if not set
+        backup_keep_count = self.settings.get("BACKUP_KEEP", 3)
 
         self.logger.info(
             f"Server '{self.server_name}': Pruning backups in '{server_bck_dir}' for prefix '{component_prefix}', ext '{file_extension}', keeping {backup_keep_count}."
@@ -184,11 +199,10 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             num_to_keep = int(backup_keep_count)
             if num_to_keep < 0:
                 raise ValueError("Cannot be negative.")
-        except ValueError:
-            self.logger.error(
-                f"Invalid BACKUP_KEEP value '{backup_keep_count}'. Must be int >= 0."
+        except (ValueError, TypeError):
+            raise UserInputError(
+                f"Invalid BACKUP_KEEP setting value: '{backup_keep_count}'. Must be a non-negative integer."
             )
-            raise UserInputError(f"Invalid BACKUP_KEEP value: {backup_keep_count}")
 
         cleaned_ext = file_extension.lstrip(".")
         glob_pattern = os.path.join(
@@ -197,7 +211,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         self.logger.debug(f"Using glob pattern for pruning: '{glob_pattern}'")
 
         try:
-            # Sort by modification time, newest first
+            # Sort by modification time to identify the oldest files.
             backup_files = sorted(
                 glob.glob(glob_pattern), key=os.path.getmtime, reverse=True
             )
@@ -220,7 +234,6 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                             f"Failed to remove old backup '{old_backup_path}': {e_del}"
                         )
                 if deleted_count < len(files_to_delete):
-                    # Not all intended files were deleted, this is an issue.
                     raise FileOperationError(
                         f"Failed to delete all required old backups for '{component_prefix}' for server '{self.server_name}'."
                     )
@@ -228,21 +241,26 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 self.logger.info(
                     f"Found {len(backup_files)} backups for '{component_prefix}*.{cleaned_ext}', which is <= {num_to_keep}. No files deleted."
                 )
-        except OSError as e_glob:  # Error during glob or os.remove
-            self.logger.error(
-                f"OS error during backup pruning for '{self.server_name}': {e_glob}",
-                exc_info=True,
-            )
+        except OSError as e_glob:
             raise FileOperationError(
                 f"Error pruning backups for '{self.server_name}': {e_glob}"
             ) from e_glob
 
     def _backup_world_data_internal(self) -> str:
+        """Backs up the server's active world to a .mcworld file.
+
+        This is an internal helper that orchestrates getting the world name,
+        exporting it, and then pruning old world backups.
+
+        Returns:
+            The path to the created .mcworld backup file.
+
+        Raises:
+            ConfigurationError: If the backup directory is not configured.
+            AppFileNotFoundError: If the active world directory does not exist.
+            FileOperationError: For any other file I/O errors during the process.
         """
-        Backs up this server's active world directory as an .mcworld file.
-        Returns the path to the created .mcworld backup file.
-        """
-        active_world_name = self.get_world_name()  # From StateMixin
+        active_world_name = self.get_world_name()
         active_world_dir_path = os.path.join(
             self.server_dir, "worlds", active_world_name
         )
@@ -263,7 +281,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         os.makedirs(server_bck_dir, exist_ok=True)
 
         timestamp = general.get_timestamp()
-        # Sanitize world name for filename if it can contain problematic characters
+        # Sanitize the world name to ensure it's a valid filename component.
         safe_world_name_for_file = re.sub(r'[<>:"/\\|?*]', "_", active_world_name)
         backup_filename = f"{safe_world_name_for_file}_backup_{timestamp}.mcworld"
         backup_file_path = os.path.join(server_bck_dir, backup_filename)
@@ -272,30 +290,25 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             f"Creating world backup: '{backup_filename}' in '{server_bck_dir}'..."
         )
         try:
-            # self.export_world_directory_to_mcworld is from ServerWorldMixin
+            # This method is expected to be on the final class from WorldMixin.
             self.export_world_directory_to_mcworld(active_world_name, backup_file_path)
             self.logger.info(
                 f"World backup for '{self.server_name}' created: {backup_file_path}"
             )
-            self.prune_server_backups(
-                f"{safe_world_name_for_file}_backup_", "mcworld"
-            )  # Prune after successful backup
+            # Prune old backups after a new one is successfully created.
+            self.prune_server_backups(f"{safe_world_name_for_file}_backup_", "mcworld")
             return backup_file_path
         except (
             BackupRestoreError,
             FileOperationError,
             AppFileNotFoundError,
-        ) as e_export:  # Errors from export_world_directory_to_mcworld
+        ) as e_export:
             self.logger.error(
                 f"Failed to export world '{active_world_name}' for server '{self.server_name}': {e_export}",
                 exc_info=True,
             )
-            raise  # Re-raise critical export errors
+            raise
         except Exception as e_unexp:
-            self.logger.error(
-                f"Unexpected error exporting world '{active_world_name}' for server '{self.server_name}': {e_unexp}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Unexpected error exporting world '{active_world_name}' for '{self.server_name}': {e_unexp}"
             ) from e_unexp
@@ -303,9 +316,19 @@ class ServerBackupMixin(BedrockServerBaseMixin):
     def _backup_config_file_internal(
         self, config_filename_in_server_dir: str
     ) -> Optional[str]:
-        """
-        Backs up a single configuration file from this server's directory.
-        Returns the path to the backup file, or None if original file not found.
+        """Backs up a single configuration file from the server's directory.
+
+        Args:
+            config_filename_in_server_dir: The name of the file to back up
+                (e.g., "server.properties").
+
+        Returns:
+            The path to the created backup file, or `None` if the original
+            file was not found.
+
+        Raises:
+            ConfigurationError: If the backup directory is not configured.
+            FileOperationError: If the file copy operation fails.
         """
         file_to_backup_path = os.path.join(
             self.server_dir, config_filename_in_server_dir
@@ -335,27 +358,33 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         backup_destination_path = os.path.join(server_bck_dir, backup_config_filename)
 
         try:
+            # copy2 preserves metadata like modification time.
             shutil.copy2(file_to_backup_path, backup_destination_path)
             self.logger.info(
                 f"Config file '{config_filename_in_server_dir}' backed up to '{backup_destination_path}'."
             )
-            self.prune_server_backups(
-                f"{name_part}_backup_", ext_part.lstrip(".")
-            )  # Prune after successful backup
+            # Prune old backups of this specific config file.
+            self.prune_server_backups(f"{name_part}_backup_", ext_part.lstrip("."))
             return backup_destination_path
         except OSError as e:
-            self.logger.error(
-                f"Failed to copy config '{file_to_backup_path}' to '{backup_destination_path}': {e}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Failed to copy config '{config_filename_in_server_dir}' for '{self.server_name}': {e}"
             ) from e
 
     def backup_all_data(self) -> Dict[str, Optional[str]]:
-        """
-        Performs a full backup of this server: its active world and standard config files.
-        Returns a dictionary of backed up components and their paths.
+        """Performs a full backup of the server's world and standard configs.
+
+        This method orchestrates the backup of the active world and key
+        configuration files (`allowlist.json`, `permissions.json`,
+        `server.properties`).
+
+        Returns:
+            A dictionary mapping component names to their backup file paths.
+            A value will be `None` if that component's backup failed.
+
+        Raises:
+            ConfigurationError: If the backup directory is not configured.
+            BackupRestoreError: If the critical world backup fails.
         """
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir:
@@ -363,9 +392,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 f"Cannot backup server '{self.server_name}': Backup directory not configured."
             )
 
-        os.makedirs(
-            server_bck_dir, exist_ok=True
-        )  # Ensure server's specific backup dir exists
+        os.makedirs(server_bck_dir, exist_ok=True)
 
         self.logger.info(
             f"Server '{self.server_name}': Starting full backup into '{server_bck_dir}'."
@@ -381,22 +408,21 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 exc_info=True,
             )
             backup_results["world"] = None
-            world_backup_failed = True  # Flag critical failure
+            world_backup_failed = True  # Flag that the most critical part failed.
 
         config_files = ["allowlist.json", "permissions.json", "server.properties"]
         for conf_file in config_files:
             try:
                 backup_results[conf_file] = self._backup_config_file_internal(conf_file)
-            except Exception as e:  # Catch errors from individual config backup
+            except Exception as e:
                 self.logger.error(
                     f"Failed to back up config '{conf_file}' for '{self.server_name}': {e}",
                     exc_info=True,
                 )
                 backup_results[conf_file] = None
 
-        if (
-            world_backup_failed
-        ):  # If world backup (most critical) failed, raise overall error
+        # If the world backup failed, the overall operation is considered a failure.
+        if world_backup_failed:
             raise BackupRestoreError(
                 f"Core world backup failed for server '{self.server_name}'. Other components may or may not have succeeded."
             )
@@ -404,19 +430,33 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         return backup_results
 
     def _restore_config_file_internal(self, backup_config_file_path: str) -> str:
-        """Restores a single config file from backup to this server's directory."""
+        """Restores a single config file from a backup to the server directory.
+
+        This internal helper determines the original filename from the backup's
+        timestamped name and copies it to the correct location.
+
+        Args:
+            backup_config_file_path: The path to the backup file to restore.
+
+        Returns:
+            The path of the restored file in the server directory.
+
+        Raises:
+            AppFileNotFoundError: If the backup file does not exist.
+            UserInputError: If the backup filename is not in the expected format.
+            FileOperationError: If the file copy operation fails.
+        """
         backup_filename_basename = os.path.basename(backup_config_file_path)
         self.logger.info(
             f"Server '{self.server_name}': Restoring config from backup '{backup_filename_basename}'."
         )
 
-        if not os.path.isfile(backup_config_file_path):  # Changed from os.path.exists
+        if not os.path.isfile(backup_config_file_path):
             raise AppFileNotFoundError(backup_config_file_path, "Backup config file")
 
-        # self.server_dir must exist for restore target
         os.makedirs(self.server_dir, exist_ok=True)
 
-        # Regex to extract original name: (name_part)_backup_YYYYMMDD_HHMMSS(.ext_part)
+        # Regex to extract original name: (name_part)_backup_YYYYMMDD_HHMMSS(.ext_part).
         match = re.match(r"^(.*?)_backup_\d{8}_\d{6}(\..*)$", backup_filename_basename)
         if not match:
             raise UserInputError(
@@ -435,18 +475,23 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             self.logger.info(f"Successfully restored config to: {target_restore_path}")
             return target_restore_path
         except OSError as e:
-            self.logger.error(
-                f"Failed to copy backup '{backup_filename_basename}' to '{target_restore_path}': {e}",
-                exc_info=True,
-            )
             raise FileOperationError(
                 f"Failed to restore config '{target_filename_in_server}' for server '{self.server_name}': {e}"
             ) from e
 
     def restore_all_data_from_latest(self) -> Dict[str, Optional[str]]:
-        """
-        Restores this server to its latest backed-up state (active world and config files).
-        Returns a dictionary of restored components and their paths in the server directory.
+        """Restores the server from the latest available backups.
+
+        This method finds the most recent backup for the active world and each
+        standard configuration file and restores them, overwriting current files.
+
+        Returns:
+            A dictionary mapping restored components to their paths in the
+            server directory. Returns an empty dictionary if no backup
+            directory was found.
+
+        Raises:
+            BackupRestoreError: If one or more components fail to restore.
         """
         server_bck_dir = self.server_backup_directory
         if not server_bck_dir or not os.path.isdir(server_bck_dir):
@@ -458,26 +503,22 @@ class ServerBackupMixin(BedrockServerBaseMixin):
         self.logger.info(
             f"Server '{self.server_name}': Starting restore from latest backups in '{server_bck_dir}'."
         )
-        os.makedirs(self.server_dir, exist_ok=True)  # Ensure server install dir exists
+        os.makedirs(self.server_dir, exist_ok=True)
 
         restore_results: Dict[str, Optional[str]] = {}
         failures = []
 
-        # Restore World (latest .mcworld)
+        # Restore World from the latest .mcworld backup for the active world.
         try:
             world_backup_files = glob.glob(os.path.join(server_bck_dir, "*.mcworld"))
-            # Further filter for this server's world backups, assuming world name is in prefix
-            active_world_name = (
-                self.get_world_name()
-            )  # Get current world name to find its backups
+            active_world_name = self.get_world_name()
             safe_world_name_prefix = (
                 re.sub(r'[<>:"/\\|?*]', "_", active_world_name) + "_backup_"
             )
-
             relevant_world_backups = [
-                fpath
-                for fpath in world_backup_files
-                if os.path.basename(fpath).startswith(safe_world_name_prefix)
+                f
+                for f in world_backup_files
+                if os.path.basename(f).startswith(safe_world_name_prefix)
             ]
 
             if relevant_world_backups:
@@ -487,12 +528,10 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 self.logger.info(
                     f"Found latest world backup: {os.path.basename(latest_world_backup_path)}"
                 )
-                # self.import_active_world_from_mcworld is from ServerWorldMixin
-                # It restores to the server's currently configured active world.
+                # This method is expected to be on the final class from WorldMixin.
                 imported_world_name_check = self.import_active_world_from_mcworld(
                     latest_world_backup_path
                 )
-                # The path stored should be the path to the world directory itself.
                 restore_results["world"] = os.path.join(
                     self.server_dir, "worlds", imported_world_name_check
                 )
@@ -501,7 +540,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                     f"No .mcworld backups found for active world '{active_world_name}' of server '{self.server_name}'. Skipping world restore."
                 )
                 restore_results["world"] = None
-        except Exception as e_world_restore:  # Catch broad errors for this component
+        except Exception as e_world_restore:
             self.logger.error(
                 f"Failed to restore world for '{self.server_name}': {e_world_restore}",
                 exc_info=True,
@@ -509,34 +548,19 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             failures.append(f"World ({type(e_world_restore).__name__})")
             restore_results["world"] = None
 
-        # Restore Config Files
+        # Restore standard configuration files.
         config_files_to_restore_info = {
             "server.properties": "server.properties_backup_",
             "allowlist.json": "allowlist_backup_",
             "permissions.json": "permissions_backup_",
         }
-        for (
-            original_conf_name,
-            backup_name_prefix_in_glob,
-        ) in config_files_to_restore_info.items():
+        for original_conf_name, _ in config_files_to_restore_info.items():
             try:
-                name_part, ext_part = os.path.splitext(
-                    original_conf_name
-                )  # e.g. "server", ".properties"
-                # Construct a glob pattern that matches {name_part}_backup_TIMESTAMP{ext_part}
-                glob_pattern_for_config = os.path.join(
-                    server_bck_dir, f"{name_part}_backup_*{ext_part}"
-                )
-
-                self.logger.debug(
-                    f"Searching for '{original_conf_name}' backups with pattern: '{os.path.basename(glob_pattern_for_config)}'"
-                )
-
-                # Exact regex from original restore_all_server_data for stricter matching of backup format
+                name_part, ext_part = os.path.splitext(original_conf_name)
+                # Stricter regex to match the exact backup format and avoid false positives.
                 backup_file_regex = re.compile(
                     f"^{re.escape(name_part)}_backup_\\d{{8}}_\\d{{6}}{re.escape(ext_part)}$"
                 )
-
                 candidate_backups = [
                     os.path.join(server_bck_dir, fname)
                     for fname in os.listdir(server_bck_dir)
