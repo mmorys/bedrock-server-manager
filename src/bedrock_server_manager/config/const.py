@@ -31,6 +31,8 @@ EXPATH: str = package_finder.find_executable(package_name, executable_name)
 SCRIPT_DIR: str = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 """The root directory of the application scripts (typically the `src` directory)."""
 
+GUARD_VARIABLE = "BSM_PLUGIN_RECURSION_GUARD"
+
 
 def get_installed_version() -> str:
     """

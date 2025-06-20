@@ -17,7 +17,7 @@ import logging
 import subprocess
 import platform
 import sys
-from typing import Optional, List, Tuple, Callable, Union
+from typing import Optional, List, Dict, Callable, Union
 
 try:
     import psutil
@@ -26,6 +26,7 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
+from bedrock_server_manager.config.const import GUARD_VARIABLE
 from bedrock_server_manager.error import (
     FileOperationError,
     SystemError,
@@ -38,6 +39,35 @@ from bedrock_server_manager.error import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class GuardedProcess:
+    """
+    A wrapper around Python's subprocess module that automatically sets a
+    recursion guard environment variable to prevent infinite loops when the
+    application calls itself.
+    """
+
+    def __init__(self, command: List[Union[str, os.PathLike]]):
+        """Initializes the GuardedProcess."""
+        self.command = command
+        self.guard_env = self._create_guarded_environment()
+
+    def _create_guarded_environment(self) -> Dict[str, str]:
+        """Creates a copy of the current environment with the guard variable set."""
+        child_env = os.environ.copy()
+        child_env[GUARD_VARIABLE] = "1"
+        return child_env
+
+    def run(self, **kwargs) -> subprocess.CompletedProcess:
+        """A wrapper for subprocess.run() that injects the guarded environment."""
+        kwargs["env"] = self.guard_env
+        return subprocess.run(self.command, **kwargs)
+
+    def popen(self, **kwargs) -> subprocess.Popen:
+        """A wrapper for subprocess.Popen() that injects the guarded environment."""
+        kwargs["env"] = self.guard_env
+        return subprocess.Popen(self.command, **kwargs)
 
 
 def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
@@ -154,67 +184,44 @@ def launch_detached_process(
 ) -> int:
     """
     Launches a generic command as a detached background process and writes its PID.
-
-    Args:
-        command: The command and its arguments as a list of strings.
-        pid_file_path: Path to write the new process's PID.
-
-    Returns:
-        The PID of the newly started detached process.
-
-    Raises:
-        AppFileNotFoundError: If the command's executable is not found.
-        SystemError: If subprocess.Popen fails.
-        FileOperationError: If writing the PID file fails.
-        UserInputError: If command list or executable is empty.
+    This function is now automatically guarded against recursion.
     """
     function_name = "core.process.launch_detached_process"
-    if not command:
-        raise UserInputError("Command list cannot be empty for launching a process.")
+    if not command or not command[0]:
+        raise UserInputError("Command list and executable cannot be empty.")
 
-    # Check the executable part of the command
-    if not command[0]:
-        raise UserInputError("Command executable cannot be empty.")
+    logger.info(
+        f"{function_name}: Executing guarded detached command: {' '.join(command)}"
+    )
 
-    logger.info(f"{function_name}: Executing detached command: {' '.join(command)}")
+    guarded_proc = GuardedProcess(command)
 
     creation_flags = 0
     start_new_session = False
     if platform.system() == "Windows":
-        # Detaches process on Windows
-        creation_flags = (
-            subprocess.CREATE_NO_WINDOW
-        )  # For background execution without a console window
-        # CREATE_NEW_PROCESS_GROUP is also useful for Windows, but CREATE_NO_WINDOW often implies it for console apps.
-        # Alternatively, DETACHED_PROCESS = 0x00000008 can be used instead of CREATE_NO_WINDOW if you want a console.
-        # However, for a truly detached server, CREATE_NO_WINDOW is common.
-    elif platform.system() in ("Linux", "Darwin"):  # Darwin for macOS
-        start_new_session = True  # For POSIX, detaches from controlling terminal
+        creation_flags = subprocess.CREATE_NO_WINDOW
+    elif platform.system() in ("Linux", "Darwin"):
+        start_new_session = True
 
     try:
-        process = subprocess.Popen(
-            command,
+        process = guarded_proc.popen(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=creation_flags,
             start_new_session=start_new_session,
-            close_fds=(
-                platform.system() != "Windows"
-            ),  # close_fds is not well-supported with CREATE_NO_WINDOW on Windows
+            close_fds=(platform.system() != "Windows"),
         )
     except FileNotFoundError:
         raise AppFileNotFoundError(command[0], "Command executable") from None
     except OSError as e:
-        raise SystemError(
-            f"OS error starting detached process with command '{' '.join(command)}': {e}"
-        ) from e
+        raise SystemError(f"OS error starting detached process: {e}") from e
 
     pid = process.pid
     logger.info(
-        f"{function_name}: Successfully started detached process with PID: {pid}"
+        f"{function_name}: Successfully started guarded process with PID: {pid}"
     )
-    write_pid_to_file(pid_file_path, pid)  # Can raise FileOperationError
+    write_pid_to_file(pid_file_path, pid)
     return pid
 
 
