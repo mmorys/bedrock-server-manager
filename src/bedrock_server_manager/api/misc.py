@@ -11,7 +11,7 @@ import threading
 from typing import Dict, Optional
 
 # Plugin system imports to bridge API functionality.
-from bedrock_server_manager.api.server import plugin_manager
+from bedrock_server_manager import plugin_manager
 from bedrock_server_manager.plugins.api_bridge import register_api
 
 # Local application imports.

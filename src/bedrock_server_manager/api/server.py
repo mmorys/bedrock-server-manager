@@ -16,11 +16,8 @@ import time
 import shutil
 import subprocess
 
-# The PluginManager is a singleton that discovers and manages all plugins.
-from bedrock_server_manager.plugins.plugin_manager import PluginManager
-from bedrock_server_manager.config.const import GUARD_VARIABLE
-
-# The api_bridge allows plugins to register their own functions as APIs.
+# Plugin system imports to bridge API functionality.
+from bedrock_server_manager import plugin_manager
 from bedrock_server_manager.plugins.api_bridge import register_api
 
 # Local application imports.
@@ -40,10 +37,6 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# --- PLUGIN SYSTEM INITIALIZATION ---
-# Instantiate the plugin manager.
-plugin_manager = PluginManager()
-
 # --- API REGISTRATION FOR PLUGINS ---
 # Register core API functions so that plugins can call them.
 register_api("start_server", lambda **kwargs: start_server(**kwargs))
@@ -52,19 +45,6 @@ register_api("restart_server", lambda **kwargs: restart_server(**kwargs))
 register_api("send_command", lambda **kwargs: send_command(**kwargs))
 register_api("write_server_config", lambda **kwargs: write_server_config(**kwargs))
 register_api("delete_server_data", lambda **kwargs: delete_server_data(**kwargs))
-
-# Load all plugins from the designated directory after core APIs are registered.
-# This ensures plugins can safely use or override the core functionalities.
-plugin_manager.load_plugins()
-
-# Check for the recursion guard variable to prevent plugin startup events
-# from running in subprocesses created by the manager itself.
-if os.environ.get(GUARD_VARIABLE):
-    logger.warning(
-        f"'{GUARD_VARIABLE}' is set. Skipping 'on_manager_startup' event to prevent recursion."
-    )
-else:
-    logger.info("Main process detected. Plugin startup events can proceed.")
 
 
 def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]:
