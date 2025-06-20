@@ -146,7 +146,7 @@ class BedrockServerBaseMixin:
         return os.path.join(self.server_dir, "server_output.txt")
 
     @cached_property
-    def _server_specific_config_dir(self) -> str:
+    def server_config_dir(self) -> str:
         """Returns the path to this server's dedicated configuration subdirectory."""
 
         return os.path.join(self.app_config_dir, self.server_name)

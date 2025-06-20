@@ -289,7 +289,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             self.logger.info(
                 f"Server '{self.server_name}': Downloading version '{actual_version_to_download}'..."
             )
-            downloader.download_server_files()
+            downloader.prepare_download_assets()
 
             # Extract the downloaded files and set permissions.
             self.logger.info(
