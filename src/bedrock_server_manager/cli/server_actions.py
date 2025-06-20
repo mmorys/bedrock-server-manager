@@ -15,6 +15,7 @@ import questionary
 
 from bedrock_server_manager.api import server as server_api
 from bedrock_server_manager.api import server_install_config as config_api
+from bedrock_server_manager.cli.system import interactive_service_workflow
 from bedrock_server_manager.cli.server_allowlist import interactive_allowlist_workflow
 from bedrock_server_manager.cli.server_permissions import (
     interactive_permissions_workflow,
@@ -108,7 +109,7 @@ def install(ctx: click.Context):
     - Naming the server
     - Selecting a Minecraft version
     - Downloading and installing server files
-    - Configuring essential server properties, allowlist, and permissions
+    - Configuring essential server properties, allowlist, and permissions, service
     - Automatically starting the server upon completion
     """
     try:
@@ -161,6 +162,8 @@ def install(ctx: click.Context):
             "\nConfigure player permissions now?", default=False
         ).ask():
             interactive_permissions_workflow(server_name)
+        if questionary.confirm("\nConfigure the service now?", default=False).ask():
+            interactive_service_workflow(server_name)
 
         click.secho(
             "\nInstallation and initial configuration complete!", fg="green", bold=True
