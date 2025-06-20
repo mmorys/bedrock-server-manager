@@ -88,7 +88,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
 
         try:
             is_running_flag = system_base.is_server_running(
-                self.server_name, self.base_dir
+                self.server_name, self.server_dir, self.app_config_dir
             )
             self.logger.debug(
                 f"system_base.is_server_running for '{self.server_name}' returned: {is_running_flag}"
@@ -212,21 +212,19 @@ class ServerProcessMixin(BedrockServerBaseMixin):
         start_successful = False
         # --- Linux Start Logic ---
         if self.os_type == "Linux":
-            if not shutil.which("screen"):
-                self.set_status_in_config("ERROR")
-                raise CommandNotFoundError(
-                    "screen", message="'screen' command not found. Cannot start server."
-                )
 
             try:
-                system_linux_proc._linux_start_server(self.server_name, self.server_dir)
+                # system_linux_proc._linux_start_server uses self.server_name and self.server_dir
+                system_linux_proc._linux_start_server(
+                    self.server_name, self.server_dir, self.app_config_dir
+                )
                 self.logger.info(
-                    f"Linux server '{self.server_name}' start process initiated via screen."
+                    f"Linux server '{self.server_name}' start process initiated."
                 )
 
                 # Wait for confirmation that the process is running.
                 attempts = 0
-                max_attempts = self.settings.get("SERVER_START_TIMEOUT_SEC", 60) // 2
+                max_attempts = 60 // 2  # Default 60s, check every 2s
                 sleep_interval = 2
                 self.logger.info(
                     f"Waiting up to {max_attempts * sleep_interval}s for '{self.server_name}' to confirm running..."
@@ -448,4 +446,6 @@ class ServerProcessMixin(BedrockServerBaseMixin):
             A dictionary containing process information, or `None` if the
             server is not running or `psutil` is not available.
         """
-        return system_base._get_bedrock_process_info(self.server_name, self.base_dir)
+        return system_base._get_bedrock_process_info(
+            self.server_name, self.server_dir, self.app_config_dir
+        )
