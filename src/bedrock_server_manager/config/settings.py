@@ -1,9 +1,10 @@
 # bedrock_server_manager/config/settings.py
-"""
-Manages application configuration settings.
+"""Manages application-wide configuration settings.
 
-Handles loading settings from a JSON file, providing defaults,
-saving changes, and determining appropriate application directories.
+This module provides the `Settings` class, which is responsible for loading
+settings from a JSON file, providing default values for missing keys, saving
+changes back to the file, and determining the appropriate application data and
+configuration directories based on the environment.
 """
 
 import os
@@ -22,39 +23,43 @@ logger = logging.getLogger(__name__)
 
 
 class Settings:
-    """
-    Manages application settings, loading from and saving to a JSON configuration file.
+    """Manages loading, accessing, and saving application settings.
 
-    This class handles the determination of application data and configuration
-    directories, provides default settings, and ensures critical directories exist.
-    It offers methods to get and set configuration values.
+    This class acts as a single source of truth for configuration. It handles
+    the logic for determining application data and config directories, provides
+    sensible defaults, and ensures critical directories exist. It offers simple
+    `get` and `set` methods for interacting with the configuration values,
+    persisting any changes to a JSON file.
     """
 
     def __init__(self):
-        """
-        Initializes the Settings object.
+        """Initializes the Settings object.
 
-        Determines application paths, loads existing configuration or creates
-        a default one, and ensures necessary directories are present.
+        This constructor determines the application's file paths, loads any
+        existing configuration from `script_config.json`, creates a default
+        configuration if one doesn't exist, and ensures all necessary
+        directories are present on the filesystem.
         """
         logger.debug("Initializing Settings")
+        # Determine the primary application data and config directories.
         self._app_data_dir_path = self._determine_app_data_dir()
         self._config_dir_path = self._determine_app_config_dir()
         self.config_file_name = "script_config.json"
         self.config_path = os.path.join(self._config_dir_path, self.config_file_name)
 
+        # Get the installed package version.
         self._version_val = get_installed_version()
 
+        # Load settings from the config file or create a default one.
         self._settings = {}
         self.load()
 
     def _determine_app_data_dir(self) -> str:
-        """
-        Determines the main application data directory.
+        """Determines the main application data directory.
 
-        Uses the BSM_DATA_DIR environment variable if set, otherwise defaults
-        to a directory named 'bedrock-server-manager' in the user's home folder.
-        Creates the directory if it doesn't exist.
+        It prioritizes the `BSM_DATA_DIR` environment variable if set.
+        Otherwise, it defaults to a 'bedrock-server-manager' directory in the
+        user's home folder. The directory is created if it doesn't exist.
 
         Returns:
             The absolute path to the application data directory.
@@ -67,10 +72,10 @@ class Settings:
         return data_dir
 
     def _determine_app_config_dir(self) -> str:
-        """
-        Determines the application's '.config' directory, nested within the app data directory.
+        """Determines the application's configuration directory.
 
-        Creates the directory if it doesn't exist.
+        This directory is typically named `.config` and is nested within the main
+        application data directory. It is created if it doesn't exist.
 
         Returns:
             The absolute path to the application configuration directory.
@@ -81,11 +86,11 @@ class Settings:
 
     @property
     def default_config(self) -> dict:
-        """
-        Provides the default configuration values for the application.
+        """Provides the default configuration values for the application.
 
-        These are used when a configuration file is not found or is invalid.
-        Paths are constructed based on the determined application data directory.
+        These defaults are used when a configuration file is not found or a
+        specific setting is missing. Paths are constructed dynamically based on
+        the determined application data directory.
 
         Returns:
             A dictionary of default settings.
@@ -106,50 +111,51 @@ class Settings:
             "TOKEN_EXPIRES_WEEKS": 4,
         }
 
-    def load(self) -> None:
-        """
-        Loads settings from the JSON configuration file.
+    def load(self):
+        """Loads settings from the JSON configuration file.
 
-        If the file doesn't exist, it initializes with default settings and
-        writes a new configuration file. If the file is invalid, it logs a
-        warning but continues with defaults.
+        This method starts with the default settings. If a configuration file
+        exists, it loads the user's settings and merges them, with user settings
+        taking precedence. If the file doesn't exist, it's created with the
+        defaults.
         """
-        # Always start with a fresh copy of the defaults
+        # Always start with a fresh copy of the defaults to build upon.
         default_settings = self.default_config.copy()
 
         if os.path.exists(self.config_path):
-            # File exists, try to load and merge it
+            # If the file exists, try to load and merge it.
             try:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     user_config = json.load(f)
-                    # Update defaults with user settings
+                    # Update the defaults with the user's saved settings.
                     default_settings.update(user_config)
             except (ValueError, OSError) as e:
-                # File is corrupt or unreadable, log a warning and use defaults
+                # If the file is corrupt or unreadable, log a warning and use defaults.
                 logger.warning(
                     f"Could not load config file at {self.config_path}: {e}. "
                     "Using default settings. The corrupt file will be overwritten on the next settings change."
                 )
         else:
-            # File does NOT exist, so create it with default values
+            # If the file does not exist, create it with the default values.
             logger.info(
                 f"Configuration file not found at {self.config_path}. Creating with default settings."
             )
             self._settings = default_settings
             self._write_config()
 
-        # Set the final settings and ensure directories exist
+        # Set the final merged settings and ensure all necessary directories exist.
         self._settings = default_settings
         self._ensure_dirs_exist()
 
-    def _ensure_dirs_exist(self) -> None:
-        """
-        Ensures that all critical directories specified in the settings exist.
+    def _ensure_dirs_exist(self):
+        """Ensures that all critical directories specified in the settings exist.
 
-        Creates any missing directories.
+        This method iterates through key directory paths defined in the
+        configuration and creates any that are missing.
 
         Raises:
-            ConfigurationError: If a directory cannot be created.
+            ConfigurationError: If a directory cannot be created due to an
+                `OSError` (e.g., permissions issue).
         """
         dirs_to_check = [
             self.get("BASE_DIR"),
@@ -167,12 +173,12 @@ class Settings:
                         f"Could not create critical directory: {dir_path}"
                     ) from e
 
-    def _write_config(self) -> None:
-        """
-        Writes the current settings dictionary to the JSON configuration file.
+    def _write_config(self):
+        """Writes the current settings dictionary to the JSON configuration file.
 
         Raises:
-            ConfigurationError: If writing the configuration fails.
+            ConfigurationError: If writing the configuration fails due to an
+                `OSError` or `TypeError` (serialization issue).
         """
         try:
             os.makedirs(self._config_dir_path, exist_ok=True)
@@ -182,43 +188,42 @@ class Settings:
             raise ConfigurationError(f"Failed to write configuration: {e}") from e
 
     def get(self, key: str, default=None) -> Any:
-        """
-        Retrieves a setting value for the given key.
+        """Retrieves a setting value for a given key.
 
         Args:
             key: The configuration key to retrieve.
-            default: The default value to return if the key is not found.
+            default: The value to return if the key is not found.
 
         Returns:
             The value associated with the key, or the default value.
         """
         return self._settings.get(key, default)
 
-    def set(self, key: str, value: Any) -> None:
-        """
-        Sets a configuration value for the given key and saves the configuration.
+    def set(self, key: str, value: Any):
+        """Sets a configuration value and saves the change to the file.
 
-        If the new value is the same as the existing value, no action is taken.
+        This method updates the in-memory settings dictionary and then
+        immediately persists the entire configuration to the JSON file. It
+        avoids writing to disk if the new value is the same as the old one.
 
         Args:
             key: The configuration key to set.
             value: The value to associate with the key.
         """
         if key in self._settings and self._settings[key] == value:
-            return
+            return  # No change, so no need to write to the file.
         self._settings[key] = value
         logger.info(f"Setting '{key}' updated to '{value}'. Saving configuration.")
         self._write_config()
 
-    # Property getters for BSM
     @property
     def config_dir(self) -> str:
-        """The application's configuration directory path."""
+        """The absolute path to the application's configuration directory."""
         return self._config_dir_path
 
     @property
     def app_data_dir(self) -> str:
-        """The application's main data directory path."""
+        """The absolute path to the application's main data directory."""
         return self._app_data_dir_path
 
     @property
@@ -227,4 +232,5 @@ class Settings:
         return self._version_val
 
 
+# A singleton instance of the Settings class, used throughout the application.
 settings = Settings()
