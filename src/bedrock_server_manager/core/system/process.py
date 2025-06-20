@@ -1,24 +1,26 @@
 # bedrock_server_manager/core/system/process.py
-"""
-Provides generic, cross-platform process management utilities.
+"""Provides generic, cross-platform process management utilities.
 
-This module includes functions for:
+This module abstracts away the complexities of interacting with system processes.
+It includes functions for:
 - Handling PID files (reading, writing, removing).
 - Checking if a process is running by its PID.
-- Launching detached background processes.
-- Verifying the identity of a running process.
-- Terminating processes gracefully and forcefully.
+- Launching detached background processes with recursion protection.
+- Verifying the identity of a running process by its path or arguments.
+- Terminating processes gracefully and, if necessary, forcefully.
 
-It relies on the `psutil` library for many of its capabilities and abstracts
-away platform-specific details where possible.
+It relies on the `psutil` library for many of its capabilities and should be
+considered a required dependency for process management features.
 """
 import os
 import logging
 import subprocess
 import platform
 import sys
-from typing import Optional, List, Callable, Union
+from typing import Optional, List, Dict, Callable, Union
 
+
+# psutil is an optional dependency, but required for most functions here.
 try:
     import psutil
 
@@ -26,6 +28,7 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
+from bedrock_server_manager.config.const import GUARD_VARIABLE
 from bedrock_server_manager.error import (
     FileOperationError,
     SystemError,
@@ -40,20 +43,69 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 
 
-def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
+class GuardedProcess:
+    """A wrapper for `subprocess` that injects a recursion guard variable.
+
+    When the application needs to call itself as a subprocess (e.g., to start
+    a server in a detached window), this class ensures that an environment
+    variable (`GUARD_VARIABLE`) is set. The application's startup logic can
+    then check for this variable to prevent re-initializing components like
+    the plugin system, avoiding infinite loops.
     """
-    Determines the full path for a generic PID file.
+
+    def __init__(self, command: List[Union[str, os.PathLike]]):
+        """Initializes the GuardedProcess with the command to be run.
+
+        Args:
+            command: A list representing the command and its arguments.
+        """
+        self.command = command
+        self.guard_env = self._create_guarded_environment()
+
+    def _create_guarded_environment(self) -> Dict[str, str]:
+        """Creates a copy of the current environment with the guard variable set."""
+        child_env = os.environ.copy()
+        child_env[GUARD_VARIABLE] = "1"
+        return child_env
+
+    def run(self, **kwargs) -> subprocess.CompletedProcess:
+        """A wrapper for `subprocess.run` that injects the guarded environment.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `subprocess.run`.
+
+        Returns:
+            A `subprocess.CompletedProcess` instance.
+        """
+        kwargs["env"] = self.guard_env
+        return subprocess.run(self.command, **kwargs)
+
+    def popen(self, **kwargs) -> subprocess.Popen:
+        """A wrapper for `subprocess.Popen` that injects the guarded environment.
+
+        Args:
+            **kwargs: Keyword arguments to pass to `subprocess.Popen`.
+
+        Returns:
+            A `subprocess.Popen` instance.
+        """
+        kwargs["env"] = self.guard_env
+        return subprocess.Popen(self.command, **kwargs)
+
+
+def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
+    """Constructs the full, absolute path for a PID file.
 
     Args:
         config_dir: The application's configuration directory.
-        pid_filename: The name of the PID file (e.g., "my_process.pid").
+        pid_filename: The name of the PID file (e.g., "web_server.pid").
 
     Returns:
-        The absolute path to the PID file.
+        The absolute path to where the PID file should be stored.
 
     Raises:
-        AppFileNotFoundError: If config_dir is not a valid directory.
-        MissingArgumentError: If pid_filename is empty.
+        AppFileNotFoundError: If `config_dir` is not a valid directory.
+        MissingArgumentError: If `pid_filename` is empty.
     """
     if not config_dir or not os.path.isdir(config_dir):
         raise AppFileNotFoundError(config_dir, "Configuration directory")
@@ -97,7 +149,7 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
     Reads and validates the PID from the given PID file.
 
     Args:
-        pid_file_path: Path to the PID file.
+        pid_file_path: The path to the PID file.
 
     Returns:
         The PID as an integer if the file exists and is valid, None otherwise.
@@ -122,16 +174,15 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
         ) from e
 
 
-def write_pid_to_file(pid_file_path: str, pid: int) -> None:
-    """
-    Writes the given PID to the specified PID file. (Generic)
+def write_pid_to_file(pid_file_path: str, pid: int):
+    """Writes a process ID to the specified file, overwriting existing content.
 
     Args:
-        pid_file_path: Path to the PID file.
-        pid: The process ID to write.
+        pid_file_path: The path to the PID file.
+        pid: The process ID to write to the file.
 
     Raises:
-        FileOperationError: If an OSError occurs during file writing.
+        FileOperationError: If an `OSError` occurs during file writing.
     """
     try:
         os.makedirs(os.path.dirname(pid_file_path), exist_ok=True)
@@ -145,9 +196,7 @@ def write_pid_to_file(pid_file_path: str, pid: int) -> None:
 
 
 def is_process_running(pid: int) -> bool:
-    """
-    Checks if a process with the given PID is currently running. (Generic)
-    Requires 'psutil' to be installed.
+    """Checks if a process with the given PID is currently running.
 
     Args:
         pid: The process ID to check.
@@ -156,7 +205,7 @@ def is_process_running(pid: int) -> bool:
         True if the process is running, False otherwise.
 
     Raises:
-        SystemError: If psutil is not available.
+        SystemError: If `psutil` is not available.
     """
     if not PSUTIL_AVAILABLE:
         raise SystemError(
@@ -165,31 +214,33 @@ def is_process_running(pid: int) -> bool:
     return psutil.pid_exists(pid)
 
 
-def launch_detached_process(
-    command: List[str],
-    pid_file_path: str,
-) -> int:
-    """
-    Launches a generic command as a detached background process and writes its PID.
+def launch_detached_process(command: List[str], pid_file_path: str) -> int:
+    """Launches a command as a detached background process and records its PID.
+
+    This function uses `GuardedProcess` to prevent recursion and handles
+    platform-specific flags to ensure the new process is fully independent
+    of the parent.
 
     Args:
         command: The command and its arguments as a list of strings.
-        pid_file_path: Path to write the new process's PID.
+        pid_file_path: The path to write the new process's PID to.
 
     Returns:
-        The PID of the newly started detached process.
+        The PID of the newly launched process.
 
     Raises:
+        UserInputError: If the command is empty.
         AppFileNotFoundError: If the command's executable is not found.
-        SystemError: If subprocess.Popen fails.
-        FileOperationError: If writing the PID file fails.
-        UserInputError: If command list or executable is empty.
+        SystemError: For other OS-level errors during process creation.
     """
     if not command or not command[0]:
         raise UserInputError("Command list and executable cannot be empty.")
 
-    logger.info(f"Executing detached command: {' '.join(command)}")
+    logger.info(f"Executing guarded detached command: {' '.join(command)}")
 
+    guarded_proc = GuardedProcess(command)
+
+    # Set platform-specific flags for detaching the process.
     creation_flags = 0
     start_new_session = False
     if platform.system() == "Windows":
@@ -198,8 +249,7 @@ def launch_detached_process(
         start_new_session = True
 
     try:
-        process = subprocess.Popen(
-            command,
+        process = guarded_proc.popen(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -210,12 +260,10 @@ def launch_detached_process(
     except FileNotFoundError:
         raise AppFileNotFoundError(command[0], "Command executable") from None
     except OSError as e:
-        raise SystemError(
-            f"OS error starting detached process with command '{' '.join(command)}': {e}"
-        ) from e
+        raise SystemError(f"OS error starting detached process: {e}") from e
 
     pid = process.pid
-    logger.info(f"Successfully started detached process with PID: {pid}")
+    logger.info(f"Successfully started guarded process with PID: {pid}")
     write_pid_to_file(pid_file_path, pid)
     return pid
 
@@ -257,7 +305,7 @@ def verify_process_identity(
             proc_cmdline = proc.cmdline()
     except psutil.NoSuchProcess:
         raise ServerProcessError(
-            f"Process with PID {pid} does not exist (for verification)."
+            f"Process with PID {pid} does not exist for verification."
         )
     except psutil.AccessDenied:
         raise PermissionsError(f"Access denied when trying to get info for PID {pid}.")
@@ -374,19 +422,21 @@ def get_verified_bedrock_process(
 
 def terminate_process_by_pid(
     pid: int, terminate_timeout: int = 5, kill_timeout: int = 2
-) -> None:
-    """
-    Attempts to gracefully terminate, then forcefully kill, a process by its PID. (Generic)
+):
+    """Gracefully terminates, then forcefully kills, a process by its PID.
+
+    This function first sends a SIGTERM signal and waits for the process to
+    exit. If it doesn't exit within the timeout, it sends a SIGKILL signal.
 
     Args:
         pid: The PID of the process to terminate.
-        terminate_timeout: Seconds to wait for graceful termination.
-        kill_timeout: Seconds to wait after sending SIGKILL.
+        terminate_timeout: Seconds to wait for graceful termination (SIGTERM).
+        kill_timeout: Seconds to wait after sending the forceful kill (SIGKILL).
 
     Raises:
-        SystemError: If psutil is not available.
+        SystemError: If `psutil` is not available.
         PermissionsError: If access is denied to terminate the process.
-        ServerStopError: If other psutil or unexpected errors occur during termination.
+        ServerStopError: For other `psutil` or unexpected errors during termination.
     """
     if not PSUTIL_AVAILABLE:
         raise SystemError("psutil package is required to terminate processes.")
@@ -399,6 +449,7 @@ def terminate_process_by_pid(
             logger.info(f"Process {pid} terminated gracefully.")
             return
         except psutil.TimeoutExpired:
+            # If graceful termination fails, resort to forceful killing.
             logger.warning(
                 f"Process {pid} did not terminate gracefully within {terminate_timeout}s. Attempting kill (SIGKILL)..."
             )
@@ -407,6 +458,7 @@ def terminate_process_by_pid(
             logger.info(f"Process {pid} forcefully killed.")
             return
     except psutil.NoSuchProcess:
+        # This is not an error; the process is already gone.
         logger.warning(
             f"Process with PID {pid} disappeared or was already stopped during termination attempt."
         )
@@ -421,14 +473,14 @@ def terminate_process_by_pid(
 
 
 def remove_pid_file_if_exists(pid_file_path: str) -> bool:
-    """
-    Removes the PID file if it exists. (Generic)
+    """Removes the specified PID file if it exists.
 
     Args:
-        pid_file_path: Path to the PID file.
+        pid_file_path: The path to the PID file to remove.
 
     Returns:
-        True if the file was removed or did not exist, False if removal failed.
+        True if the file was removed or did not exist. False if removal failed
+        due to an `OSError`.
     """
     if os.path.exists(pid_file_path):
         try:
@@ -439,3 +491,5 @@ def remove_pid_file_if_exists(pid_file_path: str) -> bool:
             logger.warning(f"Could not remove PID file '{pid_file_path}': {e}")
             return False
     return True
+
+print("Conflict resolved successfully.")

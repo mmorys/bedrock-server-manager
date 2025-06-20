@@ -149,7 +149,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
     };
 
     // Add body and Content-Type header if applicable
-    const methodAllowsBody = ['POST', 'PUT', 'PATCH'].includes(fetchOptions.method);
+    const methodAllowsBody = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(fetchOptions.method);
     if (body && methodAllowsBody) {
         try {
             fetchOptions.body = JSON.stringify(body);

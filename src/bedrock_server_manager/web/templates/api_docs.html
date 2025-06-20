@@ -431,7 +431,7 @@
     <h4>Targeted URLs:</h4>
     <ul>
         <li>The validation logic specifically targets URL paths that contain the pattern <code class="endpoint-path">/server/<server_name>/</code>, where <code class="param-name"><server_name></code> is a segment in the path.</li>
-        <li>Examples: <code class="endpoint-path">/server/MyServer/status_info</code>, <code class="endpoint-path">/api/server/AnotherServer/stop</code>.</li>
+        <li>Examples: <code class="endpoint-path">/server/MyServer/process_info</code>, <code class="endpoint-path">/api/server/AnotherServer/stop</code>.</li>
     </ul>
 
     <h4>Bypassed URLs:</h4>
@@ -592,7 +592,7 @@
     </div>
 
     <div class="api-endpoint">
-        <h3 id="get-api-server-status-info"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/status_info</code></h3>
+        <h3 id="get-api-server-status-info"><span class="method-tag method-get">GET</span> <code class="endpoint-path">/api/server/{server_name}/process_info</code></h3>
         <p>Gets runtime process info (PID, CPU, Mem, Uptime) if running.</p>
         <p><em>Note: CPU % is relative to previous check (first check is 0%).</em></p>
         <h4>Authentication:</h4> <p>Required.</p>

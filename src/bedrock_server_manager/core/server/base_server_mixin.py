@@ -11,7 +11,8 @@ import platform
 import logging
 import subprocess
 import threading
-from typing import Optional, TYPE_CHECKING, Any
+from typing import Optional, Any
+from functools import cached_property
 
 # Local imports
 from bedrock_server_manager.config.const import EXPATH as CONST_EXPATH
@@ -120,23 +121,23 @@ class BedrockServerBaseMixin:
             f"at '{self.server_dir}'. App Config Dir: '{self.app_config_dir}'"
         )
 
-    @property
+    @cached_property
     def bedrock_executable_name(self) -> str:
         """Returns the platform-specific name of the Bedrock server executable."""
         return "bedrock_server.exe" if self.os_type == "Windows" else "bedrock_server"
 
-    @property
+    @cached_property
     def bedrock_executable_path(self) -> str:
         """Returns the full path to the Bedrock server executable within this server's directory."""
         return os.path.join(self.server_dir, self.bedrock_executable_name)
 
-    @property
+    @cached_property
     def server_log_path(self) -> str:
         """Returns the expected path to the server's main output log file."""
         return os.path.join(self.server_dir, "server_output.txt")
 
-    @property
-    def _server_specific_config_dir(
+    @cached_property
+    def server_config_dir(
         self,
     ) -> str:
         """Path to this server's own subdirectory within the app_config_dir for its JSON config."""
@@ -153,6 +154,6 @@ class BedrockServerBaseMixin:
         Gets the full path to this server's PID file, stored in the global application config directory.
         """
         pid_filename = self._get_server_pid_filename_default()
-        server_config_dir = self._server_specific_config_dir
+        server_config_dir = self.server_config_dir
 
         return os.path.join(server_config_dir, pid_filename)

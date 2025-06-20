@@ -167,15 +167,22 @@ function triggerRestoreAll(buttonElement, serverName) {
     if (!confirm(confirmationMessage)) {
         console.log(`${functionName}: Restore All operation cancelled by user.`);
         showStatusMessage('Restore All operation cancelled.', 'info');
-        return; // Abort if user cancels
+        return;
     }
     console.log(`${functionName}: User confirmed Restore All operation.`);
 
+    // --- Prepare API Request ---
+    // For a 'restore all' operation, the backend doesn't need a specific backup file.
+    const requestBody = {
+        restore_type: 'all',
+        backup_file: null // Explicitly send null
+    };
+    console.debug(`${functionName}: Constructed request body:`, requestBody);
+
     // --- Call API Helper ---
-    // No request body needed for this specific action
-    const apiUrl = `/api/server/${serverName}/restore/all`;
+    const apiUrl = `/api/server/${serverName}/restore/action`;
     console.log(`${functionName}: Calling sendServerActionRequest to ${apiUrl} for restore all...`);
-    sendServerActionRequest(serverName, 'restore/all', 'POST', null, buttonElement);
+    sendServerActionRequest(serverName, 'restore/action', 'POST', requestBody, buttonElement);
 
     console.log(`${functionName}: Restore All request initiated (asynchronous).`);
 }

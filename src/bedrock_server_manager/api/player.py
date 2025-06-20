@@ -1,16 +1,19 @@
 # bedrock_server_manager/api/player.py
-"""
-Provides API-level functions for managing player data.
+"""Provides API-level functions for managing the central player database.
 
-This module acts as an interface layer, orchestrating calls to core player
-functions for tasks like scanning server logs for player connections and
-adding/retrieving players from a persistent JSON store (`players.json`).
-Functions typically return a dictionary indicating success or failure status.
+This module interfaces with the `BedrockServerManager` to add, retrieve,
+and discover player information (gamertags and XUIDs), which is stored in a
+central `players.json` file.
 """
 
 import logging
 from typing import Dict, List, Any
 
+# Plugin system imports to bridge API functionality.
+from bedrock_server_manager.api.server import plugin_manager
+from bedrock_server_manager.plugins.api_bridge import register_api
+
+# Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import (
     BSMError,
@@ -20,23 +23,38 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 bsm = BedrockServerManager()
 
+# Register API functions with the plugin system's API bridge.
+register_api(
+    "add_players_manually", lambda **kwargs: add_players_manually_api(**kwargs)
+)
+register_api(
+    "get_all_known_players", lambda **kwargs: get_all_known_players_api(**kwargs)
+)
+register_api(
+    "scan_and_update_player_db",
+    lambda **kwargs: scan_and_update_player_db_api(**kwargs),
+)
+
 
 def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
-    """
-    Adds or updates player data in the central players.json file.
+    """Adds or updates player data in the central players.json file.
 
-    Input is a list of strings, each expected to be in "PlayerName:XUID" format.
+    This function takes a list of strings, each containing a player's
+    gamertag and XUID, parses them, and saves the data to the central
+    player database.
 
     Args:
-        player_strings: A list of strings, where each string contains player
-                        name and XUID separated by a colon.
+        player_strings: A list of strings, where each string is expected
+            to be in the format "gamertag,xuid". For example:
+            `["PlayerOne,1234567890123456", "PlayerTwo,6543210987654321"]`.
 
     Returns:
-        A dictionary indicating success or failure, with a count of players processed.
-        Example: `{"status": "success", "message": "X players processed...", "count": X}` or
-                 `{"status": "error", "message": "Error details..."}`
+        A dictionary containing the status of the operation, a descriptive
+        message, and the count of players processed. On error, it returns
+        a status and an error message.
     """
     logger.info(f"API: Adding players manually: {player_strings}")
+    # --- Input Validation ---
     if (
         not player_strings
         or not isinstance(player_strings, list)
@@ -47,36 +65,57 @@ def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
             "message": "Input must be a non-empty list of player strings.",
         }
 
+    result = {}
+    parsed_list = []
     try:
-        combined_input = ",".join(player_strings)  # BSM parses comma-separated string
+        # The core parsing function expects a single comma-separated string.
+        combined_input = ",".join(player_strings)
         parsed_list = bsm.parse_player_cli_argument(combined_input)
+
+        # --- Plugin Hook: Before Add ---
+        plugin_manager.trigger_event("before_players_add", players_data=parsed_list)
 
         num_saved = 0
         if parsed_list:
+            # Delegate saving to the core manager.
             num_saved = bsm.save_player_data(parsed_list)
 
-        return {
+        result = {
             "status": "success",
             "message": f"{num_saved} player entries processed and saved/updated.",
             "count": num_saved,
         }
+
     except UserInputError as e:
-        return {"status": "error", "message": f"Invalid player data: {str(e)}"}
+        # Handle errors related to invalid player string formats.
+        result = {"status": "error", "message": f"Invalid player data: {str(e)}"}
+
     except BSMError as e:
-        return {"status": "error", "message": f"Error saving player data: {str(e)}"}
+        # Handle errors during the file-saving process.
+        result = {"status": "error", "message": f"Error saving player data: {str(e)}"}
+
     except Exception as e:
+        # Handle any other unexpected errors.
         logger.error(f"API: Unexpected error adding players: {e}", exc_info=True)
-        return {"status": "error", "message": f"An unexpected error occurred: {str(e)}"}
+        result = {
+            "status": "error",
+            "message": f"An unexpected error occurred: {str(e)}",
+        }
+
+    finally:
+        # --- Plugin Hook: After Add ---
+        plugin_manager.trigger_event("after_players_add", result=result)
+
+    return result
 
 
 def get_all_known_players_api() -> Dict[str, Any]:
-    """
-    Retrieves all player data stored in the central players.json file.
+    """Retrieves all player data from the central players.json file.
 
     Returns:
-        A dictionary containing a list of all known player objects.
-        Example: `{"status": "success", "players": [{"name": "P1", "xuid": "123..."}, ...]}` or
-                 `{"status": "error", "message": "Error details..."}`
+        A dictionary containing the operation status and a list of all known
+        player objects. On success: `{"status": "success", "players": [...]}`.
+        On error: `{"status": "error", "message": "..."}`.
     """
     logger.info("API: Request to get all known players.")
     try:
@@ -91,40 +130,56 @@ def get_all_known_players_api() -> Dict[str, Any]:
 
 
 def scan_and_update_player_db_api() -> Dict[str, Any]:
-    """
-    Scans logs from all servers to find player connection data (name, XUID)
-    and updates the central players.json file with any new unique entries.
+    """Scans all server logs to discover and save player data.
+
+    This function iterates through the log files of all managed servers,
+    extracts player connection information (gamertag and XUID), and updates
+    the central player database with any new findings.
 
     Returns:
-        A dictionary summarizing the scan results, including counts of entries found,
-        unique players, players saved, and any errors encountered during the scan.
-        Example: `{"status": "success", "message": "Scan complete...", "details": {...}}` or
-                 `{"status": "error", "message": "Error details..."}`
+        A dictionary containing the status, a summary message, and detailed
+        results of the scan, including counts of players found, saved, and
+        any errors encountered.
     """
     logger.info("API: Request to scan all server logs and update player DB.")
-    try:
-        result = bsm.discover_and_store_players_from_all_server_logs()
-        # result = { "total_entries_in_logs": int, "unique_players_submitted_for_saving": int,
-        #            "actually_saved_or_updated_in_db": int, "scan_errors": List }
 
+    # --- Plugin Hook: Before Scan ---
+    plugin_manager.trigger_event("before_player_db_scan")
+
+    result = {}
+    try:
+        # Delegate the entire discovery and saving process to the core manager.
+        scan_result = bsm.discover_and_store_players_from_all_server_logs()
+
+        # Format a comprehensive success message from the scan results.
         message = (
             f"Player DB update complete. "
-            f"Entries found in logs: {result['total_entries_in_logs']}. "
-            f"Unique players submitted: {result['unique_players_submitted_for_saving']}. "
-            f"Actually saved/updated: {result['actually_saved_or_updated_in_db']}."
+            f"Entries found in logs: {scan_result['total_entries_in_logs']}. "
+            f"Unique players submitted: {scan_result['unique_players_submitted_for_saving']}. "
+            f"Actually saved/updated: {scan_result['actually_saved_or_updated_in_db']}."
         )
-        if result["scan_errors"]:
-            message += f" Scan errors encountered for: {result['scan_errors']}"
+        if scan_result["scan_errors"]:
+            message += f" Scan errors encountered for: {scan_result['scan_errors']}"
 
-        return {"status": "success", "message": message, "details": result}
+        result = {"status": "success", "message": message, "details": scan_result}
+
     except BSMError as e:
-        return {
+        # Handle application-specific errors during the scan.
+        result = {
             "status": "error",
             "message": f"An error occurred during player scan: {str(e)}",
         }
+
     except Exception as e:
+        # Handle any other unexpected errors.
         logger.error(f"API: Unexpected error scanning for players: {e}", exc_info=True)
-        return {
+        result = {
             "status": "error",
             "message": f"An unexpected error occurred during player scan: {str(e)}",
         }
+
+    finally:
+        # --- Plugin Hook: After Scan ---
+        plugin_manager.trigger_event("after_player_db_scan", result=result)
+
+    return result

@@ -1,10 +1,11 @@
 # bedrock_server_manager/api/utils.py
-"""
-Provides utility API functions that assist other API modules or perform general tasks.
+"""Provides utility functions and context managers for the API layer.
 
-This includes server validation, server name format checking, status updates,
-console attachment (Linux-specific), and a server lifecycle context manager
-for safely performing operations that require a server to be temporarily stopped.
+This module contains helper functions that support other API modules or
+perform general tasks. It includes server existence and name format validation,
+a function to reconcile the status of all servers, and a critical context
+manager (`server_lifecycle_manager`) for safely performing operations that
+require a server to be temporarily stopped.
 """
 import os
 import logging
@@ -12,7 +13,11 @@ from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 import platform
 
-# Local imports
+# Plugin system imports to bridge API functionality.
+from bedrock_server_manager.api.server import plugin_manager
+from bedrock_server_manager.plugins.api_bridge import register_api
+
+# Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core import utils as core_utils
@@ -27,24 +32,46 @@ from bedrock_server_manager.error import (
 )
 
 logger = logging.getLogger(__name__)
-# The global bsm instance can be useful for manager-level tasks like listing all servers
+# A global BedrockServerManager instance for manager-level tasks like listing all servers.
 bsm = BedrockServerManager()
+
+# Register these utility functions so plugins can call them.
+register_api("validate_server_exist", lambda **kwargs: validate_server_exist(**kwargs))
+register_api(
+    "validate_server_name_format",
+    lambda **kwargs: validate_server_name_format(**kwargs),
+)
+register_api(
+    "update_server_statuses", lambda **kwargs: update_server_statuses(**kwargs)
+)
+register_api(
+    "get_system_and_app_info", lambda **kwargs: get_system_and_app_info(**kwargs)
+)
 
 
 def validate_server_exist(server_name: str) -> Dict[str, Any]:
-    """
-    Validates if a server installation directory and executable exist
-    by using the BedrockServer.is_installed() method.
+    """Validates if a server is correctly installed.
+
+    This function checks for the existence of the server's directory and its
+    executable by wrapping the `BedrockServer.is_installed()` method.
+
+    Args:
+        server_name: The name of the server to validate.
+
+    Returns:
+        A dictionary with the operation status and a message.
+        On success: `{"status": "success", "message": "..."}`.
+        On failure: `{"status": "error", "message": "..."}`.
     """
     if not server_name:
         return {"status": "error", "message": "Server name cannot be empty."}
 
     logger.debug(f"API: Validating existence of server '{server_name}'...")
     try:
-        # Instantiate the server; this may raise config errors if settings are bad.
+        # Instantiating BedrockServer also validates underlying configurations.
         server = BedrockServer(server_name)
 
-        # is_installed() is a simple boolean check.
+        # is_installed() returns a simple boolean.
         if server.is_installed():
             logger.debug(f"API: Server '{server_name}' validation successful.")
             return {
@@ -55,13 +82,12 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
             logger.debug(
                 f"API: Validation failed for '{server_name}'. It is not correctly installed."
             )
-            # Providing more specific info from the server object could be useful.
             return {
                 "status": "error",
                 "message": f"Server '{server_name}' is not installed or the installation is invalid.",
             }
 
-    except BSMError as e:  # Catches config issues from BedrockServer init
+    except BSMError as e:  # Catches config issues from BedrockServer instantiation.
         logger.error(
             f"API: Configuration error during validation for '{server_name}': {e}",
             exc_info=True,
@@ -79,19 +105,21 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
 
 
 def validate_server_name_format(server_name: str) -> Dict[str, str]:
-    """
-    Validates the format of a potential server name using core utility functions.
+    """Validates the format of a potential server name.
 
-    This function does not depend on an existing server instance.
+    This is a stateless check and does not verify if the server actually exists.
+    It is used to ensure new server names are valid before creation.
 
     Args:
         server_name: The server name string to validate.
 
     Returns:
-        A dictionary indicating success or failure with a message.
+        A dictionary with a 'status' of 'success' or 'error', and a 'message'
+        if validation fails.
     """
     logger.debug(f"API: Validating format for '{server_name}'")
     try:
+        # Delegate validation to the core utility function.
         core_utils.core_validate_server_name_format(server_name)
         logger.debug(f"API: Format valid for '{server_name}'.")
         return {"status": "success", "message": "Server name format is valid."}
@@ -104,15 +132,23 @@ def validate_server_name_format(server_name: str) -> Dict[str, str]:
 
 
 def update_server_statuses() -> Dict[str, Any]:
-    """
-    Updates status in config files based on runtime checks for all servers.
+    """Reconciles the status in config files with the runtime state for all servers.
+
+    This function iterates through all detected servers and updates the 'status'
+    field in their respective configuration files to match whether the server
+    process is actually running.
+
+    Returns:
+        A dictionary summarizing the operation, including any errors that
+        occurred for individual servers.
     """
     updated_servers_count = 0
     error_messages = []
     logger.debug("API: Updating all server statuses...")
 
     try:
-        # Use the BSM instance to get the list of servers
+        # get_servers_data() from the manager now handles the reconciliation internally.
+        # It returns both the server data and any errors encountered during discovery.
         all_servers_data, discovery_errors = bsm.get_servers_data()
         if discovery_errors:
             error_messages.extend(discovery_errors)
@@ -123,12 +159,13 @@ def update_server_statuses() -> Dict[str, Any]:
                 continue
 
             try:
-
+                # The status is already reconciled by the get_servers_data call.
                 logger.info(
                     f"API: Status for '{server_name}' was reconciled by get_servers_data."
                 )
                 updated_servers_count += 1
             except Exception as e:
+                # This block catches errors if processing a specific server's data fails post-discovery.
                 msg = f"Could not update status for server '{server_name}': {e}"
                 logger.error(f"API.update_server_statuses: {msg}", exc_info=True)
                 error_messages.append(msg)
@@ -153,8 +190,14 @@ def update_server_statuses() -> Dict[str, Any]:
 
 
 def attach_to_screen_session(server_name: str) -> Dict[str, str]:
-    """
-    Attempts to attach to the screen session of a running Bedrock server. (Linux-specific).
+    """Attaches the current terminal to a server's screen session (Linux-only).
+
+    Args:
+        server_name: The name of the server whose screen session to attach to.
+
+    Returns:
+        A dictionary with the operation status and a message. Returns an error
+        on non-Linux systems or if the server is not running in a screen.
     """
     if platform.system() != "Linux":
         return {
@@ -174,8 +217,7 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
             logger.warning(f"API: {msg}")
             return {"status": "error", "message": msg}
 
-        # The core logic for attaching is simple enough to live here or in a dedicated method.
-        # Assuming core_utils.core_execute_screen_attach is still the preferred way.
+        # Delegate the actual screen command execution to the core utility.
         screen_session_name = f"bedrock-{server.server_name}"
         success, message = core_utils.core_execute_screen_attach(screen_session_name)
 
@@ -205,8 +247,10 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
 
 
 def get_system_and_app_info() -> Dict[str, Any]:
-    """
-    Retrieves system information and application version using the BedrockServerManager instance.
+    """Retrieves basic system and application information.
+
+    Returns:
+        A dictionary containing the OS type and the application version.
     """
     logger.debug("API: Requesting system and app info.")
     try:
@@ -225,21 +269,35 @@ def server_lifecycle_manager(
     start_after: bool = True,
     restart_on_success_only: bool = False,
 ):
-    """
-    Context manager to handle stopping a server before an operation and
-    restarting it afterward, using the BedrockServer class.
+    """A context manager to safely stop and restart a server for an operation.
+
+    This manager will stop a server if it is running, yield control to the
+    wrapped code block, and then handle restarting the server in its `finally`
+    clause, ensuring the server attempts to return to its original state even
+    if the operation fails.
 
     Args:
-        server_name: The name of the server.
-        stop_before: If True, stop the server if it's running.
-        start_after: If True, restart the server if it was stopped by this manager.
-        restart_on_success_only: If True, only attempt restart if the managed
-                                 block completed without exceptions.
+        server_name: The name of the server to manage.
+        stop_before: If True, the server will be stopped if it's running before
+            the `with` block is entered.
+        start_after: If True, the server will be restarted after the `with`
+            block if it was running initially. Defaults to True.
+        restart_on_success_only: If True, the server will only be restarted if
+            the `with` block completes without raising an exception.
+            Defaults to False.
+
+    Yields:
+        None.
+
+    Raises:
+        ServerStartError: If the server fails to restart after the operation.
+        Exception: Re-raises any exception that occurs within the `with` block.
     """
     server = BedrockServer(server_name)
     was_running = False
     operation_succeeded = True
 
+    # If the operation doesn't require a server stop, just yield and exit.
     if not stop_before:
         logger.debug(
             f"Context Mgr: Stop/Start not flagged for '{server_name}'. Skipping."
@@ -248,6 +306,7 @@ def server_lifecycle_manager(
         return
 
     try:
+        # --- PRE-OPERATION: STOP SERVER ---
         if server.is_running():
             was_running = True
             logger.info(f"Context Mgr: Server '{server_name}' is running. Stopping...")
@@ -255,6 +314,7 @@ def server_lifecycle_manager(
             if stop_result.get("status") == "error":
                 error_msg = f"Failed to stop server '{server_name}': {stop_result.get('message')}. Aborted."
                 logger.error(error_msg)
+                # Do not proceed if the server can't be stopped.
                 return {"status": "error", "message": error_msg}
             logger.info(f"Context Mgr: Server '{server_name}' stopped.")
         else:
@@ -262,18 +322,23 @@ def server_lifecycle_manager(
                 f"Context Mgr: Server '{server_name}' is not running. No stop needed."
             )
 
-        yield  # The wrapped operation runs here
+        # Yield control to the wrapped code block.
+        yield
 
     except Exception:
+        # If an error occurs in the `with` block, record it and re-raise.
         operation_succeeded = False
         logger.error(
             f"Context Mgr: Exception occurred during managed operation for '{server_name}'.",
             exc_info=True,
         )
-        raise  # Re-raise the exception after logging it
+        raise
     finally:
+        # --- POST-OPERATION: RESTART SERVER ---
+        # Only restart if the server was running initially and `start_after` is true.
         if was_running and start_after:
             should_restart = True
+            # If `restart_on_success_only` is set, check if the operation failed.
             if restart_on_success_only and not operation_succeeded:
                 should_restart = False
                 logger.warning(
@@ -283,7 +348,7 @@ def server_lifecycle_manager(
             if should_restart:
                 logger.info(f"Context Mgr: Restarting server '{server_name}'...")
                 try:
-                    # Using the API function for detached mode is often best here
+                    # Use the API function to ensure detached mode and proper handling.
                     start_result = api_start_server(server_name, mode="detached")
                     if start_result.get("status") == "error":
                         raise ServerStartError(
@@ -297,7 +362,7 @@ def server_lifecycle_manager(
                         f"Context Mgr: FAILED to restart '{server_name}': {e}",
                         exc_info=True,
                     )
-                    # Decide if this should be a critical failure
+                    # If the original operation succeeded, the failure to restart
+                    # becomes the primary error to report.
                     if operation_succeeded:
-                        # If the main operation was fine, the failure to restart becomes the primary error.
                         raise

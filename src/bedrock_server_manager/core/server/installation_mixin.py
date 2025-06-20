@@ -35,7 +35,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
 
         Calls super().__init__ for proper multiple inheritance setup.
         Relies on attributes (like server_name, server_dir, logger,
-        bedrock_executable_path, settings, os_type, _server_specific_config_dir,
+        bedrock_executable_path, settings, os_type, server_config_dir,
         get_pid_file_path) and methods (like is_running, stop) from other
         mixins or the base class.
         """
@@ -147,7 +147,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         """
         Deletes all data associated with this Bedrock server, including its installation
         directory (self.server_dir), its JSON configuration folder
-        (self._server_specific_config_dir), its backups (if BACKUP_DIR configured),
+        (self.server_config_dir), its backups (if BACKUP_DIR configured),
         and its systemd service file (on Linux).
 
         Raises:
@@ -156,11 +156,11 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         """
         # server_name is self.server_name
         # base_dir is self.base_dir
-        # effective_config_dir for the server's JSON config is self._server_specific_config_dir
+        # effective_config_dir for the server's JSON config is self.server_config_dir
         # global_app_config_dir for PID files is self.app_config_dir
 
         server_install_dir = self.server_dir  # from BaseMixin
-        server_json_config_subdir = self._server_specific_config_dir  # from BaseMixin
+        server_json_config_subdir = self.server_config_dir  # from BaseMixin
 
         backup_base_dir = self.settings.get("BACKUP_DIR")
         server_backup_dir_path = None
