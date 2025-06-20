@@ -107,7 +107,7 @@ class ServerSystemdMixin(BedrockServerBaseMixin):
                 exec_start_command=exec_start,
                 exec_stop_command=exec_stop,
                 exec_start_pre_command=exec_start_pre,
-                service_type="forking",
+                service_type="simple",
                 restart_policy="on-failure",
                 restart_sec=10,
                 after_targets="network.target",

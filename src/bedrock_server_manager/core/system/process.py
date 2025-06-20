@@ -19,6 +19,7 @@ import platform
 import sys
 from typing import Optional, List, Dict, Callable, Union
 
+
 # psutil is an optional dependency, but required for most functions here.
 try:
     import psutil
@@ -93,7 +94,7 @@ class GuardedProcess:
 
 
 def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
-    """Constructs the full, absolute path for a PID file.
+    """Constructs the full, absolute path for a generic PID file.
 
     Args:
         config_dir: The application's configuration directory.
@@ -113,6 +114,39 @@ def get_pid_file_path(config_dir: str, pid_filename: str) -> str:
     return os.path.join(config_dir, pid_filename)
 
 
+def get_bedrock_server_pid_file_path(server_name: str, config_dir: str) -> str:
+    """Constructs the standardized path to a Bedrock server's PID file.
+
+    This helper creates a path to a PID file within a server-specific
+    subdirectory of the main application configuration directory.
+
+    Args:
+        server_name: The name of the server instance.
+        config_dir: The main configuration directory for the application.
+
+    Returns:
+        The absolute path to where the server's PID file should be located.
+
+    Raises:
+        MissingArgumentError: If `server_name` or `config_dir` is empty.
+        AppFileNotFoundError: If the server-specific config subdirectory does
+            not exist.
+    """
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not config_dir:
+        raise MissingArgumentError("Configuration directory cannot be empty.")
+
+    server_config_path = os.path.join(config_dir, server_name)
+    if not os.path.isdir(server_config_path):
+        raise AppFileNotFoundError(
+            server_config_path, f"Configuration directory for server '{server_name}'"
+        )
+
+    pid_filename = f"bedrock_{server_name}.pid"
+    return os.path.join(server_config_path, pid_filename)
+
+
 def read_pid_from_file(pid_file_path: str) -> Optional[int]:
     """Reads and validates a PID from a specified file.
 
@@ -124,40 +158,30 @@ def read_pid_from_file(pid_file_path: str) -> Optional[int]:
         Returns `None` if the PID file does not exist.
 
     Raises:
-        FileOperationError: If the file exists but is empty, unreadable, or
-            contains non-integer content.
+        FileOperationError: If the file exists but is unreadable or contains
+            non-integer content.
     """
     if not os.path.isfile(pid_file_path):
         logger.debug(f"PID file '{pid_file_path}' not found.")
         return None
-
     try:
         with open(pid_file_path, "r") as f:
             pid_str = f.read().strip()
-        if not pid_str:
-            raise FileOperationError(f"PID file '{pid_file_path}' is empty.")
-
-        # Try to convert the file content to an integer.
-        try:
-            pid = int(pid_str)
-            logger.info(f"Found PID {pid} in file '{pid_file_path}'.")
-            return pid
-        except ValueError:
+        if not pid_str.isdigit():
             raise FileOperationError(
-                f"Invalid content in PID file '{pid_file_path}'. Expected an integer, got '{pid_str}'."
+                f"Invalid content in PID file '{pid_file_path}': '{pid_str}'."
             )
-    except OSError as e:
+        return int(pid_str)
+    except (OSError, ValueError) as e:
         raise FileOperationError(
-            f"Error reading PID file '{pid_file_path}': {e}"
-        ) from e
-    except Exception as e:
-        raise FileOperationError(
-            f"Unexpected error reading PID file '{pid_file_path}': {e}"
+            f"Error reading or parsing PID file '{pid_file_path}': {e}"
         ) from e
 
 
 def write_pid_to_file(pid_file_path: str, pid: int):
     """Writes a process ID to the specified file, overwriting existing content.
+
+    This function will create the parent directory if it does not exist.
 
     Args:
         pid_file_path: The path to the PID file.
@@ -167,6 +191,7 @@ def write_pid_to_file(pid_file_path: str, pid: int):
         FileOperationError: If an `OSError` occurs during file writing.
     """
     try:
+        os.makedirs(os.path.dirname(pid_file_path), exist_ok=True)
         with open(pid_file_path, "w") as f:
             f.write(str(pid))
         logger.info(f"Saved PID {pid} to '{pid_file_path}'.")
@@ -227,7 +252,7 @@ def launch_detached_process(command: List[str], pid_file_path: str) -> int:
     if platform.system() == "Windows":
         # Prevents the new process from opening a console window.
         creation_flags = subprocess.CREATE_NO_WINDOW
-    elif platform.system() in ("Linux", "Darwin"):
+    else:  # Linux, Darwin, etc.
         # Ensures the child process does not terminate when the parent does.
         start_new_session = True
 
@@ -254,126 +279,158 @@ def launch_detached_process(command: List[str], pid_file_path: str) -> int:
 def verify_process_identity(
     pid: int,
     expected_executable_path: Optional[str] = None,
+    expected_cwd: Optional[str] = None,
     expected_command_args: Optional[Union[str, List[str]]] = None,
-    custom_verification_callback: Optional[Callable[[List[str]], bool]] = None,
 ):
     """Verifies if a process matches an expected signature.
 
-    Checks the process's executable path, command-line arguments, or a custom
-    callback to confirm it's the process we expect it to be.
+    Checks the process's executable path, current working directory (CWD),
+    and/or specific command-line arguments to confirm it's the process we
+    expect it to be.
 
     Args:
         pid: The process ID to verify.
-        expected_executable_path: The expected path of the main executable.
-        expected_command_args: A specific argument or list of arguments
-            expected in the command line.
-        custom_verification_callback: A callable that receives the process's
-            command line (as a list of strings) and returns True for a match.
+        expected_executable_path: Optional expected path of the main executable.
+        expected_cwd: Optional expected current working directory of the process.
+        expected_command_args: Optional specific argument(s) expected in the command line.
 
     Raises:
         SystemError: If `psutil` is not available or fails.
         ServerProcessError: If the process does not exist or does not match
             the expected signature.
         PermissionsError: If access to process information is denied.
-        UserInputError: If an invalid combination of arguments is provided.
-        MissingArgumentError: If no verification method is provided.
+        MissingArgumentError: If no verification criteria are provided.
     """
     if not PSUTIL_AVAILABLE:
         raise SystemError("psutil package is required for process verification.")
-
-    # Validate that the caller provided a valid combination of verification methods.
-    if custom_verification_callback and (
-        expected_executable_path or expected_command_args
-    ):
-        raise UserInputError(
-            "Cannot provide both a custom_verification_callback and other verification arguments."
+    if not any([expected_executable_path, expected_cwd, expected_command_args]):
+        raise MissingArgumentError(
+            "At least one verification criteria must be provided."
         )
-    if not custom_verification_callback and not (
-        expected_executable_path or expected_command_args
-    ):
-        raise MissingArgumentError("At least one verification method must be provided.")
 
     try:
-        process = psutil.Process(pid)
-        cmdline = process.cmdline()
-        proc_name = process.name()
+        proc = psutil.Process(pid)
+        # Use oneshot() for performance, as it caches process info for subsequent calls.
+        with proc.oneshot():
+            proc_name = proc.name()
+            proc_exe = proc.exe()
+            proc_cwd = proc.cwd()
+            proc_cmdline = proc.cmdline()
     except psutil.NoSuchProcess:
         raise ServerProcessError(
             f"Process with PID {pid} does not exist for verification."
         )
     except psutil.AccessDenied:
-        raise PermissionsError(
-            f"Access denied when trying to get command line for PID {pid}."
-        )
+        raise PermissionsError(f"Access denied when trying to get info for PID {pid}.")
     except psutil.Error as e_psutil:
         raise SystemError(f"Error getting process info for PID {pid}: {e_psutil}.")
 
-    if not cmdline:
-        raise ServerProcessError(
-            f"Process PID {pid} (Name: {proc_name}) has an empty command line and cannot be verified."
-        )
-
-    # --- Custom Verification (highest priority) ---
-    if custom_verification_callback:
-        if not custom_verification_callback(cmdline):
-            raise ServerProcessError(
-                f"Custom verification failed for PID {pid} (Cmd: {' '.join(cmdline)})."
-            )
-        logger.info(f"Process {pid} verified by custom callback.")
-        return
-
-    # --- Standard Verification (executable and/or arguments) ---
-    executable_matches = True
+    mismatches = []
+    # Verify Executable Path
     if expected_executable_path:
-        executable_matches = False
-        try:
-            # Compare real, resolved paths to handle symlinks correctly.
-            actual_proc_exe_resolved = os.path.realpath(cmdline[0])
-            expected_exe_resolved = os.path.realpath(expected_executable_path)
-            if actual_proc_exe_resolved.lower() == expected_exe_resolved.lower():
-                executable_matches = True
-        except (OSError, FileNotFoundError, IndexError):
-            # Fallback to basename matching if path resolution fails.
-            if cmdline and os.path.basename(cmdline[0]) == os.path.basename(
-                expected_executable_path
-            ):
-                executable_matches = True
-                logger.debug(f"Matched PID {pid} executable by basename: {cmdline[0]}")
-            else:
-                logger.warning(f"Could not resolve or match executable for PID {pid}.")
+        expected_exe_norm = os.path.normcase(os.path.abspath(expected_executable_path))
+        proc_exe_norm = os.path.normcase(os.path.abspath(proc_exe))
+        if proc_exe_norm != expected_exe_norm:
+            mismatches.append(
+                f"Executable path mismatch (Expected: '{expected_exe_norm}', Got: '{proc_exe_norm}')"
+            )
 
-    arguments_present = True
+    # Verify Current Working Directory
+    if expected_cwd:
+        expected_cwd_norm = os.path.normcase(os.path.abspath(expected_cwd))
+        proc_cwd_norm = os.path.normcase(os.path.abspath(proc_cwd))
+        if proc_cwd_norm != expected_cwd_norm:
+            mismatches.append(
+                f"CWD mismatch (Expected: '{expected_cwd_norm}', Got: '{proc_cwd_norm}')"
+            )
+
+    # Verify Command Arguments
     if expected_command_args:
         args_to_check = (
             [expected_command_args]
             if isinstance(expected_command_args, str)
             else expected_command_args
         )
-        if args_to_check:
-            proc_args = cmdline[1:]
-            arguments_present = all(arg in proc_args for arg in args_to_check)
+        if not all(arg in proc_cmdline for arg in args_to_check):
+            mismatches.append(
+                f"Argument mismatch (Expected '{args_to_check}' in command line)"
+            )
 
-    if not (executable_matches and arguments_present):
-        verification_details = f"Executable match: {executable_matches}" + (
-            f" (Expected: '{expected_executable_path}')"
-            if expected_executable_path
-            else ""
+    if mismatches:
+        details = ", ".join(mismatches)
+        raise ServerProcessError(
+            f"PID {pid} (Name: {proc_name}) failed verification: {details}. Cmd: '{' '.join(proc_cmdline)}'"
         )
-        if expected_command_args:
-            expected_args_str = (
-                f"'{' '.join(expected_command_args)}'"
-                if isinstance(expected_command_args, list)
-                else f"'{expected_command_args}'"
-            )
-            verification_details += (
-                f", Arguments {expected_args_str} present: {arguments_present}"
-            )
-        mismatched_msg = f"PID {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) does not match expected signature. Verification failed: {verification_details}."
-        raise ServerProcessError(mismatched_msg)
 
-    logger.info(
-        f"Process {pid} (Name: {proc_name}, Cmd: {' '.join(cmdline)}) confirmed against signature."
+    logger.debug(
+        f"Process {pid} (Name: {proc_name}) verified successfully against signature."
     )
+
+
+def get_verified_bedrock_process(
+    server_name: str, server_dir: str, config_dir: str
+) -> Optional["psutil.Process"]:
+    """Finds and verifies the Bedrock server process using its PID file.
+
+    This function encapsulates the entire logic of:
+    1. Finding the server-specific PID file.
+    2. Reading the PID from the file.
+    3. Checking if a process with that PID is running.
+    4. Verifying the process's executable path and working directory.
+
+    Args:
+        server_name: The name of the server instance.
+        server_dir: The server's installation directory.
+        config_dir: The main application configuration directory.
+
+    Returns:
+        A `psutil.Process` object if the server is running and verified,
+        otherwise `None`.
+    """
+    if not PSUTIL_AVAILABLE:
+        logger.error("'psutil' is required for this function. Returning None.")
+        return None
+
+    try:
+        pid_file_path = get_bedrock_server_pid_file_path(server_name, config_dir)
+        pid = read_pid_from_file(pid_file_path)
+
+        if pid is None or not is_process_running(pid):
+            if pid:
+                logger.debug(
+                    f"Stale PID {pid} found for '{server_name}'. Process not running."
+                )
+            return None
+
+        # Define the platform-specific executable name to verify against.
+        exe_name = (
+            "bedrock_server.exe" if platform.system() == "Windows" else "bedrock_server"
+        )
+        expected_exe = os.path.join(server_dir, exe_name)
+
+        # Verify the running process matches our expectations.
+        verify_process_identity(
+            pid, expected_executable_path=expected_exe, expected_cwd=server_dir
+        )
+
+        return psutil.Process(pid)
+
+    except (
+        AppFileNotFoundError,
+        FileOperationError,
+        ServerProcessError,
+        PermissionsError,
+    ) as e:
+        # These are expected "not running" or "mismatch" scenarios.
+        logger.debug(f"Verification failed for server '{server_name}': {e}")
+        return None
+    except (SystemError, Exception) as e:
+        # These are more serious, unexpected errors.
+        logger.error(
+            f"Unexpected error getting verified process for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return None
 
 
 def terminate_process_by_pid(
@@ -382,7 +439,8 @@ def terminate_process_by_pid(
     """Gracefully terminates, then forcefully kills, a process by its PID.
 
     This function first sends a SIGTERM signal and waits for the process to
-    exit. If it doesn't exit within the timeout, it sends a SIGKILL signal.
+    exit. If it doesn't exit within the `terminate_timeout`, it sends a
+    SIGKILL signal and waits for `kill_timeout`.
 
     Args:
         pid: The PID of the process to terminate.
@@ -398,7 +456,7 @@ def terminate_process_by_pid(
         raise SystemError("psutil package is required to terminate processes.")
     try:
         process = psutil.Process(pid)
-        # Attempt graceful termination first.
+        # 1. Attempt graceful termination first.
         logger.info(f"Attempting graceful termination (SIGTERM) for PID {pid}...")
         process.terminate()
         try:
@@ -406,7 +464,7 @@ def terminate_process_by_pid(
             logger.info(f"Process {pid} terminated gracefully.")
             return
         except psutil.TimeoutExpired:
-            # If graceful termination fails, resort to forceful killing.
+            # 2. If graceful termination fails, resort to forceful killing.
             logger.warning(
                 f"Process {pid} did not terminate gracefully within {terminate_timeout}s. Attempting kill (SIGKILL)..."
             )
@@ -417,7 +475,7 @@ def terminate_process_by_pid(
     except psutil.NoSuchProcess:
         # This is not an error; the process is already gone.
         logger.warning(
-            f"Process with PID {pid} was already stopped during termination attempt."
+            f"Process with PID {pid} disappeared or was already stopped during termination attempt."
         )
     except psutil.AccessDenied:
         raise PermissionsError(
@@ -447,4 +505,4 @@ def remove_pid_file_if_exists(pid_file_path: str) -> bool:
         except OSError as e:
             logger.warning(f"Could not remove PID file '{pid_file_path}': {e}")
             return False
-    return True  # File didn't exist, which is a success state.
+    return True
