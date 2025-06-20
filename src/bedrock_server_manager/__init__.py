@@ -4,6 +4,7 @@ from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core.downloader import BedrockDownloader
 from bedrock_server_manager.core.bedrock_server import BedrockServer
+from bedrock_server_manager.plugins.plugin_base import PluginBase
 from bedrock_server_manager.core.system.task_scheduler import LinuxTaskScheduler
 from bedrock_server_manager.core.system.task_scheduler import WindowsTaskScheduler
 
