@@ -101,7 +101,7 @@ class Settings:
             "CONTENT_DIR": os.path.join(app_data_dir_val, "content"),
             "DOWNLOAD_DIR": os.path.join(app_data_dir_val, ".downloads"),
             "BACKUP_DIR": os.path.join(app_data_dir_val, "backups"),
-            "PLUGINS_DIR": os.path.join(app_data_dir_val, "plugins"),
+            "PLUGIN_DIR": os.path.join(app_data_dir_val, "plugins"),
             "LOG_DIR": os.path.join(app_data_dir_val, ".logs"),
             "BACKUP_KEEP": 3,
             "DOWNLOAD_KEEP": 3,
