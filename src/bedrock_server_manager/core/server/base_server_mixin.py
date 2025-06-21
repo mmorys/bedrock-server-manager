@@ -17,6 +17,7 @@ from functools import cached_property
 
 # Local application imports.
 from bedrock_server_manager.config.const import EXPATH as CONST_EXPATH
+from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.error import MissingArgumentError, ConfigurationError
 
@@ -114,9 +115,8 @@ class BedrockServerBaseMixin:
         # --- State attributes for other mixins ---
         # These are initialized here but primarily used by other mixins.
 
-        # For process resource monitoring (used by ProcessMixin).
-        self._last_proc_cpu_times_stats: Optional[Any] = None
-        self._last_proc_sample_time: Optional[float] = None
+        # For process resource monitoring.
+        self._resource_monitor = system_base.ResourceMonitor()
 
         # For managing a server process started in the foreground on Windows (used by ProcessMixin).
         self._windows_popen_process: Optional[subprocess.Popen] = None

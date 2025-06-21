@@ -12,11 +12,11 @@ import shutil
 import logging
 import socket
 import stat
-import subprocess
+import threading
 import os
 import time
 from datetime import timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 # Third-party imports. psutil is optional but required for process monitoring.
 try:
@@ -294,100 +294,80 @@ def delete_path_robustly(path_to_delete: str, item_description: str) -> bool:
 
 
 # --- RESOURCE MONITOR ---
-# Global state for calculating CPU percentage over time.
-_last_cpu_times: Dict[int, Any] = {}
-_last_timestamp: Optional[float] = None
-# --- End Global State ---
-
-
-def _get_bedrock_process_info(
-    server_name: str, server_dir: str, config_dir: str
-) -> Optional[Dict[str, Any]]:
-    """Gets resource usage info for a running Bedrock server process.
-
-    This function finds the server process, verifies it, and then uses `psutil`
-    to gather statistics like CPU usage, memory, and uptime.
-
-    Args:
-        server_name: The name of the server.
-        server_dir: The installation directory of the server.
-        config_dir: The base configuration directory where the PID file is stored.
-
-    Returns:
-        A dictionary containing process info, or `None` if the server is not
-        running, not verified, or `psutil` is unavailable.
+class ResourceMonitor:
     """
-    global _last_timestamp
+    A generic, singleton process resource monitor.
 
-    if not all([server_name, server_dir, config_dir]):
-        raise MissingArgumentError(
-            "server_name, server_dir, and config_dir cannot be empty."
-        )
-    if not PSUTIL_AVAILABLE:
-        raise SystemError("'psutil' is required for process monitoring.")
+    This class ensures only one instance exists, preserving the state
+    needed for calculations across multiple calls from different parts of the
+    application. It correctly stores state on a per-process basis.
+    """
 
-    # Find and verify the Bedrock process.
-    bedrock_process = core_process.get_verified_bedrock_process(
-        server_name, server_dir, config_dir
-    )
+    _instance = None
+    _lock = threading.Lock()
 
-    if bedrock_process is None:
-        return None
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
-    # Get Process Details
-    pid = bedrock_process.pid
-    try:
-        # Use oneshot() for performance, as it caches process info for subsequent calls.
-        with bedrock_process.oneshot():
-            # --- CPU Delta Calculation ---
-            # To get a meaningful CPU percentage, we compare CPU times between two points in time.
-            current_cpu_times = bedrock_process.cpu_times()
-            current_timestamp = time.time()
-            cpu_percent = 0.0
+    def __init__(self):
+        """Initializes the state for resource monitoring."""
+        if not hasattr(self, "_initialized"):
+            # THE FIX: Store a tuple of (cpu_times, timestamp) per PID.
+            self._last_readings: Dict[int, Tuple[Any, float]] = {}
+            self._initialized = True
 
-            if pid in _last_cpu_times and _last_timestamp is not None:
-                time_delta = current_timestamp - _last_timestamp
-                if time_delta > 0.01:  # Avoid division by zero
-                    prev_cpu_times = _last_cpu_times[pid]
-                    process_delta = (current_cpu_times.user - prev_cpu_times.user) + (
-                        current_cpu_times.system - prev_cpu_times.system
-                    )
-                    cpu_percent = (process_delta / time_delta) * 100
+    def get_stats(self, process: psutil.Process) -> Optional[Dict[str, Any]]:
+        """
+        Calculates resource usage statistics for the given process.
+        """
+        if not isinstance(process, psutil.Process):
+            raise TypeError("Input must be a valid psutil.Process object.")
 
-            # Store the current times for the next calculation.
-            _last_cpu_times[pid] = current_cpu_times
-            _last_timestamp = current_timestamp
-            # --- End CPU Delta Calculation ---
+        pid = process.pid
+        try:
+            with process.oneshot():
+                current_cpu_times = process.cpu_times()
+                current_timestamp = time.time()
+                cpu_percent = 0.0
 
-            memory_mb = bedrock_process.memory_info().rss / (1024 * 1024)
-            uptime_seconds = current_timestamp - bedrock_process.create_time()
-            uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+                # --- CORRECTED CPU Delta Calculation ---
+                # Check if we have a previous reading for THIS specific PID.
+                if pid in self._last_readings:
+                    # Unpack the previous reading for this PID.
+                    prev_cpu_times, prev_timestamp = self._last_readings[pid]
 
-            process_info = {
-                "pid": pid,
-                "cpu_percent": round(cpu_percent, 1),
-                "memory_mb": round(memory_mb, 1),
-                "uptime": uptime_str,
-            }
-            logger.debug(f"Retrieved process info for '{server_name}': {process_info}")
-            return process_info
+                    time_delta = current_timestamp - prev_timestamp
+                    if time_delta > 0.01:
+                        process_delta = (
+                            current_cpu_times.user - prev_cpu_times.user
+                        ) + (current_cpu_times.system - prev_cpu_times.system)
 
-    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-        logger.warning(
-            f"Process PID {pid} for '{server_name}' disappeared or access denied: {e}"
-        )
-        # Clean up stale CPU time data if the process is gone.
-        if pid in _last_cpu_times:
-            try:
-                del _last_cpu_times[pid]
-            except KeyError:
-                pass
-        return None
-    except Exception as detail_err:
-        logger.error(
-            f"Error getting details for PID {pid} ('{server_name}'): {detail_err}",
-            exc_info=True,
-        )
-        raise ServerProcessError(
-            f"Error getting process details for '{server_name}': {detail_err}"
-        ) from detail_err
+                        cpu_count = (
+                            psutil.cpu_count() or 1
+                        )  # Avoid division by zero on exotic systems
+                        cpu_percent = (process_delta / time_delta) * 100 / cpu_count
+
+                # Store the new reading (tuple) for THIS specific PID for the next call.
+                self._last_readings[pid] = (current_cpu_times, current_timestamp)
+                # --- End of Correction ---
+
+                memory_mb = process.memory_info().rss / (1024 * 1024)
+                uptime_seconds = current_timestamp - process.create_time()
+                uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
+                return {
+                    "pid": pid,
+                    "cpu_percent": round(cpu_percent, 1),
+                    "memory_mb": round(memory_mb, 1),
+                    "uptime": uptime_str,
+                }
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            if pid in self._last_readings:
+                del self._last_readings[pid]
+            return None
+        except Exception as e:
+            raise SystemError(f"Failed to get stats for PID {pid}: {e}") from e

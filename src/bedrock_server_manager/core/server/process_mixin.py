@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 # Local application imports.
 from bedrock_server_manager.core.system import linux as system_linux_proc
 from bedrock_server_manager.core.system import windows as system_windows_proc
+from bedrock_server_manager.core.system import process as system_process
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.error import (
@@ -401,14 +402,34 @@ class ServerProcessMixin(BedrockServerBaseMixin):
                 self.set_status_in_config("STOPPED")
 
     def get_process_info(self) -> Optional[Dict[str, Any]]:
-        """Gets resource usage information for the running server process.
+        """
+        Gets resource usage information for the running server process.
 
         This includes PID, CPU usage percentage, memory in MB, and uptime.
+        It finds the process and then delegates measurement to a resource monitor.
 
         Returns:
             A dictionary containing process information, or `None` if the
             server is not running or `psutil` is not available.
         """
-        return system_base._get_bedrock_process_info(
-            self.server_name, self.server_dir, self.app_config_dir
-        )
+        try:
+            # 1. Find the process. This logic is specific to Bedrock servers and
+            #    is handled perfectly by your existing function.
+            process_obj = system_process.get_verified_bedrock_process(
+                self.server_name, self.server_dir, self.app_config_dir
+            )
+
+            # If the process is not running or not verified, it will be None.
+            if process_obj is None:
+                return None
+
+            # 2. Delegate the measurement of the found process to our generic monitor.
+            return self._resource_monitor.get_stats(process_obj)
+
+        except (SystemError, Exception) as e:
+            # Log the error if something unexpected happens during monitoring
+            self.logger.error(
+                f"Failed to get process info for '{self.server_name}': {e}",
+                exc_info=True,
+            )
+            return None
