@@ -73,7 +73,6 @@ def startup_checks(
             logger.warning(
                 f"Directory path for '{name}' is missing in settings. Skipping creation."
             )
-        # No need to check for non-string types, as the check above handles it.
 
     logger.debug("Startup checks completed.")
 

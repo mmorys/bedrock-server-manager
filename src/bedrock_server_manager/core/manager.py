@@ -59,6 +59,9 @@ class BedrockServerManager:
             f"BedrockServerManager initialized using settings from: {self.settings.config_path}"
         )
 
+        self.capabilities = self._check_system_capabilities()
+        self._log_capability_warnings()
+
         # Initialize core attributes from the settings object.
         try:
             self._config_dir = self.settings.config_dir
@@ -466,44 +469,48 @@ class BedrockServerManager:
         This is for internal use during initialization.
         """
         caps = {
-            'scheduler': False,      # For crontab or schtasks
-            'service_manager': False # For systemctl
+            "scheduler": False,  # For crontab or schtasks
+            "service_manager": False,  # For systemctl
         }
         os_name = self.get_os_type()
 
         if os_name == "Linux":
             if shutil.which("crontab"):
-                caps['scheduler'] = True
+                caps["scheduler"] = True
             if shutil.which("systemctl"):
-                caps['service_manager'] = True
-        
+                caps["service_manager"] = True
+
         elif os_name == "Windows":
             if shutil.which("schtasks"):
-                caps['scheduler'] = True
+                caps["scheduler"] = True
             # Eventual support for Windows service management
-            if shutil.which("sc"):
-                 caps['service_manager'] = True
+            if shutil.which("sc.exe"):
+                caps["service_manager"] = True
 
         logger.debug(f"System capability check results: {caps}")
         return caps
 
     def _log_capability_warnings(self):
         """Logs warnings for any missing capabilities."""
-        if not self.capabilities['scheduler']:
-            logger.warning("Scheduler command (crontab/schtasks) not found. Scheduling features will be disabled in UIs.")
-        
-        if self.get_os_type() == "Linux" and not self.capabilities['service_manager']:
-            logger.warning("systemctl command not found. Systemd service features will be disabled in UIs.")
-            
+        if not self.capabilities["scheduler"]:
+            logger.warning(
+                "Scheduler command (crontab/schtasks) not found. Scheduling features will be disabled in UIs."
+            )
+
+        if self.get_os_type() == "Linux" and not self.capabilities["service_manager"]:
+            logger.warning(
+                "systemctl command not found. Systemd service features will be disabled in UIs."
+            )
+
     @property
     def can_schedule_tasks(self) -> bool:
         """Returns True if a system scheduler (crontab, schtasks) is available."""
-        return self.capabilities['scheduler']
+        return self.capabilities["scheduler"]
 
     @property
     def can_manage_services(self) -> bool:
         """Returns True if a system service manager (systemctl) is available."""
-        return self.capabilities['service_manager']
+        return self.capabilities["service_manager"]
 
     # --- Server Discovery ---
     def validate_server(self, server_name: str) -> bool:

@@ -1,15 +1,14 @@
 # bedrock_server_manager/cli/system.py
-"""
-Defines the `bsm system` command group for OS-level server integrations.
+"""Defines the `bsm system` command group for OS-level server integrations.
 
 This module provides commands to create and manage OS services (e.g.,
 systemd on Linux) for autostarting servers and to monitor the resource
-usage (CPU, memory) of running server processes.
+usage (CPU, memory) of running server processes. It intelligently adapts
+to the host system's capabilities, enabling or disabling features as needed.
 """
 
 import functools
 import logging
-import platform
 import time
 from typing import Callable, Optional
 
@@ -18,47 +17,63 @@ import questionary
 
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_response
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import BSMError
 
 logger = logging.getLogger(__name__)
 
 
-# --- Custom Decorator for OS-specific commands ---
+def requires_service_manager(func: Callable) -> Callable:
+    """A decorator that restricts a command to systems with a service manager.
 
+    This decorator checks the central `BedrockServerManager` instance to see
+    if a known service manager (like systemd) is available on the system PATH.
 
-def linux_only(func: Callable) -> Callable:
-    """A decorator that restricts a Click command to run only on Linux."""
+    Args:
+        func: The Click command function to wrap.
+
+    Returns:
+        The wrapped function, which will first perform the capability check.
+    """
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if platform.system() != "Linux":
+    @click.pass_context
+    def wrapper(ctx: click.Context, *args, **kwargs):
+        """Wrapper that performs the capability check before execution."""
+        bsm: BedrockServerManager = ctx.obj["bsm"]
+        if not bsm.can_manage_services:
             click.secho(
-                f"Error: The '{func.__name__.replace('_', '-')}' command is only available on Linux.",
+                f"Error: The '{func.__name__.replace('_', '-')}' command requires a system service manager "
+                "(like systemd on Linux), which was not found in the system PATH.",
                 fg="red",
             )
             raise click.Abort()
+        # If check passes, call the original command function.
+        # Note: The context is automatically passed by @click.pass_context.
         return func(*args, **kwargs)
 
     return wrapper
 
 
 def _perform_service_configuration(
+    bsm: BedrockServerManager,
     server_name: str,
     autoupdate: Optional[bool],
     setup_systemd: Optional[bool],
     enable_autostart: Optional[bool],
 ):
-    """
-    Core logic to apply service configurations by calling the system API.
+    """Applies service configurations by calling the system API.
 
     This non-interactive function is the backend for all configuration actions.
-    It only acts on settings that are not None.
+    It only acts on settings that are not None and respects the system's
+    detected capabilities.
 
     Args:
+        bsm: The central BedrockServerManager instance.
         server_name: The name of the server to configure.
-        autoupdate: The desired state for autoupdate, or None to ignore.
-        setup_systemd: If True, creates/updates the systemd service. If None, ignores.
-        enable_autostart: Sets the systemd service autostart state. If None, ignores.
+        autoupdate: The desired state for autoupdate.
+        setup_systemd: If True, creates/updates the systemd service.
+        enable_autostart: Sets the systemd service autostart state.
 
     Raises:
         BSMError: If any of the underlying API calls fail.
@@ -70,70 +85,75 @@ def _perform_service_configuration(
             response, f"Autoupdate setting configured to '{autoupdate_value}'."
         )
 
-    os_name = platform.system()
-    if os_name == "Linux":
+    # Only proceed with service configuration if the capability exists.
+    if bsm.can_manage_services:
         if setup_systemd:
             enable_flag = enable_autostart if enable_autostart is not None else False
             click.secho("\n--- Configuring Systemd Service (Linux) ---", bold=True)
             response = system_api.create_systemd_service(server_name, enable_flag)
             _handle_api_response(response, "Systemd service configured successfully.")
         elif enable_autostart is not None:
-            # Handle enabling/disabling an existing service if setup is not requested
+            # Handle enabling/disabling an existing service if setup is not requested.
+            click.echo("Applying autostart setting to existing service...")
             if enable_autostart:
-                enable_service(server_name, _called_internally=True)
+                response = system_api.enable_server_service(server_name)
+                _handle_api_response(response, "Service enabled successfully.")
             else:
-                disable_service(server_name, _called_internally=True)
+                response = system_api.disable_server_service(server_name)
+                _handle_api_response(response, "Service disabled successfully.")
 
 
-def interactive_service_workflow(server_name: str):
-    """Guides the user through an interactive session to configure services."""
-    os_name = platform.system()
-    if os_name not in ("Windows", "Linux"):
-        click.secho(
-            f"Automated service configuration is not supported on this OS ({os_name}).",
-            fg="red",
-        )
-        return
+def interactive_service_workflow(bsm: BedrockServerManager, server_name: str):
+    """Guides the user through an interactive session to configure services.
 
+    Args:
+        bsm: The central BedrockServerManager instance.
+        server_name: The name of the server being configured.
+    """
     click.secho(
         f"\n--- Interactive Service Configuration for '{server_name}' ---", bold=True
     )
 
-    # 1. Gather Autoupdate preference
+    # 1. Gather Autoupdate preference.
     autoupdate_choice = questionary.confirm(
         "Enable check for updates when the server starts?", default=False
     ).ask()
 
-    # 2. Gather Linux Systemd preferences
+    # 2. Gather Linux Systemd preferences, only if available.
     setup_systemd_choice = None
     enable_autostart_choice = None
-    if os_name == "Linux":
-        click.secho("\n--- Systemd Service (Linux) ---", bold=True)
-        if questionary.confirm(
-            "Create or update the systemd service file for this server?", default=True
-        ).ask():
-            setup_systemd_choice = True
-            enable_autostart_choice = questionary.confirm(
-                "Enable the service to start automatically when you log in?",
-                default=False,
-            ).ask()
+    if bsm.can_manage_services:
+        if bsm.get_os_type() == "Linux":
+            click.secho("\n--- Systemd Service (Linux) ---", bold=True)
+            if questionary.confirm(
+                "Create or update the systemd service file for this server?",
+                default=True,
+            ).ask():
+                setup_systemd_choice = True
+                enable_autostart_choice = questionary.confirm(
+                    "Enable the service to start automatically when you log in?",
+                    default=False,
+                ).ask()
+    else:
+        click.secho(
+            "\nSystem service manager (systemd) not found. Skipping service setup.",
+            fg="yellow",
+        )
 
-    # 3. Execute the configuration
+    # 3. Execute the configuration.
     if autoupdate_choice is None and setup_systemd_choice is None:
         click.secho("No changes selected.", fg="cyan")
         return
 
     click.echo("\nApplying chosen settings...")
     _perform_service_configuration(
+        bsm=bsm,
         server_name=server_name,
         autoupdate=autoupdate_choice,
         setup_systemd=setup_systemd_choice,
         enable_autostart=enable_autostart_choice,
     )
     click.secho("\nService configuration complete.", fg="green", bold=True)
-
-
-# --- Click Command Group ---
 
 
 @click.group()
@@ -167,7 +187,9 @@ def system():
     default=None,
     help="[Linux Only] Enable or disable the systemd service to start on login.",
 )
+@click.pass_context
 def configure_service(
+    ctx: click.Context,
     server_name: str,
     autoupdate_flag: Optional[bool],
     setup_systemd: bool,
@@ -179,8 +201,17 @@ def configure_service(
     wizard to guide you through the setup. If any flags are used, it applies
     the specified settings directly, making it suitable for scripting.
     """
+    bsm: BedrockServerManager = ctx.obj["bsm"]
+
+    # Add a guard clause to prevent misuse of flags on incapable systems.
+    if setup_systemd and not bsm.can_manage_services:
+        click.secho(
+            "Error: --setup-systemd flag is not available because a service manager (systemd) was not found.",
+            fg="red",
+        )
+        return
+
     try:
-        # Check if any flags were used. If not, launch the interactive workflow.
         no_flags_used = (
             autoupdate_flag is None and not setup_systemd and autostart_flag is None
         )
@@ -189,14 +220,14 @@ def configure_service(
                 "No configuration flags provided; starting interactive setup...",
                 fg="yellow",
             )
-            interactive_service_workflow(server_name)
+            interactive_service_workflow(bsm, server_name)
             return
 
-        # Direct, non-interactive logic
         click.secho(
             f"\nApplying service configuration for '{server_name}'...", bold=True
         )
         _perform_service_configuration(
+            bsm=bsm,
             server_name=server_name,
             autoupdate=autoupdate_flag,
             setup_systemd=setup_systemd,
@@ -216,7 +247,7 @@ def configure_service(
     required=True,
     help="Name of the server service to enable.",
 )
-@linux_only
+@requires_service_manager
 def enable_service(server_name: str):
     """Enables the systemd service to autostart at boot (Linux only)."""
     click.echo(f"Attempting to enable systemd service for '{server_name}'...")
@@ -236,7 +267,7 @@ def enable_service(server_name: str):
     required=True,
     help="Name of the server service to disable.",
 )
-@linux_only
+@requires_service_manager
 def disable_service(server_name: str):
     """Disables the systemd service from autostarting at boot (Linux only)."""
     click.echo(f"Attempting to disable systemd service for '{server_name}'...")

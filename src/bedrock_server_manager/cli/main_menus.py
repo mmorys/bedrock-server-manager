@@ -1,11 +1,11 @@
 # bedrock_server_manager/cli/main_menus.py
-"""
-Defines the main interactive menu flows for the application.
+"""Defines the main interactive menu flows for the application.
 
 This module uses `questionary` to create a user-friendly, menu-driven
 interface that acts as a front-end to the application's underlying `click`
 commands. It provides a guided experience for users who prefer not to use
-direct command-line flags.
+direct command-line flags. The menus are built dynamically based on the
+host system's capabilities.
 """
 
 import logging
@@ -15,6 +15,7 @@ import questionary
 from questionary import Separator
 
 from bedrock_server_manager.config.const import app_name_title
+from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import UserExitError
 from bedrock_server_manager.utils.get_utils import _get_splash_text
 
@@ -30,6 +31,7 @@ def _world_management_menu(ctx: click.Context, server_name: str):
         ctx: The current click command context.
         server_name: The name of the server being managed.
     """
+    # This sub-menu is static as it doesn't depend on OS capabilities.
     world_group = ctx.obj["cli"].get_command(ctx, "world")
     if not world_group:
         click.secho("Error: World command group not found.", fg="red")
@@ -54,7 +56,7 @@ def _world_management_menu(ctx: click.Context, server_name: str):
         command = menu_map.get(choice)
         if command:
             ctx.invoke(command, server_name=server_name)
-            break  # Exit sub-menu after one action for simplicity
+            break
 
 
 def _backup_restore_menu(ctx: click.Context, server_name: str):
@@ -64,6 +66,7 @@ def _backup_restore_menu(ctx: click.Context, server_name: str):
         ctx: The current click command context.
         server_name: The name of the server being managed.
     """
+    # This sub-menu is also static.
     backup_group = ctx.obj["cli"].get_command(ctx, "backup")
     if not backup_group:
         click.secho("Error: Backup command group not found.", fg="red")
@@ -88,7 +91,7 @@ def _backup_restore_menu(ctx: click.Context, server_name: str):
         command = menu_map.get(choice)
         if command:
             ctx.invoke(command, server_name=server_name)
-            break  # Exit sub-menu after one action
+            break
 
 
 def main_menu(ctx: click.Context):
@@ -106,7 +109,6 @@ def main_menu(ctx: click.Context):
             click.secho(f"{app_name_title} - Main Menu", fg="magenta", bold=True)
             click.secho(_get_splash_text(), fg="yellow")
 
-            # Display the server status table at the top of the main menu
             ctx.invoke(list_servers, loop=False, server_name_filter=None)
 
             choice = questionary.select(
@@ -132,11 +134,9 @@ def main_menu(ctx: click.Context):
                     manage_server_menu(ctx, server_name)
 
         except UserExitError:
-            # This is a clean exit signal, so we re-raise it for the main entry point to catch.
             click.secho("\nExiting application. Goodbye!", fg="green")
             raise
         except (click.Abort, KeyboardInterrupt):
-            # A sub-menu was cancelled (e.g., Ctrl+C), so we loop back to the main menu.
             click.echo("\nAction cancelled. Returning to the main menu.")
             click.pause()
         except Exception as e:
@@ -148,18 +148,22 @@ def main_menu(ctx: click.Context):
 def manage_server_menu(ctx: click.Context, server_name: str):
     """Displays the menu for managing a specific, existing server.
 
+    This menu is built dynamically based on the host system's capabilities,
+    ensuring that only relevant options are presented to the user.
+
     Args:
         ctx: The current click command context.
         server_name: The name of the server being managed.
     """
     cli = ctx.obj["cli"]
+    bsm: BedrockServerManager = ctx.obj["bsm"]
 
     def get_cmd(group_name, cmd_name):
-        """Helper to safely retrieve a command object."""
+        """Helper to safely retrieve a command object from the CLI."""
         group = cli.get_command(ctx, group_name)
         return group.get_command(ctx, cmd_name) if group else None
 
-    # ---- Define menu sections as separate dictionaries for clarity ----
+    # ---- Define static menu sections ----
     control_map = {
         "Start Server": (get_cmd("server", "start"), {}),
         "Stop Server": (get_cmd("server", "stop"), {}),
@@ -176,18 +180,28 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "Configure Allowlist": (get_cmd("allowlist", "add"), {}),
         "Configure Permissions": (get_cmd("permissions", "set"), {}),
     }
-    system_map = {
-        "Configure System Service": (get_cmd("system", "configure-service"), {}),
-        "Monitor Resource Usage": (get_cmd("system", "monitor"), {}),
-        "Schedule Tasks (cron/Windows)": cli.get_command(ctx, "schedule"),
-        "Attach to Console (Linux only)": (cli.get_command(ctx, "attach-console"), {}),
-    }
     maintenance_map = {
         "Update Server": (get_cmd("server", "update"), {}),
         "Delete Server": (get_cmd("server", "delete"), {}),
     }
 
-    # ---- Combine all maps for easy lookup after a choice is made ----
+    # ---- Dynamically build the system menu based on capabilities ----
+    system_map = {}
+    if bsm.can_manage_services:
+        system_map["Configure System Service"] = (
+            get_cmd("system", "configure-service"),
+            {},
+        )
+
+    system_map["Monitor Resource Usage"] = (get_cmd("system", "monitor"), {})
+
+    if bsm.can_schedule_tasks:
+        system_map["Schedule Tasks (cron/schtasks)"] = cli.get_command(ctx, "schedule")
+
+    if bsm.get_os_type() == "Linux":
+        system_map["Attach to Console"] = (cli.get_command(ctx, "attach-console"), {})
+
+    # ---- Combine all maps for easy lookup ----
     full_menu_map = {
         **control_map,
         **management_map,
@@ -197,7 +211,7 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         "Back to Main Menu": "back",
     }
 
-    # ---- Build the choices list for questionary using Separators ----
+    # ---- Build the final choices list for questionary ----
     menu_choices = [
         Separator("--- Server Control ---"),
         *control_map.keys(),
@@ -205,18 +219,25 @@ def manage_server_menu(ctx: click.Context, server_name: str):
         *management_map.keys(),
         Separator("--- Configuration ---"),
         *config_map.keys(),
-        Separator("--- System & Monitoring ---"),
-        *system_map.keys(),
-        Separator("--- Maintenance ---"),
-        *maintenance_map.keys(),
-        Separator("--------------------"),
-        "Back to Main Menu",
     ]
+
+    if system_map:  # Only show this section if there are system commands available
+        menu_choices.extend(
+            [Separator("--- System & Monitoring ---"), *system_map.keys()]
+        )
+
+    menu_choices.extend(
+        [
+            Separator("--- Maintenance ---"),
+            *maintenance_map.keys(),
+            Separator("--------------------"),
+            "Back to Main Menu",
+        ]
+    )
 
     while True:
         click.clear()
         click.secho(f"--- Managing Server: {server_name} ---", fg="magenta", bold=True)
-        # Display a mini status for the selected server
         ctx.invoke(list_servers, server_name_filter=server_name)
 
         choice = questionary.select(
@@ -229,42 +250,29 @@ def manage_server_menu(ctx: click.Context, server_name: str):
             return
 
         action = full_menu_map.get(choice)
-        if action is None:
-            # Should not happen with the new structure, but good practice
+        if not action:
             continue
 
         try:
-            # Case 1: Action is a sub-menu function (e.g., _backup_restore_menu)
             if callable(action) and not hasattr(action, "commands"):
                 action(ctx, server_name)
-
-            # Case 2: Action is a tuple (command_object, kwargs)
             elif isinstance(action, tuple):
                 command_obj, kwargs = action
                 if not command_obj:
-                    continue  # Command not found
-
-                # Special handling for commands that need extra interactive input
+                    continue
                 if command_obj.name == "send-command":
                     cmd_str = questionary.text("Enter command to send:").ask()
                     if cmd_str:
                         kwargs["command_parts"] = cmd_str.split()
                     else:
                         continue
-
-                param_name = "server_name"
-                kwargs[param_name] = server_name
-
+                kwargs["server_name"] = server_name
                 ctx.invoke(command_obj, **kwargs)
-
                 if command_obj.name == "delete":
                     click.echo("\nServer has been deleted. Returning to main menu.")
                     click.pause()
-                    return  # Exit this menu completely
-
-            # Case 3: Action is a Click Group (e.g., the 'schedule' group)
+                    return
             elif hasattr(action, "commands"):
-                # Invoke the group, which will then run its own interactive menu
                 ctx.invoke(action, server_name=server_name)
 
             click.pause("\nPress any key to return to the server menu...")
