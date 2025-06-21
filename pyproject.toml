@@ -42,6 +42,12 @@ Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 "Bug Tracker" = "https://github.com/DMedina559/bedrock-server-manager/issues"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md"
 
+[project.optional-dependencies]
+dev = [
+    "black",
+    "pytest",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["bedrock_server_manager*"]
