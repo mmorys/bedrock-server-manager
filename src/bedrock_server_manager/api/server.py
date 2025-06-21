@@ -16,6 +16,18 @@ import time
 import shutil
 import subprocess
 
+# Guarded import for Windows-specific functionality
+if platform.system() == "Windows":
+    try:
+        import win32serviceutil
+
+        PYWIN32_AVAILABLE = True
+    except ImportError:
+        PYWIN32_AVAILABLE = False
+else:
+    PYWIN32_AVAILABLE = False
+
+
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
 from bedrock_server_manager.plugins.api_bridge import register_api
@@ -156,9 +168,10 @@ def start_server(
 
     Handles autoupdating (if enabled) and platform-specific start methods.
     - 'direct': Runs the server in the current process (blocks until server stops).
-    - 'detached': Starts the server in the background. On Linux, it uses
-      systemd if a service file is present. Otherwise (and on all other
-      platforms like Windows), it launches a new, independent background process.
+    - 'detached': Starts the server in the background using the OS-native
+      service manager (systemd on Linux, Windows Services on Windows) if a
+      service is configured. Otherwise, it launches a new, independent
+      background process as a fallback.
 
     Args:
         server_name: The name of the server to start.
@@ -219,41 +232,62 @@ def start_server(
 
         elif mode == "detached":
             server.set_custom_config_value("start_method", "detached")
+            use_service_manager = False
 
-            # --- Linux/systemd Detached Start (Preferred method on Linux) ---
-            if (
-                platform.system() == "Linux"
-                and server.check_systemd_service_file_exists()
-            ):
-                logger.debug(f"API: Using systemctl to start server '{server_name}'.")
+            # --- OS-Specific Service Start (Preferred Method) ---
+            if platform.system() == "Linux" and server.check_service_exists():
+                logger.debug(f"API: Using systemd to start server '{server_name}'.")
                 systemctl_cmd_path = shutil.which("systemctl")
                 if systemctl_cmd_path:
-                    service_name = f"bedrock-{server.server_name}"
                     try:
                         subprocess.run(
-                            [systemctl_cmd_path, "--user", "start", service_name],
+                            [
+                                systemctl_cmd_path,
+                                "--user",
+                                "start",
+                                server.systemd_service_name_full,
+                            ],
                             check=True,
                             capture_output=True,
                             text=True,
                         )
-                        logger.info(
-                            f"Successfully initiated start for systemd service '{service_name}'."
-                        )
-                        return {
+                        use_service_manager = True
+                        result = {
                             "status": "success",
                             "message": f"Server '{server_name}' started via systemd.",
                         }
                     except subprocess.CalledProcessError as e:
                         logger.warning(
-                            f"systemd service '{service_name}' failed to start: {e.stderr.strip()}. "
+                            f"systemd service '{server.systemd_service_name_full}' failed to start: {e.stderr.strip()}. "
                             "Falling back to generic detached process."
                         )
                 else:
                     logger.warning(
                         "'systemctl' command not found, falling back to generic detached process."
                     )
+            elif (
+                platform.system() == "Windows"
+                and PYWIN32_AVAILABLE
+                and server.check_service_exists()
+            ):
+                logger.debug(f"API: Using Windows Service to start '{server_name}'.")
+                try:
+                    win32serviceutil.StartService(server.windows_service_name)
+                    use_service_manager = True
+                    result = {
+                        "status": "success",
+                        "message": f"Server '{server_name}' started via Windows Service.",
+                    }
+                except Exception as e:
+                    logger.warning(
+                        f"Windows service '{server.windows_service_name}' failed to start: {e}. "
+                        "Falling back to generic detached process."
+                    )
 
-            # --- Generic Detached Start (Fallback for Linux, Default for Windows/Other) ---
+            if use_service_manager:
+                return result
+
+            # --- Generic Detached Start (Fallback for All OSes) ---
             logger.info(
                 f"API: Starting server '{server_name}' using generic detached process launcher."
             )
@@ -282,13 +316,6 @@ def start_server(
             }
             return result
 
-        # This should not be reachable.
-        result = {
-            "status": "error",
-            "message": "Internal error: Invalid mode fell through.",
-        }
-        return result
-
     except BSMError as e:
         logger.error(f"API: Failed to start server '{server_name}': {e}", exc_info=True)
         result = {
@@ -312,17 +339,15 @@ def start_server(
         )
 
 
-def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
+def stop_server(server_name: str) -> Dict[str, str]:
     """Stops the specified Bedrock server.
 
-    On Linux, it will attempt to use systemd to stop the service if it is
-    active. Otherwise, it performs a direct stop by sending commands and
-    terminating the process. On Windows, it always uses the direct method.
+    It will attempt to use the OS-native service manager (systemd or Windows
+    Services) to stop the service if it is active. Otherwise, it performs a
+    direct stop by sending commands and terminating the process.
 
     Args:
         server_name: The name of the server to stop.
-        mode: The stop mode (primarily for consistency, logic adapts).
-            Defaults to "direct".
 
     Returns:
         A dictionary with the operation status and a message.
@@ -333,14 +358,10 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    mode = mode.lower()
-    if platform.system() == "Windows":
-        mode = "direct"  # Windows only supports direct stop logic.
-
     # --- Plugin Hook ---
     plugin_manager.trigger_guarded_event("before_server_stop", server_name=server_name)
 
-    logger.info(f"API: Attempting to stop server '{server_name}' (mode: {mode})...")
+    logger.info(f"API: Attempting to stop server '{server_name}'...")
     result = {}
     try:
         server = BedrockServer(server_name)
@@ -357,39 +378,53 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             }
             return result
 
-        # On Linux, prefer to use systemd if the service is active.
-        if (
-            platform.system() == "Linux"
-            and server.check_systemd_service_file_exists()
-            and server.is_systemd_service_active()
-        ):
-            logger.debug(
-                f"API: Attempting to stop server '{server_name}' using systemd..."
-            )
-            systemctl_cmd_path = shutil.which("systemctl")
-            service_name = f"bedrock-{server.server_name}"
+        # --- OS-Specific Service Stop (Preferred Method) ---
+        service_stop_initiated = False
+        if platform.system() == "Linux" and server.is_service_active():
+            logger.debug(f"API: Attempting to stop '{server_name}' using systemd...")
             try:
+                systemctl_cmd_path = shutil.which("systemctl")
                 subprocess.run(
-                    [systemctl_cmd_path, "--user", "stop", service_name],
+                    [
+                        systemctl_cmd_path,
+                        "--user",
+                        "stop",
+                        server.systemd_service_name_full,
+                    ],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
-                logger.info(
-                    f"API: Successfully initiated stop for systemd service '{service_name}'."
-                )
+                service_stop_initiated = True
                 result = {
                     "status": "success",
                     "message": f"Server '{server_name}' stop initiated via systemd.",
                 }
-                return result
             except (subprocess.CalledProcessError, FileNotFoundError) as e:
                 logger.warning(
-                    f"API: Stopping via systemctl failed: {e}. Falling back to direct stop.",
-                    exc_info=True,
+                    f"API: Stopping via systemd failed: {e}. Falling back to direct stop."
+                )
+        elif platform.system() == "Windows" and server.is_service_active():
+            logger.debug(
+                f"API: Attempting to stop '{server_name}' via Windows Service..."
+            )
+            try:
+                win32serviceutil.StopService(server.windows_service_name)
+                service_stop_initiated = True
+                result = {
+                    "status": "success",
+                    "message": f"Server '{server_name}' stop initiated via Windows Service.",
+                }
+            except Exception as e:
+                logger.warning(
+                    f"API: Stopping via Windows Service failed: {e}. Falling back to direct stop."
                 )
 
-        # Fallback to direct stop method (send command, then terminate).
+        if service_stop_initiated:
+            return result
+
+        # --- Generic Fallback Stop ---
+        logger.debug(f"API: Using direct stop method for server '{server_name}'.")
         try:
             server.send_command("say Stopping server in 10 seconds...")
             time.sleep(10)
@@ -606,8 +641,9 @@ def delete_server_data(
 ) -> Dict[str, str]:
     """Deletes all data associated with a Bedrock server.
 
-    This is a destructive operation. It will remove the server's installation
-    directory, its configuration file, and its backup directory.
+    This is a destructive operation. It will stop the server, remove its
+    system service, and delete its installation directory, configuration file,
+    and backup directory.
 
     Args:
         server_name: The name of the server to delete.
@@ -648,7 +684,6 @@ def delete_server_data(
                 )
 
             stop_result = stop_server(server_name)
-            # If the stop fails, abort the deletion to prevent data corruption.
             if stop_result.get("status") == "error":
                 error_msg = f"Failed to stop server '{server_name}' before deletion: {stop_result.get('message')}. Deletion aborted."
                 logger.error(error_msg)
@@ -657,6 +692,18 @@ def delete_server_data(
 
             time.sleep(3)  # Wait for process to terminate fully.
             logger.info(f"API: Server '{server_name}' stopped.")
+
+        # Attempt to remove the associated system service before deleting files.
+        if server.check_service_exists():
+            logger.info(f"API: Removing system service for '{server_name}'...")
+            try:
+                server.disable_service()
+                server.remove_service()
+                logger.info(f"API: System service for '{server_name}' removed.")
+            except BSMError as e:
+                logger.warning(
+                    f"API: Could not remove system service for '{server_name}': {e}. Continuing with data deletion."
+                )
 
         logger.debug(
             f"API: Proceeding with deletion of data for server '{server_name}'..."
