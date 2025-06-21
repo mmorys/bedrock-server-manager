@@ -66,12 +66,6 @@ Web Server: Easily manage your Minecraft servers in your browser, even if you're
 
 This app requires `Python 3.10` or later, and you will need `pip` installed
 
-On Linux, you'll also need:
-
-*  screen
-*  systemd
-
-
 ## Installation
 
 ### Install The Package:
