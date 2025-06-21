@@ -11,10 +11,6 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-# Third-party imports
-import questionary
-import click
-
 # Local imports
 from bedrock_server_manager.config.settings import settings
 
@@ -59,6 +55,7 @@ def startup_checks(
             else None
         ),
         "DOWNLOAD_DIR": settings.get("DOWNLOAD_DIR"),
+        "PLUGIN_DIR": settings.get("PLUGIN_DIR"),
         "BACKUP_DIR": settings.get("BACKUP_DIR"),
         "LOG_DIR": settings.get("LOG_DIR"),
     }
