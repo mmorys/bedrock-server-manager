@@ -212,3 +212,29 @@ Start/Stop methods have been revamped and require the servers be restarted with 
 1. Fix panorama in web ui
 2. Fix server process in web api
 3. Fix task commands in web ui
+
+## 3.4.0
+
+1. BREAKING CHANGE: linux systemd service files have been changed
+   - You must reconfigure autoupdate to update your systemd service files
+   - Note: Linux users, I apologize for all the times you have had to reconfigure your systemd service files, but this is the last time I promise!
+     - This is due to the type being changed to `simple` instead of `forking`
+     - BSM now directly manages the bedrock_server process, as a result screen has been removed as a dependency
+     - You can remove screen from your system if you no longer need it with the command `sudo apt remove screen`
+2. The bigest feature since the web server was added: PLUGINS!
+   - Plugins are a new way to extend the functionality of BSM
+   - Plugins can be installed by placing the .py file in the plugins folder (`./bedrock-server-manager/plugins` by default)
+   - Plugins can be enabled/disabled with the `plugins.json` file located in the config directory (`./bedrock-server-manager/.config`)
+     - Plugins are disabled by default when first installed, you must enable them in the `plugins.json` file
+   - See the [docs/PLUGIN_DOCS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/PLUGIN_DOC.md) file for more information on how to create and use plugins
+3. BREAKING CHANGE: Removed /restore/all route
+   - Moved to /restore/action similar to the backup route, all is now a type parameter in the json body
+4. BREAKING CHANGE: Removed /world_name route
+   - Use the get properties route instead
+5. Changed /backups/list/ to /backup/list/
+6. Optimized various html routes
+   - HTML routes now only render and dont pull data from the backend, that logic is now handled by the javascript
+   - As a result, the html routes are now much faster and more responsive
+   - The servers table in the web ui now dynamically updates when a server is started or stopped instead of requiring a page refresh
+7. Improved resource usage monitoring
+   - Refactored function into a genric ResourceMonitor class allowing for more flexibility in the future (web server usage?)
