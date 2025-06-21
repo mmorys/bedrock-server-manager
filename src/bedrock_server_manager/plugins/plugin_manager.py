@@ -3,7 +3,7 @@
 
 This module contains the `PluginManager`, which is the central component of the
 plugin system. It is responsible for:
-- Finding plugin files from the designated directory.
+- Finding plugin files from designated directories, including a default one.
 - Synchronizing a `plugins.json` configuration file with available plugins.
 - Loading only the plugins that are enabled in the configuration file.
 - Instantiating plugin classes and providing them with an API bridge and logger.
@@ -18,7 +18,7 @@ import logging
 import threading
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 from bedrock_server_manager.config.settings import settings
@@ -40,17 +40,25 @@ class PluginManager:
     def __init__(self):
         """Initializes the PluginManager.
 
-        It determines the plugin directory and configuration path from application
+        It determines the plugin directories and configuration path from application
         settings, creates them if they don't exist, and prepares to load plugins.
         """
-        app_data_path = Path(settings.app_data_dir)
-        self.plugin_dir = app_data_path / "plugins"
-        self.config_path = app_data_path / "plugins.json"
+
+        self.settings = settings
+        user_plugin_dir = Path(self.settings.get("PLUGIN_DIR"))
+        default_plugin_dir = Path(__file__).parent / "default"
+
+        # A list of directories to search for plugins.
+        self.plugin_dirs: List[Path] = [user_plugin_dir, default_plugin_dir]
+
+        self.config_path = Path(self.settings.config_dir) / "plugins.json"
         self.plugin_config: Dict[str, bool] = {}
         self.plugins: List[PluginBase] = []
         self.api_bridge = PluginAPI()
-        # Ensure the plugin directory exists so the application doesn't crash.
-        self.plugin_dir.mkdir(parents=True, exist_ok=True)
+
+        # Ensure all configured plugin directories exist.
+        for directory in self.plugin_dirs:
+            directory.mkdir(parents=True, exist_ok=True)
 
     def _load_config(self) -> Dict[str, bool]:
         """Loads the plugin configuration from plugins.json."""
@@ -78,11 +86,31 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Failed to save plugin config: {e}", exc_info=True)
 
+    def _find_plugin_path(self, plugin_name: str) -> Optional[Path]:
+        """
+        Searches all configured plugin directories for a given plugin file.
+
+        It searches directories in the order they appear in `self.plugin_dirs`.
+        The first match found is returned, allowing user plugins to override
+        default plugins if `user_plugin_dir` is listed first.
+
+        Args:
+            plugin_name: The name of the plugin (without the .py extension).
+
+        Returns:
+            A Path object to the plugin file, or None if not found.
+        """
+        for directory in self.plugin_dirs:
+            path = directory / f"{plugin_name}.py"
+            if path.exists():
+                return path
+        return None
+
     def _synchronize_config_with_disk(self):
         """
-        Scans the plugin directory and updates plugins.json.
+        Scans all plugin directories and updates plugins.json.
 
-        Any new .py files found in the directory that are not in the config
+        Any new .py files found in any directory that are not in the config
         will be added and set to `false` (disabled) by default. This makes
         it easy for administrators to enable new plugins.
         """
@@ -90,10 +118,15 @@ class PluginManager:
         self.plugin_config = self._load_config()
         config_changed = False
 
-        # Find all potential plugins on disk
-        available_plugins = {
-            p.stem for p in self.plugin_dir.glob("*.py") if not p.name.startswith("_")
-        }
+        # Find all potential plugins on disk from all directories
+        available_plugins = set()
+        for directory in self.plugin_dirs:
+            if not directory.exists():
+                continue
+            found_in_dir = {
+                p.stem for p in directory.glob("*.py") if not p.name.startswith("_")
+            }
+            available_plugins.update(found_in_dir)
 
         # Add new plugins found on disk to the config file as disabled
         for plugin_name in available_plugins:
@@ -128,7 +161,7 @@ class PluginManager:
         it, and calls its `on_load` method.
         """
         self._synchronize_config_with_disk()
-        logger.info(f"Loading plugins from: {self.plugin_dir}")
+        logger.info(f"Loading plugins from: {[str(d) for d in self.plugin_dirs]}")
         logger.info(f"Using configuration file: {self.config_path}")
 
         for plugin_name, is_enabled in self.plugin_config.items():
@@ -136,11 +169,11 @@ class PluginManager:
                 logger.debug(f"Skipping disabled plugin: {plugin_name}")
                 continue
 
-            path = self.plugin_dir / f"{plugin_name}.py"
-            if not path.exists():
+            path = self._find_plugin_path(plugin_name)
+            if path is None:
                 logger.warning(
                     f"Plugin '{plugin_name}' is enabled in config but its file "
-                    f"was not found at {path}. Skipping."
+                    f"was not found in any configured directory. Skipping."
                 )
                 continue
 
@@ -164,7 +197,9 @@ class PluginManager:
                         # Instantiate the plugin, passing it the API bridge and logger.
                         instance = obj(plugin_name, self.api_bridge, plugin_logger)
                         self.plugins.append(instance)
-                        logger.info(f"Successfully loaded plugin: {plugin_name}")
+                        logger.info(
+                            f"Successfully loaded plugin: {plugin_name} from {path.parent}"
+                        )
                         # Call the on_load hook for the newly loaded plugin.
                         self.dispatch_event(instance, "on_load")
                         break  # Assume one plugin class per file

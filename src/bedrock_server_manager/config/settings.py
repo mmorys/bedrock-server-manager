@@ -101,6 +101,7 @@ class Settings:
             "CONTENT_DIR": os.path.join(app_data_dir_val, "content"),
             "DOWNLOAD_DIR": os.path.join(app_data_dir_val, ".downloads"),
             "BACKUP_DIR": os.path.join(app_data_dir_val, "backups"),
+            "PLUGINS_DIR": os.path.join(app_data_dir_val, "plugins"),
             "LOG_DIR": os.path.join(app_data_dir_val, ".logs"),
             "BACKUP_KEEP": 3,
             "DOWNLOAD_KEEP": 3,
@@ -162,6 +163,7 @@ class Settings:
             self.get("CONTENT_DIR"),
             self.get("DOWNLOAD_DIR"),
             self.get("BACKUP_DIR"),
+            self.get("PLUGIN_DIR"),
             self.get("LOG_DIR"),
         ]
         for dir_path in dirs_to_check:
