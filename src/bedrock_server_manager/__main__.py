@@ -91,7 +91,6 @@ def cli(ctx: click.Context):
 
         logger.info(f"Starting {app_name_title} v{__version__}...")
         startup_checks(app_name_title, __version__)
-        system_base.check_prerequisites()
         api_utils.update_server_statuses()
 
     except Exception as setup_e:
