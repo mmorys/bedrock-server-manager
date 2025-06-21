@@ -42,57 +42,6 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 
 
-def check_prerequisites() -> None:
-    """Checks if essential command-line tools are available on the system.
-
-    - On Linux, it checks for `systemctl` and `crontab`.
-    - On Windows, it checks for `schtasks.exe` and recommends `psutil`.
-
-    Raises:
-        SystemError: If a required command is missing on Linux.
-        CommandNotFoundError: If a required command is missing on Windows.
-    """
-    os_name = platform.system()
-    logger.debug(f"Checking prerequisites for operating system: {os_name}")
-
-    if os_name == "Linux":
-        required_commands = [
-            "systemctl",
-            "crontab",
-        ]
-        missing_commands = []
-
-        for command in required_commands:
-            if shutil.which(command) is None:
-                logger.warning(f"Required command '{command}' not found in PATH.")
-                missing_commands.append(command)
-
-        if missing_commands:
-            error_msg = f"Missing required command(s) on Linux: {', '.join(missing_commands)}. Please install them."
-            logger.error(error_msg)
-            raise SystemError(error_msg)
-        else:
-            logger.debug("All required Linux prerequisites appear to be installed.")
-
-    elif os_name == "Windows":
-        if not PSUTIL_AVAILABLE:
-            logger.warning(
-                "'psutil' package not found. Process monitoring features will be unavailable."
-            )
-        if shutil.which("schtasks") is None:
-            error_msg = "'schtasks.exe' command not found. Task scheduling features will be unavailable."
-            logger.error(error_msg)
-            raise CommandNotFoundError("schtasks", message=error_msg)
-        logger.debug(
-            "Windows prerequisites checked (schtasks found, psutil recommended)."
-        )
-
-    else:
-        logger.warning(
-            f"Prerequisite check not implemented for unsupported operating system: {os_name}"
-        )
-
-
 def check_internet_connectivity(
     host: str = "8.8.8.8", port: int = 53, timeout: int = 3
 ) -> None:
