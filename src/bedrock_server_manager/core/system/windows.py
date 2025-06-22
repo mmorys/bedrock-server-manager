@@ -68,94 +68,7 @@ managed_bedrock_servers: Dict[str, Dict[str, Any]] = {}
 # A module-level event to signal a shutdown for servers running in the foreground.
 _foreground_server_shutdown_event = threading.Event()
 
-
-# --- WINDOWS SERVICE IMPLEMENTATION ---
-class BedrockServerWindowsService(win32serviceutil.ServiceFramework):
-    """A pywin32 ServiceFramework class to properly manage the server as a service."""
-    _svc_name_ = "BedrockServerWindowsService_Base"
-    _svc_display_name_ = "Bedrock Server Manager Service"
-    _svc_description_ = "Manages a Minecraft Bedrock Server instance."
-
-    def __init__(self, args):
-        win32serviceutil.ServiceFramework.__init__(self, args)
-        self._svc_name_ = args[0]
-        # Extract the server name (e.g., 'test') from the service name 'bds-test'
-        self.server_name = self._svc_name_.replace("bds-", "", 1)
-        self.server = BedrockServer(self.server_name)
-        self._svc_display_name_ = self.server.windows_service_display_name
-        self.shutdown_event = threading.Event()
-        self.bedrock_process: Optional[subprocess.Popen] = None
-        self.pipe_listener_thread: Optional[threading.Thread] = None
-
-    def SvcStop(self):
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        logger.info(f"Service '{self._svc_name_}': Stop request received.")
-        self.shutdown_event.set()
-        try:
-            pipe_path = PIPE_NAME_TEMPLATE.format(server_name=re.sub(r"\W+", "_", self.server.server_name))
-            with open(pipe_path, "w") as f:
-                pass
-        except Exception:
-            pass
-
-    def SvcDoRun(self):
-        logger.info(f"Service '{self._svc_name_}': SvcDoRun started.")
-        self.ReportServiceStatus(win32service.SERVICE_START_PENDING)
-
-        try:
-            server_exe_path = self.server.bedrock_executable_path
-            pipe_name = PIPE_NAME_TEMPLATE.format(server_name=re.sub(r"\W+", "_", self.server.server_name))
-            output_file = self.server.server_log_path
-            
-            with open(output_file, 'ab') as f:
-                self.bedrock_process = subprocess.Popen(
-                    [server_exe_path],
-                    cwd=self.server.server_dir,
-                    stdin=subprocess.PIPE,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                    text=False, bufsize=0,
-                    creationflags=subprocess.CREATE_NO_WINDOW
-                )
-
-            logger.info(f"Service '{self._svc_name_}': Started Bedrock process PID {self.bedrock_process.pid}.")
-            pid_file_path = self.server.get_pid_file_path()
-            core_process.write_pid_to_file(pid_file_path, self.bedrock_process.pid)
-
-            self.pipe_listener_thread = threading.Thread(
-                target=_main_pipe_server_listener_thread,
-                args=(pipe_name, self.bedrock_process, self.server_name, self.shutdown_event),
-                daemon=True
-            )
-            self.pipe_listener_thread.start()
-
-            self.ReportServiceStatus(win32service.SERVICE_RUNNING)
-            logger.info(f"Service '{self._svc_name_}': Status reported as RUNNING.")
-            self.shutdown_event.wait()
-            logger.info(f"Service '{self._svc_name_}': Shutdown triggered.")
-        
-        except Exception as e:
-            logger.error(f"Service '{self._svc_name_}': Critical error in SvcDoRun: {e}", exc_info=True)
-        
-        finally:
-            if self.bedrock_process and self.bedrock_process.poll() is None:
-                logger.info(f"Service '{self._svc_name_}': Sending 'stop' command.")
-                try:
-                    if self.bedrock_process.stdin and not self.bedrock_process.stdin.closed:
-                        self.bedrock_process.stdin.write(b"stop\r\n")
-                        self.bedrock_process.stdin.flush()
-                        self.bedrock_process.stdin.close()
-                    self.bedrock_process.wait(timeout=settings.get("SERVER_STOP_TIMEOUT_SEC", 30))
-                except (subprocess.TimeoutExpired, OSError, ValueError):
-                    logger.warning(f"Service '{self._svc_name_}': Graceful stop failed, terminating.")
-                    core_process.terminate_process_by_pid(self.bedrock_process.pid)
-
-            if self.pipe_listener_thread and self.pipe_listener_thread.is_alive():
-                self.pipe_listener_thread.join(timeout=3.0)
-
-            core_process.remove_pid_file_if_exists(self.server.get_pid_file_path())
-            logger.info(f"Service '{self._svc_name_}': Cleanup complete.")
-            self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 # NOTE: All functions in this section require Administrator privileges to interact
 # with the Windows Service Control Manager (SCM).
 
@@ -252,7 +165,11 @@ def create_windows_service(
                 win32service.SERVICE_AUTO_START,
                 win32service.SERVICE_ERROR_NORMAL,
                 command,
-                None, 0, None, None, None,
+                None,
+                0,
+                None,
+                None,
+                None,
             )
             logger.info(f"Service '{service_name}' created successfully.")
         else:
@@ -261,21 +178,18 @@ def create_windows_service(
                 scm_handle, service_name, win32service.SERVICE_ALL_ACCESS
             )
 
-            # --- THIS IS THE CORRECTED PART ---
-            # When updating, we must explicitly tell it to leave the account unchanged
-            # by passing None for the service start name.
             win32service.ChangeServiceConfig(
                 service_handle,
                 win32service.SERVICE_NO_CHANGE,  # ServiceType
                 win32service.SERVICE_NO_CHANGE,  # StartType
                 win32service.SERVICE_NO_CHANGE,  # ErrorControl
-                command,                        # BinaryPathName
-                None,                           # LoadOrderGroup
-                0,                              # TagId
-                None,                           # Dependencies
-                None,                           # ServiceStartName (THE FIX IS HERE)
-                None,                           # Password
-                display_name,                   # DisplayName
+                command,  # BinaryPathName
+                None,  # LoadOrderGroup
+                0,  # TagId
+                None,  # Dependencies
+                None,  # ServiceStartName (THE FIX IS HERE)
+                None,  # Password
+                display_name,  # DisplayName
             )
             logger.info(f"Service '{service_name}' command and display name updated.")
 
@@ -292,7 +206,9 @@ def create_windows_service(
             ) from e
         # Check for error 1057 specifically
         elif e.winerror == 1057:
-             raise SystemError(f"Failed to update service '{service_name}': {e.strerror}. This can happen if the service account is misconfigured.") from e
+            raise SystemError(
+                f"Failed to update service '{service_name}': {e.strerror}. This can happen if the service account is misconfigured."
+            ) from e
         else:
             raise SystemError(
                 f"Failed to create/update service '{service_name}': {e.strerror}"

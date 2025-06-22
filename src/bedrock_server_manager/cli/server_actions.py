@@ -28,15 +28,6 @@ from bedrock_server_manager.cli.utils import (
     ServerNameValidator,
 )
 from bedrock_server_manager.error import BSMError
-if platform.system() == "Windows":
-    try:
-        from bedrock_server_manager.core.system.windows import BedrockServerWindowsService, PYWIN32_AVAILABLE
-        if PYWIN32_AVAILABLE:
-            import win32serviceutil
-    except ImportError:
-        PYWIN32_AVAILABLE = False
-else:
-    PYWIN32_AVAILABLE = False
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +46,7 @@ def server():
 @click.option(
     "-m",
     "--mode",
-    type=click.Choice(["direct", "detached", "service"], case_sensitive=False),
+    type=click.Choice(["direct", "detached"], case_sensitive=False),
     default="detached",
     show_default=True,
     help="Start mode: 'detached' runs in background, 'direct' blocks terminal.",
@@ -63,26 +54,6 @@ def server():
 def start_server(server_name: str, mode: str):
     """Starts a specific Bedrock server instance."""
     click.echo(f"Attempting to start server '{server_name}' in {mode} mode...")
-
-    if mode == "service":
-        if platform.system() == "Windows" and PYWIN32_AVAILABLE:
-            # We need to map our generic service class to the specific service
-            # name that the SCM is trying to run.
-            service_name_internal = f"bds-{server_name}"
-            
-            # This tells the framework: "When you receive a command for a service
-            # named 'bds-test_2', you should use the BedrockServerWindowsService class."
-            # This is the robust, intended way to use the library.
-            # We no longer need to touch sys.argv at all.
-            class ServiceHandler(BedrockServerWindowsService):
-                 _svc_name_ = service_name_internal
-                 _svc_display_name_ = f"Bedrock Server ({server_name})"
-
-            win32serviceutil.HandleCommandLine(ServiceHandler)
-            return
-        else:
-            logger.error("'service' mode is for internal use by the Windows SCM only.")
-            sys.exit(1)
 
     try:
         response = server_api.start_server(server_name, mode)

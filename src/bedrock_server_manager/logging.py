@@ -48,7 +48,7 @@ def setup_logging(
     Returns:
         The configured logger instance for "bedrock_server_manager".
     """
-    logger = logging.getLogger("bedrock_server_manager")
+    logger = logging.getLogger()
     logger.setLevel(file_log_level)  # Set the threshold for the logger
 
     # Prevent adding handlers multiple times if this function is called again

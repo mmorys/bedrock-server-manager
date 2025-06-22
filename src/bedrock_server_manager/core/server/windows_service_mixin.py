@@ -11,7 +11,6 @@ Administrator privileges.
 """
 import os
 import subprocess
-import logging
 
 # Local application imports.
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
@@ -101,8 +100,20 @@ class ServerWindowsServiceMixin(BedrockServerBaseMixin):
         description = (
             f"Manages the Minecraft Bedrock Server instance named '{self.server_name}'."
         )
-        command = f'"{self.manager_expath}" server start --server "{self.server_name}" --mode service'
+        quoted_expath = f'{self.manager_expath}'
+        
+        # 2. Quote the server name.
+        quoted_server_name = f'"{self.server_name}"'
 
+        # 3. Build the full command by joining the parts.
+        command_parts = [
+            quoted_expath,
+            "system",
+            "_run-service",
+            "--server",
+            quoted_server_name
+        ]
+        command = " ".join(command_parts)
         self.logger.info(
             f"Creating/updating Windows service '{self.windows_service_name}' for server '{self.server_name}'."
         )
