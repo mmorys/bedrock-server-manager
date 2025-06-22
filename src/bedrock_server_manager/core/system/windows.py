@@ -68,7 +68,6 @@ managed_bedrock_servers: Dict[str, Dict[str, Any]] = {}
 # A module-level event to signal a shutdown for servers running in the foreground.
 _foreground_server_shutdown_event = threading.Event()
 
-        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
 # NOTE: All functions in this section require Administrator privileges to interact
 # with the Windows Service Control Manager (SCM).
 
