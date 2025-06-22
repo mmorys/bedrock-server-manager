@@ -43,11 +43,12 @@ def interactive_plugin_workflow():
             name for name, is_enabled in plugins.items() if is_enabled
         }
         choices = [
-            questionary.Choice(
-                title=name, value=name, checked=is_enabled
-            )
+            questionary.Choice(title=name, value=name, checked=is_enabled)
             for name, is_enabled in sorted(plugins.items())
         ]
+
+        cancel_choice_text = "Cancel (no changes will be made)"
+        choices.extend([cancel_choice_text])
 
         # 3. Prompt the user
         selected_plugins_list = questionary.checkbox(
@@ -58,6 +59,10 @@ def interactive_plugin_workflow():
         # Handle cancellation (user pressed Ctrl+C)
         if selected_plugins_list is None:
             raise click.Abort()
+
+        if cancel_choice_text in selected_plugins_list:
+            click.secho("\nOperation cancelled by user.", fg="yellow")
+            return
 
         # 4. Determine changes
         final_enabled_plugins = set(selected_plugins_list)
