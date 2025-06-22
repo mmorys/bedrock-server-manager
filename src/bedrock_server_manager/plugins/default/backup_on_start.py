@@ -1,4 +1,4 @@
-# ./plugins/auto_backup_on_start.py
+# bedrock_server_manager/plugins/default/auto_backup_on_start.py
 """An example plugin to automatically back up a server before it starts.
 
 This plugin demonstrates how to use the `before_server_start` event hook to

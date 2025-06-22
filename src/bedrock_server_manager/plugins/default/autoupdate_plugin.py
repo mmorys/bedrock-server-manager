@@ -16,9 +16,6 @@ class AutoupdatePlugin(PluginBase):
     Checks for and performs autoupdates before the server starts, if enabled.
     """
 
-    def __init__(self, plugin_name: str, api: PluginAPI, logger: logging.Logger):
-        super().__init__(plugin_name, api, logger)
-
     def on_load(self):
         """Called by the Plugin Manager when the plugin is first loaded."""
         self.logger.info(

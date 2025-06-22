@@ -13,13 +13,9 @@ class ServerLifecycleNotificationsPlugin(PluginBase):
     Handles notifications and delays for server start, stop, restart, delete, and update.
     """
 
-    def __init__(self, plugin_name: str, api: PluginAPI, logger: logging.Logger):
-        super().__init__(plugin_name, api, logger)
-        # Default stop delay, can be made configurable later if needed
+    def on_load(self):
         self.stop_delay_seconds = 10
         self.post_stop_delay_seconds = 3  # For restart and delete scenarios
-
-    def on_load(self):
         """Called by the Plugin Manager when the plugin is first loaded."""
         self.logger.info(
             "ServerLifecycleNotificationsPlugin is loaded and active. It will handle server lifecycle notifications and delays."

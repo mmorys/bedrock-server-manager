@@ -12,9 +12,6 @@ class WorldOperationNotificationsPlugin(PluginBase):
     Handles sending 'say' commands to the server before world operations.
     """
 
-    def __init__(self, plugin_name: str, api: PluginAPI, logger: logging.Logger):
-        super().__init__(plugin_name, api, logger)
-
     def on_load(self):
         """Called by the Plugin Manager when the plugin is first loaded."""
         self.logger.info(
