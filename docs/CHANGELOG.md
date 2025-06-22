@@ -227,6 +227,10 @@ Start/Stop methods have been revamped and require the servers be restarted with 
    - Plugins can be enabled/disabled with the `plugins.json` file located in the config directory (`./bedrock-server-manager/.config`)
      - Plugins are disabled by default when first installed, you must enable them in the `plugins.json` file
    - See the [docs/PLUGIN_DOCS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/PLUGIN_DOC.md) file for more information on how to create and use plugins
+     - See [src/bedrock_server_manager/plugins/default/](https://github.com/DMedina559/bedrock-server-manager/tree/dev/src/bedrock_server_manager/plugins/default) for example plugins
+   - Added plugin command see updated [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/CLI_COMMANDS.md)
+   - Added plugin management to the cli interface
+     - Allows you to enable/disable plugins, and view plugin information
 3. BREAKING CHANGE: Removed /restore/all route
    - Moved to /restore/action similar to the backup route, all is now a type parameter in the json body
 4. BREAKING CHANGE: Removed /world_name route
