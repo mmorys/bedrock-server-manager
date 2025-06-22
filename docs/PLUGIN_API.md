@@ -20,10 +20,12 @@ This guide will walk you through creating your own plugins to extend and customi
     *   [Server Installation & Update Events](#server-installation--update-events)
     *   [Player Database Events](#player-database-events)
     *   [System & Application Events](#system--application-events)
+    *   [Web Server Events](#web-server-events)
 6.  [Using the Plugin API (`self.api`)](#6-using-the-plugin-api-selfapi)
 7.  [Available API Functions](#7-available-api-functions)
     *   [Server Management](#server-management)
     *   [Server Installation & Configuration](#server-installation--configuration)
+    *   [Custom Server Configuration (config.json)](#custom-server-configuration-configjson)
     *   [Plugin Configuration API](#plugin-configuration-api)
     *   [World Management](#world-management)
     *   [Addon Management](#addon-management)
@@ -176,25 +178,27 @@ Here are all the methods you can implement in your plugin class to react to appl
     -   **Args:**
         -   `server_name` (str): The name of the server being backed up.
         -   `backup_type` (str): The type of backup (`'world'`, `'config_file'`, or `'all'`).
-        -   `**kwargs`: Additional context, like `file_to_backup`.
+        -   `**kwargs`: Additional context. If `backup_type` is `'config_file'`, this will include `file_to_backup: str` (the name of the config file being backed up, e.g., "server.properties"). May also include `stop_start_server: bool` reflecting the API call's parameter.
 -   `after_backup(self, server_name: str, backup_type: str, result: dict, **kwargs)`
     -   Called after a backup operation completes.
     -   **Args:**
         -   `server_name` (str): The name of the server.
         -   `backup_type` (str): The type of backup.
         -   `result` (dict): The dictionary returned by the backup API call.
+        -   `**kwargs`: Additional context, mirrors `before_backup`.
 -   `before_restore(self, server_name: str, restore_type: str, **kwargs)`
     -   Called before a restore operation begins.
     -   **Args:**
         -   `server_name` (str): The name of the server being restored.
         -   `restore_type` (str): The type of restore (`'world'`, `'config_file'`, or `'all'`).
-        -   `**kwargs`: Additional context, like `backup_file_path`.
+        -   `**kwargs`: Additional context. This will include `backup_file_path: str` (the full path to the backup file being used for restore) if `restore_type` is `'world'` or `'config_file'`. May also include `stop_start_server: bool`.
 -   `after_restore(self, server_name: str, restore_type: str, result: dict, **kwargs)`
     -   Called after a restore operation completes.
     -   **Args:**
         -   `server_name` (str): The name of the server.
         -   `restore_type` (str): The type of restore.
         -   `result` (dict): The dictionary returned by the restore API call.
+        -   `**kwargs`: Additional context, mirrors `before_restore`.
 -   `before_prune_backups(self, server_name: str)`
     -   Called before old backups are pruned for a server.
     -   **Args:**
@@ -352,6 +356,25 @@ Here are all the methods you can implement in your plugin class to react to appl
     -   Called after an attempt to prune the download cache completes.
     -   **Args:**
         -   `result` (dict): The dictionary returned by the `prune_download_cache` API call.
+-   `on_manager_startup(self)`
+    -   Called once when the Plugin Manager finishes loading all plugins and the API is ready. This signifies that the application is fully initialized.
+
+### Web Server Events
+-   `before_web_server_start(self, mode: str)`
+    -   Called just before the web server start is attempted.
+    -   **Args:**
+        -   `mode` (str): The start mode (`'direct'` or `'detached'`).
+-   `after_web_server_start(self, result: dict)`
+    -   Called just after a web server start has been attempted.
+    -   **Args:**
+        -   `result` (dict): The dictionary returned by the `start_web_server` API call.
+-   `before_web_server_stop(self)`
+    -   Called just before a web server stop is attempted.
+-   `after_web_server_stop(self, result: dict)`
+    -   Called just after a web server stop has been attempted.
+    -   **Args:**
+        -   `result` (dict): The dictionary returned by the `stop_web_server` API call.
+
 
 ## 5. Using the Plugin API (`self.api`)
 The `self.api` object is your tool for making the application perform actions. It's a bridge that safely exposes core functions to your plugin.
@@ -408,6 +431,11 @@ The following is a list of functions available through `self.api`. All functions
     -   Retrieves the `permissions.json` content, enriched with player names.
 -   `configure_player_permission(server_name: str, xuid: str, player_name: Optional[str], permission: str) -> Dict[str, str]`
     -   Sets a player's permission level (e.g., 'member', 'operator').
+
+### Custom Server Configuration (config.json)
+
+-   `write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]`
+    -   Writes a key-value pair to a server's JSON configuration file (`server_name_config.json`). This is for plugin-specific or user-defined settings, separate from `server.properties`.
 
 ### Plugin Configuration API
 
@@ -470,22 +498,30 @@ These functions allow programmatic management of plugin statuses. They are prima
 
 ### System & Application
 
--   `get_application_info() -> Dict[str, Any]`
-    -   Returns general info like version, OS, and key directories.
+-   `get_system_and_app_info() -> Dict[str, Any]`
+    -   Returns general info like application version, OS type, and key directories.
 -   `get_all_servers_data() -> Dict[str, Any]`
     -   Retrieves status and version for all detected servers.
+-   `update_server_statuses() -> Dict[str, Any]`
+    -   Reconciles the status in config files with the runtime state for all servers.
 -   `get_bedrock_process_info(server_name: str) -> Dict[str, Any]`
     -   Retrieves resource usage (CPU, RAM) for a running server process.
 -   `create_systemd_service(server_name: str, autostart: bool = False) -> Dict[str, str]`
-    -   (Linux-only) Creates a systemd user service for the server.
+    -   (Linux-only) Creates or updates a systemd user service for the server.
 -   `enable_server_service(server_name: str) -> Dict[str, str]`
-    -   (Linux-only) Enables the systemd service to start on boot.
+    -   (Linux-only) Enables the systemd service to start on login.
 -   `disable_server_service(server_name: str) -> Dict[str, str]`
-    -   (Linux-only) Disables the systemd service from starting on boot.
+    -   (Linux-only) Disables the systemd service from starting on login.
+-   `attach_to_screen_session(server_name: str) -> Dict[str, str]`
+    -   (Linux-only) Attaches the current terminal to a server's screen session, if running in one.
 -   `set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]`
-    -   Sets the 'autoupdate' flag for a server (`'true'` or `'false'`).
+    -   Sets the 'autoupdate' flag in a server's custom JSON configuration (`'true'` or `'false'`).
 -   `prune_download_cache(download_dir: str, keep_count: Optional[int] = None) -> Dict[str, str]`
-    -   Prunes old downloaded server archives.
+    -   Prunes old downloaded server archives from the specified directory.
+-   `validate_server_exist(server_name: str) -> Dict[str, Any]`
+    -   Checks if a server's directory and executable exist, indicating a valid installation.
+-   `validate_server_name_format(server_name: str) -> Dict[str, str]`
+    -   Validates if a given string is a permissible format for a server name.
 
 ### Web Server
 
