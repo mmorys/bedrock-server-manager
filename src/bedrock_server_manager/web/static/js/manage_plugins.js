@@ -54,16 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 sortedPluginNames.forEach(pluginName => {
                     const pluginData = plugins[pluginName];
                     const isEnabled = typeof pluginData === 'boolean' ? pluginData : pluginData.enabled;
-                    const description = typeof pluginData === 'boolean' ? 'No description available.' : pluginData.description;
 
                     const itemClone = pluginItemTemplate.content.cloneNode(true);
 
                     const nameSpan = itemClone.querySelector('.plugin-name');
-                    const descriptionP = itemClone.querySelector('.plugin-description');
                     const toggleSwitch = itemClone.querySelector('.plugin-toggle-switch');
 
                     nameSpan.textContent = pluginName;
-                    descriptionP.textContent = description;
                     toggleSwitch.checked = isEnabled;
                     toggleSwitch.dataset.pluginName = pluginName;
 
