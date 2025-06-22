@@ -139,12 +139,6 @@ def list_plugins():
         click.secho(f"Error listing plugins: {e}", fg="red")
 
 
-@plugin.command("edit")
-def edit_plugins():
-    """Opens an interactive menu to enable or disable multiple plugins."""
-    interactive_plugin_workflow()
-
-
 @plugin.command("enable")
 @click.argument("plugin_name", required=False)
 def enable_plugin(plugin_name: Optional[str]):

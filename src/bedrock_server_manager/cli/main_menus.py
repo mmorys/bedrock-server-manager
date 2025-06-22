@@ -154,7 +154,7 @@ def main_menu(ctx: click.Context):
             elif choice == "Manage Plugins":
                 # Invoke the interactive plugin editor
                 plugin_group = cli.get_command(ctx, "plugin")
-                edit_cmd = plugin_group.get_command(ctx, "edit")
+                edit_cmd = plugin_group.get_command(ctx, "enable")
                 ctx.invoke(edit_cmd)
                 questionary.press_any_key_to_continue(
                     "Press any key to return to the main menu..."
