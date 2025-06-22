@@ -103,17 +103,33 @@ def main_menu(ctx: click.Context):
     Raises:
         UserExitError: Propagated to signal a clean exit from the application.
     """
+    bsm: BedrockServerManager = ctx.obj["bsm"]
+    cli = ctx.obj["cli"]
+
     while True:
         try:
             click.clear()
             click.secho(f"{app_name_title} - Main Menu", fg="magenta", bold=True)
             click.secho(_get_splash_text(), fg="yellow")
 
+            # Display server list for context before showing the menu
             ctx.invoke(list_servers, loop=False, server_name_filter=None)
+
+            # --- Dynamically build menu choices ---
+            # Fetch server data once to build the menu and reuse the list
+            servers_data, _ = bsm.get_servers_data()
+            server_names = [s["name"] for s in servers_data]
+
+            menu_choices = ["Install New Server"]
+
+            if server_names:
+                menu_choices.append("Manage Existing Server")
+
+            menu_choices.extend(["Manage Plugins", "Exit"])
 
             choice = questionary.select(
                 "\nChoose an action:",
-                choices=["Install New Server", "Manage Existing Server", "Exit"],
+                choices=menu_choices,
                 use_indicator=True,
             ).ask()
 
@@ -121,7 +137,7 @@ def main_menu(ctx: click.Context):
                 raise UserExitError()
 
             if choice == "Install New Server":
-                server_group = ctx.obj["cli"].get_command(ctx, "server")
+                server_group = cli.get_command(ctx, "server")
                 install_cmd = server_group.get_command(ctx, "install")
                 ctx.invoke(install_cmd)
                 questionary.press_any_key_to_continue(
@@ -129,9 +145,20 @@ def main_menu(ctx: click.Context):
                 ).ask()
 
             elif choice == "Manage Existing Server":
+                # This option is only shown if servers exist.
+                # Pass the already-fetched list of names to the selection utility.
                 server_name = get_server_name_interactively()
                 if server_name:
                     manage_server_menu(ctx, server_name)
+
+            elif choice == "Manage Plugins":
+                # Invoke the interactive plugin editor
+                plugin_group = cli.get_command(ctx, "plugin")
+                edit_cmd = plugin_group.get_command(ctx, "enable")
+                ctx.invoke(edit_cmd)
+                questionary.press_any_key_to_continue(
+                    "Press any key to return to the main menu..."
+                ).ask()
 
         except UserExitError:
             click.secho("\nExiting application. Goodbye!", fg="green")

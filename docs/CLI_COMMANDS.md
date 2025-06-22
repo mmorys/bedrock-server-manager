@@ -75,6 +75,18 @@ Group of commands for managing the central player database. (`bedrock-server-man
 
 ---
 
+## `plugin` Commands
+
+Group of commands for managing plugin configurations. (`bedrock-server-manager plugin [subcommand]`)
+
+| Command   | Description                                                                  | Arguments & Options                                                                     | Platform |
+|-----------|------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|----------|
+| `list`    | Lists all discoverable plugins and their current status (enabled/disabled).  | *(None)*                                                                                | All      |
+| `enable`  | Enables a specific plugin. Launches interactive editor if `PLUGIN_NAME` omitted. | `PLUGIN_NAME` (optional): The name of the plugin to enable.                         | All      |
+| `disable` | Disables a specific plugin. Launches interactive editor if `PLUGIN_NAME` omitted. | `PLUGIN_NAME` (optional): The name of the plugin to disable.                       | All      |
+
+---
+
 ## `properties` Commands
 
 Group of commands for viewing and modifying `server.properties`. (`bedrock-server-manager properties [subcommand]`)

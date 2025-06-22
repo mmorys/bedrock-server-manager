@@ -33,6 +33,15 @@ logger = logging.getLogger(__name__)
 # an infinite loop by triggering the same event it is currently handling.
 _event_context = threading.local()
 
+# List of plugin names (filename without .py) that should be enabled by default
+# when first discovered.
+DEFAULT_ENABLED_PLUGINS = [
+    "auto_reload_plugin",
+    "autoupdate_plugin",
+    "server_lifecycle_notifications_plugin",
+    "world_operation_notifications_plugin",
+]
+
 
 class PluginManager:
     """Manages the discovery, loading, and lifecycle of all plugins."""
@@ -128,14 +137,17 @@ class PluginManager:
             }
             available_plugins.update(found_in_dir)
 
-        # Add new plugins found on disk to the config file as disabled
+        # Add new plugins found on disk to the config file
         for plugin_name in available_plugins:
             if plugin_name not in self.plugin_config:
-                self.plugin_config[plugin_name] = False  # Default to disabled
+                # Enable by default if in DEFAULT_ENABLED_PLUGINS list, else disable.
+                is_default_enabled = plugin_name in DEFAULT_ENABLED_PLUGINS
+                self.plugin_config[plugin_name] = is_default_enabled
                 config_changed = True
+                status_message = "enabled" if is_default_enabled else "disabled"
                 logger.info(
                     f"Discovered new plugin '{plugin_name}'. Added to "
-                    f"{self.config_path} as disabled."
+                    f"{self.config_path} as {status_message} by default."
                 )
 
         # Clean up config entries for plugins that no longer exist
