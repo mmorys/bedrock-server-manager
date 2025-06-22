@@ -100,8 +100,8 @@ class ServerWindowsServiceMixin(BedrockServerBaseMixin):
         description = (
             f"Manages the Minecraft Bedrock Server instance named '{self.server_name}'."
         )
-        quoted_expath = f'{self.manager_expath}'
-        
+        quoted_expath = f"{self.manager_expath}"
+
         # 2. Quote the server name.
         quoted_server_name = f'"{self.server_name}"'
 
@@ -111,7 +111,7 @@ class ServerWindowsServiceMixin(BedrockServerBaseMixin):
             "system",
             "_run-service",
             "--server",
-            quoted_server_name
+            quoted_server_name,
         ]
         command = " ".join(command_parts)
         self.logger.info(

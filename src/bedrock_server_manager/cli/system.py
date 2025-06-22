@@ -23,8 +23,12 @@ from bedrock_server_manager.cli.utils import handle_api_response as _handle_api_
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.error import BSMError
 
-if platform.system() == "Windows":  
-    from bedrock_server_manager.core.system.windows_class import BedrockServerWindowsService, PYWIN32_AVAILABLE
+if platform.system() == "Windows":
+    from bedrock_server_manager.core.system.windows_class import (
+        BedrockServerWindowsService,
+        PYWIN32_AVAILABLE,
+    )
+
     if PYWIN32_AVAILABLE:
         import win32serviceutil
         import servicemanager
@@ -353,13 +357,14 @@ def monitor_usage(server_name: str):
     except (KeyboardInterrupt, click.Abort):
         click.secho("\nMonitoring stopped.", fg="green")
 
+
 @system.command(
     "_run-service",
     hidden=True,
     context_settings=dict(
         ignore_unknown_options=True,
         allow_extra_args=True,
-    )
+    ),
 )
 @click.option("-s", "--server", "server_name", required=True)
 @click.pass_context
@@ -368,11 +373,12 @@ def _run_service(ctx, server_name: str):
     (Internal use only) Entry point for the Windows Service Manager.
     """
     if platform.system() == "Windows" and PYWIN32_AVAILABLE:
+
         class ServiceHandler(BedrockServerWindowsService):
             _svc_name_ = f"bds-{server_name}"
             _svc_display_name_ = f"Bedrock Server ({server_name})"
 
-        if 'debug' in ctx.args:
+        if "debug" in ctx.args:
             # Debug mode runs the service logic in the console and blocks.
             logger.info(f"Starting service '{server_name}' in DEBUG mode.")
             win32serviceutil.DebugService(ServiceHandler, argv=[f"bds-{server_name}"])
