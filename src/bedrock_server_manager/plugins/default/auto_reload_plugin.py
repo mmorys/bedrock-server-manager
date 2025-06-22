@@ -1,26 +1,35 @@
 # bedrock_server_manager/plugins/default/auto_reload_plugin.py
 """
-Plugin for automatically sending reload commands to the server after certain configurations change.
+Example Plugin: Automatically sends a `reload` command to a running server
+after its configuration files (like `allowlist.json` or `permissions.json`)
+are modified.
 """
-import logging
-from bedrock_server_manager.plugins.plugin_base import PluginBase
-from bedrock_server_manager.plugins.api_bridge import PluginAPI
+from bedrock_server_manager import PluginBase
 
 
 class AutoReloadPlugin(PluginBase):
     """
-    Handles sending reload commands (e.g., allowlist, permissions) after relevant changes.
+    For example, if you add a player to the allowlist of a running server
+    named 'creative_world', this plugin will automatically execute the
+    `allowlist reload` command on the server so the change takes effect
+    immediately without manual intervention.
     """
 
     def on_load(self):
-        """Called by the Plugin Manager when the plugin is first loaded."""
+        """
+        Example: When the Plugin Manager loads this plugin, it will log a
+        message like: 'AutoReloadPlugin is loaded and active. It will handle
+        automatic reloads after configuration changes.'
+        """
         self.logger.info(
             "AutoReloadPlugin is loaded and active. It will handle automatic reloads after configuration changes."
         )
 
     def _is_server_running(self, server_name: str) -> bool:
         """
-        Checks if the server is running using the registered 'get_server_running_status' API function.
+        Example: Before sending a reload command, this function checks if
+        'creative_world' is actually online. It calls an internal API
+        function that might return `{'status': 'success', 'is_running': true}`.
         """
         try:
             response = self.api.get_server_running_status(server_name=server_name)
@@ -42,7 +51,9 @@ class AutoReloadPlugin(PluginBase):
 
     def _send_reload_command(self, server_name: str, command: str, context: str):
         """
-        Helper function to send a reload command if the server is running.
+        Example helper function: If `_is_server_running` confirms the server
+        is online, this function sends the specified command. For instance,
+        it would send `allowlist reload` to the 'creative_world' server.
         """
         if self._is_server_running(server_name):
             try:
@@ -66,17 +77,20 @@ class AutoReloadPlugin(PluginBase):
 
     def after_allowlist_change(self, server_name: str, result: dict):
         """
-        Called after an attempt to modify the allowlist completes.
-        Reloads the allowlist if changes were successful.
+        Example Scenario: A user runs a command to add 'Player123' to the
+        allowlist of 'survival_server'. After the `allowlist.json` file is
+        successfully updated, this function is triggered. It inspects the result
+        to see if players were actually added or removed and then calls
+        `_send_reload_command`.
         """
         self.logger.debug(
             f"'{self.name}' handling after_allowlist_change for '{server_name}'. Result: {result}"
         )
 
         if result.get("status") == "success":
-            # For add_players_to_allowlist_api, result contains "added_count"
+            # For example, when adding players, the result might be {'added_count': 1}
             added_count = result.get("added_count", 0)
-            # For remove_players_from_allowlist, result contains "details": {"removed": [], ...}
+            # When removing players, the result could be {'details': {'removed': ['Player456']}}
             removed_players = result.get("details", {}).get("removed", [])
 
             if added_count > 0 or len(removed_players) > 0:
@@ -95,8 +109,10 @@ class AutoReloadPlugin(PluginBase):
 
     def after_permission_change(self, server_name: str, xuid: str, result: dict):
         """
-        Called after an attempt to change a player's permission completes.
-        Reloads permissions if the change was successful.
+        Example Scenario: An admin changes the permission level of a player
+        (identified by XUID) on 'survival_server' from 'member' to 'operator'.
+        Once the `permissions.json` file is updated successfully, this function
+        is triggered and calls `_send_reload_command` to send `permission reload`.
         """
         self.logger.debug(
             f"'{self.name}' handling after_permission_change for '{server_name}', XUID '{xuid}'. Result: {result}"

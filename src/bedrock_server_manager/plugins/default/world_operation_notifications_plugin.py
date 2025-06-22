@@ -1,26 +1,32 @@
 # bedrock_server_manager/plugins/default/world_operation_notifications_plugin.py
 """
-Plugin for sending notifications before world operations like export, import, and reset.
+Example Plugin: Sends in-game notifications to players before the server's
+world is changed, for example, through exporting, importing, or resetting.
 """
-import logging
-from bedrock_server_manager.plugins.plugin_base import PluginBase
-from bedrock_server_manager.plugins.api_bridge import PluginAPI
+from bedrock_server_manager import PluginBase
 
 
 class WorldOperationNotificationsPlugin(PluginBase):
     """
-    Handles sending 'say' commands to the server before world operations.
+    For example, if an administrator starts a world export on a running server
+    named 'survival_games', this plugin will send an in-game chat message like
+    "Exporting world..." to notify any connected players of the operation.
     """
 
     def on_load(self):
-        """Called by the Plugin Manager when the plugin is first loaded."""
+        """
+        Example: When the Plugin Manager loads this plugin, it will log a
+        message like: 'WorldOperationNotificationsPlugin is loaded and active...'
+        """
         self.logger.info(
             "WorldOperationNotificationsPlugin is loaded and active. It will handle notifications for world operations."
         )
 
     def _is_server_running(self, server_name: str) -> bool:
         """
-        Checks if the server is running using the registered 'get_server_running_status' API function.
+        Example: Before sending a warning, this function checks if the server
+        'survival_games' is actually online. It does this by calling an API
+        function that might return `{'status': 'success', 'is_running': true}`.
         """
         try:
             response = self.api.get_server_running_status(server_name=server_name)
@@ -41,7 +47,9 @@ class WorldOperationNotificationsPlugin(PluginBase):
 
     def _send_world_operation_warning(self, server_name: str, operation_message: str):
         """
-        Helper function to send a warning message if the server is running.
+        Example helper function: If `_is_server_running` confirms that the
+        'survival_games' server is online, this function will send the provided
+        message, for instance `say Exporting world...`, to the game.
         """
         if self._is_server_running(server_name):
             try:
@@ -67,7 +75,9 @@ class WorldOperationNotificationsPlugin(PluginBase):
 
     def before_world_export(self, server_name: str, export_dir: str):
         """
-        Called before a server's world is exported.
+        Example Scenario: An admin runs the command `bsm world export my_server`.
+        Before the export process begins, this function is triggered and calls the
+        helper to send the "Exporting world..." message to the game.
         """
         self.logger.debug(
             f"'{self.name}' handling before_world_export for '{server_name}' to '{export_dir}'"
@@ -76,7 +86,9 @@ class WorldOperationNotificationsPlugin(PluginBase):
 
     def before_world_import(self, server_name: str, file_path: str):
         """
-        Called before a .mcworld file is imported to a server.
+        Example Scenario: An admin runs `bsm world import my_server new_world.mcworld`.
+        Before the existing world is overwritten, this function is triggered to send
+        the "Importing world..." message.
         """
         self.logger.debug(
             f"'{self.name}' handling before_world_import for '{server_name}' from '{file_path}'"
@@ -85,7 +97,9 @@ class WorldOperationNotificationsPlugin(PluginBase):
 
     def before_world_reset(self, server_name: str):
         """
-        Called before a server's active world directory is deleted.
+        Example Scenario: An admin runs the dangerous command `bsm world reset my_server`.
+        This function is triggered just before the world files are deleted, sending a
+        critical warning: "WARNING: Resetting world".
         """
         self.logger.debug(
             f"'{self.name}' handling before_world_reset for '{server_name}'"
