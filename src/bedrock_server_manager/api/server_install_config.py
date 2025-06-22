@@ -102,15 +102,6 @@ def add_players_to_allowlist_api(
         server = BedrockServer(server_name)
         added_count = server.add_to_allowlist(new_players_data)
 
-        # If players were added and the server is running, reload the allowlist.
-        if added_count > 0 and server.is_running():
-            try:
-                server.send_command("allowlist reload")
-            except BSMError as e:
-                logger.warning(
-                    f"API: Allowlist updated, but failed to send reload command: {e}"
-                )
-
         result = {
             "status": "success",
             "message": f"Successfully added {added_count} new players to the allowlist.",
@@ -214,16 +205,6 @@ def remove_players_from_allowlist(
             else:
                 not_found_players.append(player)
 
-        # If any players were successfully removed, reload the server's allowlist.
-        if removed_players and server.is_running():
-            try:
-                server.send_command("allowlist reload")
-                logger.info(f"API: Sent 'allowlist reload' to server '{server_name}'.")
-            except BSMError as e:
-                logger.warning(
-                    f"API: Players removed, but failed to send reload command: {e}"
-                )
-
         result = {
             "status": "success",
             "message": "Allowlist update process completed.",
@@ -282,15 +263,6 @@ def configure_player_permission(
     try:
         server = BedrockServer(server_name)
         server.set_player_permission(xuid, permission, player_name)
-
-        # If the server is running, reload permissions to apply changes.
-        if server.is_running():
-            try:
-                server.send_command("permission reload")
-            except BSMError as e:
-                logger.warning(
-                    f"API: Permission set, but failed to send reload command: {e}"
-                )
 
         result = {
             "status": "success",
@@ -656,15 +628,6 @@ def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]
                 "updated": False,
                 "message": "Server is already up-to-date.",
             }
-
-        # Send a warning message to players if the server is running.
-        if send_message and server.is_running():
-            try:
-                server.send_command("say Server is updating now...")
-            except BSMError as e:
-                logger.warning(
-                    f"API: Failed to send update notification to '{server_name}': {e}"
-                )
 
         # Use the lifecycle manager to handle the stop/start cycle.
         with server_lifecycle_manager(

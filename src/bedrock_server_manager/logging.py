@@ -46,10 +46,12 @@ def setup_logging(
         interval: The interval number based on 'when' (e.g., 1 for daily if `when='midnight'`).
 
     Returns:
-        The configured logger instance for "bedrock_server_manager".
+        The configured logger instance.
     """
     logger = logging.getLogger()
-    logger.setLevel(file_log_level)  # Set the threshold for the logger
+    logger.setLevel(
+        min(file_log_level, cli_log_level)
+    )  # Set the threshold for the logger
 
     # Prevent adding handlers multiple times if this function is called again
     if not logger.hasHandlers():

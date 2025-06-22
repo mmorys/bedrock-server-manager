@@ -143,14 +143,6 @@ def export_world(
 
         try:
             server = BedrockServer(server_name)
-            # Send a warning message to players if the server is running.
-            if server.is_running():
-                try:
-                    server.send_command("say Exporting world...")
-                except BSMError as e:
-                    logger.warning(
-                        f"API: Failed to send world export warning to '{server_name}': {e}"
-                    )
 
             os.makedirs(effective_export_dir, exist_ok=True)
             world_name_str = server.get_world_name()
@@ -251,14 +243,6 @@ def import_world(
                     f"Source .mcworld file not found: {selected_file_path}"
                 )
 
-            if server.is_running():
-                try:
-                    server.send_command("say Importing world...")
-                except BSMError as e:
-                    logger.warning(
-                        f"API: Failed to send world import warning to '{server_name}': {e}"
-                    )
-
             imported_world_name: Optional[str] = None
             # Use the lifecycle manager to ensure the server is stopped during the import.
             with server_lifecycle_manager(server_name, stop_before=stop_start_server):
@@ -335,14 +319,6 @@ def reset_world(server_name: str) -> Dict[str, str]:
         try:
             server = BedrockServer(server_name)
             world_name_for_msg = server.get_world_name()
-
-            if server.is_running():
-                try:
-                    server.send_command("say WARNING: Resetting world")
-                except BSMError as e:
-                    logger.warning(
-                        f"API: Failed to send world reset warning to '{server_name}': {e}"
-                    )
 
             # The lifecycle manager ensures the server is stopped, the world is deleted,
             # and the server is restarted (which will generate the new world).

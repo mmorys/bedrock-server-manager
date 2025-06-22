@@ -167,7 +167,8 @@ def install(ctx: click.Context):
         ).ask():
             interactive_permissions_workflow(server_name)
         if questionary.confirm("\nConfigure the service now?", default=False).ask():
-            interactive_service_workflow(server_name)
+            print(server_name)
+            interactive_service_workflow(bsm=ctx.obj["bsm"], server_name=server_name)
 
         click.secho(
             "\nInstallation and initial configuration complete!", fg="green", bold=True

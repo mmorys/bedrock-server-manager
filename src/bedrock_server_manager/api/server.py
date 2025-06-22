@@ -50,7 +50,6 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 
 # --- API REGISTRATION FOR PLUGINS ---
-# Register core API functions so that plugins can call them.
 register_api("start_server", lambda **kwargs: start_server(**kwargs))
 register_api("stop_server", lambda **kwargs: stop_server(**kwargs))
 register_api("restart_server", lambda **kwargs: restart_server(**kwargs))
@@ -111,62 +110,14 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
         }
 
 
-def _handle_autoupdate(server: "BedrockServer") -> Dict[str, Any]:
-    """Internal helper to run the server autoupdate process if enabled.
-
-    This is called before starting a server. It checks the server's custom
-    configuration for the 'autoupdate' flag.
-
-    Args:
-        server: The `BedrockServer` instance to check and update.
-
-    Returns:
-        A dictionary indicating success or failure. Even if the update fails,
-        it may return "success" to allow the server start to proceed. A critical
-        error returns an "error" status.
-    """
-    try:
-        autoupdate = server.get_custom_config_value("autoupdate")
-        if not autoupdate:
-            return {"status": "success"}  # Autoupdate is disabled, proceed.
-
-        logger.info(
-            f"API: Autoupdate enabled for server '{server.server_name}'. Checking for updates..."
-        )
-        target_version = server.get_target_version()
-        server.install_or_update(target_version)
-        logger.info(
-            f"API: Autoupdate check completed for server '{server.server_name}'."
-        )
-
-    except BSMError as e:
-        # Log the error but don't block the server from starting.
-        logger.error(
-            f"API: Autoupdate failed for server '{server.server_name}'. Continuing with start.",
-            exc_info=True,
-        )
-        return {"status": "success"}
-
-    except Exception as e:
-        logger.error(
-            f"API: Unexpected error during autoupdate for server '{server.server_name}': {e}",
-            exc_info=True,
-        )
-        return {
-            "status": "error",
-            "message": f"Unexpected error during autoupdate: {e}",
-        }
-
-    return {"status": "success"}
-
-
 def start_server(
     server_name: str,
     mode: str = "direct",
 ) -> Dict[str, Any]:
     """Starts the specified Bedrock server.
 
-    Handles autoupdating (if enabled) and platform-specific start methods.
+    Autoupdating (if enabled by a plugin) is handled via the 'before_server_start'
+    plugin event. This function manages platform-specific start methods.
     - 'direct': Runs the server in the current process (blocks until server stops).
     - 'detached': Starts the server in the background using the OS-native
       service manager (systemd on Linux, Windows Services on Windows) if a
@@ -203,11 +154,6 @@ def start_server(
     try:
         server = BedrockServer(server_name)
         server.start_method = mode
-
-        # Handle autoupdate before starting.
-        update_result = _handle_autoupdate(server)
-        if update_result["status"] == "error":
-            return update_result
 
         if server.is_running():
             logger.warning(
@@ -419,20 +365,6 @@ def stop_server(server_name: str) -> Dict[str, str]:
                 logger.warning(
                     f"API: Stopping via Windows Service failed: {e}. Falling back to direct stop."
                 )
-
-        if service_stop_initiated:
-            return result
-
-        # --- Generic Fallback Stop ---
-        logger.debug(f"API: Using direct stop method for server '{server_name}'.")
-        try:
-            server.send_command("say Stopping server in 10 seconds...")
-            time.sleep(10)
-        except BSMError as e:
-            logger.warning(
-                f"API: Could not send shutdown warning to '{server_name}': {e}. Proceeding with stop."
-            )
-
         server.stop()
         logger.info(f"API: Server '{server_name}' stopped successfully.")
         result = {
@@ -522,9 +454,6 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
                 f"Restart failed during stop phase: {stop_result.get('message')}"
             )
             return stop_result
-
-        logger.debug("API: Waiting briefly before restarting...")
-        time.sleep(3)  # Give OS time to release resources.
 
         start_result = start_server(server_name, mode="detached")
         if start_result.get("status") == "error":
@@ -676,12 +605,6 @@ def delete_server_data(
             logger.info(
                 f"API: Server '{server_name}' is running. Stopping before deletion..."
             )
-            try:
-                server.send_command("say WARNING: Server is being deleted permanently!")
-            except Exception as e:
-                logger.warning(
-                    f"API: Could not send deletion warning to '{server_name}': {e}"
-                )
 
             stop_result = stop_server(server_name)
             if stop_result.get("status") == "error":
@@ -690,7 +613,6 @@ def delete_server_data(
                 result = {"status": "error", "message": error_msg}
                 return result
 
-            time.sleep(3)  # Wait for process to terminate fully.
             logger.info(f"API: Server '{server_name}' stopped.")
 
         # Attempt to remove the associated system service before deleting files.
