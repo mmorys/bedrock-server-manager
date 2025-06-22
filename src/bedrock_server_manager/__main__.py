@@ -54,6 +54,7 @@ from bedrock_server_manager.cli import (
     utils,
     web,
     world,
+    plugins,
 )
 
 # --- Main Click Group Definition ---
@@ -136,6 +137,7 @@ def _add_commands_to_cli():
     cli.add_command(web.web)
     cli.add_command(world.world)
     cli.add_command(server_allowlist.allowlist)
+    cli.add_command(plugins.plugin)
 
     # Standalone Commands
     cli.add_command(addon.install_addon)

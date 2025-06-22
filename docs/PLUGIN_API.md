@@ -4,9 +4,12 @@ This guide will walk you through creating your own plugins to extend and customi
 
 ## Table of Contents
 1.  [Getting Started: Your First Plugin](#1-getting-started-your-first-plugin)
-2.  [The `PluginBase` Class](#2-the-pluginbase-class)
-3.  [Understanding Event Hooks](#3-understanding-event-hooks)
-4.  [Complete List of Event Hooks](#4-complete-list-of-event-hooks)
+2.  [Managing Plugins](#2-managing-plugins)
+    *   [`plugins.json` Configuration File](#pluginsjson-configuration-file)
+    *   [CLI Commands for Plugin Management](#cli-commands-for-plugin-management)
+3.  [The `PluginBase` Class](#3-the-pluginbase-class)
+4.  [Understanding Event Hooks](#4-understanding-event-hooks)
+5.  [Complete List of Event Hooks](#5-complete-list-of-event-hooks)
     *   [Plugin Lifecycle Events](#plugin-lifecycle-events)
     *   [Server Start/Stop Events](#server-startstop-events)
     *   [Server Command Events](#server-command-events)
@@ -17,10 +20,19 @@ This guide will walk you through creating your own plugins to extend and customi
     *   [Server Installation & Update Events](#server-installation--update-events)
     *   [Player Database Events](#player-database-events)
     *   [System & Application Events](#system--application-events)
-5.  [Using the Plugin API (`self.api`)](#5-using-the-plugin-api-selfapi)
-6.  [Available API Functions](#6-available-api-functions)
-7.  [Example Plugin: Auto-Backup Announcer](#7-example-plugin-auto-backup-announcer)
-8.  [Best Practices](#8-best-practices)
+6.  [Using the Plugin API (`self.api`)](#6-using-the-plugin-api-selfapi)
+7.  [Available API Functions](#7-available-api-functions)
+    *   [Server Management](#server-management)
+    *   [Server Installation & Configuration](#server-installation--configuration)
+    *   [Plugin Configuration API](#plugin-configuration-api)
+    *   [World Management](#world-management)
+    *   [Addon Management](#addon-management)
+    *   [Backup & Restore](#backup--restore)
+    *   [Player Database](#player-database)
+    *   [System & Application](#system--application)
+    *   [Web Server](#web-server)
+8.  [Example Plugin: Auto-Backup Announcer](#8-example-plugin-auto-backup-announcer)
+9.  [Best Practices](#9-best-practices)
 
 ---
 
@@ -50,8 +62,56 @@ class MyFirstPlugin(PluginBase):
 ```
 
 4.  **Run the application:** Start the Bedrock Server Manager. You should see your "Hello from MyFirstPlugin!" message in the logs.
+5.  **Enable your plugin:** If it's not a default-enabled plugin, use the `bsm plugin enable my_first_plugin` command to activate it. (See [Managing Plugins](#2-managing-plugins) for more details).
 
-## 2. The `PluginBase` Class
+
+## 2. Managing Plugins
+
+The Bedrock Server Manager allows users to control which plugins are active through a `plugins.json` configuration file and new CLI commands.
+
+### `plugins.json` Configuration File
+
+-   **Location:** This file is located in your application's configuration directory (typically `~/.bedrock-server-manager/.config/plugins.json`).
+-   **Functionality:** It stores a simple JSON object where keys are plugin names (derived from their filenames, e.g., `"MyAwesomePlugin"`) and values are booleans (`true` to enable, `false` to disable).
+-   **Discovery:** When the application starts, the `PluginManager` scans the plugin directories (`<app_data_dir>/plugins/` and the application's internal `default_plugins/` directory).
+    -   Any new `.py` files found that are not already in `plugins.json` will be added to it.
+-   **Default State for New Plugins:**
+    -   **Standard Plugins:** By default, newly discovered user-added plugins are added to `plugins.json` as `disabled` (`false`).
+    -   **Default Enabled Plugins:** A predefined list of essential built-in plugins (e.g., `ServerLifecycleNotificationsPlugin`, `AutoReloadPlugin`) are automatically enabled (`true`) by default when first discovered. This ensures core extended functionalities are active out-of-the-box. You can still disable them manually if needed.
+    The current list of default-enabled plugins includes:
+        - `ServerLifecycleNotificationsPlugin`
+        - `WorldOperationNotificationsPlugin`
+        - `AutoReloadPlugin`
+        - `AutoupdatePlugin`
+
+### CLI Commands for Plugin Management
+
+You can easily manage which plugins are active using the `bsm plugin` command-line interface:
+
+-   **`bsm plugin list`**
+    -   Displays all discovered plugins and their current status (Enabled/Disabled).
+    -   Example:
+        ```
+        $ bsm plugin list
+        Fetching plugin statuses...
+        Plugin Statuses:
+        Plugin Name                         | Status
+        ------------------------------------|----------
+        ServerLifecycleNotificationsPlugin  | Enabled
+        MyCustomPlugin                      | Disabled
+        ```
+
+-   **`bsm plugin enable <plugin_name>`**
+    -   Enables the specified plugin (sets its value to `true` in `plugins.json`).
+    -   Example: `bsm plugin enable MyCustomPlugin`
+
+-   **`bsm plugin disable <plugin_name>`**
+    -   Disables the specified plugin (sets its value to `false` in `plugins.json`).
+    -   Example: `bsm plugin disable ServerLifecycleNotificationsPlugin`
+
+Changes made via these CLI commands are immediately saved to `plugins.json`. The application will load or ignore plugins based on this configuration the next time it fully initializes its plugin system (typically on startup).
+
+## 3. The `PluginBase` Class
 
 Every plugin **must** inherit from `bedrock_server_manager.plugins.plugin_base.PluginBase`. When your plugin is initialized, you are provided with three essential attributes:
 
@@ -311,7 +371,7 @@ def after_server_start(self, server_name: str, result: dict):
             self.logger.error(f"Failed to send welcome message: {e}")
 ```
 
-## 5. Available API Functions
+## 7. Available API Functions
 
 The following is a list of functions available through `self.api`. All functions return a dictionary, typically with a `{"status": "success", ...}` or `{"status": "error", "message": "..."}` structure.
 
@@ -348,6 +408,21 @@ The following is a list of functions available through `self.api`. All functions
     -   Retrieves the `permissions.json` content, enriched with player names.
 -   `configure_player_permission(server_name: str, xuid: str, player_name: Optional[str], permission: str) -> Dict[str, str]`
     -   Sets a player's permission level (e.g., 'member', 'operator').
+
+### Plugin Configuration API
+
+These functions allow programmatic management of plugin statuses. They are primarily used by the `bsm plugin` CLI commands but can also be called by other plugins if needed.
+
+-   `get_plugin_statuses() -> Dict[str, Any]`
+    -   Retrieves the statuses of all discovered plugins. Synchronizes with `plugins.json` and plugin files on disk before returning.
+    -   **Returns:** A dictionary, where the `plugins` key contains an object mapping plugin names to their boolean enabled status (e.g., `{"status": "success", "plugins": {"MyPlugin": true, "AnotherPlugin": false}}`).
+-   `set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]`
+    -   Sets the enabled/disabled status for a specific plugin in `plugins.json`.
+    -   **Args:**
+        -   `plugin_name` (str): The name of the plugin (filename without `.py`).
+        -   `enabled` (bool): `True` to enable, `False` to disable.
+    -   **Returns:** A dictionary indicating success or failure (e.g., `{"status": "success", "message": "Plugin 'MyPlugin' has been enabled."}`).
+    -   **Raises:** `UserInputError` if the plugin name is not found among discoverable plugins.
 
 ### World Management
 
