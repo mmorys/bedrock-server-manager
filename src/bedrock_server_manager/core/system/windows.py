@@ -309,15 +309,19 @@ def _windows_start_server(server_name: str, server_dir: str, config_dir: str) ->
     else:
         # Clean up any stale PID file from a previous unclean shutdown.
         try:
-            pid_file_path = core_process.get_bedrock_server_pid_file_path(
+            server_pid_file_path = core_process.get_bedrock_server_pid_file_path(
                 server_name, config_dir
             )
-            core_process.remove_pid_file_if_exists(pid_file_path)
-        except (AppFileNotFoundError, FileOperationError) as e:
-            logger.warning(
-                f"Could not clean up stale PID file for '{server_name}': {e}. Proceeding anyway."
+            core_process.remove_pid_file_if_exists(server_pid_file_path)
+            # Also clean up stale LAUNCHER PID file if this is a direct start
+            launcher_pid_file_path = core_process.get_bedrock_launcher_pid_file_path(
+                server_name, config_dir
             )
-            pass
+            core_process.remove_pid_file_if_exists(launcher_pid_file_path)
+        except Exception as e:
+            logger.warning(
+                f"Could not clean up stale PID files for '{server_name}': {e}. Proceeding."
+            )
 
     # --- Setup ---
     server_exe_path = os.path.join(server_dir, BEDROCK_EXECUTABLE_NAME)
@@ -358,10 +362,10 @@ def _windows_start_server(server_name: str, server_dir: str, config_dir: str) ->
 
         # --- Manage PID and Pipe ---
         # Write the new process ID to the PID file.
-        pid_file_path = core_process.get_bedrock_server_pid_file_path(
+        server_pid_file_path = core_process.get_bedrock_server_pid_file_path(
             server_name, config_dir
         )
-        core_process.write_pid_to_file(pid_file_path, bedrock_process.pid)
+        core_process.write_pid_to_file(server_pid_file_path, bedrock_process.pid)
 
         # Start the listener thread for the named pipe.
         pipe_name = PIPE_NAME_TEMPLATE.format(
@@ -432,12 +436,13 @@ def _windows_start_server(server_name: str, server_dir: str, config_dir: str) ->
 
         # Clean up the PID file.
         try:
-            pid_file_path_final = core_process.get_bedrock_server_pid_file_path(
+            # Clean up SERVER PID file
+            server_pid_file_path_final = core_process.get_bedrock_server_pid_file_path(
                 server_name, config_dir
             )
-            core_process.remove_pid_file_if_exists(pid_file_path_final)
-        except (AppFileNotFoundError, FileOperationError) as e:
-            logger.debug(f"Could not remove PID file during final cleanup: {e}")
+            core_process.remove_pid_file_if_exists(server_pid_file_path_final)
+        except Exception as e:
+            logger.debug(f"Could not remove PID files during final cleanup: {e}")
 
         # Close file handles and reset signal handlers.
         if server_stdout_handle and not server_stdout_handle.closed:

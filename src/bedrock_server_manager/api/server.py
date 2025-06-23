@@ -213,10 +213,14 @@ def start_server(
                 "direct",  # The detached process runs the server directly
             ]
             cli_command_str_list = [os.fspath(part) for part in cli_command_parts]
-            launcher_pid_file_path = server.get_pid_file_path()
-            os.makedirs(os.path.dirname(launcher_pid_file_path), exist_ok=True)
+            launcher_pid_file_path = system_process.get_bedrock_launcher_pid_file_path(
+                server.server_name,
+                server.server_config_dir,  # Use BedrockServer instance properties
+            )
+
             launcher_pid = system_process.launch_detached_process(
-                cli_command_str_list, launcher_pid_file_path
+                cli_command_str_list,
+                launcher_pid_file_path,  # Pass the launcher PID file path
             )
             logger.info(
                 f"API: Detached server starter for '{server_name}' launched with PID {launcher_pid}."
@@ -298,7 +302,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             )
             server.set_status_in_config("STOPPED")
             result = {
-                "status": "success",
+                "status": "error",
                 "message": f"Server '{server_name}' was already stopped.",
             }
             return result
@@ -343,6 +347,17 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             "status": "success",
             "message": f"Server '{server_name}' stopped successfully.",
         }
+
+        try:
+            launcher_pid_file = system_process.get_bedrock_launcher_pid_file_path(
+                server.server_name, server.server_config_dir
+            )
+            system_process.remove_pid_file_if_exists(launcher_pid_file)
+        except Exception as e_launcher_cleanup:
+            logger.debug(
+                f"Error during launcher PID cleanup for '{server_name}': {e_launcher_cleanup}"
+            )
+
         return result
 
     except BSMError as e:
