@@ -44,9 +44,7 @@ def _print_plugin_table(plugins: Dict[str, Dict[str, Any]]):
     click.secho("-" * len(header))
 
     for name, config in sorted(plugins.items()):
-        is_enabled = config.get(
-            "enabled", False
-        )  # Correctly gets 'enabled' from the config dict
+        is_enabled = config.get("enabled", False)
         version = config.get("version", "N/A")
 
         status_str = "Enabled" if is_enabled else "Disabled"
@@ -78,8 +76,6 @@ def interactive_plugin_workflow():
 
         _print_plugin_table(plugins)
         click.echo()
-
-        # --- THIS IS THE CORRECTED PART ---
         initial_enabled_plugins = {
             name
             for name, config_dict in plugins.items()
@@ -94,9 +90,7 @@ def interactive_plugin_workflow():
             choices.append(
                 questionary.Choice(title=choice_title, value=name, checked=is_enabled)
             )
-        # --- END OF CORRECTION ---
 
-        # We don't need a separate cancel choice if .ask() returns None on Ctrl+C/Esc
         selected_plugin_names_list = questionary.checkbox(
             "Toggle plugins (space to select, enter to confirm):", choices=choices
         ).ask()
@@ -135,11 +129,12 @@ def interactive_plugin_workflow():
                 click.secho(f"Failed: {api_response.get('message')}", fg="red")
 
         if changes_made:
+            try:
+                click.secho("\nReloading plugins...", fg="cyan")
+                plugins_api.reload_plugins()  # Reload plugins after changes
+            except BSMError as e:
+                click.secho(f"\nError reloading plugins: {e}", fg="red")
             click.secho("\nPlugin configuration updated.", fg="green")
-            click.secho(
-                "Run 'bsm plugin reload' or reload via the UI for changes to take full effect if the manager is active.",
-                fg="cyan",
-            )
         else:
             click.secho("\nNo changes were successfully applied.", fg="yellow")
 
@@ -162,12 +157,6 @@ def plugin(ctx: Context):
     """Manages plugins. Runs interactively if no subcommand is given."""
     if ctx.invoked_subcommand is None:
         interactive_plugin_workflow()
-
-
-# ... (list, enable, disable, reload commands remain the same as your last version) ...
-# Ensure their imports for plugins_api are correct if you changed the module name.
-# For example, if you moved API functions to `plugins_config.py`:
-# from bedrock_server_manager.api import plugins_config as plugins_api
 
 
 @plugin.command("list")
