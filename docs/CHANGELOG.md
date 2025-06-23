@@ -229,8 +229,13 @@ Start/Stop methods have been revamped and require the servers be restarted with 
    - See the [docs/PLUGIN_DOCS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/PLUGIN_DOC.md) file for more information on how to create and use plugins
      - See [src/bedrock_server_manager/plugins/default/](https://github.com/DMedina559/bedrock-server-manager/tree/dev/src/bedrock_server_manager/plugins/default) for example plugins
    - Added plugin command see updated [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/CLI_COMMANDS.md)
-   - Added plugin management to the cli interface
+   - Added plugin management to the cli and web interface
      - Allows you to enable/disable plugins, and view plugin information
+   - Default plugins included
+     - Can be enabled/disabled in the `plugins.json` file
+     - Can be overridden by creating a new plugin with the same name in the plugins folder
+   - Custom event system
+     - Plugins can send and receive custom events from other plugins and external sources from the web api/cli commands
 3. BREAKING CHANGE: Removed /restore/all route
    - Moved to /restore/action similar to the backup route, all is now a type parameter in the json body
 4. BREAKING CHANGE: Removed /world_name route
@@ -241,4 +246,4 @@ Start/Stop methods have been revamped and require the servers be restarted with 
    - As a result, the html routes are now much faster and more responsive
    - The servers table in the web ui now dynamically updates when a server is started or stopped instead of requiring a page refresh
 7. Improved resource usage monitoring
-   - Refactored function into a genric ResourceMonitor class allowing for more flexibility in the future (web server usage?)
+   - Refactored function into a generic ResourceMonitor class allowing for more flexibility in the future (web server usage?)
