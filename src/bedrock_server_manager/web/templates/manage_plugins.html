@@ -12,18 +12,23 @@
 <div class="content-container">
     <header class="page-header">
         <h2>Manage Plugins</h2>
-        <p>Enable or disable plugins for the Bedrock Server Manager. Changes apply after a restart.</p>
+        <p>Enable or disable plugins for the Bedrock Server Manager. Reload Plugins for chages to apply.</p>
     </header>
 
-    <div id="plugin-status-message-area" class="message-box is-hidden" role="alert" aria-live="polite">
-        <!-- Dynamic status messages will be inserted here by JavaScript -->
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages from save actions will appear here -->
     </div>
 
     <section class="list-section">
-        <h3>Available Plugins</h3>
-        <!-- The JS will populate this list. The 'item-list' class applies the correct styling. -->
+        <!-- Flex container to align heading and button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3>Available Plugins</h3>
+            <!-- The new Reload Plugins button -->
+            <button id="reload-plugins-btn" class="action-button">
+                <i class="fas fa-sync-alt"></i> Reload Plugins
+            </button>
+        </div>
         <ul id="plugin-list" class="item-list">
-            <!-- The loader is now the first item in the list -->
             <li id="plugin-loader" class="list-item-status" role="status">
                 <div class="loader-container-small">
                     <div class="spinner"></div>
@@ -38,17 +43,15 @@
     ========================================================================== -->
     <!-- Template for a single plugin item. Cloned and populated by JS. -->
     <template id="plugin-item-template">
-        <!-- The <li> is styled by the parent ul.item-list to be a flex container -->
         <li>
             <div class="plugin-details">
-                <strong class="plugin-name"></strong> <!-- JS populates name -->
+                <strong class="plugin-name"></strong>
+                <!-- Add a small, greyed-out span for the version -->
+                <small class="plugin-version" style="margin-left: 8px; color: #bbb;"></small>
             </div>
             <div class="plugin-controls">
-                <!-- This specific structure is required by controls.css for the toggle switch -->
                 <label class="toggle-switch-container">
-                    <!-- The actual checkbox, visually hidden by the 'toggle-input' class -->
-                    <input type="checkbox" class="toggle-input plugin-toggle-switch" data-plugin-id="">
-                    <!-- The visual representation of the switch, styled by the '.toggle-switch' class -->
+                    <input type="checkbox" class="toggle-input plugin-toggle-switch" data-plugin-name="">
                     <span class="toggle-switch"></span>
                 </label>
             </div>

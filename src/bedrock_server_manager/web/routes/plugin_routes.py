@@ -8,7 +8,10 @@ from typing import Tuple, Dict, Any
 from flask import Blueprint, render_template, request, jsonify, Response
 
 from bedrock_server_manager.web.routes.auth_routes import csrf, login_required
-from bedrock_server_manager.web.utils.auth_decorators import auth_required, get_current_identity
+from bedrock_server_manager.web.utils.auth_decorators import (
+    auth_required,
+    get_current_identity,
+)
 from bedrock_server_manager.api import plugins as plugins_api  # Renamed for clarity
 from bedrock_server_manager.error import BSMError, UserInputError
 
@@ -16,9 +19,7 @@ from bedrock_server_manager.error import BSMError, UserInputError
 logger = logging.getLogger(__name__)
 
 # Create Blueprint
-plugin_bp = Blueprint(
-    "plugin_routes", __name__, template_folder="../templates"
-)
+plugin_bp = Blueprint("plugin_routes", __name__, template_folder="../templates")
 
 
 # --- Route: Manage Plugins Page ---
@@ -53,14 +54,19 @@ def get_plugins_status_route() -> Tuple[Response, int]:
 
         if result.get("status") == "success":
             status_code = 200
-            logger.debug(f"API Get Plugins: Succeeded. Found {len(result.get('plugins', {}))} plugins.")
+            logger.debug(
+                f"API Get Plugins: Succeeded. Found {len(result.get('plugins', {}))} plugins."
+            )
         else:
             status_code = 500  # Operational error handled by the API layer
             logger.error(f"API Get Plugins: Failed. {result.get('message')}")
 
     except Exception as e:
         status_code = 500
-        result = {"status": "error", "message": "An unexpected error occurred while fetching plugin statuses."}
+        result = {
+            "status": "error",
+            "message": "An unexpected error occurred while fetching plugin statuses.",
+        }
         logger.error(
             f"API Get Plugins: Unexpected error in route. {e}",
             exc_info=True,
@@ -71,7 +77,7 @@ def get_plugins_status_route() -> Tuple[Response, int]:
 # --- API Route: Set Plugin Status ---
 @plugin_bp.route("/api/plugins/<string:plugin_name>", methods=["POST"])
 @csrf.exempt  # Exempt CSRF for this API endpoint if using token auth primarily
-@auth_required # Requires token or web session
+@auth_required  # Requires token or web session
 def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
     """
     API endpoint to enable or disable a specific plugin.
@@ -82,7 +88,9 @@ def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
 
     data = request.get_json()
     if data is None or "enabled" not in data or not isinstance(data["enabled"], bool):
-        logger.warning(f"API Set Plugin '{plugin_name}': Invalid request body. Data: {data}")
+        logger.warning(
+            f"API Set Plugin '{plugin_name}': Invalid request body. Data: {data}"
+        )
         return (
             jsonify(
                 status="error",
@@ -106,27 +114,71 @@ def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
         else:
             # Check for UserInputError specifically if the API might return it directly
             # For now, assuming set_plugin_status wraps UserInputError or returns error in dict
-            status_code = result.get("error_code", 500) # Allow API to suggest status code
-            if status_code == 404: # Example if plugin not found
-                 logger.warning(f"API Set Plugin '{plugin_name}': Not found. {result.get('message')}")
+            status_code = result.get(
+                "error_code", 500
+            )  # Allow API to suggest status code
+            if status_code == 404:  # Example if plugin not found
+                logger.warning(
+                    f"API Set Plugin '{plugin_name}': Not found. {result.get('message')}"
+                )
             else:
-                 logger.error(f"API Set Plugin '{plugin_name}': Failed. {result.get('message')}")
-
+                logger.error(
+                    f"API Set Plugin '{plugin_name}': Failed. {result.get('message')}"
+                )
 
     except UserInputError as e:
-        status_code = 400 # Bad request (e.g., plugin name invalid format, though API should catch specific not found)
+        status_code = 400  # Bad request (e.g., plugin name invalid format, though API should catch specific not found)
         result = {"status": "error", "message": str(e)}
         logger.warning(f"API Set Plugin '{plugin_name}': Input error. {e}")
-    except BSMError as e: # Catch other application-specific errors
+    except BSMError as e:  # Catch other application-specific errors
         status_code = 500
         result = {"status": "error", "message": str(e)}
         logger.error(f"API Set Plugin '{plugin_name}': Application error. {e}")
     except Exception as e:
         status_code = 500
-        result = {"status": "error", "message": f"An unexpected error occurred while updating plugin '{plugin_name}'."}
+        result = {
+            "status": "error",
+            "message": f"An unexpected error occurred while updating plugin '{plugin_name}'.",
+        }
         logger.error(
             f"API Set Plugin '{plugin_name}': Unexpected error in route. {e}",
             exc_info=True,
+        )
+
+    return jsonify(result), status_code
+
+
+@plugin_bp.route("/api/plugins/reload", methods=["POST"])
+@csrf.exempt
+@auth_required
+def reload_plugins_route() -> Tuple[Response, int]:
+    """
+    API endpoint to trigger a reload of all plugins.
+    """
+    identity = get_current_identity() or "API Request"
+    logger.info(f"API: Reload plugins request by '{identity}'.")
+
+    result: Dict[str, Any]
+    status_code: int
+
+    try:
+        result = plugins_api.reload_plugins()
+
+        if result.get("status") == "success":
+            status_code = 200
+            logger.info("API Reload Plugins: Succeeded.")
+        else:
+            status_code = 500
+            logger.error(f"API Reload Plugins: Failed. {result.get('message')}")
+
+    except Exception as e:
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": "An unexpected error occurred while reloading plugins.",
+        }
+        logger.error(
+            f"API Reload Plugins: Unexpected error in route. {e}", exc_info=True
         )
 
     return jsonify(result), status_code

@@ -9,15 +9,19 @@ from abc import ABC
 from logging import Logger
 from .api_bridge import PluginAPI
 
+from bedrock_server_manager.config.const import get_installed_version
+
 
 class PluginBase(ABC):
     """The abstract base class for all plugins.
 
-    Plugins should inherit from this class and implement the event hook methods
-    (e.g., `on_load`, `before_server_start`) they wish to subscribe to. An
+    Plugins should inherit from this class, define a `version` class attribute,
+    and implement the event hook methods they wish to subscribe to. An
     instance of this class provides access to the core application API and a
     dedicated logger.
     """
+
+    version: str = get_installed_version
 
     def __init__(self, plugin_name: str, api: PluginAPI, logger: Logger):
         """Initializes the plugin instance.
@@ -34,240 +38,117 @@ class PluginBase(ABC):
         self.name = plugin_name
         self.api = api
         self.logger = logger
-        self.logger.info(f"Plugin '{self.name}' initialized.")
+
+        self.version = getattr(self.__class__, "version", "N/A")
+
+        self.logger.info(f"Plugin '{self.name}' v{self.version} initialized.")
 
     def on_load(self):
         """Called by the Plugin Manager when the plugin is first loaded."""
         pass
 
     def on_unload(self):
-        """Called by the Plugin Manager when the application is shutting down."""
+        """Called by the Plugin Manager when the application is shutting down or reloading."""
         pass
 
     def before_server_start(self, server_name: str, mode: str):
-        """Called just before a server start is attempted.
-
-        Args:
-            server_name: The name of the server being started.
-            mode: The start mode ('direct' or 'detached').
-        """
+        """Called just before a server start is attempted."""
         pass
 
     def after_server_start(self, server_name: str, result: dict):
-        """Called just after a server start has been attempted.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `start_server` API call.
-        """
+        """Called just after a server start has been attempted."""
         pass
 
-    def before_server_stop(self, server_name: str):
-        """Called just before a server stop is attempted.
-
-        Args:
-            server_name: The name of the server being stopped.
-        """
+    def before_server_stop(self, server_name: str, mode: str):
+        """Called just before a server stop is attempted."""
         pass
 
     def after_server_stop(self, server_name: str, result: dict):
-        """Called just after a server stop has been attempted.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `stop_server` API call.
-        """
+        """Called just after a server stop has been attempted."""
         pass
 
     def before_command_send(self, server_name: str, command: str):
-        """Called before a command is sent to a server.
-
-        Args:
-            server_name: The name of the server receiving the command.
-            command: The command string to be sent.
-        """
+        """Called before a command is sent to a server."""
         pass
 
     def after_command_send(self, server_name: str, command: str, result: dict):
-        """Called after a command has been sent to a server.
-
-        Args:
-            server_name: The name of the server.
-            command: The command string that was sent.
-            result: The dictionary returned by the `send_command` API call.
-        """
+        """Called after a command has been sent to a server."""
         pass
 
     def before_backup(self, server_name: str, backup_type: str, **kwargs):
-        """Called before a backup operation begins.
-
-        Args:
-            server_name: The name of the server being backed up.
-            backup_type: The type of backup ('world', 'config_file', or 'all').
-            **kwargs: Additional context, like `file_to_backup`.
-        """
+        """Called before a backup operation begins."""
         pass
 
     def after_backup(self, server_name: str, backup_type: str, result: dict, **kwargs):
-        """Called after a backup operation completes.
-
-        Args:
-            server_name: The name of the server.
-            backup_type: The type of backup ('world', 'config_file', or 'all').
-            result: The dictionary returned by the backup API call.
-            **kwargs: Additional context.
-        """
+        """Called after a backup operation completes."""
         pass
 
     def before_restore(self, server_name: str, restore_type: str, **kwargs):
-        """Called before a restore operation begins.
-
-        Args:
-            server_name: The name of the server being restored.
-            restore_type: The type of restore ('world', 'config_file', or 'all').
-            **kwargs: Additional context, like `backup_file_path`.
-        """
+        """Called before a restore operation begins."""
         pass
 
     def after_restore(
         self, server_name: str, restore_type: str, result: dict, **kwargs
     ):
-        """Called after a restore operation completes.
-
-        Args:
-            server_name: The name of the server.
-            restore_type: The type of restore ('world', 'config_file', or 'all').
-            result: The dictionary returned by the restore API call.
-            **kwargs: Additional context.
-        """
+        """Called after a restore operation completes."""
         pass
 
     def before_prune_backups(self, server_name: str):
-        """Called before old backups are pruned for a server.
-
-        Args:
-            server_name: The name of the server whose backups are being pruned.
-        """
+        """Called before old backups are pruned for a server."""
         pass
 
     def after_prune_backups(self, server_name: str, result: dict):
-        """Called after an attempt to prune old backups completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `prune_old_backups` API call.
-        """
+        """Called after an attempt to prune old backups completes."""
         pass
 
     def before_allowlist_change(
         self, server_name: str, players_to_add: list, players_to_remove: list
     ):
-        """Called before a server's allowlist.json is modified.
-
-        Args:
-            server_name: The name of the server.
-            players_to_add: A list of player data dictionaries to be added.
-            players_to_remove: A list of player name strings to be removed.
-        """
+        """Called before a server's allowlist.json is modified."""
         pass
 
     def after_allowlist_change(self, server_name: str, result: dict):
-        """Called after an attempt to modify the allowlist completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the allowlist modification API call.
-        """
+        """Called after an attempt to modify the allowlist completes."""
         pass
 
     def before_permission_change(self, server_name: str, xuid: str, permission: str):
-        """Called before a player's permission level is changed.
-
-        Args:
-            server_name: The name of the server.
-            xuid: The XUID of the player whose permission is changing.
-            permission: The new permission level (e.g., 'operator').
-        """
+        """Called before a player's permission level is changed."""
         pass
 
     def after_permission_change(self, server_name: str, xuid: str, result: dict):
-        """Called after an attempt to change a player's permission completes.
-
-        Args:
-            server_name: The name of the server.
-            xuid: The XUID of the player.
-            result: The dictionary returned by the permission change API call.
-        """
+        """Called after an attempt to change a player's permission completes."""
         pass
 
     def before_properties_change(self, server_name: str, properties: dict):
-        """Called before server.properties is modified.
-
-        Args:
-            server_name: The name of the server.
-            properties: A dictionary of properties to be changed.
-        """
+        """Called before server.properties is modified."""
         pass
 
     def after_properties_change(self, server_name: str, result: dict):
-        """Called after an attempt to modify server.properties completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `modify_server_properties` API call.
-        """
+        """Called after an attempt to modify server.properties completes."""
         pass
 
     def before_server_install(self, server_name: str, target_version: str):
-        """Called before a new server installation begins.
-
-        Args:
-            server_name: The name of the new server.
-            target_version: The version of the server to be installed.
-        """
+        """Called before a new server installation begins."""
         pass
 
     def after_server_install(self, server_name: str, result: dict):
-        """Called after a new server installation attempt completes.
-
-        Args:
-            server_name: The name of the new server.
-            result: The dictionary returned by the `install_new_server` API call.
-        """
+        """Called after a new server installation attempt completes."""
         pass
 
     def before_server_update(self, server_name: str, target_version: str):
-        """Called before an existing server is updated.
-
-        Args:
-            server_name: The name of the server being updated.
-            target_version: The version the server is being updated to.
-        """
+        """Called before an existing server is updated."""
         pass
 
     def after_server_update(self, server_name: str, result: dict):
-        """Called after a server update attempt completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `update_server` API call.
-        """
+        """Called after a server update attempt completes."""
         pass
 
     def before_players_add(self, players_data: list):
-        """Called before players are manually added to the central player DB.
-
-        Args:
-            players_data: A list of player dictionaries, each with 'name' and 'xuid'.
-        """
+        """Called before players are manually added to the central player DB."""
         pass
 
     def after_players_add(self, result: dict):
-        """Called after an attempt to manually add players completes.
-
-        Args:
-            result: The dictionary returned by the `add_players_manually` API call.
-        """
+        """Called after an attempt to manually add players completes."""
         pass
 
     def before_player_db_scan(self):
@@ -275,134 +156,61 @@ class PluginBase(ABC):
         pass
 
     def after_player_db_scan(self, result: dict):
-        """Called after a scan of server logs for players has completed.
-
-        Args:
-            result: The dictionary returned by the `scan_and_update_player_db` API call.
-        """
+        """Called after a scan of server logs for players has completed."""
         pass
 
     def before_world_export(self, server_name: str, export_dir: str):
-        """Called before a server's world is exported to a .mcworld file.
-
-        Args:
-            server_name: The name of the server.
-            export_dir: The target directory for the exported .mcworld file.
-        """
+        """Called before a server's world is exported to a .mcworld file."""
         pass
 
     def after_world_export(self, server_name: str, result: dict):
-        """Called after an attempt to export a world completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `export_world` API call.
-        """
+        """Called after an attempt to export a world completes."""
         pass
 
     def before_world_import(self, server_name: str, file_path: str):
-        """Called before a .mcworld file is imported to a server.
-
-        Args:
-            server_name: The name of the server.
-            file_path: The path to the .mcworld file being imported.
-        """
+        """Called before a .mcworld file is imported to a server."""
         pass
 
     def after_world_import(self, server_name: str, result: dict):
-        """Called after an attempt to import a world completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `import_world` API call.
-        """
+        """Called after an attempt to import a world completes."""
         pass
 
     def before_world_reset(self, server_name: str):
-        """Called before a server's active world directory is deleted.
-
-        Args:
-            server_name: The name of the server whose world is being reset.
-        """
+        """Called before a server's active world directory is deleted."""
         pass
 
     def after_world_reset(self, server_name: str, result: dict):
-        """Called after an attempt to reset a world completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `reset_world` API call.
-        """
+        """Called after an attempt to reset a world completes."""
         pass
 
     def before_addon_import(self, server_name: str, addon_file_path: str):
-        """Called before an addon file is imported to a server.
-
-        Args:
-            server_name: The name of the server.
-            addon_file_path: The path to the addon file being imported.
-        """
+        """Called before an addon file is imported to a server."""
         pass
 
     def after_addon_import(self, server_name: str, result: dict):
-        """Called after an attempt to import an addon completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `import_addon` API call.
-        """
+        """Called after an attempt to import an addon completes."""
         pass
 
     def before_service_change(self, server_name: str, action: str):
-        """Called before a system service (e.g., systemd) is changed.
-
-        Args:
-            server_name: The name of the server.
-            action: The action being performed ('create', 'enable', 'disable').
-        """
+        """Called before a system service (e.g., systemd) is changed."""
         pass
 
     def after_service_change(self, server_name: str, action: str, result: dict):
-        """Called after an attempt to change a system service completes.
-
-        Args:
-            server_name: The name of the server.
-            action: The action that was performed.
-            result: The dictionary returned by the service change API call.
-        """
+        """Called after an attempt to change a system service completes."""
         pass
 
     def before_autoupdate_change(self, server_name: str, new_value: bool):
-        """Called before a server's autoupdate setting is changed.
-
-        Args:
-            server_name: The name of the server.
-            new_value: The new boolean value for the autoupdate setting.
-        """
+        """Called before a server's autoupdate setting is changed."""
         pass
 
     def after_autoupdate_change(self, server_name: str, result: dict):
-        """Called after an attempt to change the autoupdate setting completes.
-
-        Args:
-            server_name: The name of the server.
-            result: The dictionary returned by the `set_autoupdate` API call.
-        """
+        """Called after an attempt to change the autoupdate setting completes."""
         pass
 
     def before_prune_download_cache(self, download_dir: str, keep_count: int):
-        """Called before the global download cache is pruned.
-
-        Args:
-            download_dir: The directory being pruned.
-            keep_count: The number of files to keep.
-        """
+        """Called before the global download cache is pruned."""
         pass
 
     def after_prune_download_cache(self, result: dict):
-        """Called after an attempt to prune the download cache completes.
-
-        Args:
-            result: The dictionary returned by the `prune_download_cache` API call.
-        """
+        """Called after an attempt to prune the download cache completes."""
         pass
