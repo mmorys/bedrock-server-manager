@@ -248,6 +248,75 @@ def reload_plugins_cli():
         )
 
 
+# --- Sub-group for plugin events ---
+@plugin.group("event")
+def event():
+    """Manages custom plugin events."""
+    pass
+
+
+@event.command("trigger")
+@click.argument("event_name", required=True)
+@click.option(
+    "--payload-json",
+    metavar="<JSON_STRING>",
+    help="Optional JSON string to use as the event payload.",
+)
+def trigger_event_cli(event_name: str, payload_json: Optional[str]):
+    """
+    Triggers a custom plugin event with an optional JSON payload.
+    Example: bsm plugin event trigger myplugin:my_event --payload-json '{"key": "value"}'
+    """
+    import json  # Local import for json
+
+    click.echo(f"Attempting to trigger custom plugin event '{event_name}'...")
+
+    payload_dict: Optional[Dict[str, Any]] = None
+    if payload_json:
+        try:
+            payload_dict = json.loads(payload_json)
+            if not isinstance(payload_dict, dict):
+                click.secho(
+                    "Error: --payload-json must be a valid JSON object (dictionary).",
+                    fg="red",
+                )
+                return
+            click.echo(f"With payload: {payload_dict}")
+        except json.JSONDecodeError as e:
+            click.secho(f"Error: Invalid JSON provided for payload: {e}", fg="red")
+            return
+        except Exception as e:  # Catch any other unexpected error during parsing
+            click.secho(f"Error parsing payload: {e}", fg="red")
+            return
+
+    try:
+        response = plugins_api.trigger_external_plugin_event_api(
+            event_name, payload_dict
+        )
+
+        if response.get("status") == "success":
+            success_msg = response.get(
+                "message", f"Event '{event_name}' triggered successfully."
+            )
+            click.secho(success_msg, fg="green")
+        else:
+            _handle_api_response(
+                response, error_message_prefix=f"Failed to trigger event '{event_name}'"
+            )
+    except (
+        UserInputError
+    ) as e:  # Catch UserInputError from the API function if event_name is missing
+        click.secho(f"Error: {e}", fg="red")
+    except BSMError as e:  # Catch other BSM errors
+        click.secho(f"Error triggering event '{event_name}': {e}", fg="red")
+    except Exception as e:
+        click.secho(f"An unexpected error occurred: {e}", fg="red", err=True)
+        logger.error(
+            f"Unexpected error in 'plugin event trigger' CLI command: {e}",
+            exc_info=True,
+        )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     plugin()

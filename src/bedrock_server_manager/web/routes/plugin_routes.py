@@ -74,6 +74,82 @@ def get_plugins_status_route() -> Tuple[Response, int]:
     return jsonify(result), status_code
 
 
+# --- API Route: Trigger Custom Plugin Event ---
+@plugin_bp.route("/api/plugins/trigger_event", methods=["POST"])
+@csrf.exempt
+@auth_required
+def trigger_custom_event_route() -> Tuple[Response, int]:
+    """
+    API endpoint to allow external triggering of custom plugin events.
+    Expects JSON: {"event_name": "some:event", "payload": {"key": "value"}}
+    """
+    identity = get_current_identity() or "External API Event Trigger"
+    logger.info(f"API: Custom plugin event trigger request by '{identity}'.")
+
+    data = request.get_json()
+    if data is None:
+        logger.warning(f"API Trigger Event: Invalid request - no JSON body.")
+        return jsonify(status="error", message="Request must be JSON."), 400
+
+    event_name = data.get("event_name")
+    payload = data.get("payload")
+
+    if not event_name:
+        logger.warning(
+            f"API Trigger Event: Invalid request - 'event_name' missing. Data: {data}"
+        )
+        return jsonify(status="error", message="'event_name' is a required field."), 400
+
+    if payload is not None and not isinstance(payload, dict):
+        logger.warning(
+            f"API Trigger Event: Invalid request - 'payload' must be an object if provided. Data: {data}"
+        )
+        return (
+            jsonify(
+                status="error",
+                message="'payload' must be an object (dictionary) if provided.",
+            ),
+            400,
+        )
+
+    result: Dict[str, Any]
+    status_code: int
+
+    try:
+        result = plugins_api.trigger_external_plugin_event_api(event_name, payload)
+        if result.get("status") == "success":
+            status_code = 200
+            logger.info(
+                f"API Trigger Event: Event '{event_name}' triggered successfully by '{identity}'."
+            )
+        else:
+            status_code = 500  # Default if API layer had an issue but didn't specify
+            logger.error(
+                f"API Trigger Event: Failed to trigger event '{event_name}'. Message: {result.get('message')}"
+            )
+
+    except UserInputError as e:
+        status_code = 400
+        result = {"status": "error", "message": str(e)}
+        logger.warning(f"API Trigger Event '{event_name}': Input error. {e}")
+    except BSMError as e:  # Catch other application-specific errors
+        status_code = 500
+        result = {"status": "error", "message": str(e)}
+        logger.error(f"API Trigger Event '{event_name}': Application error. {e}")
+    except Exception as e:
+        status_code = 500
+        result = {
+            "status": "error",
+            "message": f"An unexpected error occurred while triggering event '{event_name}'.",
+        }
+        logger.error(
+            f"API Trigger Event '{event_name}': Unexpected error in route. {e}",
+            exc_info=True,
+        )
+
+    return jsonify(result), status_code
+
+
 # --- API Route: Set Plugin Status ---
 @plugin_bp.route("/api/plugins/<string:plugin_name>", methods=["POST"])
 @csrf.exempt  # Exempt CSRF for this API endpoint if using token auth primarily
@@ -112,12 +188,10 @@ def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
             action = "enabled" if enabled else "disabled"
             logger.info(f"API Set Plugin '{plugin_name}': Successfully {action}.")
         else:
-            # Check for UserInputError specifically if the API might return it directly
-            # For now, assuming set_plugin_status wraps UserInputError or returns error in dict
             status_code = result.get(
                 "error_code", 500
             )  # Allow API to suggest status code
-            if status_code == 404:  # Example if plugin not found
+            if status_code == 404:
                 logger.warning(
                     f"API Set Plugin '{plugin_name}': Not found. {result.get('message')}"
                 )

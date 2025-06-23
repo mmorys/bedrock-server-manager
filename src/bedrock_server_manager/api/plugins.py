@@ -115,3 +115,48 @@ def reload_plugins() -> Dict[str, Any]:
             "status": "error",
             "message": f"An unexpected error occurred during plugin reload: {e}",
         }
+
+
+def trigger_external_plugin_event_api(
+    event_name: str, payload: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Allows an external source (like a web route or CLI) to trigger a custom plugin event.
+
+    Args:
+        event_name: The name of the custom event to trigger.
+        payload: An optional dictionary of data to pass to the event listeners.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    if not event_name:
+        logger.warning("API: Trigger custom event failed - event_name is required.")
+        # It's better to raise an error here for the web route to catch and return 400
+        raise UserInputError("Event name is required to trigger a custom plugin event.")
+
+    logger.info(
+        f"API: Attempting to trigger custom plugin event '{event_name}' externally."
+    )
+    try:
+        actual_payload = payload if payload is not None else {}
+        # "external_api_trigger" identifies the source of this event.
+        plugin_manager.trigger_custom_plugin_event(
+            event_name, "external_api_trigger", **actual_payload
+        )
+        logger.info(
+            f"API: Custom plugin event '{event_name}' triggered successfully via external API."
+        )
+        return {"status": "success", "message": f"Event '{event_name}' triggered."}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error triggering custom event '{event_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"An unexpected error occurred while triggering event '{event_name}': {str(e)}",
+        }
+
+
+register_api("trigger_external_plugin_event", trigger_external_plugin_event_api)

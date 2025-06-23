@@ -21,8 +21,6 @@ class PluginBase(ABC):
     dedicated logger.
     """
 
-    version: str = get_installed_version
-
     def __init__(self, plugin_name: str, api: PluginAPI, logger: Logger):
         """Initializes the plugin instance.
 
