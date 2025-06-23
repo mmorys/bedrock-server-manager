@@ -1,6 +1,6 @@
-# bedrock_server_manager/api/plugins_config.py
+# bedrock_server_manager/api/plugins.py
 """
-Provides API functions for managing plugin configurations (enable/disable).
+Provides API functions for managing plugin configurations and lifecycle.
 """
 import logging
 from typing import Dict, Any
@@ -14,30 +14,21 @@ logger = logging.getLogger(__name__)
 # --- API REGISTRATION FOR PLUGINS ---
 register_api("get_plugin_statuses", lambda **kwargs: get_plugin_statuses(**kwargs))
 register_api("set_plugin_status", lambda **kwargs: set_plugin_status(**kwargs))
+register_api("reload_plugins", lambda **kwargs: reload_plugins(**kwargs))
 
 
 def get_plugin_statuses() -> Dict[str, Any]:
     """
-    Retrieves the statuses of all discovered plugins.
-
-    This function synchronizes the plugin configuration with discoverable
-    plugins on disk and then returns their current enabled/disabled states.
-
-    Returns:
-        A dictionary with operation status and plugin data.
-        On success: {"status": "success", "plugins": {"plugin_name": True/False, ...}}
-        On error: {"status": "error", "message": "..."}
+    Retrieves the statuses and metadata of all discovered plugins.
     """
     logger.debug("API: Attempting to get plugin statuses.")
     try:
-        # Ensure the plugin manager's internal config is up-to-date with disk
         plugin_manager._synchronize_config_with_disk()
-
-        # plugin_config is Dict[str, bool]
+        # The config contains dicts like: {"enabled": bool, "description": str, "version": str}
         statuses = plugin_manager.plugin_config
 
-        logger.info(f"API: Retrieved {len(statuses)} plugin statuses.")
-        return {"status": "success", "plugins": statuses.copy()}  # Return a copy
+        logger.info(f"API: Retrieved data for {len(statuses)} plugins.")
+        return {"status": "success", "plugins": statuses.copy()}
     except Exception as e:
         logger.error(f"API: Failed to get plugin statuses: {e}", exc_info=True)
         return {"status": "error", "message": f"Failed to get plugin statuses: {e}"}
@@ -53,17 +44,14 @@ def set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]:
 
     Returns:
         A dictionary with operation status and a message.
-        On success: {"status": "success", "message": "..."}
-        On error: {"status": "error", "message": "..."}
     """
     if not plugin_name:
         raise UserInputError("Plugin name cannot be empty.")
 
-    logger.info(
-        f"API: Attempting to set status for plugin '{plugin_name}' to {enabled}."
-    )
+    logger.info(f"API: Setting status for plugin '{plugin_name}' to {enabled}.")
     try:
-        # Synchronize first to ensure the plugin_name is known if it's a valid file
+        # Ensure the plugin manager's config is up-to-date with disk.
+        # This will also ensure plugin_name exists if it's a valid plugin.
         plugin_manager._synchronize_config_with_disk()
 
         if plugin_name not in plugin_manager.plugin_config:
@@ -74,14 +62,27 @@ def set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]:
                 f"Plugin '{plugin_name}' not found or not discoverable."
             )
 
-        plugin_manager.plugin_config[plugin_name] = bool(enabled)
+        # Check if the entry for plugin_name is indeed a dictionary
+        # This is a defensive check, especially if _synchronize_config_with_disk has robust migration
+        if not isinstance(plugin_manager.plugin_config.get(plugin_name), dict):
+            logger.error(
+                f"API: Plugin '{plugin_name}' has an invalid configuration format. Expected a dictionary."
+            )
+
+            return {
+                "status": "error",
+                "message": f"Plugin '{plugin_name}' has an invalid configuration. Please try reloading plugins.",
+            }
+
+        # Update the 'enabled' key within the plugin's config dictionary
+        plugin_manager.plugin_config[plugin_name]["enabled"] = bool(enabled)
         plugin_manager._save_config()
 
         action = "enabled" if enabled else "disabled"
         logger.info(f"API: Plugin '{plugin_name}' successfully {action}.")
         return {
             "status": "success",
-            "message": f"Plugin '{plugin_name}' has been {action}.",
+            "message": f"Plugin '{plugin_name}' has been {action}. Reload plugins for changes to take full effect.",
         }
     except UserInputError as e:  # Catch specific UserInputError to re-raise
         raise
@@ -93,3 +94,69 @@ def set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]:
             "status": "error",
             "message": f"Failed to set status for plugin '{plugin_name}': {e}",
         }
+
+
+def reload_plugins() -> Dict[str, Any]:
+    """
+    Triggers the plugin manager to unload all active plugins and then reload
+    all plugins based on the current configuration.
+    """
+    logger.info("API: Attempting to reload all plugins.")
+    try:
+        plugin_manager.reload()  # Call the reload method on the global instance
+        logger.info("API: Plugins reloaded successfully.")
+        return {
+            "status": "success",
+            "message": "Plugins have been reloaded successfully.",
+        }
+    except Exception as e:
+        logger.error(f"API: Failed to reload plugins: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"An unexpected error occurred during plugin reload: {e}",
+        }
+
+
+def trigger_external_plugin_event_api(
+    event_name: str, payload: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    """
+    Allows an external source (like a web route or CLI) to trigger a custom plugin event.
+
+    Args:
+        event_name: The name of the custom event to trigger.
+        payload: An optional dictionary of data to pass to the event listeners.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    if not event_name:
+        logger.warning("API: Trigger custom event failed - event_name is required.")
+        # It's better to raise an error here for the web route to catch and return 400
+        raise UserInputError("Event name is required to trigger a custom plugin event.")
+
+    logger.info(
+        f"API: Attempting to trigger custom plugin event '{event_name}' externally."
+    )
+    try:
+        actual_payload = payload if payload is not None else {}
+        # "external_api_trigger" identifies the source of this event.
+        plugin_manager.trigger_custom_plugin_event(
+            event_name, "external_api_trigger", **actual_payload
+        )
+        logger.info(
+            f"API: Custom plugin event '{event_name}' triggered successfully via external API."
+        )
+        return {"status": "success", "message": f"Event '{event_name}' triggered."}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error triggering custom event '{event_name}': {e}",
+            exc_info=True,
+        )
+        return {
+            "status": "error",
+            "message": f"An unexpected error occurred while triggering event '{event_name}': {str(e)}",
+        }
+
+
+register_api("trigger_external_plugin_event", trigger_external_plugin_event_api)

@@ -21,8 +21,9 @@ This guide will walk you through creating your own plugins to extend and customi
     *   [Player Database Events](#player-database-events)
     *   [System & Application Events](#system--application-events)
     *   [Web Server Events](#web-server-events)
-6.  [Using the Plugin API (`self.api`)](#6-using-the-plugin-api-selfapi)
-7.  [Available API Functions](#7-available-api-functions)
+6.  [Custom Plugin Events (Inter-Plugin Communication)](#6-custom-plugin-events-inter-plugin-communication)
+7.  [Using the Plugin API (`self.api`)](#7-using-the-plugin-api-selfapi)
+8.  [Available API Functions](#8-available-api-functions)
     *   [Server Management](#server-management)
     *   [Server Installation & Configuration](#server-installation--configuration)
     *   [Custom Server Configuration (config.json)](#custom-server-configuration-configjson)
@@ -33,8 +34,9 @@ This guide will walk you through creating your own plugins to extend and customi
     *   [Player Database](#player-database)
     *   [System & Application](#system--application)
     *   [Web Server](#web-server)
-8.  [Example Plugin: Auto-Backup Announcer](#8-example-plugin-auto-backup-announcer)
-9.  [Best Practices](#9-best-practices)
+    *   [Inter-Plugin Communication / Custom Events](#inter-plugin-communication--custom-events)
+9.  [Example Plugin: Auto-Backup Announcer](#9-example-plugin-auto-backup-announcer)
+10. [Best Practices](#10-best-practices)
 
 ---
 
@@ -50,7 +52,7 @@ Here is the most basic "Hello World" plugin:
 
 ```python
 # my_first_plugin.py
-from bedrock_server_manager.plugins.plugin_base import PluginBase
+from bedrock_server_manager import PluginBase
 
 class MyFirstPlugin(PluginBase):
     def on_load(self):
@@ -64,7 +66,7 @@ class MyFirstPlugin(PluginBase):
 ```
 
 4.  **Run the application:** Start the Bedrock Server Manager. You should see your "Hello from MyFirstPlugin!" message in the logs.
-5.  **Enable your plugin:** If it's not a default-enabled plugin, use the `bsm plugin enable my_first_plugin` command to activate it. (See [Managing Plugins](#2-managing-plugins) for more details).
+5.  **Enable your plugin:** If it's not a default-enabled plugin, use the `bedrock-server-manager plugin enable my_first_plugin` command to activate it. (See [Managing Plugins](#2-managing-plugins) for more details).
 
 
 ## 2. Managing Plugins
@@ -88,13 +90,13 @@ The Bedrock Server Manager allows users to control which plugins are active thro
 
 ### CLI Commands for Plugin Management
 
-You can easily manage which plugins are active using the `bsm plugin` command-line interface:
+You can easily manage which plugins are active using the `bedrock-server-manager plugin` command-line interface:
 
--   **`bsm plugin list`**
+-   **`bedrock-server-manager plugin list`**
     -   Displays all discovered plugins and their current status (Enabled/Disabled).
     -   Example:
         ```
-        $ bsm plugin list
+        $ bedrock-server-manager plugin list
         Fetching plugin statuses...
         Plugin Statuses:
         Plugin Name                         | Status
@@ -103,19 +105,19 @@ You can easily manage which plugins are active using the `bsm plugin` command-li
         MyCustomPlugin                      | Disabled
         ```
 
--   **`bsm plugin enable <plugin_name>`**
+-   **`bedrock-server-manager plugin enable <plugin_name>`**
     -   Enables the specified plugin (sets its value to `true` in `plugins.json`).
-    -   Example: `bsm plugin enable MyCustomPlugin`
+    -   Example: `bedrock-server-manager plugin enable MyCustomPlugin`
 
--   **`bsm plugin disable <plugin_name>`**
+-   **`bedrock-server-manager plugin disable <plugin_name>`**
     -   Disables the specified plugin (sets its value to `false` in `plugins.json`).
-    -   Example: `bsm plugin disable ServerLifecycleNotificationsPlugin`
+    -   Example: `bedrock-server-manager plugin disable ServerLifecycleNotificationsPlugin`
 
-Changes made via these CLI commands are immediately saved to `plugins.json`. The application will load or ignore plugins based on this configuration the next time it fully initializes its plugin system (typically on startup).
+Changes made via these CLI commands are immediately saved to `plugins.json`. The application will load or ignore plugins based on this configuration the next time it fully initializes its plugin system (typically on startup, of after reloading all plugins).
 
 ## 3. The `PluginBase` Class
 
-Every plugin **must** inherit from `bedrock_server_manager.plugins.plugin_base.PluginBase`. When your plugin is initialized, you are provided with three essential attributes:
+Every plugin **must** inherit from `bedrock_server_manager.PluginBase`. When your plugin is initialized, you are provided with three essential attributes:
 
 -   `self.name` (str): The name of your plugin, derived from its filename.
 -   `self.logger` (logging.Logger): A pre-configured Python logger instance. All messages sent through this logger will be automatically prefixed with your plugin's name. **Always use this for logging.**
@@ -134,9 +136,9 @@ Here are all the methods you can implement in your plugin class to react to appl
 
 ### Plugin Lifecycle Events
 -   `on_load(self)`
-    -   Called once when your plugin is successfully loaded by the Plugin Manager.
+    -   Required, called once when your plugin is successfully loaded by the Plugin Manager.
 -   `on_unload(self)`
-    -   Called once when the application is shutting down.
+    -   Optional, called once when the application is shutting down.
 
 ### Server Start/Stop Events
 -   `before_server_start(self, server_name: str, mode: str)`
@@ -376,7 +378,85 @@ Here are all the methods you can implement in your plugin class to react to appl
         -   `result` (dict): The dictionary returned by the `stop_web_server` API call.
 
 
-## 5. Using the Plugin API (`self.api`)
+## 5. Custom Plugin Events (Inter-Plugin Communication)
+
+The plugin system includes a powerful feature allowing plugins to define, send, and listen to their own custom events. This enables more complex interactions and communication between different plugins without them needing to have direct knowledge of each other's classes or implementations.
+
+**Core Concepts:**
+
+*   **Event Names:** Events are identified by string names. It is highly recommended to **namespace** your event names, typically by prefixing them with your plugin's name (e.g., `"myplugin:custom_action"`, `"anotherplugin:data_updated"`). This helps prevent naming conflicts between events from different plugins.
+*   **Sending Events:** A plugin can broadcast an event at any point using `self.api.send_event("your:event_name", arg1, arg2, keyword_arg="value")`. It can pass any positional or keyword arguments, which will be delivered to all listeners.
+*   **Listening for Events:** A plugin can register a callback function to be executed whenever a specific event is sent. This is typically done in the plugin's `on_load` method using `self.api.listen_for_event("some:event_to_listen_for", self.my_callback_method)`.
+*   **Callback Arguments:** The callback method will receive:
+    *   Any positional arguments (`*args`) passed during `send_event`.
+    *   Any keyword arguments (`**kwargs`) passed during `send_event`.
+    *   An additional special keyword argument `_triggering_plugin` (str): This is automatically injected by the Plugin Manager and contains the name of the plugin that originally sent the event. This allows listeners to know the source of the event.
+*   **Decoupling:** This system decouples plugins. A sending plugin doesn't need to know which plugins (if any) are listening. Similarly, a listening plugin doesn't need to know the specifics of the sending plugin beyond the event name and the expected data structure.
+
+**Example: Ping-Pong Plugins**
+
+Let's illustrate with two simple plugins: `PingPlugin` sends a "ping" and `PongPlugin` listens for it.
+
+**`ping_plugin.py`:**
+```python
+# src/bedrock_server_manager/plugins/default/ping_plugin.py
+import time
+from bedrock_server_manager import PluginBase
+
+class PingPlugin(PluginBase):
+    version = "1.0.0"
+
+    def after_server_start(self, server_name: str, result: dict):
+        if result.get("status") == "success":
+            self.logger.info(f"Server '{server_name}' started. Sending 'pingplugin:ping' from '{self.name}'.")
+            ping_payload = {
+                "message": f"Ping from {self.name} for server {server_name}!",
+                "timestamp": time.time()
+            }
+            # Send the custom event
+            self.api.send_event("pingplugin:ping", server_name=server_name, data=ping_payload)
+```
+
+**`pong_plugin.py`:**
+```python
+# src/bedrock_server_manager/plugins/default/pong_plugin.py
+from bedrock_server_manager import PluginBase
+
+class PongPlugin(PluginBase):
+    version = "1.0.0"
+
+    def on_load(self):
+        self.logger.info(f"'{self.name}' loaded. Listening for 'pingplugin:ping' events.")
+        # Register a listener for the custom event
+        self.api.listen_for_event("pingplugin:ping", self.handle_ping_event)
+
+    def handle_ping_event(self, server_name, data, _triggering_plugin):
+        # 'server_name' and 'data' were kwargs from send_event
+        # '_triggering_plugin' is automatically added
+        self.logger.info(
+            f"'{self.name}' received 'pingplugin:ping' from '{_triggering_plugin}'!"
+        )
+        self.logger.info(f"  Server: {server_name}, Message: {data.get('message')}, Timestamp: {data.get('timestamp')}")
+        
+        # Example: Send a "pong" response event (could be listened to by PingPlugin or others)
+        self.api.send_event("pongplugin:pong", original_server=server_name, response_to=_triggering_plugin)
+
+    def on_unload(self):
+        self.logger.info(f"'{self.name}' is unloading.")
+        # Note: In a more advanced system, you might want a way to unregister listeners,
+        # but for many cases, a full reload of plugins handles cleanup.
+```
+
+In this example:
+1.  When a server starts, `PingPlugin`'s `after_server_start` hook is called.
+2.  `PingPlugin` uses `self.api.send_event` to broadcast a `"pingplugin:ping"` event with server name and a payload.
+3.  `PongPlugin`, during its `on_load`, registered `self.handle_ping_event` as a listener for `"pingplugin:ping"`.
+4.  The `PluginManager` calls `PongPlugin.handle_ping_event`, passing the arguments from `send_event` plus `_triggering_plugin="ping_plugin"`.
+5.  `PongPlugin` logs the received data and then demonstrates sending its own event `"pongplugin:pong"`.
+
+This custom event system allows for flexible and powerful extensions to the application's behavior through plugin collaboration.
+
+## 6. Using the Plugin API (`self.api`)
 The `self.api` object is your tool for making the application perform actions. It's a bridge that safely exposes core functions to your plugin.
 
 For example, to send a "say Hello" command to a server from within an event hook, you would do:
@@ -439,7 +519,7 @@ The following is a list of functions available through `self.api`. All functions
 
 ### Plugin Configuration API
 
-These functions allow programmatic management of plugin statuses. They are primarily used by the `bsm plugin` CLI commands but can also be called by other plugins if needed.
+These functions allow programmatic management of plugin statuses. They are primarily used by the `bedrock-server-manager plugin` CLI commands but can also be called by other plugins if needed.
 
 -   `get_plugin_statuses() -> Dict[str, Any]`
     -   Retrieves the statuses of all discovered plugins. Synchronizes with `plugins.json` and plugin files on disk before returning.
@@ -532,15 +612,75 @@ These functions allow programmatic management of plugin statuses. They are prima
 -   `get_web_server_status() -> Dict[str, Any]`
     -   Checks the status of the web server process.
 
+### Inter-Plugin Communication / Custom Events
+
+These functions enable plugins to send and receive custom events, allowing for more advanced interactions between different plugins.
+
+-   `send_event(self, event_name: str, *args: Any, **kwargs: Any)`
+    -   Triggers a custom plugin event, notifying all registered listeners.
+    -   **Args:**
+        -   `event_name` (str): The name of the custom event to trigger (e.g., `"myplugin:my_custom_action"`). It's good practice to namespace your event names with your plugin's name to avoid collisions.
+        -   `*args`: Positional arguments to pass to the event listeners' callback functions.
+        -   `**kwargs`: Keyword arguments to pass to the event listeners' callback functions.
+    -   **Example:**
+        ```python
+        # In MySendingPlugin
+        def some_action(self, server_name):
+            self.logger.info(f"Sending 'myplugin:action_completed' event for server {server_name}")
+            self.api.send_event(
+                "myplugin:action_completed",
+                server_name, # positional argument
+                status="success", 
+                item_count=5   # keyword arguments
+            )
+        ```
+
+-   `listen_for_event(self, event_name: str, callback: Callable[..., None])`
+    -   Registers a callback function to be executed when a specific custom plugin event is triggered.
+    -   This is typically called in your plugin's `on_load` method.
+    -   **Args:**
+        -   `event_name` (str): The name of the custom event to listen for.
+        -   `callback` (Callable): The function within your plugin to call when the event is triggered.
+            -   This callback function will receive any `*args` and `**kwargs` that were passed when `send_event` was called.
+            -   Additionally, the `PluginManager` will automatically inject a special keyword argument `_triggering_plugin` (str) into your callback, which holds the name of the plugin that sent the event.
+    -   **Example:**
+        ```python
+        # In MyListeningPlugin
+        def on_load(self):
+            self.api.listen_for_event("myplugin:action_completed", self.handle_action_completed)
+            self.logger.info("Listening for 'myplugin:action_completed' events.")
+
+        def handle_action_completed(self, server_name_arg, status=None, item_count=0, _triggering_plugin=None):
+            # server_name_arg was the positional argument from send_event
+            # status and item_count were keyword arguments
+            # _triggering_plugin is automatically added
+            self.logger.info(
+                f"Event 'myplugin:action_completed' received from plugin '{_triggering_plugin}' "
+                f"for server '{server_name_arg}'. Status: {status}, Items: {item_count}"
+            )
+            # ... do something with the event data ...
+        ```
+
 ## 7. Example Plugin: Auto-Backup Announcer
 
 This plugin announces in-game when a backup is starting and when it has completed.
 
 ```python
 # backup_announcer.py
-from bedrock_server_manager.plugins.plugin_base import PluginBase
+from bedrock_server_manager import PluginBase
 
 class BackupAnnouncer(PluginBase):
+    # Docstring for the plugin will be used for description in the UI
+    """A simple plugin that announces backup actions in-game."""
+
+    # Required: Version of the plugin, used for compatibility checks and UI
+    version = "1.0.0"
+
+    def on_load(self):
+        """Logs a message when the plugin is loaded."""
+        self.logger.info(
+            "Plugin loaded. Will anounce the status of a backup action."
+        )
 
     def before_backup(self, server_name: str, backup_type: str, **kwargs):
         """Called before any backup operation starts."""
@@ -579,3 +719,5 @@ class BackupAnnouncer(PluginBase):
 -   **Handle exceptions:** When using `self.api`, wrap your calls in `try...except` blocks. An API call can fail for many reasons (e.g., server is stopped, files don't exist), and your plugin should handle this gracefully without crashing.
 -   **Check the `result` dictionary:** The `after_*` events provide you with the outcome of the operation. Always check `result['status']` before assuming an action was successful.
 -   **Be mindful of blocking operations:** Your plugin code runs in the main application thread. Avoid long-running or blocking tasks inside your event handlers, as this will freeze the application.
+-   **Use the API for ooperations:** Do not directly manipulate files or directories related to the application. Always use the provided `self.api` functions to ensure consistency and proper error handling. 
+    - If you need a method that is not available in the `self.api`, you can directly use the available [`BedrockServer`, `BedrockServerManager`, `BedrodkDownloader`, `Settings`] class methods, but ensure you handle any exceptions and log appropriately, and take note these methods may change at anytime in future versions.

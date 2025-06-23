@@ -288,7 +288,9 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
         mode = "direct"  # Windows only supports direct stop logic.
 
     # --- Plugin Hook ---
-    plugin_manager.trigger_guarded_event("before_server_stop", server_name=server_name)
+    plugin_manager.trigger_guarded_event(
+        "before_server_stop", server_name=server_name, mode=mode
+    )
 
     logger.info(f"API: Attempting to stop server '{server_name}' (mode: {mode})...")
     result = {}
