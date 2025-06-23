@@ -1,43 +1,34 @@
 # bedrock_server_manager/plugins/default/world_operation_notifications_plugin.py
 """
-Example Plugin: Sends in-game notifications to players before the server's
-world is changed, for example, through exporting, importing, or resetting.
+Plugin to send in-game notifications before world operations like export, import, or reset.
 """
 from bedrock_server_manager import PluginBase
 
 
 class WorldOperationNotificationsPlugin(PluginBase):
     """
-    For example, if an administrator starts a world export on a running server
-    named 'survival_games', this plugin will send an in-game chat message like
-    "Exporting world..." to notify any connected players of the operation.
+    Notifies in-game players before significant world operations (export, import, reset)
+    are performed on a running server, providing a heads-up for potential disruptions.
     """
 
+    version = "1.0.0"
+
     def on_load(self):
-        """
-        Example: When the Plugin Manager loads this plugin, it will log a
-        message like: 'WorldOperationNotificationsPlugin is loaded and active...'
-        """
-        self.logger.info(
-            "WorldOperationNotificationsPlugin is loaded and active. It will handle notifications for world operations."
-        )
+        """Logs a message when the plugin is loaded."""
+        self.logger.info("Plugin loaded. Will send notifications for world operations.")
 
     def _is_server_running(self, server_name: str) -> bool:
-        """
-        Example: Before sending a warning, this function checks if the server
-        'survival_games' is actually online. It does this by calling an API
-        function that might return `{'status': 'success', 'is_running': true}`.
-        """
+        """Checks if a server is currently running via the API."""
         try:
             response = self.api.get_server_running_status(server_name=server_name)
             if response and response.get("status") == "success":
                 return response.get("is_running", False)
             self.logger.warning(
-                f"Could not determine if server '{server_name}' is running. API response: {response}"
+                f"Could not determine running status for '{server_name}'. API: {response}"
             )
         except AttributeError:
             self.logger.error(
-                "Plugin API does not have 'get_server_running_status'. Cannot check server status."
+                "API is missing 'get_server_running_status'. Cannot check server status."
             )
         except Exception as e:
             self.logger.error(
@@ -45,63 +36,58 @@ class WorldOperationNotificationsPlugin(PluginBase):
             )
         return False
 
-    def _send_world_operation_warning(self, server_name: str, operation_message: str):
-        """
-        Example helper function: If `_is_server_running` confirms that the
-        'survival_games' server is online, this function will send the provided
-        message, for instance `say Exporting world...`, to the game.
-        """
+    def _send_ingame_warning(self, server_name: str, message: str, context: str):
+        """Helper to send an in-game "say" command if the server is running."""
         if self._is_server_running(server_name):
             try:
-                self.api.send_command(
-                    server_name=server_name, command=f"say {operation_message}"
-                )
+                # Ensure the message is formatted as a "say" command.
+                if not message.lower().startswith("say "):
+                    command = f"say {message}"
+                else:
+                    command = message
+
+                self.api.send_command(server_name=server_name, command=command)
                 self.logger.info(
-                    f"Sent world operation warning to '{server_name}': {operation_message}"
-                )
-            except AttributeError as e:
-                self.logger.error(
-                    f"API function error during world op warning for '{server_name}': {e}. Is 'send_command' or 'get_server_running_status' registered?"
+                    f"Sent {context} warning to '{server_name}': {message}"
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Failed to send world operation warning to '{server_name}': {e}",
+                    f"Failed to send {context} warning to '{server_name}': {e}",
                     exc_info=True,
                 )
         else:
             self.logger.info(
-                f"Server '{server_name}' is not running, skipping world operation warning: {operation_message}"
+                f"Server '{server_name}' not running, skipping {context} warning."
             )
 
     def before_world_export(self, server_name: str, export_dir: str):
-        """
-        Example Scenario: An admin runs the command `bsm world export my_server`.
-        Before the export process begins, this function is triggered and calls the
-        helper to send the "Exporting world..." message to the game.
-        """
+        """Notifies players before a world export begins."""
         self.logger.debug(
-            f"'{self.name}' handling before_world_export for '{server_name}' to '{export_dir}'"
+            f"Handling before_world_export for '{server_name}' to '{export_dir}'."
         )
-        self._send_world_operation_warning(server_name, "Exporting world...")
+        self._send_ingame_warning(
+            server_name, "World export starting...", "world export"
+        )
 
     def before_world_import(self, server_name: str, file_path: str):
-        """
-        Example Scenario: An admin runs `bsm world import my_server new_world.mcworld`.
-        Before the existing world is overwritten, this function is triggered to send
-        the "Importing world..." message.
-        """
+        """Notifies players before a world import begins."""
         self.logger.debug(
-            f"'{self.name}' handling before_world_import for '{server_name}' from '{file_path}'"
+            f"Handling before_world_import for '{server_name}' from '{file_path}'."
         )
-        self._send_world_operation_warning(server_name, "Importing world...")
+        self._send_ingame_warning(
+            server_name,
+            "World import starting... Current world will be replaced.",
+            "world import",
+        )
 
     def before_world_reset(self, server_name: str):
-        """
-        Example Scenario: An admin runs the dangerous command `bsm world reset my_server`.
-        This function is triggered just before the world files are deleted, sending a
-        critical warning: "WARNING: Resetting world".
-        """
-        self.logger.debug(
-            f"'{self.name}' handling before_world_reset for '{server_name}'"
+        """Sends a critical warning before a world reset operation."""
+        self.logger.debug(f"Handling before_world_reset for '{server_name}'.")
+        self.logger.warning(
+            f"Critical operation: World reset initiated for server '{server_name}'."
         )
-        self._send_world_operation_warning(server_name, "WARNING: Resetting world")
+        self._send_ingame_warning(
+            server_name,
+            "CRITICAL WARNING: Server world is being reset NOW!",
+            "world reset",
+        )

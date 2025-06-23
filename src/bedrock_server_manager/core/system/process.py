@@ -147,6 +147,27 @@ def get_bedrock_server_pid_file_path(server_name: str, config_dir: str) -> str:
     return os.path.join(server_config_path, pid_filename)
 
 
+def get_bedrock_launcher_pid_file_path(server_name: str, config_dir: str) -> str:
+    """Constructs the standardized path to a Bedrock server's LAUNCHER PID file."""
+    if not server_name:
+        raise MissingArgumentError("Server name cannot be empty.")
+    if not config_dir:
+        raise MissingArgumentError("Configuration directory cannot be empty.")
+
+    server_config_path = config_dir
+    if not os.path.isdir(server_config_path):
+        try:
+            os.makedirs(server_config_path, exist_ok=True)
+        except OSError as e:
+            raise AppFileNotFoundError(
+                server_config_path,
+                f"Launcher PID: Config directory for server '{server_name}' (could not create: {e})",
+            ) from e
+
+    pid_filename = f"bedrock_{server_name}_launcher.pid"  # For the BSM launcher process
+    return os.path.join(server_config_path, pid_filename)
+
+
 def read_pid_from_file(pid_file_path: str) -> Optional[int]:
     """Reads and validates a PID from a specified file.
 
@@ -220,7 +241,7 @@ def is_process_running(pid: int) -> bool:
     return psutil.pid_exists(pid)
 
 
-def launch_detached_process(command: List[str], pid_file_path: str) -> int:
+def launch_detached_process(command: List[str], launcher_pid_file_path: str) -> int:
     """Launches a command as a detached background process and records its PID.
 
     This function uses `GuardedProcess` to prevent recursion and handles
@@ -272,7 +293,7 @@ def launch_detached_process(command: List[str], pid_file_path: str) -> int:
 
     pid = process.pid
     logger.info(f"Successfully started guarded process with PID: {pid}")
-    write_pid_to_file(pid_file_path, pid)
+    write_pid_to_file(launcher_pid_file_path, pid)
     return pid
 
 
