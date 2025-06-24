@@ -11,7 +11,7 @@ import logging
 from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -22,19 +22,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# Register API functions with the plugin system's API bridge.
-register_api(
-    "get_server_running_status", lambda **kwargs: get_server_running_status(**kwargs)
-)
-register_api(
-    "get_server_config_status", lambda **kwargs: get_server_config_status(**kwargs)
-)
-register_api(
-    "get_server_installed_version",
-    lambda **kwargs: get_server_installed_version(**kwargs),
-)
-
-
+@plugin_method("get_server_running_status")
 def get_server_running_status(server_name: str) -> Dict[str, Any]:
     """Checks if the server process is currently running.
 
@@ -79,7 +67,7 @@ def get_server_running_status(server_name: str) -> Dict[str, Any]:
             "message": f"Unexpected error checking running status: {e}",
         }
 
-
+@plugin_method("get_server_config_status")
 def get_server_config_status(server_name: str) -> Dict[str, Any]:
     """Gets the status from the server's configuration file.
 
@@ -126,7 +114,7 @@ def get_server_config_status(server_name: str) -> Dict[str, Any]:
             "message": f"Unexpected error getting config status: {e}",
         }
 
-
+@plugin_method("get_server_installed_version")
 def get_server_installed_version(server_name: str) -> Dict[str, Any]:
     """Gets the installed version from the server's configuration file.
 

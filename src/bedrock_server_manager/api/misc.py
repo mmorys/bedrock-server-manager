@@ -12,7 +12,7 @@ from typing import Dict, Optional
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core import downloader
@@ -28,10 +28,7 @@ logger = logging.getLogger(__name__)
 # A lock to prevent race conditions during miscellaneous file operations.
 _misc_lock = threading.Lock()
 
-# Register API functions with the plugin system's API bridge.
-register_api("prune_download_cache", lambda **kwargs: prune_download_cache(**kwargs))
-
-
+@plugin_method("prune_download_cache")
 def prune_download_cache(
     download_dir: str, keep_count: Optional[int] = None
 ) -> Dict[str, str]:

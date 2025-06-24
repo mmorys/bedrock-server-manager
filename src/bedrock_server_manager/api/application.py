@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
@@ -21,19 +21,7 @@ logger = logging.getLogger(__name__)
 # Instantiate the core manager to be used by the API functions.
 bsm = BedrockServerManager()
 
-# Register API functions with the plugin system's API bridge.
-register_api(
-    "get_application_info", lambda **kwargs: get_application_info_api(**kwargs)
-)
-register_api(
-    "list_available_worlds", lambda **kwargs: list_available_worlds_api(**kwargs)
-)
-register_api(
-    "list_available_addons", lambda **kwargs: list_available_addons_api(**kwargs)
-)
-register_api("get_all_servers_data", lambda **kwargs: get_all_servers_data(**kwargs))
-
-
+@plugin_method("get_application_info_api")
 def get_application_info_api() -> Dict[str, Any]:
     """Retrieves general information about the application.
 
@@ -57,7 +45,7 @@ def get_application_info_api() -> Dict[str, Any]:
         logger.error(f"API: Unexpected error getting app info: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-
+@plugin_method("list_available_worlds_api")
 def list_available_worlds_api() -> Dict[str, Any]:
     """Lists available .mcworld files from the content directory.
 
@@ -77,7 +65,7 @@ def list_available_worlds_api() -> Dict[str, Any]:
         logger.error(f"API: Unexpected error listing worlds: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-
+@plugin_method("list_available_addons_api")
 def list_available_addons_api() -> Dict[str, Any]:
     """Lists available .mcaddon and .mcpack files from the content directory.
 
@@ -97,7 +85,7 @@ def list_available_addons_api() -> Dict[str, Any]:
         logger.error(f"API: Unexpected error listing addons: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-
+@plugin_method("get_all_servers_data")
 def get_all_servers_data() -> Dict[str, Any]:
     """Retrieves status and version for all detected servers.
 

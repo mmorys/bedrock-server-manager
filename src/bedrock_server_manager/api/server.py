@@ -18,7 +18,7 @@ import subprocess
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -37,15 +37,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# --- API REGISTRATION FOR PLUGINS ---
-register_api("start_server", lambda **kwargs: start_server(**kwargs))
-register_api("stop_server", lambda **kwargs: stop_server(**kwargs))
-register_api("restart_server", lambda **kwargs: restart_server(**kwargs))
-register_api("send_command", lambda **kwargs: send_command(**kwargs))
-register_api("write_server_config", lambda **kwargs: write_server_config(**kwargs))
-register_api("delete_server_data", lambda **kwargs: delete_server_data(**kwargs))
-
-
+@plugin_method("write_server_config")
 def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]:
     """Writes a key-value pair to a server's custom JSON configuration.
 
@@ -97,7 +89,7 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
             "message": f"Unexpected error writing server config: {e}",
         }
 
-
+@plugin_method("start_server")
 def start_server(
     server_name: str,
     mode: str = "direct",
@@ -261,7 +253,7 @@ def start_server(
             "after_server_start", server_name=server_name, result=result
         )
 
-
+@plugin_method("stop_server")
 def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
     """Stops the specified Bedrock server.
 
@@ -384,7 +376,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             "after_server_stop", server_name=server_name, result=result
         )
 
-
+@plugin_method("restart_server")
 def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str]:
     """Restarts the specified Bedrock server by orchestrating stop and start.
 
@@ -469,7 +461,7 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
         )
         return {"status": "error", "message": f"Unexpected error during restart: {e}"}
 
-
+@plugin_method("send_command")
 def send_command(server_name: str, command: str) -> Dict[str, str]:
     """Sends a command to a running Bedrock server.
 

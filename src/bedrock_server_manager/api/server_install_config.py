@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -33,35 +33,8 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# Register API functions with the plugin system's API bridge.
-register_api(
-    "add_players_to_allowlist", lambda **kwargs: add_players_to_allowlist_api(**kwargs)
-)
-register_api(
-    "get_server_allowlist", lambda **kwargs: get_server_allowlist_api(**kwargs)
-)
-register_api(
-    "remove_players_from_allowlist",
-    lambda **kwargs: remove_players_from_allowlist(**kwargs),
-)
-register_api(
-    "configure_player_permission",
-    lambda **kwargs: configure_player_permission(**kwargs),
-)
-register_api(
-    "get_server_permissions", lambda **kwargs: get_server_permissions_api(**kwargs)
-)
-register_api(
-    "get_server_properties", lambda **kwargs: get_server_properties_api(**kwargs)
-)
-register_api(
-    "modify_server_properties", lambda **kwargs: modify_server_properties(**kwargs)
-)
-register_api("install_new_server", lambda **kwargs: install_new_server(**kwargs))
-register_api("update_server", lambda **kwargs: update_server(**kwargs))
-
-
 # --- Allowlist ---
+@plugin_method("add_players_to_allowlist_api")
 def add_players_to_allowlist_api(
     server_name: str, new_players_data: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
@@ -129,7 +102,7 @@ def add_players_to_allowlist_api(
 
     return result
 
-
+@plugin_method("get_server_allowlist_api")
 def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
     """Retrieves the allowlist for a specific server.
 
@@ -162,7 +135,7 @@ def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
             "message": f"Unexpected error reading allowlist: {e}",
         }
 
-
+@plugin_method("remove_players_from_allowlist")
 def remove_players_from_allowlist(
     server_name: str, player_names: List[str]
 ) -> Dict[str, Any]:
@@ -235,6 +208,7 @@ def remove_players_from_allowlist(
 
 
 # --- Player Permissions ---
+@plugin_method("configure_player_permission")
 def configure_player_permission(
     server_name: str, xuid: str, player_name: Optional[str], permission: str
 ) -> Dict[str, str]:
@@ -288,7 +262,7 @@ def configure_player_permission(
 
     return result
 
-
+@plugin_method("get_server_permissions_api")
 def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
     """Retrieves processed permissions data for a server.
 
@@ -338,6 +312,7 @@ def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
 
 
 # --- Server Properties ---
+@plugin_method("get_server_properties_api")
 def get_server_properties_api(server_name: str) -> Dict[str, Any]:
     """Reads and returns the `server.properties` file for a server.
 
@@ -368,7 +343,7 @@ def get_server_properties_api(server_name: str) -> Dict[str, Any]:
         )
         return {"status": "error", "message": f"Unexpected error: {e}"}
 
-
+@plugin_method("validate_server_property_value")
 def validate_server_property_value(property_name: str, value: str) -> Dict[str, str]:
     """Validates a single server property value based on known rules.
 
@@ -443,7 +418,7 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
     # Property is valid or has no specific validation rule.
     return {"status": "success"}
 
-
+@plugin_method("modify_server_properties")
 def modify_server_properties(
     server_name: str,
     properties_to_update: Dict[str, str],
@@ -520,6 +495,7 @@ def modify_server_properties(
 
 
 # --- INSTALL/UPDATE FUNCTIONS ---
+@plugin_method("install_new_server")
 def install_new_server(
     server_name: str, target_version: str = "LATEST"
 ) -> Dict[str, Any]:
@@ -588,7 +564,7 @@ def install_new_server(
 
     return result
 
-
+@plugin_method("update_server")
 def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]:
     """Updates an existing server to its configured target version.
 

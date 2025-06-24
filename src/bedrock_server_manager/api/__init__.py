@@ -8,7 +8,7 @@ from bedrock_server_manager.core.system.process import GUARD_VARIABLE
 logger = logging.getLogger(__name__)
 
 # --- Import all API modules to ensure their functions are registered ---
-# The act of importing these files will execute the register_api() calls within them.
+# The act of importing these files will execute the @plugin_method() calls within them.
 from . import application
 from . import addon
 from . import backup_restore

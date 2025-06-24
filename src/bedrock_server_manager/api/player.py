@@ -11,7 +11,7 @@ from typing import Dict, List, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
@@ -23,19 +23,8 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 bsm = BedrockServerManager()
 
-# Register API functions with the plugin system's API bridge.
-register_api(
-    "add_players_manually", lambda **kwargs: add_players_manually_api(**kwargs)
-)
-register_api(
-    "get_all_known_players", lambda **kwargs: get_all_known_players_api(**kwargs)
-)
-register_api(
-    "scan_and_update_player_db",
-    lambda **kwargs: scan_and_update_player_db_api(**kwargs),
-)
 
-
+@plugin_method("add_players_manually_api")
 def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
     """Adds or updates player data in the central players.json file.
 
@@ -108,7 +97,7 @@ def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
 
     return result
 
-
+@plugin_method("get_all_known_players_api")
 def get_all_known_players_api() -> Dict[str, Any]:
     """Retrieves all player data from the central players.json file.
 
@@ -128,7 +117,7 @@ def get_all_known_players_api() -> Dict[str, Any]:
             "message": f"An unexpected error occurred retrieving players: {str(e)}",
         }
 
-
+@plugin_method("scan_and_update_player_db_api")
 def scan_and_update_player_db_api() -> Dict[str, Any]:
     """Scans all server logs to discover and save player data.
 
