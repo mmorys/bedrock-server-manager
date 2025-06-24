@@ -11,7 +11,8 @@ The `PluginManager` class handles all aspects of plugin interaction, including:
   - Dynamically loading valid and enabled plugins.
   - Managing the lifecycle of plugins (e.g., calling `on_load`, `on_unload`).
   - Dispatching application-wide events to all loaded plugins.
-  - Facilitating custom inter-plugin event communication.
+  - Facilitating custom inter-plugin event communication. Custom event names
+    must follow a 'namespace:event_name' format (e.g., 'myplugin:data_updated').
   - Providing a mechanism to reload all plugins.
 """
 import os
@@ -572,6 +573,17 @@ class PluginManager:
             f"Plugin loading process complete. Loaded {loaded_plugin_count} plugins."
         )
 
+    def _is_valid_custom_event_name(self, event_name: str) -> bool:
+        """Checks if the custom event name follows the 'namespace:event_name' format."""
+        if not isinstance(event_name, str):
+            return False
+        parts = event_name.split(":", 1)
+        if len(parts) == 2:
+            namespace, name = parts[0].strip(), parts[1].strip()
+            if namespace and name:  # Both parts must be non-empty after stripping
+                return True
+        return False
+
     def register_plugin_event_listener(
         self, event_name: str, callback: Callable, listening_plugin_name: str
     ):
@@ -579,11 +591,20 @@ class PluginManager:
 
         Args:
             event_name (str): The name of the custom event to listen for.
+                Must be in the format 'namespace:event_name'.
             callback (Callable): The function/method in the listening plugin
                 that will be called when the event is triggered.
             listening_plugin_name (str): The name of the plugin registering
                 the listener. Used for logging and context.
         """
+        if not self._is_valid_custom_event_name(event_name):
+            logger.error(
+                f"Plugin '{listening_plugin_name}' attempted to register listener for custom event "
+                f"'{event_name}' which does not follow the 'namespace:event_name' format. "
+                f"Registration failed."
+            )
+            return
+
         if not callable(callback):
             logger.error(
                 f"Plugin '{listening_plugin_name}' attempted to register a non-callable object "
@@ -616,11 +637,20 @@ class PluginManager:
 
         Args:
             event_name (str): The name of the custom event being triggered.
+                Must be in the format 'namespace:event_name'.
             triggering_plugin_name (str): The name of the plugin that initiated
                 this event. This is passed to listeners as `_triggering_plugin`.
             *args: Positional arguments to pass to the listener callbacks.
             **kwargs: Keyword arguments to pass to the listener callbacks.
         """
+        if not self._is_valid_custom_event_name(event_name):
+            logger.error(
+                f"Plugin '{triggering_plugin_name}' attempted to trigger custom event "
+                f"'{event_name}' which does not follow the 'namespace:event_name' format. "
+                f"Event trigger aborted."
+            )
+            return
+
         # Initialize the re-entrancy guard stack if it doesn't exist for this thread.
         if not hasattr(_custom_event_context, "stack"):
             _custom_event_context.stack = []
@@ -662,10 +692,13 @@ class PluginManager:
                     )
         finally:
             # Remove the event from the stack once all its listeners have been processed.
-            _custom_event_context.stack.pop()
+            if (
+                hasattr(_custom_event_context, "stack") and _custom_event_context.stack
+            ):  # Ensure stack exists and is not empty before pop
+                _custom_event_context.stack.pop()
             logger.debug(
                 f"Finished processing custom event '{event_name}'. "
-                f"Stack after pop: {_custom_event_context.stack}"
+                f"Stack after pop: {getattr(_custom_event_context, 'stack', [])}"
             )
 
     def reload(self):
@@ -792,10 +825,13 @@ class PluginManager:
                 self.dispatch_event(plugin_instance, event, *args, **kwargs)
         finally:
             # Remove the event from the stack once dispatched to all plugins.
-            _event_context.stack.pop()
+            if (
+                hasattr(_event_context, "stack") and _event_context.stack
+            ):  # Ensure stack exists and is not empty before pop
+                _event_context.stack.pop()
             logger.debug(
                 f"Finished dispatching standard event '{event}'. "
-                f"Stack after pop: {_event_context.stack}"
+                f"Stack after pop: {getattr(_event_context, 'stack', [])}"
             )
 
     def trigger_guarded_event(self, event: str, *args, **kwargs):
