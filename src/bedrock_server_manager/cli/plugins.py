@@ -237,14 +237,8 @@ def reload_plugins_cli():
         )
 
 
-# --- Sub-group for plugin events ---
-@plugin.group("event")
-def event():
-    """Manages custom plugin events."""
-    pass
 
-
-@event.command("trigger")
+@plugin.command("trigger-event")
 @click.argument("event_name", required=True)
 @click.option(
     "--payload-json",
