@@ -59,8 +59,8 @@ class ServerWindowsServiceMixin(BedrockServerBaseMixin):
 
     @property
     def windows_service_name(self) -> str:
-        """Returns the internal service name (e.g., 'bds-MyServer')."""
-        return f"bds-{self.server_name}"
+        """Returns the internal service name (e.g., 'bedrock-MyServer')."""
+        return f"bedrock-{self.server_name}"
 
     @property
     def windows_service_display_name(self) -> str:

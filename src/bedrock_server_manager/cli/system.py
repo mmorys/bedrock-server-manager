@@ -62,7 +62,6 @@ def requires_service_manager(func: Callable) -> Callable:
                 msg = "Error: This command requires a service manager (like systemd), which was not found."
             click.secho(msg, fg="red")
             raise click.Abort()
-        # If check passes, call the original command function.
         return func(*args, **kwargs)
 
     return wrapper
@@ -375,15 +374,14 @@ def _run_service(ctx, server_name: str):
     if platform.system() == "Windows" and PYWIN32_AVAILABLE:
 
         class ServiceHandler(BedrockServerWindowsService):
-            _svc_name_ = f"bds-{server_name}"
+            _svc_name_ = f"bedrock-{server_name}"
             _svc_display_name_ = f"Bedrock Server ({server_name})"
 
         if "debug" in ctx.args:
             # Debug mode runs the service logic in the console and blocks.
             logger.info(f"Starting service '{server_name}' in DEBUG mode.")
-            win32serviceutil.DebugService(ServiceHandler, argv=[f"bds-{server_name}"])
+            win32serviceutil.DebugService(ServiceHandler, argv=[f"bedrock-{server_name}"])
         else:
-            # --- THIS IS THE PRODUCTION SERVICE LOGIC ---
             servicemanager.Initialize()
             servicemanager.PrepareToHostSingle(ServiceHandler)
             servicemanager.StartServiceCtrlDispatcher()

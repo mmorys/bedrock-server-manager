@@ -309,9 +309,7 @@ def stop_server(server_name: str) -> Dict[str, str]:
         raise InvalidServerNameError("Server name cannot be empty.")
 
     # --- Plugin Hook ---
-    plugin_manager.trigger_guarded_event(
-        "before_server_stop", server_name=server_name
-    )
+    plugin_manager.trigger_guarded_event("before_server_stop", server_name=server_name)
 
     logger.info(f"API: Attempting to stop server '{server_name}'...")
     result = {}

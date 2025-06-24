@@ -21,7 +21,7 @@ import time
 import subprocess
 import logging
 import re
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 # Third-party imports. pywin32 is optional but required for IPC.
 try:
@@ -40,6 +40,8 @@ except ImportError:
 # Local application imports.
 from bedrock_server_manager.core.system import process as core_process
 from bedrock_server_manager.core.bedrock_server import BedrockServer
+from bedrock_server_manager.core.manager import BedrockServerManager
+from bedrock_server_manager.web.app import run_web_server
 from bedrock_server_manager.core.system.windows import _main_pipe_server_listener_thread
 
 logger = logging.getLogger(__name__)
@@ -78,7 +80,7 @@ class BedrockServerWindowsService(win32serviceutil.ServiceFramework):
         # The first arg from the SCM is always the service name.
         if args:
             self._svc_name_ = args[0]
-            self.server_name = self._svc_name_.replace("bds-", "", 1)
+            self.server_name = self._svc_name_.replace("bedrock-", "", 1)
         else:
             # This case should not happen in a real service start.
             self.server_name = "unknown_service"
@@ -229,3 +231,89 @@ class BedrockServerWindowsService(win32serviceutil.ServiceFramework):
             if self.logger:
                 self.logger.info("Cleanup complete. Reporting STOPPED.")
             self.ReportServiceStatus(win32service.SERVICE_STOPPED)
+
+
+class WebServerWindowsService(win32serviceutil.ServiceFramework):
+    """
+    Manages the application's Web UI as a self-sufficient Windows Service.
+    """
+
+    # These are placeholders; the CLI wrapper will set the real names.
+    _svc_name_ = "BSMWebUIService"
+    _svc_display_name_ = "Bedrock Server Manager Web UI"
+    _svc_description_ = "Hosts the web interface for the Bedrock Server Manager."
+
+    def __init__(self, args):
+        """
+        Constructor is simple. It only gets the service name from `args`.
+        All other configuration is loaded internally.
+        """
+        win32serviceutil.ServiceFramework.__init__(self, args)
+        self.shutdown_event = threading.Event()
+        self.logger = logging.getLogger(__name__)
+
+        # The first arg from HandleCommandLine is always the service name.
+        if args:
+            self._svc_name_ = args[0]
+
+        # --- The service is now self-sufficient ---
+        # It creates its own manager to find the settings it needs.
+        bsm = BedrockServerManager()
+        self.hosts = bsm.get_setting("WEB_UI_HOST", ["127.0.0.1"])
+        self.port = bsm.get_setting("WEB_UI_PORT", 8180)  # Example
+
+    def SvcStop(self):
+        """Called by the SCM when the service is stopping."""
+        self.logger.info(f"Web Service '{self._svc_name_}': Stop request received.")
+        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        self.shutdown_event.set()  # Signal the main loop to exit
+
+    def SvcDoRun(self):
+        """The main service entry point."""
+        self.ReportServiceStatus(win32service.SERVICE_START_PENDING)
+
+        try:
+            if getattr(sys, "frozen", False):
+                # If running as a frozen exe (e.g., PyInstaller)
+                script_dir = os.path.dirname(sys.executable)
+            else:
+                # If running as a normal .py script
+                script_dir = os.path.dirname(os.path.realpath(__file__))
+
+            os.chdir(script_dir)
+            # --- The service runs the web app DIRECTLY in a thread ---
+            # No more complex subprocess calls.
+            self.logger.info(
+                f"Starting web server logic in a background thread on hosts {self.hosts}, port {self.port}."
+            )
+
+            web_thread = threading.Thread(
+                target=run_web_server,
+                args=(self.hosts, False),  # Run in production mode
+                daemon=True,
+            )
+            web_thread.start()
+
+            self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+            self.logger.info(
+                f"Web Service '{self._svc_name_}': Status reported as RUNNING."
+            )
+
+            # The service now waits here until SvcStop sets the shutdown_event.
+            self.shutdown_event.wait()
+
+            # Optional: Add logic here to gracefully shut down the web server thread if possible.
+            self.logger.info(
+                f"Web Service '{self._svc_name_}': Shutdown event processed."
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Web Service '{self._svc_name_}': FATAL ERROR in SvcDoRun: {e}",
+                exc_info=True,
+            )
+        finally:
+            self.ReportServiceStatus(win32service.SERVICE_STOPPED)
+            self.logger.info(
+                f"Web Service '{self._svc_name_}': Status reported as STOPPED."
+            )
