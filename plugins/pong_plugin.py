@@ -8,11 +8,13 @@ which sends this event.
 """
 from bedrock_server_manager import PluginBase
 
+
 class PongPlugin(PluginBase):
     """
     A plugin that demonstrates how to listen for and handle custom events
     sent by other plugins. It specifically listens for 'pingplugin:ping'.
     """
+
     version = "1.0.0"
 
     def on_load(self):
@@ -47,7 +49,7 @@ class PongPlugin(PluginBase):
         # It's good practice to extract _triggering_plugin first.
         # The .pop() method retrieves it and removes it from kwargs,
         # so it doesn't interfere with your expected payload.
-        triggering_plugin_name = kwargs.pop('_triggering_plugin', 'UnknownPlugin')
+        triggering_plugin_name = kwargs.pop("_triggering_plugin", "UnknownPlugin")
 
         self.logger.info(
             f"'{self.name}' received 'pingplugin:ping' event from plugin: '{triggering_plugin_name}'."
@@ -56,19 +58,20 @@ class PongPlugin(PluginBase):
         # Log all received arguments for demonstration purposes.
         if args:
             self.logger.info(f"  Received positional arguments: {args}")
-        if kwargs: # kwargs will now not include _triggering_plugin
+        if kwargs:  # kwargs will now not include _triggering_plugin
             self.logger.info(f"  Received keyword arguments (payload): {kwargs}")
         else:
             self.logger.info("  No additional keyword arguments (payload) received.")
 
-
         # Example of how to safely access specific data from the event payload (kwargs).
         # This assumes PingPlugin sends 'server_name' and a 'data' dictionary.
-        server_name = kwargs.get('server_name', 'N/A') # Use .get() for safe access
-        ping_data_payload = kwargs.get('data', {}) # Default to empty dict if 'data' is missing
+        server_name = kwargs.get("server_name", "N/A")  # Use .get() for safe access
+        ping_data_payload = kwargs.get(
+            "data", {}
+        )  # Default to empty dict if 'data' is missing
 
-        message = ping_data_payload.get('message', 'No message content')
-        timestamp = ping_data_payload.get('timestamp', 0)
+        message = ping_data_payload.get("message", "No message content")
+        timestamp = ping_data_payload.get("timestamp", 0)
 
         self.logger.info(
             f"  Parsed data from event: Server='{server_name}', Message='{message}', Timestamp='{timestamp}'"

@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # the entire module, preventing race conditions and potential data corruption.
 _backup_restore_lock = threading.Lock()
 
+
 @plugin_method("list_backup_files")
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     """Lists available backup files for a given server and type.
@@ -66,6 +67,7 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
             f"Unexpected error listing backups for '{server_name}': {e}", exc_info=True
         )
         return {"status": "error", "message": "An unexpected server error occurred."}
+
 
 @plugin_method("backup_world")
 def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, str]:
@@ -141,6 +143,7 @@ def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, 
         _backup_restore_lock.release()
 
     return result
+
 
 @plugin_method("backup_config_file")
 def backup_config_file(
@@ -223,6 +226,7 @@ def backup_config_file(
 
     return result
 
+
 @plugin_method("backup_all")
 def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, Any]:
     """Performs a full backup of the server's world and configuration files.
@@ -298,6 +302,7 @@ def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, An
         _backup_restore_lock.release()
 
     return result
+
 
 @plugin_method("restore_all")
 def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, Any]:
@@ -382,6 +387,7 @@ def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, A
         _backup_restore_lock.release()
 
     return result
+
 
 @plugin_method("restore_world")
 def restore_world(
@@ -470,6 +476,7 @@ def restore_world(
 
     return result
 
+
 @plugin_method("restore_config_file")
 def restore_config_file(
     server_name: str, backup_file_path: str, stop_start_server: bool = True
@@ -557,6 +564,7 @@ def restore_config_file(
         _backup_restore_lock.release()
 
     return result
+
 
 @plugin_method("prune_old_backups")
 def prune_old_backups(server_name: str) -> Dict[str, str]:

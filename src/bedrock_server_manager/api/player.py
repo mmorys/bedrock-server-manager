@@ -97,6 +97,7 @@ def add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]:
 
     return result
 
+
 @plugin_method("get_all_known_players_api")
 def get_all_known_players_api() -> Dict[str, Any]:
     """Retrieves all player data from the central players.json file.
@@ -116,6 +117,7 @@ def get_all_known_players_api() -> Dict[str, Any]:
             "status": "error",
             "message": f"An unexpected error occurred retrieving players: {str(e)}",
         }
+
 
 @plugin_method("scan_and_update_player_db_api")
 def scan_and_update_player_db_api() -> Dict[str, Any]:

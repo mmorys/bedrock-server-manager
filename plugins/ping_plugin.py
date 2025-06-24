@@ -9,11 +9,13 @@ It's designed to work in conjunction with PongPlugin, which listens for this eve
 import time
 from bedrock_server_manager import PluginBase
 
+
 class PingPlugin(PluginBase):
     """
     A plugin that demonstrates how to send custom events to other plugins.
     It sends a 'pingplugin:ping' event after a server successfully starts.
     """
+
     version = "1.0.0"
 
     def on_load(self):
@@ -51,7 +53,7 @@ class PingPlugin(PluginBase):
             ping_payload_data = {
                 "message": f"Ping from {self.name} regarding server {server_name}!",
                 "timestamp": time.time(),
-                "details": "Server is now active."
+                "details": "Server is now active.",
             }
 
             # Use self.api.send_event() to trigger a custom event.
@@ -61,9 +63,9 @@ class PingPlugin(PluginBase):
             # The event name "pingplugin:ping" suggests this event originates from
             # "pingplugin" and is about a "ping".
             self.api.send_event(
-                "pingplugin:ping",               # Event name
-                server_name=server_name,         # Example of a top-level kwarg
-                data=ping_payload_data           # Example of a nested dictionary as a kwarg
+                "pingplugin:ping",  # Event name
+                server_name=server_name,  # Example of a top-level kwarg
+                data=ping_payload_data,  # Example of a nested dictionary as a kwarg
             )
 
             self.logger.info(

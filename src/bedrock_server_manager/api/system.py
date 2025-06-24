@@ -25,6 +25,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
+
 @plugin_method("get_bedrock_process_info")
 def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
     """Retrieves resource usage for a running Bedrock server process.

@@ -33,6 +33,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
+
 # --- Allowlist ---
 @plugin_method("add_players_to_allowlist_api")
 def add_players_to_allowlist_api(
@@ -102,6 +103,7 @@ def add_players_to_allowlist_api(
 
     return result
 
+
 @plugin_method("get_server_allowlist_api")
 def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
     """Retrieves the allowlist for a specific server.
@@ -134,6 +136,7 @@ def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
             "status": "error",
             "message": f"Unexpected error reading allowlist: {e}",
         }
+
 
 @plugin_method("remove_players_from_allowlist")
 def remove_players_from_allowlist(
@@ -262,6 +265,7 @@ def configure_player_permission(
 
     return result
 
+
 @plugin_method("get_server_permissions_api")
 def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
     """Retrieves processed permissions data for a server.
@@ -343,6 +347,7 @@ def get_server_properties_api(server_name: str) -> Dict[str, Any]:
         )
         return {"status": "error", "message": f"Unexpected error: {e}"}
 
+
 @plugin_method("validate_server_property_value")
 def validate_server_property_value(property_name: str, value: str) -> Dict[str, str]:
     """Validates a single server property value based on known rules.
@@ -417,6 +422,7 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
             return {"status": "error", "message": msg}
     # Property is valid or has no specific validation rule.
     return {"status": "success"}
+
 
 @plugin_method("modify_server_properties")
 def modify_server_properties(
@@ -563,6 +569,7 @@ def install_new_server(
         )
 
     return result
+
 
 @plugin_method("update_server")
 def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]:

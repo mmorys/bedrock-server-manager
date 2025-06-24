@@ -219,6 +219,7 @@ def stop_web_server_api() -> Dict[str, str]:
 
     return result
 
+
 @plugin_method("get_web_server_status")
 def get_web_server_status_api() -> Dict[str, Any]:
     """Checks the status of the web server process.

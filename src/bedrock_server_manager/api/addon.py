@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 # preventing potential file corruption.
 _addon_lock = threading.Lock()
 
+
 @plugin_method("import_addon")
 def import_addon(
     server_name: str,

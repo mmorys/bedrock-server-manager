@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # A global BedrockServerManager instance for manager-level tasks like listing all servers.
 bsm = BedrockServerManager()
 
+
 @plugin_method("validate_server_exist")
 def validate_server_exist(server_name: str) -> Dict[str, Any]:
     """Validates if a server is correctly installed.
@@ -88,6 +89,7 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
             "status": "error",
             "message": f"An unexpected validation error occurred: {e}",
         }
+
 
 @plugin_method("validate_server_name_format")
 def validate_server_name_format(server_name: str) -> Dict[str, str]:
@@ -230,6 +232,7 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
             exc_info=True,
         )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+
 
 @plugin_method("get_system_and_app_info")
 def get_system_and_app_info() -> Dict[str, Any]:

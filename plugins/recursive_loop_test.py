@@ -42,6 +42,7 @@ class RecursiveLoopPlugin(PluginBase):
     Tests the PluginManager's stack-based re-entrancy guard using a
     'before_server_start' -> 'before_backup' -> 'before_server_start' event chain.
     """
+
     version = "1.0.0"
 
     def on_load(self):
@@ -70,10 +71,12 @@ class RecursiveLoopPlugin(PluginBase):
         except Exception as e:
             self.logger.error(
                 f"--- LOOP TEST (EVENT A): API call self.api.backup_all() failed unexpectedly: {e}",
-                exc_info=True
+                exc_info=True,
             )
-        
-        self.logger.info("--- LOOP TEST (EVENT A - Handler Call): Finished 'before_server_start' handler execution.")
+
+        self.logger.info(
+            "--- LOOP TEST (EVENT A - Handler Call): Finished 'before_server_start' handler execution."
+        )
 
     def before_backup(self, server_name: str, backup_type: str, **kwargs):
         """This is EVENT B in the A -> B -> A' loop."""
@@ -89,8 +92,10 @@ class RecursiveLoopPlugin(PluginBase):
             # The PluginManager's event stack guard should prevent the *handlers* for this
             # recursive 'before_server_start' from executing.
             # The api.start_server() function itself will still run its internal logic.
-            self.api.start_server(server_name=server_name, mode="detached") # Using "detached" for the API call
-            
+            self.api.start_server(
+                server_name=server_name, mode="detached"
+            )  # Using "detached" for the API call
+
             self.logger.info(
                 "--- LOOP TEST (EVENT B): Recursive self.api.start_server() call completed. "
                 "This indicates the API call itself did not crash. "
@@ -101,7 +106,9 @@ class RecursiveLoopPlugin(PluginBase):
         except Exception as e:
             self.logger.error(
                 f"--- LOOP TEST (EVENT B): Recursive API call self.api.start_server() failed unexpectedly: {e}",
-                exc_info=True
+                exc_info=True,
             )
 
-        self.logger.info("--- LOOP TEST (EVENT B - Handler Call): Finished 'before_backup' handler execution.")
+        self.logger.info(
+            "--- LOOP TEST (EVENT B - Handler Call): Finished 'before_backup' handler execution."
+        )

@@ -22,6 +22,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
+
 @plugin_method("get_server_running_status")
 def get_server_running_status(server_name: str) -> Dict[str, Any]:
     """Checks if the server process is currently running.
@@ -66,6 +67,7 @@ def get_server_running_status(server_name: str) -> Dict[str, Any]:
             "status": "error",
             "message": f"Unexpected error checking running status: {e}",
         }
+
 
 @plugin_method("get_server_config_status")
 def get_server_config_status(server_name: str) -> Dict[str, Any]:
@@ -113,6 +115,7 @@ def get_server_config_status(server_name: str) -> Dict[str, Any]:
             "status": "error",
             "message": f"Unexpected error getting config status: {e}",
         }
+
 
 @plugin_method("get_server_installed_version")
 def get_server_installed_version(server_name: str) -> Dict[str, Any]:

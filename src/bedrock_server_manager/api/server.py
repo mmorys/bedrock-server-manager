@@ -37,6 +37,7 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
+
 @plugin_method("write_server_config")
 def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]:
     """Writes a key-value pair to a server's custom JSON configuration.
@@ -88,6 +89,7 @@ def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any
             "status": "error",
             "message": f"Unexpected error writing server config: {e}",
         }
+
 
 @plugin_method("start_server")
 def start_server(
@@ -253,6 +255,7 @@ def start_server(
             "after_server_start", server_name=server_name, result=result
         )
 
+
 @plugin_method("stop_server")
 def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
     """Stops the specified Bedrock server.
@@ -376,6 +379,7 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
             "after_server_stop", server_name=server_name, result=result
         )
 
+
 @plugin_method("restart_server")
 def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str]:
     """Restarts the specified Bedrock server by orchestrating stop and start.
@@ -460,6 +464,7 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
             exc_info=True,
         )
         return {"status": "error", "message": f"Unexpected error during restart: {e}"}
+
 
 @plugin_method("send_command")
 def send_command(server_name: str, command: str) -> Dict[str, str]:

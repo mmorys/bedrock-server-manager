@@ -44,22 +44,23 @@ What to Look For in the Logs:
   "--- CUSTOM LOOP TEST (HANDLER Y): Recursive self.api.send_event('custom_loop:event_X') completed."
   This indicates the API call itself returned and didn't cause a stack overflow.
 """
+
 from bedrock_server_manager import PluginBase
 
 EVENT_X_NAME = "custom_loop:event_X"
 EVENT_Y_NAME = "custom_loop:event_Y"
+
 
 class CustomEventLoopTestPlugin(PluginBase):
     """
     Tests the PluginManager's stack-based re-entrancy guard for custom events
     using a chained custom event sequence: Event X -> Event Y -> Event X (recursive).
     """
+
     version = "1.0.0"
 
     def on_load(self):
-        self.logger.info(
-            f"Plugin '{self.name}' v{self.version} loaded."
-        )
+        self.logger.info(f"Plugin '{self.name}' v{self.version} loaded.")
         self.logger.warning(
             f"'{self.name}': This plugin will intentionally attempt to create a "
             f"'{EVENT_X_NAME}' -> '{EVENT_Y_NAME}' -> (recursive) '{EVENT_X_NAME}' "
@@ -90,9 +91,8 @@ class CustomEventLoopTestPlugin(PluginBase):
         except Exception as e:
             self.logger.error(
                 f"--- CUSTOM LOOP TEST (ON_LOAD): Failed to send initial '{EVENT_X_NAME}': {e}",
-                exc_info=True
+                exc_info=True,
             )
-
 
     def handle_event_x(self, *args, **kwargs):
         """
@@ -100,8 +100,10 @@ class CustomEventLoopTestPlugin(PluginBase):
         This is the first step in our loop if triggered by on_load,
         or the recursive step if triggered by handle_event_y.
         """
-        triggering_plugin = kwargs.pop('_triggering_plugin', self.name) # Should be self.name
-        source_method = kwargs.get('source_method', 'unknown')
+        triggering_plugin = kwargs.pop(
+            "_triggering_plugin", self.name
+        )  # Should be self.name
+        source_method = kwargs.get("source_method", "unknown")
 
         self.logger.info(
             f"--- CUSTOM LOOP TEST (HANDLER X): Received '{EVENT_X_NAME}' (Source: {source_method}, Triggered by: {triggering_plugin})."
@@ -114,7 +116,7 @@ class CustomEventLoopTestPlugin(PluginBase):
         except Exception as e:
             self.logger.error(
                 f"--- CUSTOM LOOP TEST (HANDLER X): Failed to send '{EVENT_Y_NAME}': {e}",
-                exc_info=True
+                exc_info=True,
             )
         self.logger.info(
             f"--- CUSTOM LOOP TEST (HANDLER X): Finished handling '{EVENT_X_NAME}' (Source: {source_method})."
@@ -125,8 +127,10 @@ class CustomEventLoopTestPlugin(PluginBase):
         Handler for EVENT_Y_NAME ('custom_loop:event_Y').
         This is the middle step, which will attempt the recursive call.
         """
-        triggering_plugin = kwargs.pop('_triggering_plugin', self.name) # Should be self.name
-        original_payload = kwargs.get('source_event_x_payload', {})
+        triggering_plugin = kwargs.pop(
+            "_triggering_plugin", self.name
+        )  # Should be self.name
+        original_payload = kwargs.get("source_event_x_payload", {})
 
         self.logger.info(
             f"--- CUSTOM LOOP TEST (HANDLER Y): Received '{EVENT_Y_NAME}' (Triggered by: {triggering_plugin}). "
@@ -140,8 +144,10 @@ class CustomEventLoopTestPlugin(PluginBase):
             # This send_event call will attempt to trigger EVENT_X_NAME again.
             # The PluginManager's custom event stack guard should prevent the *handlers*
             # for this recursive EVENT_X_NAME from executing again.
-            self.api.send_event(EVENT_X_NAME, source_method="handle_event_y_recursive_attempt")
-            
+            self.api.send_event(
+                EVENT_X_NAME, source_method="handle_event_y_recursive_attempt"
+            )
+
             self.logger.info(
                 f"--- CUSTOM LOOP TEST (HANDLER Y): Recursive self.api.send_event('{EVENT_X_NAME}') call completed. "
                 "This means the API call itself didn't crash due to a stack overflow from custom event recursion. "
@@ -153,7 +159,7 @@ class CustomEventLoopTestPlugin(PluginBase):
             self.logger.error(
                 f"--- CUSTOM LOOP TEST (HANDLER Y): Recursive API call self.api.send_event('{EVENT_X_NAME}') "
                 f"failed unexpectedly: {e}",
-                exc_info=True
+                exc_info=True,
             )
         self.logger.info(
             f"--- CUSTOM LOOP TEST (HANDLER Y): Finished handling '{EVENT_Y_NAME}'."

@@ -237,7 +237,6 @@ def reload_plugins_cli():
         )
 
 
-
 @plugin.command("trigger-event")
 @click.argument("event_name", required=True)
 @click.option(

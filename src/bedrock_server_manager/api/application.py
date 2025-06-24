@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # Instantiate the core manager to be used by the API functions.
 bsm = BedrockServerManager()
 
+
 @plugin_method("get_application_info_api")
 def get_application_info_api() -> Dict[str, Any]:
     """Retrieves general information about the application.
@@ -45,6 +46,7 @@ def get_application_info_api() -> Dict[str, Any]:
         logger.error(f"API: Unexpected error getting app info: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
+
 @plugin_method("list_available_worlds_api")
 def list_available_worlds_api() -> Dict[str, Any]:
     """Lists available .mcworld files from the content directory.
@@ -65,6 +67,7 @@ def list_available_worlds_api() -> Dict[str, Any]:
         logger.error(f"API: Unexpected error listing worlds: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
+
 @plugin_method("list_available_addons_api")
 def list_available_addons_api() -> Dict[str, Any]:
     """Lists available .mcaddon and .mcpack files from the content directory.
@@ -84,6 +87,7 @@ def list_available_addons_api() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"API: Unexpected error listing addons: {e}", exc_info=True)
         return {"status": "error", "message": f"Unexpected error: {str(e)}"}
+
 
 @plugin_method("get_all_servers_data")
 def get_all_servers_data() -> Dict[str, Any]:

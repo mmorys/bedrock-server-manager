@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # A lock to prevent race conditions during miscellaneous file operations.
 _misc_lock = threading.Lock()
 
+
 @plugin_method("prune_download_cache")
 def prune_download_cache(
     download_dir: str, keep_count: Optional[int] = None
