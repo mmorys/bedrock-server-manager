@@ -528,7 +528,7 @@ class HomeAutomationStarterPlugin(PluginBase):
         
         self.logger.info(f"Attempting to start server '{TARGET_SERVER_NAME}'.")
         try:
-            status = self.api.get_server_running_status(server_name=TARGET_SERVER_NAME) # Assumes this API function exists
+            status = self.api.get_server_running_status(server_name=TARGET_SERVER_NAME)
             if status.get("running"):
                  self.logger.info(f"Server '{TARGET_SERVER_NAME}' is already running.")
                  return
@@ -759,18 +759,6 @@ These functions enable plugins to send and receive custom events, allowing for m
         -   `event_name` (str): The name of the custom event to trigger (e.g., `"myplugin:my_custom_action"`). It's good practice to namespace your event names with your plugin's name to avoid collisions.
         -   `*args`: Positional arguments to pass to the event listeners' callback functions.
         -   `**kwargs`: Keyword arguments to pass to the event listeners' callback functions.
-    -   **Example:**
-        ```python
-        # In MySendingPlugin
-        def some_action(self, server_name):
-            self.logger.info(f"Sending 'myplugin:action_completed' event for server {server_name}")
-            self.api.send_event(
-                "myplugin:action_completed",
-                server_name, # positional argument
-                status="success", 
-                item_count=5   # keyword arguments
-            )
-        ```
 
 -   `listen_for_event(self, event_name: str, callback: Callable[..., None])`
     -   Registers a callback function to be executed when a specific custom plugin event is triggered.
@@ -780,23 +768,6 @@ These functions enable plugins to send and receive custom events, allowing for m
         -   `callback` (Callable): The function within your plugin to call when the event is triggered.
             -   This callback function will receive any `*args` and `**kwargs` that were passed when `send_event` was called.
             -   Additionally, the `PluginManager` will automatically inject a special keyword argument `_triggering_plugin` (str) into your callback, which holds the name of the plugin that sent the event.
-    -   **Example:**
-        ```python
-        # In MyListeningPlugin
-        def on_load(self):
-            self.api.listen_for_event("myplugin:action_completed", self.handle_action_completed)
-            self.logger.info("Listening for 'myplugin:action_completed' events.")
-
-        def handle_action_completed(self, server_name_arg, status=None, item_count=0, _triggering_plugin=None):
-            # server_name_arg was the positional argument from send_event
-            # status and item_count were keyword arguments
-            # _triggering_plugin is automatically added
-            self.logger.info(
-                f"Event 'myplugin:action_completed' received from plugin '{_triggering_plugin}' "
-                f"for server '{server_name_arg}'. Status: {status}, Items: {item_count}"
-            )
-            # ... do something with the event data ...
-        ```
 
 ## 8. Best Practices
 
