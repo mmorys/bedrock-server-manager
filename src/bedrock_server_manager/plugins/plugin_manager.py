@@ -25,7 +25,12 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Type, Callable, Tuple
 
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.config.const import GUARD_VARIABLE
+from bedrock_server_manager.config.const import (
+    GUARD_VARIABLE,
+    DEFAULT_ENABLED_PLUGINS,
+    EVENT_IDENTITY_KEYS,
+    _MISSING_PARAM_PLACEHOLDER,
+)
 from .plugin_base import PluginBase
 from .api_bridge import PluginAPI
 
@@ -34,23 +39,14 @@ logger = logging.getLogger(__name__)
 
 # Thread-local storage for tracking the call stack of standard application events.
 # This is used to prevent re-entrancy issues (infinite loops) if an event handler
-# triggers an action that would cause the same event to be dispatched again
-# within the same thread of execution.
+# triggers an action that would cause the same event (or same event instance)
+# to be dispatched again within the same thread of execution.
 _event_context = threading.local()
 
 # Thread-local storage for tracking the call stack of custom inter-plugin events.
 # Similar to `_event_context`, but specifically for events sent via `send_event()`
 # and handled by `trigger_custom_plugin_event()`.
 _custom_event_context = threading.local()
-
-# A list of plugin names (module names without .py) that are enabled by default
-# when they are first discovered. Users can subsequently disable them.
-DEFAULT_ENABLED_PLUGINS = [
-    "auto_reload_plugin",
-    "autoupdate_plugin",
-    "server_lifecycle_notifications_plugin",
-    "world_operation_notifications_plugin",
-]
 
 
 class PluginManager:
@@ -70,30 +66,16 @@ class PluginManager:
         user_plugin_dir = Path(self.settings.get("PLUGIN_DIR"))
         default_plugin_dir = Path(__file__).parent / "default"
 
-        # List of directories to scan for plugins.
-        # User plugins can override default plugins if `user_plugin_dir` appears first
-        # and they share the same plugin name. The current order is user then default,
-        # but `_synchronize_config_with_disk` prioritizes the first found path.
-        # For true override, user_plugin_dir should be checked first by _find_plugin_path
-        # or the logic in _synchronize_config_with_disk adjusted.
-        # Current logic: all_potential_plugin_files uses dict insertion order, which
-        # depends on glob order and then dict key uniqueness. If user dir is scanned
-        # first, its plugins are added. If default dir is scanned next, same-named
-        # plugins won't overwrite. This is effectively user > default.
         self.plugin_dirs: List[Path] = [user_plugin_dir, default_plugin_dir]
         logger.debug(f"Plugin directories configured: {self.plugin_dirs}")
 
         self.config_path: Path = Path(self.settings.config_dir) / "plugins.json"
         logger.debug(f"Plugin configuration file path: {self.config_path}")
 
-        # In-memory store for plugin configurations (name -> {enabled, description, version}).
         self.plugin_config: Dict[str, Dict[str, Any]] = {}
-        # List of currently loaded and active plugin instances.
         self.plugins: List[PluginBase] = []
-        # Registry for custom event listeners (event_name -> list of (plugin_name, callback)).
         self.custom_event_listeners: Dict[str, List[Tuple[str, Callable]]] = {}
 
-        # Ensure all configured plugin directories exist.
         for directory in self.plugin_dirs:
             try:
                 directory.mkdir(parents=True, exist_ok=True)
@@ -102,7 +84,6 @@ class PluginManager:
                 logger.error(
                     f"Failed to create plugin directory {directory}: {e}", exc_info=True
                 )
-                # Potentially raise an error or handle this more gracefully if essential.
 
         logger.info("PluginManager initialized.")
 
@@ -134,9 +115,7 @@ class PluginManager:
                 f"Attempting to rebuild configuration. Error: {e}",
                 exc_info=True,
             )
-            return (
-                {}
-            )  # Return empty config to force rebuild by _synchronize_config_with_disk
+            return {}
         except Exception as e:
             logger.error(
                 f"An unexpected error occurred while loading plugin configuration from '{self.config_path}': {e}",
@@ -209,7 +188,6 @@ class PluginManager:
         plugin_name = path.stem
         logger.debug(f"Attempting to load module '{plugin_name}' from path: {path}")
         try:
-            # Create a module spec from the file location.
             spec = importlib.util.spec_from_file_location(plugin_name, path)
             if spec is None or spec.loader is None:
                 logger.error(
@@ -217,18 +195,15 @@ class PluginManager:
                 )
                 raise ImportError(f"Could not create module spec for {plugin_name}")
 
-            # Create a new module based on the spec.
             module = importlib.util.module_from_spec(spec)
-            # Execute the module in its own namespace.
             spec.loader.exec_module(module)
             logger.debug(f"Successfully executed module '{plugin_name}' from {path}.")
 
-            # Inspect the module for PluginBase subclasses.
             for member_name, obj in inspect.getmembers(module):
                 if (
-                    inspect.isclass(obj)  # Is it a class?
-                    and issubclass(obj, PluginBase)  # Is it a subclass of PluginBase?
-                    and obj is not PluginBase  # Is it not PluginBase itself?
+                    inspect.isclass(obj)
+                    and issubclass(obj, PluginBase)
+                    and obj is not PluginBase
                 ):
                     logger.debug(
                         f"Found PluginBase subclass '{obj.__name__}' in module '{plugin_name}'."
@@ -273,18 +248,10 @@ class PluginManager:
         of discoverable plugins and their states.
         """
         logger.info("Starting synchronization of plugin configuration with disk.")
-        self.plugin_config = (
-            self._load_config()
-        )  # Load current config or empty if issues
-        config_changed = False  # Flag to track if plugins.json needs to be re-saved
+        self.plugin_config = self._load_config()
+        config_changed = False
 
-        # Keep track of valid plugins found on disk by their names (module names)
-        # This helps in identifying and removing stale entries from the config later.
         valid_plugins_found_on_disk = set()
-
-        # Scan all configured plugin directories to find all potential plugin files.
-        # A dictionary is used to ensure that if a plugin name exists in multiple
-        # directories, only the first one encountered (based on self.plugin_dirs order) is considered.
         all_potential_plugin_files: Dict[str, Path] = {}
         logger.debug(f"Scanning for plugin files in directories: {self.plugin_dirs}")
         for directory in self.plugin_dirs:
@@ -295,11 +262,8 @@ class PluginManager:
                 continue
             logger.debug(f"Scanning directory: {directory}")
             for path in directory.glob("*.py"):
-                # Ignore files starting with '_' (e.g., __init__.py or internal modules)
                 if not path.name.startswith("_"):
                     plugin_name_stem = path.stem
-                    # If this plugin name hasn't been added yet, add it.
-                    # This respects the order of plugin_dirs for overriding.
                     if plugin_name_stem not in all_potential_plugin_files:
                         all_potential_plugin_files[plugin_name_stem] = path
                         logger.debug(
@@ -309,7 +273,6 @@ class PluginManager:
             f"Found {len(all_potential_plugin_files)} potential plugin files across all directories."
         )
 
-        # Process each potential plugin file found.
         for plugin_name, path in all_potential_plugin_files.items():
             logger.debug(
                 f"Processing plugin file: '{path}' for plugin '{plugin_name}'."
@@ -321,7 +284,6 @@ class PluginManager:
                     f"Could not find a valid PluginBase subclass in '{path}' for plugin '{plugin_name}'. "
                     "This file will be ignored."
                 )
-                # If this invalid plugin was previously in the config, remove it.
                 if plugin_name in self.plugin_config:
                     self.plugin_config.pop(plugin_name)
                     config_changed = True
@@ -329,62 +291,45 @@ class PluginManager:
                         f"Removed invalid plugin entry '{plugin_name}' from configuration because its class "
                         "could not be loaded or is not a valid PluginBase subclass."
                     )
-                continue  # Skip to the next plugin file.
+                continue
 
-            # --- Strict Version Check ---
-            # Plugins *must* have a 'version' class attribute.
             version_attr = getattr(plugin_class, "version", None)
-            if (
-                not version_attr or not str(version_attr).strip()
-            ):  # Check if version is None, empty, or just whitespace
+            if not version_attr or not str(version_attr).strip():
                 logger.warning(
                     f"Plugin class '{plugin_class.__name__}' in file '{path}' (for plugin '{plugin_name}') "
                     "is missing a valid 'version' class attribute or the version is empty. "
                     "This plugin will be ignored and cannot be loaded."
                 )
-                # If this plugin (now invalid due to missing version) was in config, remove it.
                 if plugin_name in self.plugin_config:
                     self.plugin_config.pop(plugin_name)
                     config_changed = True
                     logger.info(
                         f"Removed plugin entry '{plugin_name}' from configuration due to missing or invalid 'version' attribute."
                     )
-                continue  # Skip this plugin entirely.
+                continue
 
-            # If we reach here, the plugin class is valid and has a version.
             valid_plugins_found_on_disk.add(plugin_name)
-            version = str(version_attr).strip()  # Ensure version is a clean string.
-
-            # Extract description from the plugin class's docstring.
+            version = str(version_attr).strip()
             description = inspect.getdoc(plugin_class) or "No description available."
-            description = " ".join(description.strip().split())  # Normalize whitespace.
+            description = " ".join(description.strip().split())
 
             current_config_entry = self.plugin_config.get(plugin_name)
-            needs_update_in_config = (
-                False  # Flag if this specific plugin's entry needs updating.
-            )
+            needs_update_in_config = False
 
-            # Case 1: Plugin is new to the config, or config entry is in an old format (e.g., bool)
-            # or is a dict but fundamentally broken (e.g. missing essential keys after a manual edit).
             if not isinstance(current_config_entry, dict):
                 is_enabled_by_default = plugin_name in DEFAULT_ENABLED_PLUGINS
-                # If old format was a boolean, respect that enabled/disabled state.
-                # Otherwise, use the default enablement status.
                 is_enabled = (
                     bool(current_config_entry)
                     if isinstance(current_config_entry, bool)
                     else is_enabled_by_default
                 )
-
                 self.plugin_config[plugin_name] = {
                     "enabled": is_enabled,
                     "description": description,
                     "version": version,
                 }
                 config_changed = True
-                needs_update_in_config = (
-                    True  # Indicates an update or creation happened.
-                )
+                needs_update_in_config = True
                 if current_config_entry is None:
                     logger.info(
                         f"Discovered new valid plugin '{plugin_name}' v{version}. Added to configuration "
@@ -395,34 +340,26 @@ class PluginManager:
                         f"Upgraded configuration format for plugin '{plugin_name}' v{version}. "
                         f"Set enabled state to: {is_enabled}."
                     )
-            # Case 2: Plugin exists in config as a dictionary. Check for metadata updates or missing keys.
             else:
-                updated_entry = current_config_entry.copy()  # Work on a copy.
-
-                # Ensure 'enabled' key exists; if not, set to default.
+                updated_entry = current_config_entry.copy()
                 if "enabled" not in updated_entry:
                     updated_entry["enabled"] = plugin_name in DEFAULT_ENABLED_PLUGINS
                     needs_update_in_config = True
                     logger.debug(
                         f"Added missing 'enabled' key for plugin '{plugin_name}' in config."
                     )
-
-                # Update description if it has changed.
                 if updated_entry.get("description") != description:
                     updated_entry["description"] = description
                     needs_update_in_config = True
                     logger.debug(
                         f"Updated 'description' for plugin '{plugin_name}' in config."
                     )
-
-                # Update version if it has changed.
                 if updated_entry.get("version") != version:
                     updated_entry["version"] = version
                     needs_update_in_config = True
                     logger.debug(
                         f"Updated 'version' for plugin '{plugin_name}' to v{version} in config."
                     )
-
                 if needs_update_in_config:
                     self.plugin_config[plugin_name] = updated_entry
                     config_changed = True
@@ -430,13 +367,11 @@ class PluginManager:
                         f"Updated metadata/config entry for plugin '{plugin_name}' (now v{version})."
                     )
 
-        # Clean up: Remove entries from config for plugins that no longer exist on disk
-        # or were invalidated during the scan (e.g., due to missing version).
-        plugins_in_config_to_remove = []
-        for plugin_name_in_config in self.plugin_config.keys():
-            if plugin_name_in_config not in valid_plugins_found_on_disk:
-                plugins_in_config_to_remove.append(plugin_name_in_config)
-
+        plugins_in_config_to_remove = [
+            name
+            for name in self.plugin_config
+            if name not in valid_plugins_found_on_disk
+        ]
         if plugins_in_config_to_remove:
             for plugin_name_to_remove in plugins_in_config_to_remove:
                 del self.plugin_config[plugin_name_to_remove]
@@ -446,7 +381,6 @@ class PluginManager:
                     "as it's no longer found on disk or is invalid (e.g., missing version)."
                 )
 
-        # If any changes were made to the configuration, save it back to plugins.json.
         if config_changed:
             logger.info(
                 "Plugin configuration has changed during synchronization. Saving updated configuration."
@@ -476,26 +410,20 @@ class PluginManager:
                 v.  Dispatches the `on_load` event to the newly loaded plugin instance.
         """
         logger.info("Starting plugin loading process...")
-        self._synchronize_config_with_disk()  # Ensure config is current and valid.
+        self._synchronize_config_with_disk()
 
         logger.info(
             f"Attempting to load plugins from configured directories: {[str(d) for d in self.plugin_dirs]}"
         )
 
-        # Clear any existing loaded plugin instances. This is crucial for reload functionality.
         if self.plugins:
             logger.info(
                 f"Clearing {len(self.plugins)} previously loaded plugin instances before attempting new load."
             )
-            # Note: The on_unload for these plugins should be handled by the reload() method
-            # if this load_plugins call is part of a reload.
-            # If load_plugins is called directly, on_unload is not called here.
             self.plugins.clear()
 
         loaded_plugin_count = 0
         for plugin_name, config_data in self.plugin_config.items():
-            # Due to _synchronize_config_with_disk, config_data should always be a dictionary
-            # and contain 'enabled' and 'version' keys if the plugin is valid.
             if not isinstance(config_data, dict):
                 logger.error(
                     f"Plugin '{plugin_name}' has malformed config data (not a dict). Skipping. Data: {config_data}"
@@ -509,13 +437,10 @@ class PluginManager:
                 continue
 
             plugin_version = config_data.get("version")
-            # This version check is mostly a safeguard; primary validation occurs in _synchronize_config_with_disk.
-            if (
-                not plugin_version or plugin_version == "N/A"
-            ):  # "N/A" might be a remnant.
+            if not plugin_version or plugin_version == "N/A":
                 logger.warning(
                     f"Plugin '{plugin_name}' is marked enabled but has a missing or invalid version ('{plugin_version}') "
-                    "in its configuration. This might indicate an issue with synchronization. Skipping load."
+                    "in its configuration. Skipping load."
                 )
                 continue
 
@@ -524,19 +449,14 @@ class PluginManager:
             )
             path = self._find_plugin_path(plugin_name)
             if not path:
-                # This should ideally not happen if _synchronize_config_with_disk worked correctly,
-                # as it would have removed plugins from config if their files are missing.
                 logger.warning(
-                    f"Enabled plugin '{plugin_name}' v{plugin_version} path not found on disk, though it exists in config. "
-                    "Skipping load. Consider re-synchronizing plugins."
+                    f"Enabled plugin '{plugin_name}' v{plugin_version} path not found on disk. Skipping load."
                 )
                 continue
 
             plugin_class = self._get_plugin_class_from_path(path)
             if plugin_class:
                 try:
-                    # Create a dedicated logger for this plugin instance.
-                    # Logs from this logger will be prefixed e.g., "plugin.my_plugin_name".
                     plugin_logger = logging.getLogger(f"plugin.{plugin_name}")
                     api_instance = PluginAPI(
                         plugin_name=plugin_name, plugin_manager=self
@@ -547,27 +467,21 @@ class PluginManager:
                     instance = plugin_class(plugin_name, api_instance, plugin_logger)
                     self.plugins.append(instance)
                     loaded_plugin_count += 1
-                    # Log with the version from config_data, as it's the validated source of truth for metadata.
                     logger.info(
                         f"Successfully loaded and initialized plugin: '{plugin_name}' v{plugin_version}."
                     )
-
-                    # Dispatch the 'on_load' event to the newly loaded plugin.
                     logger.debug(
                         f"Dispatching 'on_load' event to plugin '{plugin_name}'."
                     )
                     self.dispatch_event(instance, "on_load")
-
                 except Exception as e:
                     logger.error(
                         f"Failed to instantiate or initialize plugin '{plugin_name}' from class '{plugin_class.__name__}': {e}",
                         exc_info=True,
                     )
             else:
-                # This case should ideally be caught by _synchronize_config_with_disk earlier.
                 logger.error(
-                    f"Could not retrieve class for plugin '{plugin_name}' from path '{path}' during load phase, "
-                    "despite it being enabled in config. Skipping."
+                    f"Could not retrieve class for plugin '{plugin_name}' from path '{path}' during load phase. Skipping."
                 )
         logger.info(
             f"Plugin loading process complete. Loaded {loaded_plugin_count} plugins."
@@ -580,7 +494,7 @@ class PluginManager:
         parts = event_name.split(":", 1)
         if len(parts) == 2:
             namespace, name = parts[0].strip(), parts[1].strip()
-            if namespace and name:  # Both parts must be non-empty after stripping
+            if namespace and name:
                 return True
         return False
 
@@ -612,9 +526,7 @@ class PluginManager:
             )
             return
 
-        # Ensure the event name exists as a key in the listeners dictionary.
         self.custom_event_listeners.setdefault(event_name, [])
-        # Append a tuple of (plugin_name, callback) to the list of listeners for this event.
         self.custom_event_listeners[event_name].append(
             (listening_plugin_name, callback)
         )
@@ -651,11 +563,9 @@ class PluginManager:
             )
             return
 
-        # Initialize the re-entrancy guard stack if it doesn't exist for this thread.
         if not hasattr(_custom_event_context, "stack"):
             _custom_event_context.stack = []
 
-        # Re-entrancy check: If this event is already in the current call stack, skip.
         if event_name in _custom_event_context.stack:
             logger.debug(
                 f"Skipping recursive trigger of custom event '{event_name}' by plugin "
@@ -663,7 +573,6 @@ class PluginManager:
             )
             return
 
-        # Add the current event to the stack to mark it as being processed.
         _custom_event_context.stack.append(event_name)
         logger.info(
             f"Plugin '{triggering_plugin_name}' is triggering custom event '{event_name}'. "
@@ -675,14 +584,12 @@ class PluginManager:
             logger.debug(
                 f"Found {len(listeners_for_event)} registered listeners for custom event '{event_name}'."
             )
-
             for listener_plugin_name, callback in listeners_for_event:
                 logger.debug(
                     f"Dispatching custom event '{event_name}' (triggered by '{triggering_plugin_name}') "
                     f"to listener in plugin '{listener_plugin_name}' (callback: '{callback.__name__}')."
                 )
                 try:
-                    # Pass the triggering plugin's name as a special kwarg.
                     callback(*args, **kwargs, _triggering_plugin=triggering_plugin_name)
                 except Exception as e:
                     logger.error(
@@ -691,10 +598,7 @@ class PluginManager:
                         exc_info=True,
                     )
         finally:
-            # Remove the event from the stack once all its listeners have been processed.
-            if (
-                hasattr(_custom_event_context, "stack") and _custom_event_context.stack
-            ):  # Ensure stack exists and is not empty before pop
+            if hasattr(_custom_event_context, "stack") and _custom_event_context.stack:
                 _custom_event_context.stack.pop()
             logger.debug(
                 f"Finished processing custom event '{event_name}'. "
@@ -715,11 +619,8 @@ class PluginManager:
         """
         logger.info("--- Starting Full Plugin Reload Process ---")
 
-        # 1. Unload existing plugins safely by calling their on_unload method.
         if self.plugins:
             logger.info(f"Unloading {len(self.plugins)} currently active plugins...")
-            # Iterate over a copy of the list because plugins might modify it indirectly,
-            # though `dispatch_event` doesn't typically do that.
             for plugin_instance in list(self.plugins):
                 logger.debug(
                     f"Dispatching 'on_unload' event to plugin '{plugin_instance.name}'."
@@ -731,11 +632,6 @@ class PluginManager:
         else:
             logger.info("No plugins were active to unload.")
 
-        # self.plugins list will be cleared by load_plugins() when it's called next.
-        # No need to clear it explicitly here if load_plugins() handles it.
-
-        # 2. Unregister all custom event listeners.
-        # Since plugins are being unloaded, their listeners are no longer valid.
         if self.custom_event_listeners:
             logger.info(
                 f"Clearing {sum(len(v) for v in self.custom_event_listeners.values())} custom plugin event listeners from {len(self.custom_event_listeners)} event types."
@@ -744,11 +640,10 @@ class PluginManager:
         else:
             logger.info("No custom plugin event listeners to clear.")
 
-        # 3. Re-run the loading process.
         logger.info(
             "Re-running plugin discovery, synchronization, and loading process..."
         )
-        self.load_plugins()  # This will call _synchronize_config_with_disk and load plugins.
+        self.load_plugins()
 
         logger.info("--- Plugin Reload Process Complete ---")
 
@@ -785,52 +680,90 @@ class PluginManager:
                 f"Plugin '{target_plugin.name}' does not have a handler method for event '{event}'. Skipping."
             )
 
+    def _generate_event_key(self, event_name: str, **kwargs) -> str:
+        """
+        Generates a unique key for an event instance based on its name and
+        identifying keyword arguments specified in EVENT_IDENTITY_KEYS.
+        """
+        identity_key_names = EVENT_IDENTITY_KEYS.get(event_name)
+
+        if identity_key_names is None:
+            # Event name not in EVENT_IDENTITY_KEYS, use event name as key
+            return event_name
+
+        if not identity_key_names:  # Empty tuple means event name itself is the key
+            return event_name
+
+        key_parts = [event_name]
+        for key_name in identity_key_names:
+            value = kwargs.get(key_name, _MISSING_PARAM_PLACEHOLDER)
+            key_parts.append(str(value))
+
+        return "|".join(key_parts)
+
     def trigger_event(self, event: str, *args, **kwargs):
         """Triggers a standard application event on all loaded plugins.
 
         This method iterates through all currently loaded and active plugins
-        and calls `dispatch_event()` for each one. It includes re-entrancy
-        protection using `_event_context` to prevent infinite loops if an
-        event handler triggers an action that causes the same event to be
-        dispatched again.
+        and calls `dispatch_event()` for each one. It includes a granular
+        re-entrancy protection using `_event_context` and `EVENT_IDENTITY_KEYS`
+        to prevent infinite loops if an event handler triggers an action that
+        causes the same event instance to be dispatched again.
 
         Args:
             event (str): The name of the event to trigger (e.g., "before_server_start").
             *args: Positional arguments to pass to each plugin's event handler.
             **kwargs: Keyword arguments to pass to each plugin's event handler.
+                       Some of these may be used to identify the event instance.
         """
-        # Initialize the re-entrancy guard stack if it doesn't exist for this thread.
         if not hasattr(_event_context, "stack"):
             _event_context.stack = []
 
-        # Re-entrancy check: If this event is already in the current call stack, skip.
-        if event in _event_context.stack:
+        current_event_key = self._generate_event_key(event, **kwargs)
+
+        if current_event_key in _event_context.stack:
             logger.debug(
-                f"Skipping recursive trigger of standard event '{event}'. "
-                f"Event is already in the processing stack: {_event_context.stack}"
+                f"Skipping recursive trigger of standard event '{event}' (key: '{current_event_key}'). "
+                f"Event key is already in the processing stack: {_event_context.stack}"
             )
             return
 
-        # Add the current event to the stack.
-        _event_context.stack.append(event)
+        _event_context.stack.append(current_event_key)
         logger.debug(
-            f"Dispatching standard event '{event}' to {len(self.plugins)} loaded plugins. "
+            f"Dispatching standard event '{event}' (key: '{current_event_key}') to {len(self.plugins)} loaded plugins. "
             f"Args: {args}, Kwargs: {kwargs}. Current stack: {_event_context.stack}"
         )
 
         try:
-            # Iterate over a copy of the plugins list in case a plugin's event handler
-            # somehow modifies the list of loaded plugins (though this is not typical).
-            for plugin_instance in list(self.plugins):
+            for plugin_instance in list(self.plugins):  # Iterate over a copy
                 self.dispatch_event(plugin_instance, event, *args, **kwargs)
         finally:
-            # Remove the event from the stack once dispatched to all plugins.
-            if (
-                hasattr(_event_context, "stack") and _event_context.stack
-            ):  # Ensure stack exists and is not empty before pop
-                _event_context.stack.pop()
+            if hasattr(_event_context, "stack") and _event_context.stack:
+                # Ensure we pop the exact key we added, in case of complex scenarios,
+                # though simple LIFO stack pop should work if events are properly nested.
+                # For robustness, could remove by value, but .pop() is standard for stack.
+                # If current_event_key was correctly appended, it must be the last one.
+                if _event_context.stack[-1] == current_event_key:
+                    _event_context.stack.pop()
+                else:
+                    # This case should ideally not happen with correct stack management.
+                    # It might indicate an issue if events are not completing in LIFO order
+                    # or if keys are not unique as expected.
+                    logger.warning(
+                        f"Event key '{current_event_key}' was expected at the top of the stack "
+                        f"but found '{_event_context.stack[-1]}'. Stack: {_event_context.stack}. "
+                        f"Attempting to remove '{current_event_key}' by value."
+                    )
+                    try:
+                        _event_context.stack.remove(current_event_key)
+                    except ValueError:
+                        logger.error(
+                            f"Failed to remove event key '{current_event_key}' from stack by value. "
+                            f"Stack corruption may have occurred. Stack: {_event_context.stack}"
+                        )
+
             logger.debug(
-                f"Finished dispatching standard event '{event}'. "
+                f"Finished dispatching standard event '{event}' (key: '{current_event_key}'). "
                 f"Stack after pop: {getattr(_event_context, 'stack', [])}"
             )
 
