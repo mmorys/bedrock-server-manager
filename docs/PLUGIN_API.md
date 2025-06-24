@@ -1,4 +1,8 @@
-# Bedrock Server Manager: Plugin Documentation
+﻿﻿﻿﻿<div style="text-align: center;">
+    <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
+</div>
+
+# Bedrock Server Manager: Plugin API
 
 This guide will walk you through creating your own plugins to extend and customize the Bedrock Server Manager. The plugin system is designed to be simple yet powerful, allowing you to hook into various application events and use the core application's functions safely.
 
@@ -35,8 +39,7 @@ This guide will walk you through creating your own plugins to extend and customi
     *   [System & Application](#system--application)
     *   [Web Server](#web-server)
     *   [Inter-Plugin Communication / Custom Events](#inter-plugin-communication--custom-events)
-9.  [Example Plugin: Auto-Backup Announcer](#9-example-plugin-auto-backup-announcer)
-10. [Best Practices](#10-best-practices)
+9. [Best Practices](#10-best-practices)
 
 ---
 
@@ -55,6 +58,10 @@ Here is the most basic "Hello World" plugin:
 from bedrock_server_manager import PluginBase
 
 class MyFirstPlugin(PluginBase):
+    """
+    This is a example description that will be saved in plugins.json
+    """
+    version = "1.0.0"  # Mandatory version attribute
     def on_load(self):
         """This event is called when the plugin is loaded by the manager."""
         self.logger.info("Hello from MyFirstPlugin!")
@@ -76,17 +83,17 @@ The Bedrock Server Manager allows users to control which plugins are active thro
 ### `plugins.json` Configuration File
 
 -   **Location:** This file is located in your application's configuration directory (typically `~/.bedrock-server-manager/.config/plugins.json`).
--   **Functionality:** It stores a simple JSON object where keys are plugin names (derived from their filenames, e.g., `"MyAwesomePlugin"`) and values are booleans (`true` to enable, `false` to disable).
+-   **Functionality:** It stores a JSON object where keys are plugin names (derived from their filenames, e.g., `"MyAwesomePlugin"`) and values are booleans (`true` to enable, `false` to disable).
 -   **Discovery:** When the application starts, the `PluginManager` scans the plugin directories (`<app_data_dir>/plugins/` and the application's internal `default_plugins/` directory).
     -   Any new `.py` files found that are not already in `plugins.json` will be added to it.
 -   **Default State for New Plugins:**
     -   **Standard Plugins:** By default, newly discovered user-added plugins are added to `plugins.json` as `disabled` (`false`).
     -   **Default Enabled Plugins:** A predefined list of essential built-in plugins (e.g., `ServerLifecycleNotificationsPlugin`, `AutoReloadPlugin`) are automatically enabled (`true`) by default when first discovered. This ensures core extended functionalities are active out-of-the-box. You can still disable them manually if needed.
     The current list of default-enabled plugins includes:
-        - `ServerLifecycleNotificationsPlugin`
-        - `WorldOperationNotificationsPlugin`
-        - `AutoReloadPlugin`
-        - `AutoupdatePlugin`
+        - `server_lifecycle_notifications`
+        - `world_operation_notifications`
+        - `auto_reload_config`
+        - `update_before_start`
 
 ### CLI Commands for Plugin Management
 
@@ -111,7 +118,7 @@ You can easily manage which plugins are active using the `bedrock-server-manager
 
 -   **`bedrock-server-manager plugin disable <plugin_name>`**
     -   Disables the specified plugin (sets its value to `false` in `plugins.json`).
-    -   Example: `bedrock-server-manager plugin disable ServerLifecycleNotificationsPlugin`
+    -   Example: `bedrock-server-manager plugin disable server_lifecycle_notifications`
 
 Changes made via these CLI commands are immediately saved to `plugins.json`. The application will load or ignore plugins based on this configuration the next time it fully initializes its plugin system (typically on startup, of after reloading all plugins).
 
@@ -123,14 +130,31 @@ Every plugin **must** inherit from `bedrock_server_manager.PluginBase`. When you
 -   `self.logger` (logging.Logger): A pre-configured Python logger instance. All messages sent through this logger will be automatically prefixed with your plugin's name. **Always use this for logging.**
 -   `self.api` (PluginAPI): Your gateway to interacting with the main application. This object allows you to call core functions like starting servers, sending commands, etc.
 
-## 3. Understanding Event Hooks
+**Important Plugin Class Requirements:**
+
+*   **`version` Attribute (Mandatory):** Your plugin class **must** define a class-level attribute named `version` as a string (e.g., `version = "1.0.0"`). This version is used by the Plugin Manager for display and potential compatibility checks. Plugins without a valid, non-empty `version` attribute will not be loaded.
+*   **Description (from Docstring):** The description for your plugin (shown in plugin listings and management UIs) is automatically extracted from the main docstring of your plugin class. Make sure to write a clear and concise docstring for your class.
+
+    ```python
+    class MyAwesomePlugin(PluginBase):
+        """
+        This is the description of MyAwesomePlugin.
+        It will be saved in the plugins.json.
+        """
+        version = "1.2.3" # Mandatory
+
+        def on_load(self):
+            self.logger.info("MyAwesomePlugin loaded!")
+    ```
+
+## 4. Understanding Event Hooks
 
 Event hooks are methods from the `PluginBase` class that you can override in your plugin. The Plugin Manager will automatically call these methods when the corresponding event occurs in the application.
 
 -   **`before_*` events:** These are called *before* an action is attempted. They allow you to prepare for an action or potentially log that it's about to happen.
 -   **`after_*` events:** These are called *after* an action has been attempted. They are always passed a `result` dictionary, which is the exact return value from the API function that was called. You can inspect this dictionary (`result['status']`, `result['message']`, etc.) to see if the action succeeded or failed.
 
-## 4. Complete List of Event Hooks
+## 5. Complete List of Event Hooks
 
 Here are all the methods you can implement in your plugin class to react to application events.
 
@@ -151,10 +175,11 @@ Here are all the methods you can implement in your plugin class to react to appl
     -   **Args:**
         -   `server_name` (str): The name of the server.
         -   `result` (dict): The dictionary returned by the `start_server` API call.
--   `before_server_stop(self, server_name: str)`
+-   `before_server_stop(self, server_name: str, mode: str)`
     -   Called just before a server stop is attempted.
     -   **Args:**
         -   `server_name` (str): The name of the server being stopped.
+        -   `mode` (str): The mode or reason for stopping.
 -   `after_server_stop(self, server_name: str, result: dict)`
     -   Called just after a server stop has been attempted.
     -   **Args:**
@@ -378,33 +403,43 @@ Here are all the methods you can implement in your plugin class to react to appl
         -   `result` (dict): The dictionary returned by the `stop_web_server` API call.
 
 
-## 5. Custom Plugin Events (Inter-Plugin Communication)
+## 6. Custom Plugin Events (Inter-Plugin Communication)
 
-The plugin system includes a powerful feature allowing plugins to define, send, and listen to their own custom events. This enables more complex interactions and communication between different plugins without them needing to have direct knowledge of each other's classes or implementations.
+The plugin system includes a powerful feature allowing plugins to define, send, and listen to their own custom events. This enables more complex interactions and communication:
+*   Between different plugins.
+*   Between external triggers (like an HTTP API call or a CLI command) and plugins.
+
+This system promotes decoupling, as event senders and listeners don't need direct knowledge of each other's implementations.
 
 **Core Concepts:**
 
-*   **Event Names:** Events are identified by string names. It is highly recommended to **namespace** your event names, typically by prefixing them with your plugin's name (e.g., `"myplugin:custom_action"`, `"anotherplugin:data_updated"`). This helps prevent naming conflicts between events from different plugins.
-*   **Sending Events:** A plugin can broadcast an event at any point using `self.api.send_event("your:event_name", arg1, arg2, keyword_arg="value")`. It can pass any positional or keyword arguments, which will be delivered to all listeners.
+*   **Event Names:** Events are identified by string names. It is highly recommended to **namespace** your event names, typically by prefixing them with your plugin's name or a relevant context (e.g., `"myplugin:custom_action"`, `"automation:im_home"`, `"system:high_load"`). This helps prevent naming conflicts.
+*   **Sending Events:**
+    *   **From a Plugin:** A plugin can broadcast an event using `self.api.send_event("your:event_name", arg1, arg2, keyword_arg="value")`.
+    *   **From an External Source:**
+        *   **HTTP API:** Use the `POST /api/plugins/trigger_event` endpoint.
+        *   **CLI:** Use the `bsm plugin trigger_event <EVENT_NAME> --payload-json '{...}'` command.
+        Both methods allow passing a JSON payload that becomes keyword arguments for listeners.
 *   **Listening for Events:** A plugin can register a callback function to be executed whenever a specific event is sent. This is typically done in the plugin's `on_load` method using `self.api.listen_for_event("some:event_to_listen_for", self.my_callback_method)`.
 *   **Callback Arguments:** The callback method will receive:
-    *   Any positional arguments (`*args`) passed during `send_event`.
-    *   Any keyword arguments (`**kwargs`) passed during `send_event`.
-    *   An additional special keyword argument `_triggering_plugin` (str): This is automatically injected by the Plugin Manager and contains the name of the plugin that originally sent the event. This allows listeners to know the source of the event.
-*   **Decoupling:** This system decouples plugins. A sending plugin doesn't need to know which plugins (if any) are listening. Similarly, a listening plugin doesn't need to know the specifics of the sending plugin beyond the event name and the expected data structure.
+    *   Any positional arguments (`*args`) passed if the event was sent by `self.api.send_event()` from another plugin.
+    *   Any keyword arguments (`**kwargs`) passed during `self.api.send_event()`, or derived from the `payload` object if the event was triggered via the HTTP API or CLI.
+    *   An additional special keyword argument `_triggering_plugin` (str): This is automatically injected by the Plugin Manager.
+        *   If sent by another plugin, it's the name of that plugin.
+        *   If sent via the `/api/plugins/trigger_event` HTTP endpoint or the `bsm plugin trigger_event` CLI command, this will be `"external_api_trigger"` (assuming the CLI command internally calls the same API function `trigger_external_plugin_event_api`).
 
-**Example: Ping-Pong Plugins**
+**Example 1: Ping-Pong Plugins (Inter-Plugin Communication)**
 
-Let's illustrate with two simple plugins: `PingPlugin` sends a "ping" and `PongPlugin` listens for it.
+This example illustrates a simple request-response style interaction directly between two plugins. `PingPlugin` sends a "ping" and `PongPlugin` listens for it and can send a "pong" back.
 
 **`ping_plugin.py`:**
 ```python
-# src/bedrock_server_manager/plugins/default/ping_plugin.py
+# <PLUGIN_DIR>/ping_plugin.py
 import time
 from bedrock_server_manager import PluginBase
 
 class PingPlugin(PluginBase):
-    version = "1.0.0"
+    version = "1.0.1"
 
     def after_server_start(self, server_name: str, result: dict):
         if result.get("status") == "success":
@@ -413,66 +448,183 @@ class PingPlugin(PluginBase):
                 "message": f"Ping from {self.name} for server {server_name}!",
                 "timestamp": time.time()
             }
-            # Send the custom event
+            # Send the custom event to other plugins
             self.api.send_event("pingplugin:ping", server_name=server_name, data=ping_payload)
 ```
 
 **`pong_plugin.py`:**
 ```python
-# src/bedrock_server_manager/plugins/default/pong_plugin.py
+# <PLUGIN_DIR>/pong_plugin.py
 from bedrock_server_manager import PluginBase
 
 class PongPlugin(PluginBase):
-    version = "1.0.0"
+    version = "1.0.1"
 
     def on_load(self):
         self.logger.info(f"'{self.name}' loaded. Listening for 'pingplugin:ping' events.")
-        # Register a listener for the custom event
+        # Register a listener for the custom event from PingPlugin
         self.api.listen_for_event("pingplugin:ping", self.handle_ping_event)
 
-    def handle_ping_event(self, server_name, data, _triggering_plugin):
-        # 'server_name' and 'data' were kwargs from send_event
-        # '_triggering_plugin' is automatically added
+    def handle_ping_event(self, *args, **kwargs): # Using *args, **kwargs for flexibility
+        triggering_plugin = kwargs.pop('_triggering_plugin', 'UnknownPlugin') # Expected: "ping_plugin"
+        server_name = kwargs.get('server_name', 'N/A')
+        data_payload = kwargs.get('data', {})
+        message = data_payload.get('message', 'No message')
+        timestamp = data_payload.get('timestamp', 0)
+
         self.logger.info(
-            f"'{self.name}' received 'pingplugin:ping' from '{_triggering_plugin}'!"
+            f"'{self.name}' received 'pingplugin:ping' from '{triggering_plugin}'!"
         )
-        self.logger.info(f"  Server: {server_name}, Message: {data.get('message')}, Timestamp: {data.get('timestamp')}")
+        self.logger.info(f"  Server: {server_name}, Message: {message}, Timestamp: {timestamp}")
         
-        # Example: Send a "pong" response event (could be listened to by PingPlugin or others)
-        self.api.send_event("pongplugin:pong", original_server=server_name, response_to=_triggering_plugin)
+        self.logger.info(f"'{self.name}' sending 'pongplugin:pong' in response.")
+        self.api.send_event("pongplugin:pong", original_server=server_name, response_to=triggering_plugin)
 
     def on_unload(self):
         self.logger.info(f"'{self.name}' is unloading.")
-        # Note: In a more advanced system, you might want a way to unregister listeners,
-        # but for many cases, a full reload of plugins handles cleanup.
 ```
 
-In this example:
-1.  When a server starts, `PingPlugin`'s `after_server_start` hook is called.
-2.  `PingPlugin` uses `self.api.send_event` to broadcast a `"pingplugin:ping"` event with server name and a payload.
-3.  `PongPlugin`, during its `on_load`, registered `self.handle_ping_event` as a listener for `"pingplugin:ping"`.
-4.  The `PluginManager` calls `PongPlugin.handle_ping_event`, passing the arguments from `send_event` plus `_triggering_plugin="ping_plugin"`.
-5.  `PongPlugin` logs the received data and then demonstrates sending its own event `"pongplugin:pong"`.
+---
 
-This custom event system allows for flexible and powerful extensions to the application's behavior through plugin collaboration.
+**Example 2: "I'm Home" Automation (Triggered via HTTP API)**
 
-## 6. Using the Plugin API (`self.api`)
-The `self.api` object is your tool for making the application perform actions. It's a bridge that safely exposes core functions to your plugin.
+This example shows how an external home automation system can trigger a plugin to start a server when a user arrives home. The external system would use the `/api/plugins/trigger_event` HTTP endpoint.
 
-For example, to send a "say Hello" command to a server from within an event hook, you would do:
+**Triggering the Event (External System):**
+An HTTP POST request to `/api/plugins/trigger_event` with the following JSON body:
+```json
+{
+    "event_name": "automation:user_arrived_home",
+    "payload": {
+        "user_id": "user123",
+        "location_name": "Home"
+    }
+}
+```
 
+**`home_automation_starter_plugin.py`:**
 ```python
-def after_server_start(self, server_name: str, result: dict):
-    if result.get("status") == "success":
+# <PLUGIN_DIR>/home_automation_starter_plugin.py
+from bedrock_server_manager import PluginBase
+
+TARGET_SERVER_NAME = "main_survival" # Server to start
+
+class HomeAutomationStarterPlugin(PluginBase):
+    version = "1.0.0"
+
+    def on_load(self):
+        self.logger.info(
+            f"'{self.name}' loaded. Listening for 'automation:user_arrived_home' to start '{TARGET_SERVER_NAME}'."
+        )
+        self.api.listen_for_event("automation:user_arrived_home", self.handle_user_arrival)
+
+    def handle_user_arrival(self, *args, **kwargs):
+        trigger_source = kwargs.pop('_triggering_plugin', 'UnknownSource') # Expected: "external_api_trigger"
+        user_id = kwargs.get('user_id', 'UnknownUser')
+        
+        self.logger.info(
+            f"'{self.name}' received 'automation:user_arrived_home' from '{trigger_source}' for user '{user_id}'."
+        )
+        
+        self.logger.info(f"Attempting to start server '{TARGET_SERVER_NAME}'.")
         try:
-            self.api.send_command(
-                server_name=server_name,
-                command="say The server is now online!"
-            )
-            self.logger.info("Sent welcome message.")
+            status = self.api.get_server_running_status(server_name=TARGET_SERVER_NAME) # Assumes this API function exists
+            if status.get("running"):
+                 self.logger.info(f"Server '{TARGET_SERVER_NAME}' is already running.")
+                 return
+
+            start_result = self.api.start_server(server_name=TARGET_SERVER_NAME, mode="detached")
+            if start_result and start_result.get("status") == "success":
+                self.logger.info(f"Successfully initiated start for '{TARGET_SERVER_NAME}'.")
+            else:
+                self.logger.error(f"Failed to start '{TARGET_SERVER_NAME}': {start_result.get('message')}")
         except Exception as e:
-            self.logger.error(f"Failed to send welcome message: {e}")
+            self.logger.error(f"Error starting server '{TARGET_SERVER_NAME}': {e}", exc_info=True)
+
+    def on_unload(self):
+        self.logger.info(f"'{self.name}' is unloading.")
 ```
+
+---
+
+**Example 3: System Resource Monitor (Triggered via CLI)**
+
+This example demonstrates using the `bsm plugin trigger_event` CLI command to notify a plugin about system resource status, which could then take action like warning players or shutting down a server.
+
+**Triggering the Event (CLI):**
+```bash
+bsm plugin trigger_event system:high_resource_load --payload-json \
+  '{"cpu_percent": 92, "memory_free_mb": 512, "target_server": "creative_builds", "severity": "critical"}'
+```
+
+**`system_resource_guardian_plugin.py`:**
+```python
+# <PLUGIN_DIR>/system_resource_guardian_plugin.py
+from bedrock_server_manager import PluginBase
+
+class SystemResourceGuardianPlugin(PluginBase):
+    version = "1.0.0"
+
+    CPU_CRITICAL_THRESHOLD = 90.0  # Percent
+    MEMORY_CRITICAL_MB = 1024    # Megabytes
+
+    def on_load(self):
+        self.logger.info(f"'{self.name}' loaded. Listening for 'system:high_resource_load'.")
+        self.api.listen_for_event("system:high_resource_load", self.handle_resource_alert)
+
+    def handle_resource_alert(self, *args, **kwargs):
+        trigger_source = kwargs.pop('_triggering_plugin', 'UnknownSource') # Expected: "external_api_trigger" or similar
+        
+        cpu = kwargs.get('cpu_percent', 0.0)
+        mem_free = kwargs.get('memory_free_mb', float('inf'))
+        target_server = kwargs.get('target_server')
+        severity = kwargs.get('severity', 'warning')
+
+        self.logger.info(
+            f"'{self.name}' received 'system:high_resource_load' from '{trigger_source}'."
+        )
+        self.logger.info(
+            f"  Details: CPU={cpu}%, MemFreeMB={mem_free}, Target='{target_server}', Severity='{severity}'"
+        )
+
+        if not target_server:
+            self.logger.warning("  No 'target_server' in payload. No action taken.")
+            return
+
+        message_to_server = None
+        should_shutdown = False
+
+        if severity == "critical" or cpu >= self.CPU_CRITICAL_THRESHOLD or mem_free <= self.MEMORY_CRITICAL_MB:
+            message_to_server = f"WARNING: Critical system load detected (CPU: {cpu}%, MemFree: {mem_free}MB). Server '{target_server}' may be shut down soon."
+            should_shutdown = True # Or based on severity == "critical"
+            self.logger.critical(f"  CRITICAL LOAD! {message_to_server}")
+        elif cpu > 75 or mem_free < 2048: # Example warning thresholds
+             message_to_server = f"Notice: System resource usage is high (CPU: {cpu}%, MemFree: {mem_free}MB)."
+             self.logger.warning(f"  High load warning. {message_to_server}")
+        
+        if message_to_server:
+            try:
+                self.api.send_command(server_name=target_server, command=f"say {message_to_server}")
+            except Exception as e:
+                self.logger.error(f"  Failed to send warning to '{target_server}': {e}")
+        
+        if should_shutdown:
+            self.logger.info(f"  Attempting to shut down server '{target_server}' due to critical load.")
+            try:
+                # Consider adding a delay here or a more graceful sequence if needed
+                stop_result = self.api.stop_server(server_name=target_server, mode="graceful")
+                if stop_result and stop_result.get("status") == "success":
+                    self.logger.info(f"  Shutdown initiated for '{target_server}'.")
+                else:
+                    self.logger.error(f"  Failed to initiate shutdown for '{target_server}'.")
+            except Exception as e:
+                self.logger.error(f"  Error during shutdown of '{target_server}': {e}", exc_info=True)
+
+    def on_unload(self):
+        self.logger.info(f"'{self.name}' is unloading.")
+```
+
+This custom event system, combined with external triggers like CLI commands or HTTP API calls, allows for the creation of reactive and automated management tasks, enhancing the server manager's capabilities through modular plugin logic.
 
 ## 7. Available API Functions
 
@@ -488,8 +640,6 @@ The following is a list of functions available through `self.api`. All functions
     -   Restarts the specified server by orchestrating stop and start calls.
 -   `send_command(server_name: str, command: str) -> Dict[str, str]`
     -   Sends a command to a running server.
--   `delete_server_data(server_name: str, stop_if_running: bool = True) -> Dict[str, str]`
-    -   **DESTRUCTIVE.** Deletes all data for a server (installation, config, backups).
 
 ### Server Installation & Configuration
 
@@ -497,17 +647,19 @@ The following is a list of functions available through `self.api`. All functions
     -   Installs a new server.
 -   `update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]`
     -   Updates an existing server to its configured target version.
--   `get_server_properties(server_name: str) -> Dict[str, Any]`
+-   `get_server_properties_api(server_name: str) -> Dict[str, Any]`
     -   Reads and returns the `server.properties` as a dictionary.
 -   `modify_server_properties(server_name: str, properties_to_update: Dict[str, str], restart_after_modify: bool = True) -> Dict[str, str]`
     -   Modifies one or more properties in `server.properties`.
--   `get_server_allowlist(server_name: str) -> Dict[str, Any]`
+-   `validate_server_property_value(property_name: str, value: str) -> Dict[str, str]`
+    -   Validates a single server property value based on known rules.
+-   `get_server_allowlist_api(server_name: str) -> Dict[str, Any]`
     -   Retrieves the `allowlist.json` content.
--   `add_players_to_allowlist(server_name: str, new_players_data: List[Dict[str, Any]]) -> Dict[str, Any]`
+-   `add_players_to_allowlist_api(server_name: str, new_players_data: List[Dict[str, Any]]) -> Dict[str, Any]`
     -   Adds players to the allowlist.
 -   `remove_players_from_allowlist(server_name: str, player_names: List[str]) -> Dict[str, Any]`
     -   Removes players from the allowlist by name.
--   `get_server_permissions(server_name: str) -> Dict[str, Any]`
+-   `get_server_permissions_api(server_name: str) -> Dict[str, Any]`
     -   Retrieves the `permissions.json` content, enriched with player names.
 -   `configure_player_permission(server_name: str, xuid: str, player_name: Optional[str], permission: str) -> Dict[str, str]`
     -   Sets a player's permission level (e.g., 'member', 'operator').
@@ -517,21 +669,12 @@ The following is a list of functions available through `self.api`. All functions
 -   `write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]`
     -   Writes a key-value pair to a server's JSON configuration file (`server_name_config.json`). This is for plugin-specific or user-defined settings, separate from `server.properties`.
 
-### Plugin Configuration API
-
-These functions allow programmatic management of plugin statuses. They are primarily used by the `bedrock-server-manager plugin` CLI commands but can also be called by other plugins if needed.
+### Plugin System API
 
 -   `get_plugin_statuses() -> Dict[str, Any]`
-    -   Retrieves the statuses of all discovered plugins. Synchronizes with `plugins.json` and plugin files on disk before returning.
-    -   **Returns:** A dictionary, where the `plugins` key contains an object mapping plugin names to their boolean enabled status (e.g., `{"status": "success", "plugins": {"MyPlugin": true, "AnotherPlugin": false}}`).
--   `set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]`
-    -   Sets the enabled/disabled status for a specific plugin in `plugins.json`.
-    -   **Args:**
-        -   `plugin_name` (str): The name of the plugin (filename without `.py`).
-        -   `enabled` (bool): `True` to enable, `False` to disable.
-    -   **Returns:** A dictionary indicating success or failure (e.g., `{"status": "success", "message": "Plugin 'MyPlugin' has been enabled."}`).
-    -   **Raises:** `UserInputError` if the plugin name is not found among discoverable plugins.
-
+    -   Retrieves the statuses and metadata of all discovered plugins.
+    -   **Returns:** A dictionary, where the `plugins` key contains an object mapping plugin names to their configuration (e.g., `{"status": "success", "plugins": {"MyPlugin": {"enabled": true, "version": "1.0", ...}}}`).
+  
 ### World Management
 
 -   `get_world_name(server_name: str) -> Dict[str, Any]`
@@ -547,6 +690,10 @@ These functions allow programmatic management of plugin statuses. They are prima
 
 -   `import_addon(server_name: str, addon_file_path: str, stop_start_server: bool = True, restart_only_on_success: bool = True) -> Dict[str, str]`
     -   Installs an addon (`.mcaddon` or `.mcpack`) to the specified server.
+-   `list_available_worlds_api() -> Dict[str, Any]`
+    -   Lists available .mcworld files from the content directory.
+-   `list_available_addons_api() -> Dict[str, Any]`
+    -   Lists available .mcaddon and .mcpack files from the content directory.
 
 ### Backup & Restore
 
@@ -569,49 +716,39 @@ These functions allow programmatic management of plugin statuses. They are prima
 
 ### Player Database
 
--   `get_all_known_players() -> Dict[str, Any]`
-    -   Retrieves all player data from the central `players.json`.
--   `add_players_manually(player_strings: List[str]) -> Dict[str, Any]`
+-   `get_all_known_players_api() -> Dict[str, Any]`
+    -   Retrieves all player data from the central `players.json`. 
+-   `add_players_manually_api(player_strings: List[str]) -> Dict[str, Any]`
     -   Adds players to the central `players.json`. `player_strings` is a list like `["Gamertag,XUID"]`.
--   `scan_and_update_player_db() -> Dict[str, Any]`
+-   `scan_and_update_player_db_api() -> Dict[str, Any]`
     -   Scans all server logs to find and save new player data.
 
 ### System & Application
 
--   `get_system_and_app_info() -> Dict[str, Any]`
-    -   Returns general info like application version, OS type, and key directories.
+-   `get_application_info_api() -> Dict[str, Any]`
+    -   Returns general info like application name, version, OS type, and key directories. (Replaces `get_system_and_app_info` and provides more detail)
 -   `get_all_servers_data() -> Dict[str, Any]`
     -   Retrieves status and version for all detected servers.
--   `update_server_statuses() -> Dict[str, Any]`
-    -   Reconciles the status in config files with the runtime state for all servers.
+-   `get_server_running_status(server_name: str) -> Dict[str, Any]`
+    -   Checks if the server process is currently running. (Added from `api.info`)
+-   `get_server_config_status(server_name: str) -> Dict[str, Any]`
+    -   Gets the status from the server's configuration file. (Added from `api.info`)
+-   `get_server_installed_version(server_name: str) -> Dict[str, Any]`
+    -   Gets the installed version from the server's configuration file. (Added from `api.info`)
 -   `get_bedrock_process_info(server_name: str) -> Dict[str, Any]`
     -   Retrieves resource usage (CPU, RAM) for a running server process.
--   `create_systemd_service(server_name: str, autostart: bool = False) -> Dict[str, str]`
-    -   (Linux-only) Creates or updates a systemd user service for the server.
--   `enable_server_service(server_name: str) -> Dict[str, str]`
-    -   (Linux-only) Enables the systemd service to start on login.
--   `disable_server_service(server_name: str) -> Dict[str, str]`
-    -   (Linux-only) Disables the systemd service from starting on login.
--   `attach_to_screen_session(server_name: str) -> Dict[str, str]`
-    -   (Linux-only) Attaches the current terminal to a server's screen session, if running in one.
--   `set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]`
-    -   Sets the 'autoupdate' flag in a server's custom JSON configuration (`'true'` or `'false'`).
 -   `prune_download_cache(download_dir: str, keep_count: Optional[int] = None) -> Dict[str, str]`
     -   Prunes old downloaded server archives from the specified directory.
 -   `validate_server_exist(server_name: str) -> Dict[str, Any]`
     -   Checks if a server's directory and executable exist, indicating a valid installation.
 -   `validate_server_name_format(server_name: str) -> Dict[str, str]`
     -   Validates if a given string is a permissible format for a server name.
-
+   
 ### Web Server
 
--   `start_web_server(host: Optional[Union[str, List[str]]] = None, debug: bool = False, mode: str = "direct") -> Dict[str, Any]`
-    -   Starts the application's web server.
--   `stop_web_server() -> Dict[str, str]`
-    -   Stops the detached web server process.
 -   `get_web_server_status() -> Dict[str, Any]`
     -   Checks the status of the web server process.
-
+ 
 ### Inter-Plugin Communication / Custom Events
 
 These functions enable plugins to send and receive custom events, allowing for more advanced interactions between different plugins.
@@ -660,58 +797,6 @@ These functions enable plugins to send and receive custom events, allowing for m
             )
             # ... do something with the event data ...
         ```
-
-## 7. Example Plugin: Auto-Backup Announcer
-
-This plugin announces in-game when a backup is starting and when it has completed.
-
-```python
-# backup_announcer.py
-from bedrock_server_manager import PluginBase
-
-class BackupAnnouncer(PluginBase):
-    # Docstring for the plugin will be used for description in the UI
-    """A simple plugin that announces backup actions in-game."""
-
-    # Required: Version of the plugin, used for compatibility checks and UI
-    version = "1.0.0"
-
-    def on_load(self):
-        """Logs a message when the plugin is loaded."""
-        self.logger.info(
-            "Plugin loaded. Will anounce the status of a backup action."
-        )
-
-    def before_backup(self, server_name: str, backup_type: str, **kwargs):
-        """Called before any backup operation starts."""
-        self.logger.info(f"A '{backup_type}' backup is starting for '{server_name}'. Announcing in-game.")
-        try:
-            # We use the API to send a command to the server
-            self.api.send_command(
-                server_name=server_name,
-                command=f"say Starting {backup_type} backup... The server may shut down breifly."
-            )
-        except Exception as e:
-            # It's possible the server is stopped, so send_command will fail.
-            # We log this as a warning, not an error.
-            self.logger.warning(f"Could not send backup start announcement to '{server_name}': {e}")
-
-    def after_backup(self, server_name: str, backup_type: str, result: dict, **kwargs):
-        """Called after any backup operation completes."""
-        self.logger.info(f"Backup operation finished for '{server_name}'.")
-
-        # Check the result dictionary to see if the backup was successful
-        if result.get("status") == "success":
-            message = f"say {backup_type.capitalize()} backup completed successfully!"
-        else:
-            message = f"say {backup_type.capitalize()} backup failed. Check server logs."
-
-        try:
-            self.api.send_command(server_name=server_name, command=message)
-        except Exception as e:
-            self.logger.warning(f"Could not send backup completion announcement to '{server_name}': {e}")
-
-```
 
 ## 8. Best Practices
 
