@@ -1,4 +1,4 @@
-# bedrock_server_manager/plugins/default/auto_reload_plugin.py
+# bedrock_server_manager/plugins/default/auto_reload_config.py
 """
 Plugin that automatically reloads server configurations after changes.
 """

@@ -1,4 +1,4 @@
-# bedrock_server_manager/plugins/default/server_lifecycle_notifications_plugin.py
+# bedrock_server_manager/plugins/default/server_lifecycle_notifications.py
 """
 Plugin to send in-game messages and manage delays during server lifecycle events.
 """
