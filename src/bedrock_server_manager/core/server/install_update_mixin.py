@@ -268,6 +268,15 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
                 f"Could not set status to {status_to_set} for '{self.server_name}': {e_stat}"
             )
 
+        # Attempt to set the target version in the server's config.
+        try:
+            if not is_currently_installed:
+                    self.set_target_version(target_version_specification.upper())
+        except Exception as e_set_target:
+            self.logger.warning(
+                f"Could not set target version for '{self.server_name}': {e_set_target}"
+            )
+
         downloader = BedrockDownloader(
             settings_obj=self.settings,
             server_dir=self.server_dir,
