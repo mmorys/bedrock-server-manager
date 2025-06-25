@@ -6,40 +6,7 @@
 
 This guide will walk you through creating your own plugins to extend and customize the Bedrock Server Manager. The plugin system is designed to be simple yet powerful, allowing you to hook into various application events and use the core application's functions safely.
 
-## Table of Contents
-1.  [Getting Started: Your First Plugin](#1-getting-started-your-first-plugin)
-2.  [Managing Plugins](#2-managing-plugins)
-    *   [`plugins.json` Configuration File](#pluginsjson-configuration-file)
-    *   [CLI Commands for Plugin Management](#cli-commands-for-plugin-management)
-3.  [The `PluginBase` Class](#3-the-pluginbase-class)
-4.  [Understanding Event Hooks](#4-understanding-event-hooks)
-5.  [Complete List of Event Hooks](#5-complete-list-of-event-hooks)
-    *   [Plugin Lifecycle Events](#plugin-lifecycle-events)
-    *   [Server Start/Stop Events](#server-startstop-events)
-    *   [Server Command Events](#server-command-events)
-    *   [Backup & Restore Events](#backup--restore-events)
-    *   [World Management Events](#world-management-events)
-    *   [Addon Management Events](#addon-management-events)
-    *   [Server Configuration Events](#server-configuration-events)
-    *   [Server Installation & Update Events](#server-installation--update-events)
-    *   [Player Database Events](#player-database-events)
-    *   [System & Application Events](#system--application-events)
-    *   [Web Server Events](#web-server-events)
-6.  [Custom Plugin Events (Inter-Plugin Communication)](#6-custom-plugin-events-inter-plugin-communication)
-7.  [Using the Plugin API (`self.api`)](#7-using-the-plugin-api-selfapi)
-8.  [Available API Functions](#8-available-api-functions)
-    *   [Server Management](#server-management)
-    *   [Server Installation & Configuration](#server-installation--configuration)
-    *   [Custom Server Configuration (config.json)](#custom-server-configuration-configjson)
-    *   [Plugin Configuration API](#plugin-configuration-api)
-    *   [World Management](#world-management)
-    *   [Addon Management](#addon-management)
-    *   [Backup & Restore](#backup--restore)
-    *   [Player Database](#player-database)
-    *   [System & Application](#system--application)
-    *   [Web Server](#web-server)
-    *   [Inter-Plugin Communication / Custom Events](#inter-plugin-communication--custom-events)
-9. [Best Practices](#10-best-practices)
+This guide assumes you have a basic understanding of Python programming
 
 ---
 
@@ -106,10 +73,10 @@ You can easily manage which plugins are active using the `bedrock-server-manager
         $ bedrock-server-manager plugin list
         Fetching plugin statuses...
         Plugin Statuses:
-        Plugin Name                         | Status
-        ------------------------------------|----------
-        ServerLifecycleNotificationsPlugin  | Enabled
-        MyCustomPlugin                      | Disabled
+        Plugin Name                         | Status   | Version |
+        ------------------------------------|----------|---------|
+        server_lifecycle__notifications     | Enabled  | 1.0.0   |
+        my_custom_plugin                    | Disabled | 1.4.5   |
         ```
 
 -   **`bedrock-server-manager plugin enable <plugin_name>`**
