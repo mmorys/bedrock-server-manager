@@ -178,7 +178,7 @@ Running `bedrock-server-manager plugin` without a subcommand will launch an inte
 
 To learn how to create your own plugins, please refer to the comprehensive:
 
-➡️ **[Plugin Development Documentation](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/PLUGIN_API.md)**
+**[Plugin Docs](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/PLUGIN_API.md)**
 
 This documentation covers everything from creating your first plugin, understanding the `PluginBase` class, using event hooks and the plugin API, to advanced topics like custom inter-plugin events.
 
