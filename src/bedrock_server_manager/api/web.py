@@ -514,7 +514,6 @@ def get_web_ui_service_status() -> Dict[str, Any]:
         "is_enabled": False,
     }
     try:
-        bsm = get_bsm_instance()
         if not bsm.can_manage_services:
             return {
                 "status": "success",
