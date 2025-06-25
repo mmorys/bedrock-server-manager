@@ -282,8 +282,6 @@ class ResourceMonitor:
                 current_cpu_times = process.cpu_times()
                 current_timestamp = time.time()
                 cpu_percent = 0.0
-
-                # --- CORRECTED CPU Delta Calculation ---
                 # Check if we have a previous reading for THIS specific PID.
                 if pid in self._last_readings:
                     # Unpack the previous reading for this PID.
@@ -302,7 +300,6 @@ class ResourceMonitor:
 
                 # Store the new reading (tuple) for THIS specific PID for the next call.
                 self._last_readings[pid] = (current_cpu_times, current_timestamp)
-                # --- End of Correction ---
 
                 memory_mb = process.memory_info().rss / (1024 * 1024)
                 uptime_seconds = current_timestamp - process.create_time()
