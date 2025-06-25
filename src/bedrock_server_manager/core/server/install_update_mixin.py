@@ -271,7 +271,7 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
         # Attempt to set the target version in the server's config.
         try:
             if not is_currently_installed:
-                    self.set_target_version(target_version_specification.upper())
+                self.set_target_version(target_version_specification.upper())
         except Exception as e_set_target:
             self.logger.warning(
                 f"Could not set target version for '{self.server_name}': {e_set_target}"
