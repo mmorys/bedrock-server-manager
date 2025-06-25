@@ -40,7 +40,6 @@ from bedrock_server_manager.web.routes.backup_restore_routes import backup_resto
 from bedrock_server_manager.web.routes.api_info_routes import api_info_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.util_routes import util_bp
-from bedrock_server_manager.web.routes.doc_routes import doc_bp
 from bedrock_server_manager.web.routes.auth_routes import (
     auth_bp,
     csrf,
@@ -194,7 +193,6 @@ def create_app() -> Flask:
     app.register_blueprint(content_bp)
     app.register_blueprint(util_bp)
     app.register_blueprint(api_info_bp)
-    app.register_blueprint(doc_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(plugin_bp)  # Registered the new blueprint
     logger.debug("Registered application blueprints.")
