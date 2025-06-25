@@ -194,7 +194,7 @@ def _get_app_version() -> str:
         logger.exception(
             f"Context Helper: Unexpected error getting app version: {e}", exc_info=True
         )
-        app_veersion = default_app_version  # Fallback on unexpected errors
+        app_version = default_app_version  # Fallback on unexpected errors
 
     return app_version
 

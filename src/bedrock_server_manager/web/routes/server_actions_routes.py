@@ -16,8 +16,6 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     get_current_identity,
 )
 from bedrock_server_manager.api import server as server_api, server_install_config
-from bedrock_server_manager.api import system as system_api
-from bedrock_server_manager.api import application as application_api
 from bedrock_server_manager.error import (
     BSMError,
     UserInputError,
@@ -310,46 +308,6 @@ def delete_server_route(server_name: str) -> Tuple[Response, int]:
         }
         logger.error(
             f"API Delete Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
-
-    return jsonify(result), status_code
-
-
-# --- API Route: Server Status ---
-@server_actions_bp.route(
-    "/api/server/<string:server_name>/status_info", methods=["GET"]
-)
-@csrf.exempt
-@auth_required
-def server_status_api(server_name: str) -> Tuple[Response, int]:
-    """API endpoint to retrieve status information for a specific server."""
-    identity = get_current_identity() or "Unknown"
-    logger.debug(f"API: Status info request for '{server_name}' by user '{identity}'.")
-
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        # The system API handles the logic of finding the process or returning None
-        result = system_api.get_bedrock_process_info(server_name)
-        status_code = (
-            200  # This API call is successful even if the process is not found
-        )
-        logger.debug(f"API Status Info '{server_name}': Succeeded.")
-
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Status Info '{server_name}': Input error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {
-            "status": "error",
-            "message": "An unexpected error occurred getting status.",
-        }
-        logger.error(
-            f"API Status Info '{server_name}': Unexpected error in route. {e}",
             exc_info=True,
         )
 

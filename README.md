@@ -1,4 +1,4 @@
-
+﻿
 <div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="ICON" width="200" height="200">
 </div> 
@@ -28,7 +28,8 @@
 
 
 * [CHANGELOG](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md)
-* [HTTP API DOCS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
+* [PLUGINS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/PLUGIN_API.md)
+* [HTTP API](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/HTTP_API.md)
 * [EXTRAS](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/EXTRAS.md)
 
 # Bedrock Server Manager (BSM)
@@ -62,15 +63,11 @@ View Resource Usage: View how much CPU and RAM your server is using.
 
 Web Server: Easily manage your Minecraft servers in your browser, even if you're on mobile!
 
+Plugin Support: Extend functionality with custom plugins that can listen to events, access the core app APIs, and trigger custom events.
+
 ## Prerequisites
 
 This app requires `Python 3.10` or later, and you will need `pip` installed
-
-On Linux, you'll also need:
-
-*  screen
-*  systemd
-
 
 ## Installation
 
@@ -104,7 +101,8 @@ Certain variables can can be changed directly in the `./.config/script_config.js
 * `BACKUP_KEEP`: How many backups to keep
 * `DOWNLOAD_KEEP`: How many server downloads to keep
 * `LOGS_KEEP`: How many logs to keep
-* `LOG_LEVEL`: Level for logging.
+* `CLI_LOG_LEVEL`: Level for CLI logging.
+* `FILE_LOG_LEVEL`: Level for file logging.
 * `WEB_PORT`: Port used by the web server. 11325 by default
 * `TOKEN_EXPIRES_WEEKS`: How long JWT tokens are vaild for in weeks.
 
@@ -154,6 +152,35 @@ bedrock-server-manager world export --server server_name_
 bedrock-server-manager web start --host 0.0.0.0 --host "::" --mode direct
 ```
 
+## Plugin Suport
+
+Bedrock Server Manager features a powerful plugin system that allows you to extend and customize its functionality. Whether you want to add new automations, integrate with other services, or introduce custom server management logic, plugins provide the framework to do so.
+
+**Key Capabilities:**
+
+*   **Event Hooks:** Plugins can "listen" to various events within BSM (e.g., before a server starts, after a backup completes) and execute custom code in response.
+*   **API Access:** Plugins have safe access to core BSM functions, allowing them to perform actions like starting/stopping servers, sending commands, and more.
+*   **Custom Events:** Plugins can define and trigger their own events, enabling complex communication and collaboration between different plugins.
+
+**Managing Plugins:**
+
+You can manage your plugins directly from the command line:
+
+*   List all plugins and their status: `bedrock-server-manager plugin list`
+*   Enable a plugin: `bedrock-server-manager plugin enable <plugin_name>`
+*   Disable a plugin: `bedrock_server-manager plugin disable <plugin_name>`
+*   Reload all plugins: `bedrock-server-manager plugin reload`
+*   Trigger custom events for plugins: `bedrock-server-manager plugin trigger_event <event_name> --payload-json '{...}'`
+
+Running `bedrock-server-manager plugin` without a subcommand will launch an interactive plugin management menu.
+
+**Developing Plugins:**
+
+To learn how to create your own plugins, please refer to the comprehensive:
+
+**[Plugin Docs](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/PLUGIN_API.md)**
+
+This documentation covers everything from creating your first plugin, understanding the `PluginBase` class, using event hooks and the plugin API, to advanced topics like custom inter-plugin events.
 
 ## Install Content:
 

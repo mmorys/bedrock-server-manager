@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.3.1"
+version = "3.4.0"
 authors = [
   { name="DMedina559", email="dmedina559-github@outlook.com" },
 ]
@@ -41,6 +41,12 @@ keywords = ["minecraft", "bedrock", "server", "manager", "bsm", "admin", "dashbo
 Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
 "Bug Tracker" = "https://github.com/DMedina559/bedrock-server-manager/issues"
 Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "pytest",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

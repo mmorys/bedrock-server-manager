@@ -1,15 +1,15 @@
 # bedrock_server_manager/api/web.py
-"""
-Provides API-level functions for managing the application's web server.
+"""Provides API functions for managing the application's web server.
 
-This module handles starting, stopping, and checking the status of the Flask-based
-web UI. It interfaces with the BedrockServerManager for configuration details
-and core process utilities for managing the web server process.
+This module contains the logic for starting, stopping, and checking the status
+of the built-in web user interface, which is powered by Flask. It handles
+both direct (blocking) and detached (background) modes of operation.
 """
 import logging
 from typing import Dict, Optional, Any, List, Union
 import os
 
+# psutil is an optional dependency required for detached mode process management.
 try:
     import psutil
 
@@ -17,18 +17,23 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
+# Plugin system imports to bridge API functionality.
+from bedrock_server_manager import plugin_manager
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
+# Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
 from bedrock_server_manager.core.system import process as system_process_utils
 from bedrock_server_manager.error import (
     BSMError,
-    ConfigurationError,
     FileOperationError,
     ServerProcessError,
     SystemError,
+    UserInputError,
 )
 
 logger = logging.getLogger(__name__)
+# A global BedrockServerManager instance for accessing web UI configuration.
 bsm = BedrockServerManager()
 
 
@@ -37,150 +42,151 @@ def start_web_server_api(
     debug: bool = False,
     mode: str = "direct",
 ) -> Dict[str, Any]:
-    """
-    Starts the application's web server.
+    """Starts the application's web server.
 
-    The server can be started in 'direct' mode (blocking, in the current terminal)
-    or 'detached' mode (background process).
+    This function can start the web server in two modes:
+    - 'direct': A blocking call that runs the server in the current process.
+      Useful for development or when managed by an external process manager.
+    - 'detached': Launches the server as a new background process and creates
+      a PID file to track it. Requires the `psutil` library.
 
     Args:
-        host: Optional. The host address or list of addresses to bind to.
-              Defaults to configured or Flask's default.
-        debug: If True, run Flask in debug mode (intended for development).
-        mode: "direct" or "detached".
+        host: The host address(es) to bind the web server to. Can be a single
+            string or a list of strings. Defaults to the setting value.
+        debug: If True, starts the Flask server in debug mode.
+        mode: The start mode, either 'direct' or 'detached'.
 
     Returns:
-        A dictionary indicating success or failure, and PID if started in detached mode.
-        Example (detached): `{"status": "success", "pid": 1234, "message": "..."}`
-        Example (direct): `{"status": "success", "message": "Web server shut down."}`
-        Example (error): `{"status": "error", "message": "Error details..."}`
+        A dictionary containing the operation status, a message, and the PID
+        if started in detached mode.
+
+    Raises:
+        UserInputError: If the provided `mode` is invalid.
+        SystemError: If `detached` mode is used but `psutil` is not installed.
+        ServerProcessError: If the web server is already running.
     """
     mode = mode.lower()
-    if mode not in ["direct", "detached"]:
-        return {
-            "status": "error",
-            "message": "Invalid mode. Must be 'direct' or 'detached'.",
-        }
 
-    logger.info(f"API: Attempting to start web server in '{mode}' mode...")
-    if mode == "direct":
-        try:
+    plugin_manager.trigger_guarded_event("before_web_server_start", mode=mode)
+
+    result = {}
+    try:
+        if mode not in ["direct", "detached"]:
+            raise UserInputError("Invalid mode. Must be 'direct' or 'detached'.")
+
+        logger.info(f"API: Attempting to start web server in '{mode}' mode...")
+        # --- Direct (Blocking) Mode ---
+        if mode == "direct":
             bsm.start_web_ui_direct(host, debug)
-            return {
+            result = {
                 "status": "success",
                 "message": "Web server (direct mode) shut down.",
             }
-        except Exception as e:  # Catch-all for BSM errors or others
-            logger.error(
-                f"API: Error in BSM during direct web start: {e}", exc_info=True
-            )
-            return {
-                "status": "error",
-                "message": f"Unexpected error starting web server: {str(e)}",
-            }
 
-    elif mode == "detached":
-        if not PSUTIL_AVAILABLE:  # Re-check as it's crucial for detached
-            return {
-                "status": "error",
-                "message": "Cannot start in detached mode: 'psutil' is required.",
-            }
-        logger.info("API: Starting web server in detached mode...")
-        try:
+        # --- Detached (Background) Mode ---
+        elif mode == "detached":
+            if not PSUTIL_AVAILABLE:
+                raise SystemError(
+                    "Cannot start in detached mode: 'psutil' is required."
+                )
+
+            logger.info("API: Starting web server in detached mode...")
             pid_file_path = bsm.get_web_ui_pid_path()
             expected_exe = bsm.get_web_ui_executable_path()
             expected_arg = bsm.get_web_ui_expected_start_arg()
 
+            # Check for an existing, valid PID file.
             existing_pid = None
             try:
                 existing_pid = system_process_utils.read_pid_from_file(pid_file_path)
-            except FileOperationError:  # Corrupt file
+            except FileOperationError:  # Corrupt PID file.
                 system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
-            if existing_pid:
-                if system_process_utils.is_process_running(existing_pid):
-                    try:
-                        system_process_utils.verify_process_identity(
-                            existing_pid, expected_exe, expected_arg
-                        )
-                        return {
-                            "status": "error",
-                            "message": f"Web server already running (PID: {existing_pid}).",
-                        }
-                    except ServerProcessError:
-                        system_process_utils.remove_pid_file_if_exists(
-                            pid_file_path
-                        )  # Stale
-                else:  # Stale PID
+            # If a PID exists, verify the process is still running and correct.
+            if existing_pid and system_process_utils.is_process_running(existing_pid):
+                try:
+                    system_process_utils.verify_process_identity(
+                        existing_pid, expected_exe, expected_arg
+                    )
+                    # If verification passes, the server is already running.
+                    raise ServerProcessError(
+                        f"Web server already running (PID: {existing_pid})."
+                    )
+                except ServerProcessError:
+                    # The PID points to the wrong process. Clean up the stale file.
                     system_process_utils.remove_pid_file_if_exists(pid_file_path)
+            else:
+                # The PID is stale or doesn't exist. Clean up the file.
+                system_process_utils.remove_pid_file_if_exists(pid_file_path)
 
+            # Construct the command to launch the new detached process.
             command = [str(expected_exe), "web", "start", "--mode", "direct"]
-
-            # Normalize the host input into a list
             hosts_to_add = []
             if isinstance(host, str):
                 hosts_to_add.append(host)
             elif isinstance(host, list):
                 hosts_to_add.extend(host)
 
-            # Append each host with its own --host flag
             for h in hosts_to_add:
-                if h:  # Ensure not an empty string
+                if h:
                     command.extend(["--host", str(h)])
-
             if debug:
                 command.append("--debug")
 
+            # Launch the process and write the new PID to the file.
             new_pid = system_process_utils.launch_detached_process(
                 command, pid_file_path
             )
-            return {
+            result = {
                 "status": "success",
                 "pid": new_pid,
                 "message": f"Web server started (PID: {new_pid}).",
             }
-        except BSMError as e:
-            return {"status": "error", "message": f"Failed to start web server: {e}"}
-        except Exception as e:
-            logger.error(
-                f"API: Unexpected error starting detached web server: {e}",
-                exc_info=True,
-            )
-            return {"status": "error", "message": f"Unexpected error: {str(e)}"}
+
+    except BSMError as e:
+        logger.error(f"API: Handled error starting web server: {e}", exc_info=True)
+        result = {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(f"API: Unexpected error starting web server: {e}", exc_info=True)
+        result = {"status": "error", "message": f"Unexpected error: {str(e)}"}
+    finally:
+        plugin_manager.trigger_guarded_event("after_web_server_start", result=result)
+
+    return result
 
 
 def stop_web_server_api() -> Dict[str, str]:
-    """
-    Stops the detached web server process.
+    """Stops the detached web server process.
 
-    It reads the PID from the stored PID file, verifies the process,
-    and then terminates it.
+    This function reads the PID from the web server's PID file, verifies that
+    the process is the correct one, and terminates it. Requires the `psutil`
+    library.
 
     Returns:
-        A dictionary indicating success or failure.
-        Example: `{"status": "success", "message": "Web server stopped."}` or
-                 `{"status": "error", "message": "Error details..."}`
+        A dictionary containing the operation status and a descriptive message.
     """
-    logger.info("API: Attempting to stop detached web server...")
-    if not PSUTIL_AVAILABLE:
-        return {
-            "status": "error",
-            "message": "'psutil' not installed. Cannot manage processes.",
-        }
+    plugin_manager.trigger_guarded_event("before_web_server_stop")
+
+    result = {}
     try:
+        logger.info("API: Attempting to stop detached web server...")
+        if not PSUTIL_AVAILABLE:
+            raise SystemError("'psutil' not installed. Cannot manage processes.")
+
         pid_file_path = bsm.get_web_ui_pid_path()
         expected_exe = bsm.get_web_ui_executable_path()
         expected_arg = bsm.get_web_ui_expected_start_arg()
 
+        # Read the PID from the file.
         pid = system_process_utils.read_pid_from_file(pid_file_path)
         if pid is None:
-            if os.path.exists(pid_file_path):  # Empty PID file
-                system_process_utils.remove_pid_file_if_exists(pid_file_path)
+            system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
                 "status": "success",
                 "message": "Web server not running (no valid PID file).",
             }
 
+        # Check if the process is actually running.
         if not system_process_utils.is_process_running(pid):
             system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
@@ -188,41 +194,49 @@ def stop_web_server_api() -> Dict[str, str]:
                 "message": f"Web server not running (stale PID {pid}).",
             }
 
+        # Verify it's the correct process before terminating.
         system_process_utils.verify_process_identity(pid, expected_exe, expected_arg)
-        system_process_utils.terminate_process_by_pid(pid)  # Add timeouts if needed
+        system_process_utils.terminate_process_by_pid(pid)
         system_process_utils.remove_pid_file_if_exists(pid_file_path)
-        return {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
+        result = {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
+
     except (FileOperationError, ServerProcessError) as e:
+        # Clean up the PID file if there's a file error or process mismatch.
         system_process_utils.remove_pid_file_if_exists(bsm.get_web_ui_pid_path())
         error_type = (
             "PID file error"
             if isinstance(e, FileOperationError)
             else "Process verification failed"
         )
-        return {"status": "error", "message": f"{error_type}: {e}. PID file removed."}
+        result = {"status": "error", "message": f"{error_type}: {e}. PID file removed."}
     except BSMError as e:
-        return {"status": "error", "message": f"Error stopping web server: {e}"}
+        result = {"status": "error", "message": f"Error stopping web server: {e}"}
     except Exception as e:
         logger.error(f"API: Unexpected error stopping web server: {e}", exc_info=True)
-        return {"status": "error", "message": f"Unexpected error: {str(e)}"}
+        result = {"status": "error", "message": f"Unexpected error: {str(e)}"}
+    finally:
+        plugin_manager.trigger_guarded_event("after_web_server_stop", result=result)
+
+    return result
 
 
+@plugin_method("get_web_server_status")
 def get_web_server_status_api() -> Dict[str, Any]:
-    """
-    Checks the status of the web server process.
+    """Checks the status of the web server process.
 
-    Verifies against a PID file and checks if the process is running and matches
-    the expected web server process.
+    This function verifies the web server's status by checking for a valid
+    PID file and then inspecting the process itself to ensure it is running
+    and is the correct executable. Requires the `psutil` library.
 
     Returns:
-        A dictionary with the status ("RUNNING", "STOPPED", "MISMATCHED_PROCESS", "ERROR"),
-        PID (if available), and a descriptive message.
+        A dictionary with the status, PID (if available), and a message.
+        Possible statuses: "RUNNING", "STOPPED", "MISMATCHED_PROCESS", "ERROR".
         Example: `{"status": "RUNNING", "pid": 1234, "message": "..."}`
     """
     logger.debug("API: Getting web server status...")
     if not PSUTIL_AVAILABLE:
         return {
-            "status": "error",
+            "status": "ERROR",
             "message": "'psutil' not installed. Cannot get process status.",
         }
     pid = None
@@ -233,7 +247,7 @@ def get_web_server_status_api() -> Dict[str, Any]:
 
         try:
             pid = system_process_utils.read_pid_from_file(pid_file_path)
-        except FileOperationError:  # Corrupt
+        except FileOperationError:  # Handle corrupt PID file.
             system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
                 "status": "STOPPED",
@@ -241,8 +255,9 @@ def get_web_server_status_api() -> Dict[str, Any]:
                 "message": "Corrupt PID file removed.",
             }
 
+        # Case: No PID file, or PID file was empty.
         if pid is None:
-            if os.path.exists(pid_file_path):  # Empty
+            if os.path.exists(pid_file_path):  # Clean up empty file.
                 system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
                 "status": "STOPPED",
@@ -250,6 +265,7 @@ def get_web_server_status_api() -> Dict[str, Any]:
                 "message": "Web server not running (no PID file).",
             }
 
+        # Case: PID file exists, but process is not running.
         if not system_process_utils.is_process_running(pid):
             system_process_utils.remove_pid_file_if_exists(pid_file_path)
             return {
@@ -258,6 +274,7 @@ def get_web_server_status_api() -> Dict[str, Any]:
                 "message": f"Stale PID {pid}, process not running.",
             }
 
+        # Case: Process is running, verify it's the correct one.
         try:
             system_process_utils.verify_process_identity(
                 pid, expected_exe, expected_arg
@@ -268,7 +285,7 @@ def get_web_server_status_api() -> Dict[str, Any]:
                 "message": f"Web server running with PID {pid}.",
             }
         except ServerProcessError as e:
-            # PID file points to a WRONG process. Don't remove it here unless sure.
+            # Case: PID points to a different, unrelated process.
             return {"status": "MISMATCHED_PROCESS", "pid": pid, "message": str(e)}
 
     except BSMError as e:  # Catches ConfigurationError, SystemError, etc.

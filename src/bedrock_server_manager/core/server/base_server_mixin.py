@@ -1,29 +1,33 @@
 # bedrock_server_manager/core/server/base_server_mixin.py
-"""
-Provides the BedrockServerBaseMixin class, which forms the foundational layer
-for the BedrockServer class and its other mixins.
+"""Provides the foundational `BedrockServerBaseMixin` class.
 
-This mixin initializes core attributes like server name, paths, settings,
-and logger, which are common across all server-related operations.
+This mixin is the first in the inheritance chain for the main `BedrockServer`
+class. Its primary responsibility is to initialize core attributes that are
+common across all server-related operations, such as server name, directory
+paths, application settings, and the logger. All other mixins should inherit
+from this class to ensure these fundamental attributes are available.
 """
 import os
 import platform
 import logging
 import subprocess
 import threading
-from typing import Optional, TYPE_CHECKING, Any
+from typing import Optional, Any
+from functools import cached_property
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.config.const import EXPATH as CONST_EXPATH
+from bedrock_server_manager.core.system import base as system_base
 from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.error import MissingArgumentError, ConfigurationError
 
 
 class BedrockServerBaseMixin:
-    """
-    Base mixin providing common properties for a BedrockServer instance.
-    The main BedrockServer class will inherit from this first.
-    Mixins should also inherit from this (or a class that does) and call super().__init__.
+    """The base mixin providing common attributes for a BedrockServer instance.
+
+    This class should be inherited from first by the main `BedrockServer` class.
+    Other mixins should also inherit from this (or a class that does) and call
+    `super().__init__` to ensure cooperative multiple inheritance works correctly.
     """
 
     def __init__(
@@ -34,26 +38,29 @@ class BedrockServerBaseMixin:
         *args,
         **kwargs,
     ):
-        """
-        Initializes the base attributes for a Bedrock server instance.
+        """Initializes the base attributes for a Bedrock server instance.
 
         Args:
-            server_name: The unique name of the server.
-            settings_instance: An optional pre-configured Settings object.
-                               If None, a new Settings object is created.
-            manager_expath: Optional path to the BSM executable, used for
-                            operations like systemd service creation.
-            *args: Variable length argument list for multiple inheritance.
-            **kwargs: Arbitrary keyword arguments for multiple inheritance.
+            server_name: The unique name of the server, used to determine its
+                directory and configuration paths.
+            settings_instance: An optional, pre-configured `Settings` object.
+                If None, a new one is created. This allows for dependency
+                injection during testing.
+            manager_expath: An optional path to the main application executable.
+                This is used for operations that require the application to
+                call itself, such as creating a systemd service.
+            *args: Variable length argument list to support multiple inheritance.
+            **kwargs: Arbitrary keyword arguments to support multiple inheritance.
 
         Raises:
             MissingArgumentError: If `server_name` is not provided.
-            ConfigurationError: If critical settings like BASE_DIR are missing.
+            ConfigurationError: If critical settings like `BASE_DIR` are missing.
         """
-        super().__init__(*args, **kwargs)  # For cooperative multiple inheritance
+        # Call to super() is essential for cooperative multiple inheritance.
+        super().__init__(*args, **kwargs)
 
         if not server_name:
-            # This basic validation should happen early.
+            # A server instance is meaningless without a name.
             raise MissingArgumentError(
                 "BedrockServer cannot be initialized without a server_name."
             )
@@ -62,6 +69,7 @@ class BedrockServerBaseMixin:
 
         self.server_name: str = server_name
 
+        # Use the provided settings instance or create a new one.
         if settings_instance:
             self.settings = settings_instance
         else:
@@ -70,6 +78,7 @@ class BedrockServerBaseMixin:
             f"BedrockServerBaseMixin for '{self.server_name}' initialized using settings from: {self.settings.config_path}"
         )
 
+        # Determine the path to the main application executable.
         if manager_expath:
             self.manager_expath: str = manager_expath
         else:
@@ -80,8 +89,7 @@ class BedrockServerBaseMixin:
                     "Some features (like systemd service creation) may not work."
                 )
 
-        # Resolved paths and values from settings
-        # Ensure critical settings are present
+        # Resolve critical paths from settings.
         _base_dir_val = self.settings.get("BASE_DIR")
         if not _base_dir_val:
             raise ConfigurationError(
@@ -89,10 +97,11 @@ class BedrockServerBaseMixin:
             )
         self.base_dir: str = _base_dir_val
 
+        # The main directory where this server's files are stored.
         self.server_dir: str = os.path.join(self.base_dir, self.server_name)
 
-        # Global application config directory (for PIDs, status flags relevant to this server)
-        # This comes from settings.config_dir property
+        # The global application config directory, used for storing server-specific
+        # JSON config files, PID files, etc.
         _app_cfg_dir_val = self.settings.config_dir
         if not _app_cfg_dir_val:
             raise ConfigurationError(
@@ -100,19 +109,20 @@ class BedrockServerBaseMixin:
             )
         self.app_config_dir: str = _app_cfg_dir_val
 
+        # The operating system type (e.g., 'Windows', 'Linux').
         self.os_type: str = platform.system()
 
-        # For process resource monitoring (used by ProcessMixin)
-        self._last_proc_cpu_times_stats: Optional[Any] = (
-            None  # Type: psutil._common.scpustats
-        )
-        self._last_proc_sample_time: Optional[float] = None
+        # --- State attributes for other mixins ---
+        # These are initialized here but primarily used by other mixins.
 
-        # For Windows foreground process management (used by ProcessMixin)
+        # For process resource monitoring.
+        self._resource_monitor = system_base.ResourceMonitor()
+
+        # For managing a server process started in the foreground on Windows (used by ProcessMixin).
         self._windows_popen_process: Optional[subprocess.Popen] = None
         self._windows_pipe_listener_thread: Optional[threading.Thread] = None
         self._windows_pipe_shutdown_event: Optional[threading.Event] = None
-        self._windows_stdout_handle: Optional[Any] = None  # Type: file object
+        self._windows_stdout_handle: Optional[Any] = None
         self._windows_pid_file_path_managed: Optional[str] = None
 
         self.logger.debug(
@@ -120,39 +130,38 @@ class BedrockServerBaseMixin:
             f"at '{self.server_dir}'. App Config Dir: '{self.app_config_dir}'"
         )
 
-    @property
+    @cached_property
     def bedrock_executable_name(self) -> str:
         """Returns the platform-specific name of the Bedrock server executable."""
         return "bedrock_server.exe" if self.os_type == "Windows" else "bedrock_server"
 
-    @property
+    @cached_property
     def bedrock_executable_path(self) -> str:
-        """Returns the full path to the Bedrock server executable within this server's directory."""
+        """Returns the full path to the Bedrock server executable."""
         return os.path.join(self.server_dir, self.bedrock_executable_name)
 
-    @property
+    @cached_property
     def server_log_path(self) -> str:
         """Returns the expected path to the server's main output log file."""
         return os.path.join(self.server_dir, "server_output.txt")
 
-    @property
-    def _server_specific_config_dir(
-        self,
-    ) -> str:
-        """Path to this server's own subdirectory within the app_config_dir for its JSON config."""
+    @cached_property
+    def server_config_dir(self) -> str:
+        """Returns the path to this server's dedicated configuration subdirectory."""
+
         return os.path.join(self.app_config_dir, self.server_name)
 
     def _get_server_pid_filename_default(self) -> str:
-        """Generates a standardized PID filename for this Bedrock server for general use."""
-        # Example: bedrock_MyServerName.pid
-        # Ensure server_name is filesystem-friendly if it contains special chars.
+        """Generates a standardized PID filename for this Bedrock server."""
         return f"bedrock_{self.server_name}.pid"
 
     def get_pid_file_path(self) -> str:
-        """
-        Gets the full path to this server's PID file, stored in the global application config directory.
+        """Gets the full path to this server's primary PID file.
+
+        This file is used to track the process ID of the running server,
+        especially when it's started in a detached mode.
         """
         pid_filename = self._get_server_pid_filename_default()
-        server_config_dir = self._server_specific_config_dir
+        server_config_dir = self.server_config_dir
 
         return os.path.join(server_config_dir, pid_filename)

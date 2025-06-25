@@ -1,0 +1,85 @@
+{# bedrock_server_manager/web/templates/manage_plugins.html #}
+{% extends "base.html" %}
+
+{% block title %}{{ super() }} - Manage Plugins{% endblock %}
+
+{% block head_scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/manage_plugins.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <header class="page-header">
+        <h2>Manage Plugins</h2>
+        <p>Enable or disable plugins for the Bedrock Server Manager. Reload Plugins for chages to apply.</p>
+    </header>
+
+    <div id="status-message-area" class="message-box" style="opacity: 0; transition: opacity 0.5s ease-out;">
+        <!-- Status messages from save actions will appear here -->
+    </div>
+
+    <section class="list-section">
+        <!-- Flex container to align heading and button -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3>Available Plugins</h3>
+            <!-- The new Reload Plugins button -->
+            <button id="reload-plugins-btn" class="action-button">
+                <i class="fas fa-sync-alt"></i> Reload Plugins
+            </button>
+        </div>
+        <ul id="plugin-list" class="item-list">
+            <li id="plugin-loader" class="list-item-status" role="status">
+                <div class="loader-container-small">
+                    <div class="spinner"></div>
+                    <p>Loading plugins...</p>
+                </div>
+            </li>
+        </ul>
+    </section>
+
+    <!-- ==========================================================================
+        CLIENT-SIDE TEMPLATES (FOR JAVASCRIPT)
+    ========================================================================== -->
+    <!-- Template for a single plugin item. Cloned and populated by JS. -->
+    <template id="plugin-item-template">
+        <li>
+            <div class="plugin-details">
+                <strong class="plugin-name"></strong>
+                <!-- Add a small, greyed-out span for the version -->
+                <small class="plugin-version" style="margin-left: 8px; color: #bbb;"></small>
+            </div>
+            <div class="plugin-controls">
+                <label class="toggle-switch-container">
+                    <input type="checkbox" class="toggle-input plugin-toggle-switch" data-plugin-name="">
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+        </li>
+    </template>
+
+    <!-- Template for when no plugins are found -->
+    <template id="no-plugins-template">
+        <!-- This uses the special 'no players' message style from forms.css -->
+        <li id="no-players-message">
+            No plugins found or available to configure.
+        </li>
+    </template>
+
+    <!-- Template for when an error occurs -->
+    <template id="load-error-template">
+        <li class="list-item-error">
+            <p>Error loading plugin information. Please check the application logs or try again later.</p>
+        </li>
+    </template>
+</div>
+
+<div class="page-actions">
+    <a href="{{ url_for('main_routes.index') }}" class="action-link">
+          Back to Dashboard
+    </a>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{% endblock %}

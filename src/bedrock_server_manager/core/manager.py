@@ -1,17 +1,20 @@
 # bedrock_server_manager/core/manager.py
-"""
-Provides the BedrockServerManager class, the central orchestrator for application-wide
-operations, settings management, and server discovery.
+"""Provides the BedrockServerManager, the application's central orchestrator.
+
+This module contains the `BedrockServerManager` class, which acts as the main
+entry point for application-wide operations that are not specific to a single
+server instance. It manages global settings, server discovery, the central
+player database, and provides information for managing the web UI process.
 """
 import os
 import json
-import re
+import shutil
 import glob
 import logging
 import platform
 from typing import Optional, List, Dict, Any, Union, Tuple
 
-# Local imports
+# Local application imports.
 from bedrock_server_manager.config.settings import Settings
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.config.const import EXPATH, app_name_title, package_name
@@ -28,22 +31,25 @@ logger = logging.getLogger(__name__)
 
 
 class BedrockServerManager:
-    """
-    Manages application settings, server discovery, global player data,
-    and web UI process information.
+    """Manages global settings, server discovery, and application-wide data.
 
-    This class acts as a central point for accessing configuration and performing
-    operations that span across multiple server instances or relate to the
-    application as a whole.
+    This class provides a high-level interface for accessing configuration and
+    performing operations that span multiple server instances or relate to the
+    application as a whole, such as managing the global player database or
+    listing all available servers.
     """
 
     def __init__(self, settings_instance: Optional[Settings] = None):
-        """
-        Initializes the BedrockServerManager.
+        """Initializes the BedrockServerManager.
 
         Args:
-            settings_instance: An optional pre-configured Settings object.
-                               If None, a new Settings object will be created.
+            settings_instance: An optional, pre-configured `Settings` object.
+                If None, a new `Settings` object will be created. This allows
+                for dependency injection during testing.
+
+        Raises:
+            ConfigurationError: If critical settings like `BASE_DIR` or
+                `CONTENT_DIR` are not configured.
         """
         if settings_instance:
             self.settings = settings_instance
@@ -53,7 +59,10 @@ class BedrockServerManager:
             f"BedrockServerManager initialized using settings from: {self.settings.config_path}"
         )
 
-        # Resolved paths and values from settings
+        self.capabilities = self._check_system_capabilities()
+        self._log_capability_warnings()
+
+        # Initialize core attributes from the settings object.
         try:
             self._config_dir = self.settings.config_dir
             self._app_data_dir = self.settings.app_data_dir
@@ -61,14 +70,12 @@ class BedrockServerManager:
             self._package_name = package_name
             self._expath = EXPATH
         except Exception as e:
-            logger.error(
-                f"BSM Init Error: Settings object missing expected property. Details: {e}"
-            )
-            raise ConfigurationError(f"Settings object misconfiguration: {e}") from e
+            raise ConfigurationError(f"Settings object is misconfigured: {e}") from e
 
         self._base_dir = self.settings.get("BASE_DIR")
         self._content_dir = self.settings.get("CONTENT_DIR")
 
+        # Constants for managing the web server process.
         self._WEB_SERVER_PID_FILENAME = "web_server.pid"
         self._WEB_SERVER_START_ARG = ["web", "start"]
 
@@ -77,6 +84,7 @@ class BedrockServerManager:
         except Exception:
             self._app_version = "0.0.0"
 
+        # Validate that essential directory settings are present.
         if not self._base_dir:
             raise ConfigurationError("BASE_DIR not configured in settings.")
         if not self._content_dir:
@@ -87,21 +95,21 @@ class BedrockServerManager:
         """Retrieves a setting value by key."""
         return self.settings.get(key, default)
 
-    def set_setting(self, key: str, value: Any) -> None:
+    def set_setting(self, key: str, value: Any):
         """Sets a setting value by key."""
         self.settings.set(key, value)
 
     # --- Player Database Management ---
     def _get_player_db_path(self) -> str:
-        """Returns the absolute path to the players.json database file."""
+        """Returns the absolute path to the central `players.json` file."""
         return os.path.join(self._config_dir, "players.json")
 
     def parse_player_cli_argument(self, player_string: str) -> List[Dict[str, str]]:
-        """
-        Parses a comma-separated string of 'name:xuid' pairs into a list of dicts.
+        """Parses a comma-separated string of 'name:xuid' pairs.
 
         Args:
-            player_string: The comma-separated string of player data.
+            player_string: The comma-separated string of player data, e.g.,
+                "PlayerOne:123,PlayerTwo:456".
 
         Returns:
             A list of dictionaries, each with "name" and "xuid" keys.
@@ -129,21 +137,21 @@ class BedrockServerManager:
         return player_list
 
     def save_player_data(self, players_data: List[Dict[str, str]]) -> int:
-        """
-        Saves or updates player data in the players.json file.
+        """Saves or updates player data in the central `players.json` file.
 
-        Merges the provided player data with existing data, updating entries
-        with matching XUIDs and adding new ones.
+        This method merges the provided player data with existing data. It
+        updates entries with matching XUIDs and adds new ones.
 
         Args:
-            players_data: A list of player dictionaries ({"name": str, "xuid": str}).
+            players_data: A list of player dictionaries, where each dictionary
+                must contain 'name' and 'xuid' keys.
 
         Returns:
-            The total number of players added or updated.
+            The total number of players that were added or updated.
 
         Raises:
-            UserInputError: If `players_data` format is invalid.
-            FileOperationError: If there's an issue creating directories or writing the file.
+            UserInputError: If `players_data` has an invalid format.
+            FileOperationError: If creating directories or writing the file fails.
         """
         if not isinstance(players_data, list):
             raise UserInputError("players_data must be a list.")
@@ -167,6 +175,7 @@ class BedrockServerManager:
                 f"Could not create config directory {self._config_dir}: {e}"
             ) from e
 
+        # Load existing player data into a map for efficient lookup.
         existing_players_map: Dict[str, Dict[str, str]] = {}
         if os.path.exists(player_db_path):
             try:
@@ -187,12 +196,11 @@ class BedrockServerManager:
 
         updated_count = 0
         added_count = 0
+        # Merge new data with existing data.
         for player_to_add in players_data:
             xuid = player_to_add["xuid"]
             if xuid in existing_players_map:
-                if (
-                    existing_players_map[xuid] != player_to_add
-                ):  # Check if name or other data changed
+                if existing_players_map[xuid] != player_to_add:
                     existing_players_map[xuid] = player_to_add
                     updated_count += 1
             else:
@@ -200,6 +208,7 @@ class BedrockServerManager:
                 added_count += 1
 
         if updated_count > 0 or added_count > 0:
+            # Sort the final list alphabetically by name before saving.
             updated_players_list = sorted(
                 list(existing_players_map.values()),
                 key=lambda p: p.get("name", "").lower(),
@@ -213,12 +222,12 @@ class BedrockServerManager:
                 return added_count + updated_count
             except OSError as e:
                 raise FileOperationError(f"Failed to write players.json: {e}") from e
+
         logger.debug("BSM: No new or updated player data to save.")
         return 0
 
     def get_known_players(self) -> List[Dict[str, str]]:
-        """
-        Retrieves all known players from the players.json file.
+        """Retrieves all known players from the central `players.json` file.
 
         Returns:
             A list of player dictionaries, or an empty list if the file
@@ -231,7 +240,7 @@ class BedrockServerManager:
             with open(player_db_path, "r", encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
-                    return []  # Empty file
+                    return []
                 data = json.loads(content)
                 if (
                     isinstance(data, dict)
@@ -247,19 +256,20 @@ class BedrockServerManager:
         return []
 
     def discover_and_store_players_from_all_server_logs(self) -> Dict[str, Any]:
-        """
-        Scans all valid server logs within the base directory for player connection
-        information (name, XUID) and updates the central players.json database.
+        """Scans all server logs for player data and updates the central DB.
+
+        This method iterates through all directories in the `BASE_DIR`, treats
+        each as a potential server, validates it, and then uses that server's
+        own `scan_log_for_players` method to find player data. All discovered
+        data is then saved to the central `players.json`.
 
         Returns:
-            A dictionary summarizing the results, including counts of entries found,
-            unique players submitted for saving, players actually saved/updated,
-            and a list of any errors encountered during the scan of individual servers.
-            Example: `{"total_entries_in_logs": N, "unique_players_submitted_for_saving": M, ...}`
+            A dictionary summarizing the results, including counts of players
+            found, saved, and any errors encountered.
 
         Raises:
             AppFileNotFoundError: If the main server base directory is invalid.
-            FileOperationError: If there's a critical error saving data to players.json.
+            FileOperationError: If saving the final data to `players.json` fails.
         """
         if not self._base_dir or not os.path.isdir(self._base_dir):
             raise AppFileNotFoundError(str(self._base_dir), "Server base directory")
@@ -273,51 +283,41 @@ class BedrockServerManager:
 
         for server_name_candidate in os.listdir(self._base_dir):
             potential_server_path = os.path.join(self._base_dir, server_name_candidate)
-
-            # Check if it's a directory first
             if not os.path.isdir(potential_server_path):
-                logger.debug(
-                    f"BSM: Skipping '{server_name_candidate}', not a directory."
-                )
                 continue
 
             logger.debug(f"BSM: Processing potential server '{server_name_candidate}'.")
             try:
-                # Instantiate BedrockServer.
+                # Instantiate a BedrockServer to use its encapsulated logic.
                 server_instance = BedrockServer(
                     server_name=server_name_candidate,
                     settings_instance=self.settings,
                     manager_expath=self._expath,
                 )
 
-                # Validate if it's a proper server installation before trying to scan logs
+                # Validate it's a real server before trying to scan its logs.
                 if not server_instance.is_installed():
                     logger.debug(
                         f"BSM: '{server_name_candidate}' is not a valid Bedrock server installation. Skipping log scan."
                     )
                     continue
 
-                # Now use BedrockServer to scan its own log
+                # Use the instance's own method to scan its log file.
                 players_in_log = server_instance.scan_log_for_players()
-
                 if players_in_log:
                     all_discovered_from_logs.extend(players_in_log)
                     logger.debug(
                         f"BSM: Found {len(players_in_log)} players in log for server '{server_name_candidate}'."
                     )
 
-            except (
-                FileOperationError
-            ) as e:  # Raised by scan_log_for_players if log reading fails
+            except FileOperationError as e:
                 logger.warning(
                     f"BSM: Error scanning log for server '{server_name_candidate}': {e}"
                 )
                 scan_errors_details.append(
                     {"server": server_name_candidate, "error": str(e)}
                 )
-            except (
-                Exception
-            ) as e_instantiate:  # Catch errors during BedrockServer instantiation or other unexpected issues
+            except Exception as e_instantiate:
                 logger.error(
                     f"BSM: Error processing server '{server_name_candidate}' for player discovery: {e_instantiate}",
                     exc_info=True,
@@ -332,21 +332,17 @@ class BedrockServerManager:
         saved_count = 0
         unique_players_to_save_map = {}
         if all_discovered_from_logs:
+            # Consolidate all found players into a unique set by XUID.
             unique_players_to_save_map = {
                 p["xuid"]: p for p in all_discovered_from_logs
             }
             unique_players_to_save_list = list(unique_players_to_save_map.values())
             try:
+                # Save all unique players to the central database.
                 saved_count = self.save_player_data(unique_players_to_save_list)
-            except FileOperationError as e:
+            except (FileOperationError, Exception) as e_save:
                 logger.error(
-                    f"BSM: Critical error saving player data to global DB: {e}",
-                    exc_info=True,
-                )
-                raise  # Re-raise critical save failure
-            except Exception as e_save:  # Catch other errors from save_player_data
-                logger.error(
-                    f"BSM: Unexpected error saving player data to global DB: {e_save}",
+                    f"BSM: Critical error saving player data to global DB: {e_save}",
                     exc_info=True,
                 )
                 scan_errors_details.append(
@@ -363,21 +359,20 @@ class BedrockServerManager:
             "scan_errors": scan_errors_details,
         }
 
-    # --- Web UI Process Management (Direct Mode and Info for Detached) ---
+    # --- Web UI Process Management ---
     def start_web_ui_direct(
         self, host: Optional[Union[str, List[str]]] = None, debug: bool = False
-    ) -> None:
-        """
-        Starts the web UI in the current process (blocking).
+    ):
+        """Starts the web UI in the current process (a blocking call).
 
-        This is typically called when the `--mode direct` is used for starting the web server.
+        This is used when the web server is started with `--mode direct`.
 
         Args:
-            host: Optional host address(es) to bind to.
-            debug: If True, run Flask in debug mode.
+            host: The host address(es) to bind to.
+            debug: If True, runs the underlying Flask app in debug mode.
 
         Raises:
-            RuntimeError/ImportError: If the web application cannot be imported or started.
+            RuntimeError or ImportError: If the web application cannot be started.
         """
         logger.info("BSM: Starting web application in direct mode (blocking)...")
         try:
@@ -385,17 +380,11 @@ class BedrockServerManager:
                 run_web_server as run_bsm_web_application,
             )
 
-            run_bsm_web_application(host, debug)  # This blocks
+            run_bsm_web_application(host, debug)
             logger.info("BSM: Web application (direct mode) shut down.")
         except (RuntimeError, ImportError) as e:
             logger.critical(
                 f"BSM: Failed to start web application directly: {e}", exc_info=True
-            )
-            raise
-        except Exception as e:
-            logger.error(
-                f"BSM: Unexpected error running web application directly: {e}",
-                exc_info=True,
             )
             raise
 
@@ -403,16 +392,15 @@ class BedrockServerManager:
         """Returns the path to the PID file for the detached web server."""
         return os.path.join(self._config_dir, self._WEB_SERVER_PID_FILENAME)
 
-    def get_web_ui_expected_start_arg(self) -> str:
-        """Returns the expected start argument used to identify the web server process."""
+    def get_web_ui_expected_start_arg(self) -> List[str]:
+        """Returns the expected start arguments used to identify the web server process."""
         return self._WEB_SERVER_START_ARG
 
     def get_web_ui_executable_path(self) -> str:
-        """
-        Returns the path to the BSM executable, used for launching/identifying the web server.
+        """Returns the path to the main application executable.
 
         Raises:
-            ConfigurationError: If the executable path is not set.
+            ConfigurationError: If the executable path is not configured.
         """
         if not self._expath:
             raise ConfigurationError(
@@ -422,11 +410,10 @@ class BedrockServerManager:
 
     # --- Global Content Directory Management ---
     def _list_content_files(self, sub_folder: str, extensions: List[str]) -> List[str]:
-        """
-        Internal helper to list files with given extensions in a content sub-folder.
+        """An internal helper to list files in a content sub-folder.
 
         Args:
-            sub_folder: The sub-folder within the main content directory (e.g., "worlds").
+            sub_folder: The sub-folder within the content directory (e.g., "worlds").
             extensions: A list of file extensions to search for (e.g., [".mcworld"]).
 
         Returns:
@@ -451,23 +438,20 @@ class BedrockServerManager:
             pattern = f"*{ext}" if ext.startswith(".") else f"*.{ext}"
             try:
                 for filepath in glob.glob(os.path.join(target_dir, pattern)):
-                    if os.path.isfile(
-                        filepath
-                    ):  # Ensure it's a file, not a dir ending with ext
+                    if os.path.isfile(filepath):
                         found_files.append(os.path.abspath(filepath))
-
             except OSError as e:
                 raise FileOperationError(
                     f"Error scanning content directory {target_dir}: {e}"
                 ) from e
-        return sorted(list(set(found_files)))  # Sort and unique
+        return sorted(list(set(found_files)))
 
     def list_available_worlds(self) -> List[str]:
-        """Lists .mcworld files from the content/worlds directory."""
+        """Lists `.mcworld` files from the `content/worlds` directory."""
         return self._list_content_files("worlds", [".mcworld"])
 
     def list_available_addons(self) -> List[str]:
-        """Lists .mcpack and .mcaddon files from the content/addons directory."""
+        """Lists `.mcpack` and `.mcaddon` files from the `content/addons` directory."""
         return self._list_content_files("addons", [".mcpack", ".mcaddon"])
 
     # --- Application / System Information ---
@@ -476,98 +460,121 @@ class BedrockServerManager:
         return self._app_version
 
     def get_os_type(self) -> str:
-        """Returns the current operating system type (e.g., "Linux", "Windows")."""
+        """Returns the current operating system (e.g., "Linux", "Windows")."""
         return platform.system()
 
-    # --- Server Discovery ---
-
-    def validate_server(self, server_name: str) -> bool:
+    def _check_system_capabilities(self) -> Dict[str, bool]:
         """
-        Validates if a server installation exists and seems minimally correct
-        by attempting to instantiate a BedrockServer object and checking its installed status.
+        Checks for external OS-level dependencies and returns their status.
+        This is for internal use during initialization.
+        """
+        caps = {
+            "scheduler": False,  # For crontab or schtasks
+            "service_manager": False,  # For systemctl
+        }
+        os_name = self.get_os_type()
+
+        if os_name == "Linux":
+            if shutil.which("crontab"):
+                caps["scheduler"] = True
+            if shutil.which("systemctl"):
+                caps["service_manager"] = True
+
+        elif os_name == "Windows":
+            if shutil.which("schtasks"):
+                caps["scheduler"] = True
+            # Eventual support for Windows service management
+            if shutil.which("sc.exe"):
+                caps["service_manager"] = True
+
+        logger.debug(f"System capability check results: {caps}")
+        return caps
+
+    def _log_capability_warnings(self):
+        """Logs warnings for any missing capabilities."""
+        if not self.capabilities["scheduler"]:
+            logger.warning(
+                "Scheduler command (crontab/schtasks) not found. Scheduling features will be disabled in UIs."
+            )
+
+        if self.get_os_type() == "Linux" and not self.capabilities["service_manager"]:
+            logger.warning(
+                "systemctl command not found. Systemd service features will be disabled in UIs."
+            )
+
+    @property
+    def can_schedule_tasks(self) -> bool:
+        """Returns True if a system scheduler (crontab, schtasks) is available."""
+        return self.capabilities["scheduler"]
+
+    @property
+    def can_manage_services(self) -> bool:
+        """Returns True if a system service manager (systemctl) is available."""
+        return self.capabilities["service_manager"]
+
+    # --- Server Discovery ---
+    def validate_server(self, server_name: str) -> bool:
+        """Validates if a server installation exists and is minimally correct.
+
+        This method works by attempting to instantiate a `BedrockServer` object
+        for the given name and then calling its `is_installed()` method.
 
         Args:
-            server_name: The name of the server.
+            server_name: The name of the server to validate.
 
         Returns:
-            True if the server appears validly installed, False otherwise.
+            True if the server is validly installed, False otherwise.
 
         Raises:
             MissingArgumentError: If `server_name` is empty.
-            # Other errors like ConfigurationError could be raised during BedrockServer instantiation
-            # if critical settings (like BASE_DIR) are missing from self.settings.
         """
         if not server_name:
-            # Raise MissingArgumentError
             raise MissingArgumentError("Server name cannot be empty for validation.")
 
         logger.debug(
             f"BSM: Validating server '{server_name}' using BedrockServer class."
         )
-
         try:
-            # Instantiate BedrockServer.
             server_instance = BedrockServer(
                 server_name=server_name,
                 settings_instance=self.settings,
                 manager_expath=self._expath,
             )
-
-            # BedrockServer.is_installed() performs the checks for directory and executable
-            # and returns True or False
             is_valid = server_instance.is_installed()
-
             if is_valid:
-                logger.debug(
-                    f"BSM: Server '{server_name}' validation successful (via BedrockServer.is_installed)."
-                )
+                logger.debug(f"BSM: Server '{server_name}' validation successful.")
             else:
                 logger.debug(
-                    f"BSM: Server '{server_name}' validation failed (via BedrockServer.is_installed). "
-                    f"Directory: '{server_instance.server_dir}', Executable: '{server_instance.bedrock_executable_path}'."
+                    f"BSM: Server '{server_name}' validation failed (directory or executable missing)."
                 )
             return is_valid
-
         except (
             ValueError,
             MissingArgumentError,
             ConfigurationError,
-        ) as e_val:  # e.g., from BedrockServerBaseMixin if BASE_DIR missing in settings
+            InvalidServerNameError,
+            Exception,
+        ) as e_val:
+            # Treat any error during instantiation or validation as a failure.
             logger.warning(
-                f"BSM: Validation failed for server '{server_name}' due to configuration issue during BedrockServer instantiation: {e_val}"
-            )
-            return False  # Treat as not valid if we can't even instantiate properly
-        except (
-            InvalidServerNameError
-        ) as e_name:  # If BedrockServer init were to raise this for bad names
-            logger.warning(
-                f"BSM: Server name '{server_name}' considered invalid: {e_name}"
+                f"BSM: Validation failed for server '{server_name}' due to an error: {e_val}"
             )
             return False
-        except (
-            Exception
-        ) as e_unexp:  # Catch any other unexpected errors during instantiation or is_installed call
-            logger.error(
-                f"BSM: Unexpected error validating server '{server_name}': {e_unexp}",
-                exc_info=True,
-            )
-            return False  # Default to False on unexpected issues
 
     def get_servers_data(self) -> Tuple[List[Dict[str, Any]], List[str]]:
-        """
-        Retrieves status and version for all valid server instances by creating
-        a BedrockServer object for each potential server and querying its state.
+        """Retrieves status and version for all valid server instances.
 
-        This method replaces the use of standalone utility functions with the
-        more robust and encapsulated methods of the BedrockServer class.
+        This method discovers servers by iterating through directories in `BASE_DIR`,
+        instantiating a `BedrockServer` object for each, validating it, and then
+        querying its state using its own methods.
 
         Returns:
             A tuple containing:
-            - A list of dictionaries, one for each successfully processed server.
+            - A list of dictionaries, one for each valid server.
             - A list of error messages for any servers that failed processing.
 
         Raises:
-            AppFileNotFoundError: If the main server base directory (self._base_dir) is invalid.
+            AppFileNotFoundError: If the main server base directory is invalid.
         """
         servers_data: List[Dict[str, Any]] = []
         error_messages: List[str] = []
@@ -575,40 +582,29 @@ class BedrockServerManager:
         if not self._base_dir or not os.path.isdir(self._base_dir):
             raise AppFileNotFoundError(str(self._base_dir), "Server base directory")
 
-        # Iterate through items in the base directory, which are potential server names
         for server_name_candidate in os.listdir(self._base_dir):
             potential_server_path = os.path.join(self._base_dir, server_name_candidate)
-
-            # Ensure we are only processing directories
             if not os.path.isdir(potential_server_path):
-                logger.debug(
-                    f"Skipping '{server_name_candidate}', as it is not a directory."
-                )
                 continue
 
             try:
-                # Instantiate a BedrockServer for the potential server.
-                # This automatically provides access to all its properties and methods.
+                # Instantiate a BedrockServer to leverage its encapsulated logic.
                 server = BedrockServer(
                     server_name=server_name_candidate,
                     settings_instance=self.settings,
                     manager_expath=self._expath,
                 )
 
-                # A valid server must be properly installed (dir and executable exist).
-                # The is_installed() method handles this check cleanly.
+                # Use the instance's own method to validate its installation.
                 if not server.is_installed():
                     logger.debug(
                         f"Skipping '{server_name_candidate}': Not a valid server installation."
                     )
                     continue
 
-                # Use the BedrockServer instance's own methods to get its data.
-                # get_status() is more powerful as it can check the live process.
-                # get_version() reads from the server's specific JSON config.
+                # Use the instance's methods to get its current state.
                 status = server.get_status()
                 version = server.get_version()
-
                 servers_data.append(
                     {"name": server.server_name, "status": status, "version": version}
                 )
@@ -618,17 +614,14 @@ class BedrockServerManager:
                 ConfigurationError,
                 InvalidServerNameError,
             ) as e:
-                # These are expected errors that can occur during instantiation or method calls
                 msg = f"Could not get info for server '{server_name_candidate}': {e}"
                 logger.warning(msg)
                 error_messages.append(msg)
             except Exception as e:
-                # Catch any other unexpected error for robustness
                 msg = f"An unexpected error occurred while processing server '{server_name_candidate}': {e}"
                 logger.error(msg, exc_info=True)
                 error_messages.append(msg)
 
-        # Sort the results alphabetically by server name
+        # Sort the final list alphabetically by server name for consistent output.
         servers_data.sort(key=lambda s: s.get("name", "").lower())
-
         return servers_data, error_messages

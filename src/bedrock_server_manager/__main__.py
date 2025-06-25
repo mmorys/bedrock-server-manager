@@ -20,7 +20,7 @@ try:
     from bedrock_server_manager.api import utils as api_utils
     from bedrock_server_manager.config.const import app_name_title
     from bedrock_server_manager.config.settings import Settings
-    from bedrock_server_manager.core.system import base as system_base
+    from bedrock_server_manager.core.manager import BedrockServerManager
     from bedrock_server_manager.error import UserExitError
     from bedrock_server_manager.logging import log_separator, setup_logging
     from bedrock_server_manager.utils.general import startup_checks
@@ -54,6 +54,7 @@ from bedrock_server_manager.cli import (
     utils,
     web,
     world,
+    plugins,
 )
 
 # --- Main Click Group Definition ---
@@ -90,8 +91,9 @@ def cli(ctx: click.Context):
         log_separator(logger, app_name=app_name_title, app_version=__version__)
 
         logger.info(f"Starting {app_name_title} v{__version__}...")
+
+        bsm = BedrockServerManager(settings_instance=settings)
         startup_checks(app_name_title, __version__)
-        system_base.check_prerequisites()
         api_utils.update_server_statuses()
 
     except Exception as setup_e:
@@ -104,7 +106,7 @@ def cli(ctx: click.Context):
 
     # Pass the main `cli` group object to the context. This is crucial for
     # sub-menus to be able to find and invoke other commands.
-    ctx.obj = {"cli": cli}
+    ctx.obj = {"cli": cli, "bsm": bsm, "settings": settings}
 
     # If no subcommand was invoked, run the main interactive menu.
     if ctx.invoked_subcommand is None:
@@ -135,6 +137,7 @@ def _add_commands_to_cli():
     cli.add_command(web.web)
     cli.add_command(world.world)
     cli.add_command(server_allowlist.allowlist)
+    cli.add_command(plugins.plugin)
 
     # Standalone Commands
     cli.add_command(addon.install_addon)

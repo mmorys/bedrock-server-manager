@@ -11,10 +11,6 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-# Third-party imports
-import questionary
-import click
-
 # Local imports
 from bedrock_server_manager.config.settings import settings
 
@@ -59,6 +55,7 @@ def startup_checks(
             else None
         ),
         "DOWNLOAD_DIR": settings.get("DOWNLOAD_DIR"),
+        "PLUGIN_DIR": settings.get("PLUGIN_DIR"),
         "BACKUP_DIR": settings.get("BACKUP_DIR"),
         "LOG_DIR": settings.get("LOG_DIR"),
     }
@@ -76,7 +73,6 @@ def startup_checks(
             logger.warning(
                 f"Directory path for '{name}' is missing in settings. Skipping creation."
             )
-        # No need to check for non-string types, as the check above handles it.
 
     logger.debug("Startup checks completed.")
 

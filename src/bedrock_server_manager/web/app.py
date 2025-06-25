@@ -50,6 +50,7 @@ from bedrock_server_manager.web.utils.validators import register_server_validati
 from bedrock_server_manager.web.routes.server_install_config_routes import (
     server_install_config_bp,
 )
+from bedrock_server_manager.web.routes.plugin_routes import plugin_bp  # Added import
 from bedrock_server_manager.error import ConfigurationError
 
 logger = logging.getLogger(__name__)
@@ -195,6 +196,7 @@ def create_app() -> Flask:
     app.register_blueprint(api_info_bp)
     app.register_blueprint(doc_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(plugin_bp)  # Registered the new blueprint
     logger.debug("Registered application blueprints.")
 
     # --- Register Context Processors ---

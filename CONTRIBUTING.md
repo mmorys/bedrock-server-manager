@@ -41,7 +41,7 @@ We welcome all contributions, including bug reports, feature requests, documenta
 2.  **Clone your fork:**
     ```bash
     git clone https://github.com/dmedina559/bedrock-server-manager.git
-    cd your-project-name
+    cd bedrock-server-manager
     ```
 3.  **Add the upstream remote:** This allows you to fetch changes from the original repository.
     ```bash
@@ -88,11 +88,11 @@ All contributions should be made via Pull Requests from a feature branch in your
 2.  Commit your changes with clear and concise commit messages. We strongly encourage [Conventional Commits](https://www.conventionalcommits.org/) but it's not enirely enforced.
     ```bash
     git add .
-    git commit -m "feat: Implement user profile editing feature"
+    git commit -m "feat: add multi user support"
     ```
     Or for a fix:
     ```bash
-    git commit -m "fix: Resolve issue with password reset email link"
+    git commit -m "fix: web server start args"
     ```
 
 ### Keeping Your Fork Synced
@@ -230,10 +230,10 @@ Currently all testing is done manually, feel free to contribute pytest wherever 
 ## Reporting Bugs or Requesting Features
 
 *   **Bugs:** If you find a bug, please open an issue on GitHub. Include steps to reproduce, expected behavior, actual behavior, and your environment details.
-*   **Features:** If you have an idea for a new feature, please open an issue to discuss it before starting development. This helps ensure it aligns with the project's goals.
+*   **Features:** If you have an idea for a new feature, please open a [discussions thread](https://github.com/DMedina559/bedrock-server-manager/discussions) to discuss it before starting development. This helps ensure it aligns with the project's goals.
 
 ## Questions?
 
-If you have any questions about the contribution process, feel free to open an issue on GitHub or reach out to the maintainers in new discusion thread.
+If you have any questions about the contribution process, feel free to open a [discussions thread](https://github.com/DMedina559/bedrock-server-manager/discussions).
 
 Thank you for contributing to Bedrock Server Manager!
