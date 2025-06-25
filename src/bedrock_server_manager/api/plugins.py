@@ -6,17 +6,13 @@ import logging
 from typing import Dict, Any
 
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 from bedrock_server_manager.error import UserInputError
 
 logger = logging.getLogger(__name__)
 
-# --- API REGISTRATION FOR PLUGINS ---
-register_api("get_plugin_statuses", lambda **kwargs: get_plugin_statuses(**kwargs))
-register_api("set_plugin_status", lambda **kwargs: set_plugin_status(**kwargs))
-register_api("reload_plugins", lambda **kwargs: reload_plugins(**kwargs))
 
-
+@plugin_method("get_plugin_statuses")
 def get_plugin_statuses() -> Dict[str, Any]:
     """
     Retrieves the statuses and metadata of all discovered plugins.
@@ -117,6 +113,7 @@ def reload_plugins() -> Dict[str, Any]:
         }
 
 
+@plugin_method("trigger_external_plugin_event_api")
 def trigger_external_plugin_event_api(
     event_name: str, payload: Dict[str, Any] = None
 ) -> Dict[str, Any]:
@@ -157,6 +154,3 @@ def trigger_external_plugin_event_api(
             "status": "error",
             "message": f"An unexpected error occurred while triggering event '{event_name}': {str(e)}",
         }
-
-
-register_api("trigger_external_plugin_event", trigger_external_plugin_event_api)

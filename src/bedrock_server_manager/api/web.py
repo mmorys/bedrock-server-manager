@@ -18,7 +18,7 @@ except ImportError:
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
@@ -36,13 +36,6 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 # A global BedrockServerManager instance for accessing web UI configuration.
 bsm = BedrockServerManager()
-
-# Register API functions with the plugin system's API bridge.
-register_api("start_web_server", lambda **kwargs: start_web_server_api(**kwargs))
-register_api("stop_web_server", lambda **kwargs: stop_web_server_api(**kwargs))
-register_api(
-    "get_web_server_status", lambda **kwargs: get_web_server_status_api(**kwargs)
-)
 
 
 def start_web_server_api(
@@ -228,6 +221,7 @@ def stop_web_server_api() -> Dict[str, str]:
     return result
 
 
+@plugin_method("get_web_server_status")
 def get_web_server_status_api() -> Dict[str, Any]:
     """Checks the status of the web server process.
 

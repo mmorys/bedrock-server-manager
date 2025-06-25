@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -35,17 +35,7 @@ logger = logging.getLogger(__name__)
 _backup_restore_lock = threading.Lock()
 
 
-# Register API functions with the plugin system's API bridge.
-register_api("list_backup_files", lambda **kwargs: list_backup_files(**kwargs))
-register_api("backup_world", lambda **kwargs: backup_world(**kwargs))
-register_api("backup_config_file", lambda **kwargs: backup_config_file(**kwargs))
-register_api("backup_all", lambda **kwargs: backup_all(**kwargs))
-register_api("restore_all", lambda **kwargs: restore_all(**kwargs))
-register_api("restore_world", lambda **kwargs: restore_world(**kwargs))
-register_api("restore_config_file", lambda **kwargs: restore_config_file(**kwargs))
-register_api("prune_old_backups", lambda **kwargs: prune_old_backups(**kwargs))
-
-
+@plugin_method("list_backup_files")
 def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     """Lists available backup files for a given server and type.
 
@@ -79,6 +69,7 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
         return {"status": "error", "message": "An unexpected server error occurred."}
 
 
+@plugin_method("backup_world")
 def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, str]:
     """Creates a backup of the server's world directory.
 
@@ -154,6 +145,7 @@ def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, 
     return result
 
 
+@plugin_method("backup_config_file")
 def backup_config_file(
     server_name: str, file_to_backup: str, stop_start_server: bool = True
 ) -> Dict[str, str]:
@@ -235,6 +227,7 @@ def backup_config_file(
     return result
 
 
+@plugin_method("backup_all")
 def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, Any]:
     """Performs a full backup of the server's world and configuration files.
 
@@ -311,6 +304,7 @@ def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, An
     return result
 
 
+@plugin_method("restore_all")
 def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, Any]:
     """Restores the server from the latest available backups.
 
@@ -395,6 +389,7 @@ def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, A
     return result
 
 
+@plugin_method("restore_world")
 def restore_world(
     server_name: str, backup_file_path: str, stop_start_server: bool = True
 ) -> Dict[str, str]:
@@ -482,6 +477,7 @@ def restore_world(
     return result
 
 
+@plugin_method("restore_config_file")
 def restore_config_file(
     server_name: str, backup_file_path: str, stop_start_server: bool = True
 ) -> Dict[str, str]:
@@ -570,6 +566,7 @@ def restore_config_file(
     return result
 
 
+@plugin_method("prune_old_backups")
 def prune_old_backups(server_name: str) -> Dict[str, str]:
     """Prunes old backups for a server based on retention settings.
 

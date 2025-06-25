@@ -78,12 +78,15 @@ Group of commands for managing the central player database. (`bedrock-server-man
 ## `plugin` Commands
 
 Group of commands for managing plugin configurations. (`bedrock-server-manager plugin [subcommand]`)
+If `plugin` is run without a subcommand, it enters an interactive plugin management workflow.
 
 | Command   | Description                                                                  | Arguments & Options                                                                     | Platform |
 |-----------|------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|----------|
 | `list`    | Lists all discoverable plugins and their current status (enabled/disabled).  | *(None)*                                                                                | All      |
-| `enable`  | Enables a specific plugin. Launches interactive editor if `PLUGIN_NAME` omitted. | `PLUGIN_NAME` (optional): The name of the plugin to enable.                         | All      |
-| `disable` | Disables a specific plugin. Launches interactive editor if `PLUGIN_NAME` omitted. | `PLUGIN_NAME` (optional): The name of the plugin to disable.                       | All      |
+| `enable`  | Enables a specific plugin. Launches interactive editor if `PLUGIN_NAME` is omitted. | `PLUGIN_NAME` (optional): The name of the plugin to enable.                      | All      |
+| `disable` | Disables a specific plugin. Launches interactive editor if `PLUGIN_NAME` is omitted. | `PLUGIN_NAME` (optional): The name of the plugin to disable.                    | All      |
+| `reload`  | Triggers the plugin manager to reload all plugins.                           | *(None)*                                                                                | All      |
+| `trigget-event` | Triggers a custom plugin event.                                        | `EVENT_NAME` (required): The namespaced event name (e.g., `myplugin:myevent`).<br>`--payload-json JSON_STRING`: Optional JSON string for the event payload. | All      |
 
 ---
 
@@ -107,7 +110,7 @@ Group of commands to manage the lifecycle of individual servers. (`bedrock-serve
 | `start`        | Starts a specific Bedrock server.                                      | `-s, --server SERVER_NAME` (required): Name of the server to start.<br>`-m, --mode [direct\|detached]` (default: detached, case-insensitive): Mode to start the server in.                                                                     | All      |
 | `stop`         | Stops a specific Bedrock server.                                       | `-s, --server SERVER_NAME` (required): Name of the server to stop.                                                                                                                                                                             | All      |
 | `restart`      | Restarts a specific Bedrock server.                                    | `-s, --server SERVER_NAME` (required): Name of the server to restart.                                                                                                                                                                          | All      |
-| `install`      | Interactively installs and configures a new Bedrock server.            | *(None - Interactive)*                                                                                                                                                                                                                         | All      |
+| `install`      | Interactively installs and configures a new Bedrock server (prompts for server name, version, etc.).            | *(None - Interactive)*                                                                                                                                                                                                                         | All      |
 | `update`       | Checks for and applies updates to an existing server.                  | `-s, --server SERVER_NAME` (required): Name of the server to update.                                                                                                                                                                           | All      |
 | `delete`       | Deletes all data for a server, including worlds and backups.           | `-s, --server SERVER_NAME` (required): Name of the server to delete.<br>`-y, --yes` (flag): Bypass the confirmation prompt.                                                                                                                    | All      |
 | `send-command` | Sends a command to a running server (e.g., `say hello world`).         | `-s, --server SERVER_NAME` (required): Name of the target server.<br>`COMMAND_PARTS...` (required, multiple): The command and its arguments to send.                                                                                           | All      |
@@ -122,7 +125,7 @@ Group of commands for OS-level integrations and monitoring. (`bedrock-server-man
 
 | Command             | Description                                                                  | Arguments & Options                                                                     | Platform        |
 |---------------------|------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|-----------------|
-| `configure-service` | Interactively configure OS-specific service settings (autoupdate, autostart).| `-s, --server SERVER_NAME` (required): Name of the server to configure.                 | Linux / Windows |
+| `configure-service` | Configures OS-specific service settings. Interactive if no flags are used.   | `-s, --server SERVER_NAME` (required): Name of the server to configure.<br>`--autoupdate/--no-autoupdate` (flag): Enable/disable update check on start.<br>`--setup-systemd` (flag, Linux only): Create/update systemd service file.<br>`--enable-autostart/--no-enable-autostart` (flag, Linux only): Enable/disable systemd service autostart. | Linux / Windows |
 | `enable-service`    | Enables the systemd service to autostart.                                    | `-s, --server SERVER_NAME` (required): Name of the server.                              | Linux only      |
 | `disable-service`   | Disables the systemd service from autostarting.                              | `-s, --server SERVER_NAME` (required): Name of the server.                              | Linux only      |
 | `monitor`           | Continuously monitor CPU and memory usage of a server.                       | `-s, --server SERVER_NAME` (required): Name of the server to monitor.                   | All             |
@@ -132,13 +135,13 @@ Group of commands for OS-level integrations and monitoring. (`bedrock-server-man
 ## `schedule` Commands
 
 Group of commands to manage scheduled tasks (cron/Windows Task Scheduler). (`bedrock-server-manager schedule [subcommand] -s SERVER_NAME`)
-The `-s, --server SERVER_NAME` option is required for the `schedule` group itself. If no subcommand is given, an interactive menu for that server is launched.
+The `-s, --server SERVER_NAME` option is required for the `schedule` group itself. If no subcommand is given, an interactive menu for managing tasks for the specified server is launched.
 
-| Command  | Description                                  | Arguments & Options       | Platform        |
-|----------|----------------------------------------------|---------------------------|-----------------|
-| `list`   | List all scheduled tasks for the server.     | *(Uses group server)*     | Linux / Windows |
-| `add`    | Interactively add a new scheduled task.      | *(Uses group server)*     | Linux / Windows |
-| `delete` | Interactively delete an existing scheduled task. | *(Uses group server)* | Linux / Windows |
+| Command  | Description                                  | Arguments & Options                   | Platform        |
+|----------|----------------------------------------------|---------------------------------------|-----------------|
+| `list`   | List all scheduled tasks for the server.     | *(Uses server from group command)*    | Linux / Windows |
+| `add`    | Interactively add a new scheduled task.      | *(Uses server from group command)*    | Linux / Windows |
+| `delete` | Interactively delete an existing scheduled task. | *(Uses server from group command)*    | Linux / Windows |
 
 ---
 

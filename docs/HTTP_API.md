@@ -1,4 +1,4 @@
-﻿﻿﻿<div style="text-align: center;">
+﻿﻿﻿﻿<div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
@@ -5789,4 +5789,232 @@ $encodedTaskNameToDelete = [uri]::EscapeDataString($taskNameToDelete) # PowerShe
 $uri = "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/task/$encodedTaskNameToDelete"
 Invoke-RestMethod -Method Delete -Uri $uri -Headers $headers
 ```
+---
+
+## Plugin Management API
+
+Endpoints for managing plugins. These typically mirror the functionality of the `bedrock-server-manager plugin` CLI commands.
+
+### `GET /api/plugins` - Get Plugin Statuses
+
+Retrieves the status (enabled/disabled), version, and description of all discovered plugins.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT or Web UI Session).
+
+#### Success Response (`200 OK`)
+
+```json
+{
+    "status": "success",
+    "plugins": {
+        "MyPlugin": {
+            "enabled": true,
+            "version": "1.0.0",
+            "description": "This is my awesome plugin."
+        },
+        "AnotherPlugin": {
+            "enabled": false,
+            "version": "0.5.2",
+            "description": "Does something else cool."
+        }
+    }
+}
+```
+
+#### Error Responses
+
+*   `401 Unauthorized`
+*   `500 Internal Server Error`: If there's an issue reading plugin configurations.
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/plugins
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/plugins" -Headers $headers
+```
+
+---
+
+### `POST /api/plugins/{plugin_name}` - Enable/Disable Plugin
+
+Enables or disables a specific plugin.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT or Web UI Session).
+
+#### Path Parameters
+
+*   `plugin_name` (string, required): The name of the plugin (filename without `.py`).
+
+#### Request Body (`application/json`)
+
+```json
+{
+    "enabled": true
+}
+```
+*   `enabled` (boolean, required): Set to `true` to enable, `false` to disable.
+
+#### Success Response (`200 OK`)
+
+```json
+{
+    "status": "success",
+    "message": "Plugin 'MyPlugin' has been enabled. Reload plugins for changes to take full effect."
+}
+```
+
+#### Error Responses
+
+*   `400 Bad Request`: Invalid JSON body or missing `enabled` field.
+*   `401 Unauthorized`
+*   `404 Not Found`: If `plugin_name` does not exist.
+*   `500 Internal Server Error`: If saving the configuration fails.
+
+#### `curl` Example (Bash)
+
+Enable a plugin:
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"enabled": true}' \
+     http://<your-manager-host>:<port>/api/plugins/MyPlugin
+```
+
+Disable a plugin:
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"enabled": false}' \
+     http://<your-manager-host>:<port>/api/plugins/AnotherPlugin
+```
+
+#### PowerShell Example
+
+Enable a plugin:
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ enabled = $true } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/plugins/MyPlugin" -Headers $headers -Body $body
+```
+
+Disable a plugin:
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ enabled = $false } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/plugins/AnotherPlugin" -Headers $headers -Body $body
+```
+
+---
+
+### `POST /api/plugins/reload` - Reload All Plugins
+
+Triggers a full reload of all plugins. This involves unloading all current plugins and then re-discovering and loading plugins based on the latest configuration and files on disk.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT or Web UI Session).
+
+#### Success Response (`200 OK`)
+
+```json
+{
+    "status": "success",
+    "message": "Plugins have been reloaded successfully."
+}
+```
+
+#### Error Responses
+
+*   `401 Unauthorized`
+*   `500 Internal Server Error`: If the reload process encounters an error.
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/plugins/reload
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/plugins/reload" -Headers $headers
+```
+
+---
+
+### `POST /api/plugins/trigger_event` - Trigger Custom Plugin Event
+
+Allows an external source (like the Web UI or another API client) to trigger a custom plugin event that other plugins might be listening to.
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT or Web UI Session).
+
+#### Request Body (`application/json`)
+
+```json
+{
+    "event_name": "my_custom_plugin:some_action",
+    "payload": {
+        "key1": "value1",
+        "count": 10
+    }
+}
+```
+*   `event_name` (string, required): The namespaced name of the custom event to trigger.
+*   `payload` (object, optional): A JSON object containing data to pass to the event listeners.
+
+#### Success Response (`200 OK`)
+
+```json
+{
+    "status": "success",
+    "message": "Event 'my_custom_plugin:some_action' triggered."
+}
+```
+
+#### Error Responses
+
+*   `400 Bad Request`: If `event_name` is missing or `payload` is not an object.
+*   `401 Unauthorized`
+*   `500 Internal Server Error`: If an error occurs while triggering the event.
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"event_name": "my_plugin:custom_event", "payload": {"data": "example"}}' \
+     http://<your-manager-host>:<port>/api/plugins/trigger_event
+```
+
+#### PowerShell Example
+
+```powershell
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{
+    event_name = "my_plugin:custom_event"
+    payload    = @{ data = "example" }
+} | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/plugins/trigger_event" -Headers $headers -Body $body
+```
+
 ---

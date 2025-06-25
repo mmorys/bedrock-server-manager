@@ -1,4 +1,4 @@
-# bedrock_server_manager/plugins/default/world_operation_notifications_plugin.py
+# bedrock_server_manager/plugins/default/world_operation_notifications.py
 """
 Plugin to send in-game notifications before world operations like export, import, or reset.
 """

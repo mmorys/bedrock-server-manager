@@ -14,7 +14,7 @@ from typing import Dict
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -35,10 +35,8 @@ logger = logging.getLogger(__name__)
 # preventing potential file corruption.
 _addon_lock = threading.Lock()
 
-# Register the import_addon function with the plugin system's API bridge.
-register_api("import_addon", lambda **kwargs: import_addon(**kwargs))
 
-
+@plugin_method("import_addon")
 def import_addon(
     server_name: str,
     addon_file_path: str,

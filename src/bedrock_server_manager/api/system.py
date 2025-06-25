@@ -11,7 +11,8 @@ from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.cli.plugins import plugin
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -24,18 +25,8 @@ from bedrock_server_manager.error import (
 
 logger = logging.getLogger(__name__)
 
-# Register API functions with the plugin system's API bridge.
-register_api(
-    "get_bedrock_process_info", lambda **kwargs: get_bedrock_process_info(**kwargs)
-)
-register_api("create_server_service", lambda **kwargs: create_server_service(**kwargs))
-register_api("set_autoupdate", lambda **kwargs: set_autoupdate(**kwargs))
-register_api("enable_server_service", lambda **kwargs: enable_server_service(**kwargs))
-register_api(
-    "disable_server_service", lambda **kwargs: disable_server_service(**kwargs)
-)
 
-
+@plugin_method("get_bedrock_process_info")
 def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
     """Retrieves resource usage for a running Bedrock server process.
 

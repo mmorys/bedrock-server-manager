@@ -1,4 +1,4 @@
-# bedrock_server_manager/plugins/default/autoupdate_plugin.py
+# bedrock_server_manager/plugins/default/update_before_start.py
 """
 Plugin that automatically updates a Bedrock server to the latest version.
 """

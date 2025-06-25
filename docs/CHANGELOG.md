@@ -216,6 +216,7 @@ Start/Stop methods have been revamped and require the servers be restarted with 
 ## 3.4.0
 
 1. BREAKING CHANGE: linux systemd service files have been changed
+   - STOP SERVERS BEFORE UPDATING
    - You must reconfigure autoupdate to update your systemd service files
    - Note: Linux users, I apologize for all the times you have had to reconfigure your systemd service files, but this is the last time I promise!
      - This is due to the type being changed to `simple` instead of `forking`
@@ -226,9 +227,9 @@ Start/Stop methods have been revamped and require the servers be restarted with 
    - Plugins can be installed by placing the .py file in the plugins folder (`./bedrock-server-manager/plugins` by default)
    - Plugins can be enabled/disabled with the `plugins.json` file located in the config directory (`./bedrock-server-manager/.config`)
      - Plugins are disabled by default when first installed, you must enable them in the `plugins.json` file
-   - See the [docs/PLUGIN_DOCS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/PLUGIN_DOC.md) file for more information on how to create and use plugins
-     - See [src/bedrock_server_manager/plugins/default/](https://github.com/DMedina559/bedrock-server-manager/tree/dev/src/bedrock_server_manager/plugins/default) for example plugins
-   - Added plugin command see updated [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/dev/docs/CLI_COMMANDS.md)
+   - See the [docs/PLUGIN_DOCS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/PLUGIN_DOC.md) file for more information on how to create and use plugins
+     - See [src/bedrock_server_manager/plugins/default/](https://github.com/DMedina559/bedrock-server-manager/tree/main/src/bedrock_server_manager/plugins/default) for example plugins
+   - Added plugin command see updated [CLI_COMMANDS.md](https://github.com/DMedina559/bedrock-server-manager/blob/main/docs/CLI_COMMANDS.md)
    - Added plugin management to the cli and web interface
      - Allows you to enable/disable plugins, and view plugin information
    - Default plugins included
@@ -247,3 +248,4 @@ Start/Stop methods have been revamped and require the servers be restarted with 
    - The servers table in the web ui now dynamically updates when a server is started or stopped instead of requiring a page refresh
 7. Improved resource usage monitoring
    - Refactored function into a generic ResourceMonitor class allowing for more flexibility in the future (web server usage?)
+8. Improved some filesystem functions by using thread.locking to prevent race conditions

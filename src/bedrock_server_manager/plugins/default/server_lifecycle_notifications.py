@@ -1,4 +1,4 @@
-# bedrock_server_manager/plugins/default/server_lifecycle_notifications_plugin.py
+# bedrock_server_manager/plugins/default/server_lifecycle_notifications.py
 """
 Plugin to send in-game messages and manage delays during server lifecycle events.
 """
@@ -13,13 +13,13 @@ class ServerLifecycleNotificationsPlugin(PluginBase):
     This gives players warnings and can help ensure smoother transitions.
     """
 
-    version = "1.0.0"
+    version = "1.0.1"
 
     def on_load(self):
         """Initializes default delays and logs plugin activation."""
         # Default delays in seconds. These could be made configurable in the future.
         self.stop_warning_delay: int = 10
-        self.post_stop_settle_delay: int = 3
+        self.post_stop_settle_delay: int = 1
         self.post_start_settle_delay: int = 3
 
         self.logger.info(
@@ -95,9 +95,6 @@ class ServerLifecycleNotificationsPlugin(PluginBase):
     def before_delete_server_data(self, server_name: str):
         """Sends a final warning before server data is deleted if the server is running."""
         self.logger.debug(f"Handling before_delete_server_data for '{server_name}'.")
-        # Note: This event hook is for the 'bsm delete --data' command.
-        # It's unlikely a server is running if its data is about to be deleted,
-        # but the check is kept for robustness.
         self._send_ingame_message(
             server_name,
             "WARNING: Server data is being deleted permanently!",

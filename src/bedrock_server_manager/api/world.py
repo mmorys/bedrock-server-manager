@@ -15,7 +15,7 @@ from typing import Dict, Optional, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -35,13 +35,8 @@ logger = logging.getLogger(__name__)
 # (export, import, reset). This ensures data integrity.
 _world_lock = threading.Lock()
 
-# Register API functions with the plugin system's API bridge.
-register_api("get_world_name", lambda **kwargs: get_world_name(**kwargs))
-register_api("export_world", lambda **kwargs: export_world(**kwargs))
-register_api("import_world", lambda **kwargs: import_world(**kwargs))
-register_api("reset_world", lambda **kwargs: reset_world(**kwargs))
 
-
+@plugin_method("get_world_name")
 def get_world_name(server_name: str) -> Dict[str, Any]:
     """Retrieves the configured world name (`level-name`) for a server.
 
@@ -86,6 +81,7 @@ def get_world_name(server_name: str) -> Dict[str, Any]:
         }
 
 
+@plugin_method("export_world")
 def export_world(
     server_name: str,
     export_dir: Optional[str] = None,
@@ -193,6 +189,7 @@ def export_world(
     return result
 
 
+@plugin_method("import_world")
 def import_world(
     server_name: str,
     selected_file_path: str,
@@ -286,6 +283,7 @@ def import_world(
     return result
 
 
+@plugin_method("reset_world")
 def reset_world(server_name: str) -> Dict[str, str]:
     """Resets the server's world by deleting the active world directory.
 

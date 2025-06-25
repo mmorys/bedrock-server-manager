@@ -14,7 +14,7 @@ from contextlib import contextmanager
 import platform
 
 # Plugin system imports to bridge API functionality.
-from bedrock_server_manager.plugins.api_bridge import register_api
+from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.bedrock_server import BedrockServer
@@ -34,20 +34,8 @@ logger = logging.getLogger(__name__)
 # A global BedrockServerManager instance for manager-level tasks like listing all servers.
 bsm = BedrockServerManager()
 
-# Register these utility functions so plugins can call them.
-register_api("validate_server_exist", lambda **kwargs: validate_server_exist(**kwargs))
-register_api(
-    "validate_server_name_format",
-    lambda **kwargs: validate_server_name_format(**kwargs),
-)
-register_api(
-    "update_server_statuses", lambda **kwargs: update_server_statuses(**kwargs)
-)
-register_api(
-    "get_system_and_app_info", lambda **kwargs: get_system_and_app_info(**kwargs)
-)
 
-
+@plugin_method("validate_server_exist")
 def validate_server_exist(server_name: str) -> Dict[str, Any]:
     """Validates if a server is correctly installed.
 
@@ -103,6 +91,7 @@ def validate_server_exist(server_name: str) -> Dict[str, Any]:
         }
 
 
+@plugin_method("validate_server_name_format")
 def validate_server_name_format(server_name: str) -> Dict[str, str]:
     """Validates the format of a potential server name.
 
@@ -245,6 +234,7 @@ def attach_to_screen_session(server_name: str) -> Dict[str, str]:
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
+@plugin_method("get_system_and_app_info")
 def get_system_and_app_info() -> Dict[str, Any]:
     """Retrieves basic system and application information.
 
