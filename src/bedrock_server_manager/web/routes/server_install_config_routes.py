@@ -546,11 +546,11 @@ def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
                     400,
                 )
 
-            if current_os == "Linux":
+            if current_os in ["Linux", "Windows"]:
                 logger.info(
                     f"API: Setting autostart to {autostart} for '{server_name}'."
                 )
-                result = system_api.create_systemd_service(server_name, autostart)
+                result = system_api.create_server_service(server_name, autostart)
 
                 if result.get("status") != "success":
                     return jsonify(result), 500

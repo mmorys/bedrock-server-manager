@@ -451,17 +451,14 @@ async function saveServiceSettings(buttonElement, serverName, currentOs, isNewIn
              // Decide default? Or fail? Let's proceed without it for now.
         }
 
-        if (currentOs === 'Linux') {
+        if (currentOs === 'Linux' || currentOs === 'Windows') {
             const autostartCheckbox = configSection.querySelector('#service-autostart-cb'); // The .toggle-input checkbox
             if (autostartCheckbox) {
                 requestBody.autostart = autostartCheckbox.checked; // Boolean value
             } else {
-                 console.warn(`${functionName}: Autostart checkbox (#service-autostart-cb) not found (Linux).`);
+                 console.warn(`${functionName}: Autostart checkbox (#service-autostart-cb) not found.`);
             }
-            console.debug(`${functionName}: Linux settings gathered:`, requestBody);
-        } else if (currentOs === 'Windows') {
-             // Only autoupdate is relevant currently for Windows config
-            console.debug(`${functionName}: Windows settings gathered:`, requestBody);
+            console.debug(`${functionName}: Settings gathered:`, requestBody);
         } else {
              const errorMsg = `Unsupported OS '${currentOs}' for service configuration.`;
              console.error(`${functionName}: ${errorMsg}`);
