@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<div style="text-align: center;">
+﻿﻿﻿﻿﻿<div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
@@ -1168,8 +1168,6 @@ Starts the specified Bedrock server instance process. Uses systemd (with screen 
 
 This endpoint is exempt from CSRF protection but requires authentication.
 
-*Note: To restore all components (world and standard configuration files) from their latest backups, use the `restore_type: "all"` option in the payload. This will find the latest backup for the world and each standard config file (`server.properties`, `allowlist.json`, `permissions.json`) and restore them individually.*
-
 #### Authentication
 
 Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
@@ -2038,14 +2036,7 @@ None.
 
 #### Request Body (`application/json`, optional)
 
-An optional JSON object to specify the number of backups to keep.
-
-```json
-{
-    "keep": 10
-}
-```
-*   **`keep`** (*integer*, optional): The number of the most recent backups of *each type* (world, properties, json) to retain. If omitted or if the request body is empty, the value from the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration will be used (defaulting to 3 if the setting is missing or invalid).
+This endpoint does not currently process any request body. The number of backups to keep is determined by the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration (defaulting to 3 if the setting is missing or invalid).
 
 #### Success Response (`200 OK`)
 
@@ -2146,11 +2137,6 @@ Returned when the pruning process for all backup types completes without errors,
 # Using default keep count from server settings
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
      http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune
-
-# Specifying keep count
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d '{"keep": 5}' \
-     http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune
 ```
 
 #### PowerShell Example
@@ -2159,11 +2145,6 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: applica
 # Using default keep count from server settings
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune" -Headers $headers
-
-# Specifying keep count
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$body = @{ keep = 5 } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune" -Headers $headers -Body $body
 ```
 
 ---
@@ -2675,16 +2656,14 @@ Returns a list of world filenames (basenames).
         }
         ```
 
-*   **`404 Not Found`** (Potentially, depending on server setup):
-    *   If the `CONTENT_DIR/worlds` directory itself does not exist. Message from `AppFileNotFoundError`.
+*   **`500 Internal Server Error`**:
+    *   If the `CONTENT_DIR/worlds` directory itself does not exist (the API layer will return this as a 500 error, though the underlying cause is a file not found). Message from `FileError`.
         ```json
         {
             "status": "error",
-            "message": "Required file or directory not found at path: /path/to/content/dir/worlds"
+            "message": "File operation error: Content directory for worlds not found at /path/to/content/dir/worlds"
         }
         ```
-
-*   **`500 Internal Server Error`**:
     *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
@@ -2785,16 +2764,14 @@ Returns a list of addon filenames (basenames).
         }
         ```
 
-*   **`404 Not Found`** (Potentially, depending on server setup):
-    *   If the `CONTENT_DIR/addons` directory itself does not exist. Message from `AppFileNotFoundError`.
+*   **`500 Internal Server Error`**:
+    *   If the `CONTENT_DIR/addons` directory itself does not exist (the API layer will return this as a 500 error, though the underlying cause is a file not found). Message from `FileError`.
         ```json
         {
             "status": "error",
-            "message": "Required file or directory not found at path: /path/to/content/dir/addons"
+            "message": "File operation error: Content directory for addons not found at /path/to/content/dir/addons"
         }
         ```
-
-*   **`500 Internal Server Error`**:
     *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
@@ -5508,131 +5485,6 @@ $taskBody = @{
 $bodyJson = $taskBody | ConvertTo-Json -Depth 3
 # Expect error if Bedrock Server Manager host is not Windows
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/add" -Headers $headers -Body $bodyJson
-```
-
----
-
-### `POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)
-
-Retrieves details (command, triggers) about a specific Windows scheduled task by locating and parsing its associated XML configuration file (stored in the server's configuration subdirectory). **This endpoint is only functional on Windows systems.**
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Platform
-
-Windows Only.
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The server context used to locate the task's XML configuration file.
-
-#### Request Body (`application/json`)
-
-```json
-{
-    "task_name": "bedrock_MyWinServer_backup-all_..."
-}
-```
-*   **Fields:**
-    *   `task_name` (*string*, required): The full name of the task (as registered in Task Scheduler and usually found in the XML's URI element) whose details are to be retrieved.
-
-#### Success Response (`200 OK`)
-
-Returned when the task XML file is found and successfully parsed.
-
-```json
-{
-    "status": "success",
-    "task_details": {
-        "command_path": "C:\\path\\to\\manager.exe",
-        "command_args": "backup-all --server MyWinServer",
-        "base_command": "backup-all",
-        "triggers": [
-            {
-                "type": "Daily",
-                "start": "2024-01-16T02:30:00",
-                "interval": 1
-            }
-        ]
-    }
-}
-```
-*   **Fields:**
-    *   `status`: "success"
-    *   `task_details` (*object*): Contains the parsed details:
-        *   `command_path` (*string*): Full path to the executable run by the task.
-        *   `command_args` (*string*): Full arguments string passed to the executable.
-        *   `base_command` (*string*): The inferred primary command action (first part of arguments).
-        *   `triggers` (*list[object]*): A list of parsed trigger objects (structure matches the add/modify request format).
-
-#### Error Responses
-
-*   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
-        ```json
-        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
-        ```
-    *   If the `task_name` field is missing or not a string. Message from `UserInputError`.
-        ```json
-        { "status": "error", "message": "User input error: Missing or invalid 'task_name' in request body." }
-        ```
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid.
-        ```json
-        { "error": "Unauthorized", "message": "Authentication required." }
-        ```
-
-*   **`404 Not Found`**:
-    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`.config/<server_name>/...xml`). Message from `AppFileNotFoundError`.
-        ```json
-        { "status": "error", "message": "Required file or directory not found at path: Configuration XML file for task '<task_name>' not found." }
-        ```
-*   **`501 Not Implemented`**:
-    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
-        ```json
-        { "status": "error", "message": "System error: Windows Task Scheduler functions are only supported on Windows." }
-        ```
-
-*   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory cannot be determined. Message from `ConfigurationError`.
-        ```json
-        { "status": "error", "message": "Configuration error: Base configuration directory not set." }
-        ```
-    *   If the found XML file cannot be parsed (invalid XML, missing essential elements). Message from `ConfigParseError`.
-        ```json
-        { "status": "error", "message": "Failed to parse configuration file: Error parsing task configuration XML: no element found: line 1, column 0" }
-        ```
-        *or*
-        ```json
-        { "status": "error", "message": "Failed to parse configuration file: Invalid or incomplete task XML structure: ..." }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        { "status": "error", "message": "An unexpected error occurred: <original error message>" }
-        ```
-
-#### `curl` Example (Bash)
-
-```bash
-# Note: Windows-only endpoint.
-TASK_NAME="bedrock_MyWinServer_backup-all_20240115103000"
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d "{\"task_name\": \"$TASK_NAME\"}" \
-     "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/details"
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$taskName = "bedrock_MyWinServer_backup-all_20240115103000"
-$body = @{ task_name = $taskName } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/details" -Headers $headers -Body $body
 ```
 
 ---
