@@ -8,6 +8,8 @@ updating, and sending commands.
 """
 
 import logging
+import platform
+import sys
 from typing import Tuple
 
 import click
@@ -26,6 +28,7 @@ from bedrock_server_manager.cli.utils import (
     ServerNameValidator,
 )
 from bedrock_server_manager.error import BSMError
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,7 @@ def server():
 def start_server(server_name: str, mode: str):
     """Starts a specific Bedrock server instance."""
     click.echo(f"Attempting to start server '{server_name}' in {mode} mode...")
+
     try:
         response = server_api.start_server(server_name, mode)
         # Custom response handling because 'direct' mode blocks and won't show this.

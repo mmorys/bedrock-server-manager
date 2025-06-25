@@ -26,6 +26,9 @@ from bedrock_server_manager.core.server.addon_mixin import ServerAddonMixin
 from bedrock_server_manager.core.server.backup_restore_mixin import ServerBackupMixin
 from bedrock_server_manager.core.server.systemd_mixin import ServerSystemdMixin
 from bedrock_server_manager.core.server.player_mixin import ServerPlayerMixin
+from bedrock_server_manager.core.server.windows_service_mixin import (
+    ServerWindowsServiceMixin,
+)
 from bedrock_server_manager.core.server.config_management_mixin import (
     ServerConfigManagementMixin,
 )
@@ -46,6 +49,7 @@ class BedrockServer(
     ServerAddonMixin,
     ServerBackupMixin,
     ServerSystemdMixin,
+    ServerWindowsServiceMixin,
     ServerPlayerMixin,
     ServerConfigManagementMixin,
     ServerInstallUpdateMixin,
@@ -129,6 +133,74 @@ class BedrockServer(
             f"<BedrockServer(name='{self.server_name}', os='{self.os_type}', "
             f"dir='{self.server_dir}', manager_expath='{self.manager_expath}')>"
         )
+
+    def create_service(self):
+        """Creates or updates the system service for this server."""
+        if self.os_type == "Linux":
+            return self.create_systemd_service_file()
+        elif self.os_type == "Windows":
+            return self.create_windows_service()
+        else:
+            raise NotImplementedError(
+                f"Service management is not supported on {self.os_type}."
+            )
+
+    def enable_service(self):
+        """Enables the system service to start on boot/login."""
+        if self.os_type == "Linux":
+            return self.enable_systemd_service()
+        elif self.os_type == "Windows":
+            return self.enable_windows_service()
+        else:
+            raise NotImplementedError(
+                f"Service management is not supported on {self.os_type}."
+            )
+
+    def disable_service(self):
+        """Disables the system service from starting on boot/login."""
+        if self.os_type == "Linux":
+            return self.disable_systemd_service()
+        elif self.os_type == "Windows":
+            return self.disable_windows_service()
+        else:
+            raise NotImplementedError(
+                f"Service management is not supported on {self.os_type}."
+            )
+
+    def remove_service(self):
+        """Removes/deletes the system service for this server."""
+        if self.os_type == "Linux":
+            return self.remove_systemd_service_file()
+        elif self.os_type == "Windows":
+            return self.remove_windows_service()
+        else:
+            raise NotImplementedError(
+                f"Service management is not supported on {self.os_type}."
+            )
+
+    def check_service_exists(self) -> bool:
+        """Checks if a system service has been created for this server."""
+        if self.os_type == "Linux":
+            return self.check_systemd_service_file_exists()
+        elif self.os_type == "Windows":
+            return self.check_windows_service_exists()
+        return False
+
+    def is_service_active(self) -> bool:
+        """Checks if the system service for this server is currently active/running."""
+        if self.os_type == "Linux":
+            return self.is_systemd_service_active()
+        elif self.os_type == "Windows":
+            return self.is_windows_service_active()
+        return False
+
+    def is_service_enabled(self) -> bool:
+        """Checks if the system service for this server is enabled to start on boot/login."""
+        if self.os_type == "Linux":
+            return self.is_systemd_service_enabled()
+        elif self.os_type == "Windows":
+            return self.is_windows_service_enabled()
+        return False
 
     def get_summary_info(self) -> Dict[str, Any]:
         """Returns a dictionary with a comprehensive summary of the server's state.

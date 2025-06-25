@@ -3,11 +3,11 @@
 
 This module orchestrates calls to `BedrockServer` class methods to manage
 system-related configurations and information, such as process resource usage
-and systemd service management on Linux.
+and system service management (systemd on Linux, Windows Services on Windows).
 """
 import logging
 import platform
-from typing import Dict, Optional, Any
+from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
 from bedrock_server_manager import plugin_manager
@@ -80,20 +80,24 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
         }
 
 
-def create_systemd_service(server_name: str, autostart: bool = False) -> Dict[str, str]:
-    """Creates (or updates) a systemd user service for the server (Linux-only).
+def create_server_service(server_name: str, autostart: bool = False) -> Dict[str, str]:
+    """Creates (or updates) a system service for the server.
 
-    This function generates a systemd service file, allowing the server to be
-    managed by `systemctl`. It can also enable the service to start on boot.
+    On Linux, this creates a systemd user service.
+    On Windows, this creates a Windows Service (requires Administrator privileges).
+
+    This function generates a service file, allowing the server to be
+    managed by the host OS's service manager. It can also enable the
+    service to start on boot/login.
 
     Args:
         server_name: The name of the server.
-        autostart: If True, the service will be enabled to start on system boot.
+        autostart: If True, the service will be enabled to start on system boot/login.
             If False, it will be disabled. Defaults to False.
 
     Returns:
         A dictionary with the operation status and a message. Returns an error
-        on non-Linux systems.
+        on unsupported systems.
 
     Raises:
         InvalidServerNameError: If `server_name` is not provided.
@@ -108,41 +112,41 @@ def create_systemd_service(server_name: str, autostart: bool = False) -> Dict[st
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.create_systemd_service_file()
+        # These methods are implemented on BedrockServer, which delegates to
+        # the appropriate OS-specific mixin.
+        server.create_service()
 
         # Enable or disable the service for autostart based on the flag.
         if autostart:
-            server.enable_systemd_service()
+            server.enable_service()
             action = "created and enabled"
         else:
-            server.disable_systemd_service()
+            server.disable_service()
             action = "created and disabled"
 
         result = {
             "status": "success",
-            "message": f"Systemd service {action} successfully.",
+            "message": f"System service {action} successfully.",
         }
 
-    except NotImplementedError as e:
-        # This error is raised by core methods on non-Linux systems.
-        result = {"status": "error", "message": str(e)}
     except BSMError as e:
+        # This will catch SystemError, PermissionsError, etc. from the mixins.
         logger.error(
-            f"API: Failed to configure systemd service for '{server_name}': {e}",
+            f"API: Failed to configure system service for '{server_name}': {e}",
             exc_info=True,
         )
         result = {
             "status": "error",
-            "message": f"Failed to configure systemd service: {e}",
+            "message": f"Failed to configure system service: {e}",
         }
     except Exception as e:
         logger.error(
-            f"API: Unexpected error creating systemd service for '{server_name}': {e}",
+            f"API: Unexpected error creating system service for '{server_name}': {e}",
             exc_info=True,
         )
         result = {
             "status": "error",
-            "message": f"Unexpected error creating systemd service: {e}",
+            "message": f"Unexpected error creating system service: {e}",
         }
     finally:
         plugin_manager.trigger_event(
@@ -225,7 +229,11 @@ def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
 
 
 def enable_server_service(server_name: str) -> Dict[str, str]:
-    """Enables the systemd user service for autostart (Linux-only).
+    """Enables the system service for autostart.
+
+    On Linux, this enables the systemd user service.
+    On Windows, this sets the Windows Service start type to 'Automatic'
+    (requires Administrator privileges).
 
     Args:
         server_name: The name of the server whose service will be enabled.
@@ -246,17 +254,15 @@ def enable_server_service(server_name: str) -> Dict[str, str]:
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.enable_systemd_service()
+        server.enable_service()
         result = {
             "status": "success",
             "message": f"Service for '{server_name}' enabled successfully.",
         }
 
-    except NotImplementedError as e:
-        result = {"status": "error", "message": str(e)}
     except BSMError as e:
         logger.error(
-            f"API: Failed to enable systemd service for '{server_name}': {e}",
+            f"API: Failed to enable system service for '{server_name}': {e}",
             exc_info=True,
         )
         result = {"status": "error", "message": f"Failed to enable service: {e}"}
@@ -281,7 +287,11 @@ def enable_server_service(server_name: str) -> Dict[str, str]:
 
 
 def disable_server_service(server_name: str) -> Dict[str, str]:
-    """Disables the systemd user service from autostarting (Linux-only).
+    """Disables the system service from autostarting.
+
+    On Linux, this disables the systemd user service.
+    On Windows, this sets the Windows Service start type to 'Disabled'
+    (requires Administrator privileges).
 
     Args:
         server_name: The name of the server whose service will be disabled.
@@ -302,17 +312,15 @@ def disable_server_service(server_name: str) -> Dict[str, str]:
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.disable_systemd_service()
+        server.disable_service()
         result = {
             "status": "success",
             "message": f"Service for '{server_name}' disabled successfully.",
         }
 
-    except NotImplementedError as e:
-        result = {"status": "error", "message": str(e)}
     except BSMError as e:
         logger.error(
-            f"API: Failed to disable systemd service for '{server_name}': {e}",
+            f"API: Failed to disable system service for '{server_name}': {e}",
             exc_info=True,
         )
         result = {"status": "error", "message": f"Failed to disable service: {e}"}

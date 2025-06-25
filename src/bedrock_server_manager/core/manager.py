@@ -12,6 +12,7 @@ import shutil
 import glob
 import logging
 import platform
+import subprocess
 from typing import Optional, List, Dict, Any, Union, Tuple
 
 # Local application imports.
@@ -22,10 +23,18 @@ from bedrock_server_manager.error import (
     ConfigurationError,
     FileOperationError,
     UserInputError,
+    SystemError,
+    CommandNotFoundError,
+    PermissionsError,
     AppFileNotFoundError,
     InvalidServerNameError,
     MissingArgumentError,
 )
+
+if platform.system() == "Linux":
+    from bedrock_server_manager.core.system import linux as system_linux_utils
+elif platform.system() == "Windows":
+    from bedrock_server_manager.core.system import windows as system_windows_utils
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +77,7 @@ class BedrockServerManager:
             self._app_data_dir = self.settings.app_data_dir
             self._app_name_title = app_name_title
             self._package_name = package_name
-            self._expath = EXPATH
+            self._expath = str(EXPATH)
         except Exception as e:
             raise ConfigurationError(f"Settings object is misconfigured: {e}") from e
 
@@ -78,6 +87,24 @@ class BedrockServerManager:
         # Constants for managing the web server process.
         self._WEB_SERVER_PID_FILENAME = "web_server.pid"
         self._WEB_SERVER_START_ARG = ["web", "start"]
+
+        _clean_package_name_for_systemd = (
+            self._package_name.lower().replace("_", "-").replace(" ", "-")
+        )
+        self._WEB_SERVICE_SYSTEMD_NAME = (
+            f"{_clean_package_name_for_systemd}-webui.service"
+        )
+
+        # Ensure app_name_title is suitable for Windows service name
+        _clean_app_title_for_windows = "".join(
+            c for c in self._app_name_title if c.isalnum()
+        )
+        if (
+            not _clean_app_title_for_windows
+        ):  # Fallback if app_name_title was all special chars
+            _clean_app_title_for_windows = "AppWebUI"  # Generic fallback
+        self._WEB_SERVICE_WINDOWS_NAME_INTERNAL = f"{_clean_app_title_for_windows}WebUI"
+        self._WEB_SERVICE_WINDOWS_DISPLAY_NAME = f"{self._app_name_title} Web UI"
 
         try:
             self._app_version = self.settings.version
@@ -407,6 +434,454 @@ class BedrockServerManager:
                 "Application executable path (_expath) is not configured."
             )
         return self._expath
+
+    def _ensure_linux_for_web_service(self, operation_name: str):
+        """Helper to verify OS is Linux for Web UI systemd operations."""
+        if self.get_os_type() != "Linux":
+            msg = f"Web UI Systemd operation '{operation_name}' is only supported on Linux. Current OS: {self.get_os_type()}"
+            logger.warning(msg)
+            raise SystemError(msg)
+
+    def _ensure_windows_for_web_service(self, operation_name: str):
+        """Helper to verify OS is Windows for Web UI service operations."""
+        if self.get_os_type() != "Windows":
+            msg = f"Web UI Windows Service operation '{operation_name}' is only supported on Windows. Current OS: {self.get_os_type()}"
+            logger.warning(msg)
+            raise SystemError(msg)
+
+    def _build_web_service_start_command(self) -> str:
+        """Builds the start command string for the web UI service."""
+        if not self._expath or not os.path.isfile(self._expath):
+            raise AppFileNotFoundError(
+                str(self._expath), "Manager executable for Web UI service"
+            )
+
+        exe_path_to_use = self._expath
+        # Quote executable path if it contains spaces and isn't already quoted.
+        # This is particularly important for Windows `binPath`.
+        if " " in exe_path_to_use and not (
+            exe_path_to_use.startswith('"') and exe_path_to_use.endswith('"')
+        ):
+            exe_path_to_use = f'"{exe_path_to_use}"'
+
+        command_parts = [exe_path_to_use, "web", "start", "--mode", "direct"]
+
+        return " ".join(command_parts)
+
+    def create_web_service_file(self):
+        """Creates or updates the system service file for the Web UI.
+
+        Args:
+            hosts: A list of host strings (IPs or domains) for the web server to listen on.
+
+        Raises:
+            MissingArgumentError: If `hosts` is empty.
+            SystemError: If OS is not supported or system utility commands fail.
+            AppFileNotFoundError: If the manager executable is not found.
+            FileOperationError: If file/directory operations fail.
+            PermissionsError: On Windows, if not run with Administrator privileges.
+            CommandNotFoundError: If `systemctl` (Linux) or `sc.exe` (Windows) is not found.
+        """
+
+        os_type = self.get_os_type()
+        start_command = self._build_web_service_start_command()
+
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("create_web_service_file")
+
+            stop_command_exe_path = self._expath
+            if " " in stop_command_exe_path and not (
+                stop_command_exe_path.startswith('"')
+                and stop_command_exe_path.endswith('"')
+            ):
+                stop_command_exe_path = f'"{stop_command_exe_path}"'
+            stop_command = f"{stop_command_exe_path} web stop"  # Generic web stop
+
+            description = f"{self._app_name_title} Web UI Service"
+            # Use app_data_dir as working directory; ensure it exists.
+            working_dir = self._app_data_dir
+            if not os.path.isdir(working_dir):
+                try:
+                    os.makedirs(working_dir, exist_ok=True)
+                    logger.debug(f"Ensured working directory exists: {working_dir}")
+                except OSError as e:
+                    raise FileOperationError(
+                        f"Failed to create working directory {working_dir} for service: {e}"
+                    )
+
+            logger.info(
+                f"Creating/updating systemd service file '{self._WEB_SERVICE_SYSTEMD_NAME}' for Web UI."
+            )
+            try:
+                system_linux_utils.create_systemd_service_file(
+                    service_name_full=self._WEB_SERVICE_SYSTEMD_NAME,
+                    description=description,
+                    working_directory=working_dir,
+                    exec_start_command=start_command,
+                    exec_stop_command=stop_command,
+                    service_type="simple",  # Web UI is a simple foreground process when in 'direct' mode
+                    restart_policy="on-failure",
+                    restart_sec=10,
+                    after_targets="network.target",  # Ensures network is up
+                )
+                logger.info(
+                    f"Systemd service file for '{self._WEB_SERVICE_SYSTEMD_NAME}' created/updated successfully."
+                )
+            except (
+                MissingArgumentError,
+                SystemError,
+                CommandNotFoundError,
+                AppFileNotFoundError,
+                FileOperationError,
+            ) as e:
+                logger.error(
+                    f"Failed to create/update systemd service file for Web UI: {e}"
+                )
+                raise
+
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("create_web_service_file")
+            description = f"Manages the {self._app_name_title} Web UI."
+
+            if not self._expath or not os.path.isfile(self._expath):
+                raise AppFileNotFoundError(
+                    str(self._expath), "Manager executable (EXEPATH) for Web UI service"
+                )
+
+            # Quote paths and arguments appropriately for the command line.
+            quoted_main_exepath = (
+                f"{self._expath}"  # The main application executable that has the CLI.
+            )
+
+            # Arguments for the `_run-svc` command:
+            # 1. The actual service name (this service will register itself with SCM using this name).
+            actual_svc_name_arg = f'"{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}"'
+
+            # Construct the full command for binPath
+            # Example: "C:\path\to\bsm.exe" web service _run-svc "MyWebAppSvc" "C:\path\to\bsm.exe" "localhost" "0.0.0.0"
+            windows_service_binpath_command_parts = [
+                quoted_main_exepath,
+                "web",  # Main command group
+                "_run-svc",  # The internal service runner command
+                actual_svc_name_arg,
+            ]
+
+            windows_service_binpath_command = " ".join(
+                windows_service_binpath_command_parts
+            )
+
+            logger.info(
+                f"Creating/updating Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' for Web UI."
+            )
+            logger.debug(
+                f"Service binPath command will be: {windows_service_binpath_command}"
+            )
+
+            try:
+                system_windows_utils.create_windows_service(
+                    service_name=self._WEB_SERVICE_WINDOWS_NAME_INTERNAL,  # Name to register with SCM
+                    display_name=self._WEB_SERVICE_WINDOWS_DISPLAY_NAME,
+                    description=description,
+                    command=windows_service_binpath_command,  # This is the correctly formatted binPath
+                )
+                logger.info(
+                    f"Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' created/updated successfully."
+                )
+            except (
+                MissingArgumentError,
+                SystemError,
+                PermissionsError,
+                CommandNotFoundError,
+                AppFileNotFoundError,
+                FileOperationError,
+            ) as e:
+                logger.error(f"Failed to create/update Windows service for Web UI: {e}")
+                raise
+        else:
+            raise SystemError(
+                f"Web UI service creation is not supported on OS: {os_type}"
+            )
+
+    def check_web_service_exists(self) -> bool:
+        """Checks if the Web UI service file/entry exists."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("check_web_service_exists")
+            return system_linux_utils.check_service_exists(
+                self._WEB_SERVICE_SYSTEMD_NAME
+            )
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("check_web_service_exists")
+            return system_windows_utils.check_service_exists(
+                self._WEB_SERVICE_WINDOWS_NAME_INTERNAL
+            )
+        else:
+            logger.debug(f"Web service existence check not supported on OS: {os_type}")
+            return False
+
+    def enable_web_service(self):
+        """Enables the Web UI service to start on boot/login."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("enable_web_service")
+            logger.info(
+                f"Enabling systemd service '{self._WEB_SERVICE_SYSTEMD_NAME}' for Web UI."
+            )
+            system_linux_utils.enable_systemd_service(self._WEB_SERVICE_SYSTEMD_NAME)
+            logger.info(f"Systemd service '{self._WEB_SERVICE_SYSTEMD_NAME}' enabled.")
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("enable_web_service")
+            logger.info(
+                f"Enabling Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' for Web UI."
+            )
+            system_windows_utils.enable_windows_service(
+                self._WEB_SERVICE_WINDOWS_NAME_INTERNAL
+            )
+            logger.info(
+                f"Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' enabled."
+            )
+        else:
+            raise SystemError(
+                f"Web UI service enabling is not supported on OS: {os_type}"
+            )
+
+    def disable_web_service(self):
+        """Disables the Web UI service from starting on boot/login."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("disable_web_service")
+            logger.info(
+                f"Disabling systemd service '{self._WEB_SERVICE_SYSTEMD_NAME}' for Web UI."
+            )
+            system_linux_utils.disable_systemd_service(self._WEB_SERVICE_SYSTEMD_NAME)
+            logger.info(f"Systemd service '{self._WEB_SERVICE_SYSTEMD_NAME}' disabled.")
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("disable_web_service")
+            logger.info(
+                f"Disabling Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' for Web UI."
+            )
+            system_windows_utils.disable_windows_service(
+                self._WEB_SERVICE_WINDOWS_NAME_INTERNAL
+            )
+            logger.info(
+                f"Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' disabled."
+            )
+        else:
+            raise SystemError(
+                f"Web UI service disabling is not supported on OS: {os_type}"
+            )
+
+    def remove_web_service_file(self) -> bool:
+        """Removes the Web UI service file/entry. Service should be stopped first."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("remove_web_service_file")
+            service_file_path = system_linux_utils.get_systemd_user_service_file_path(
+                self._WEB_SERVICE_SYSTEMD_NAME
+            )
+            if os.path.isfile(service_file_path):
+                logger.info(f"Removing systemd service file: {service_file_path}")
+                try:
+                    os.remove(service_file_path)
+                    systemctl_cmd = shutil.which("systemctl")
+                    if systemctl_cmd:  # Reload daemon if systemctl is available
+                        subprocess.run(
+                            [systemctl_cmd, "--user", "daemon-reload"],
+                            check=False,
+                            capture_output=True,
+                        )
+                    logger.info(
+                        f"Removed systemd service file for Web UI '{self._WEB_SERVICE_SYSTEMD_NAME}' and reloaded daemon."
+                    )
+                    return True
+                except OSError as e:
+                    raise FileOperationError(
+                        f"Failed to remove systemd service file for Web UI: {e}"
+                    ) from e
+            else:
+                logger.debug(
+                    f"Systemd service file for Web UI '{self._WEB_SERVICE_SYSTEMD_NAME}' not found. No removal needed."
+                )
+                return (
+                    True  # Consistent with original mixin: true if not found or removed
+                )
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("remove_web_service_file")
+            logger.info(
+                f"Removing Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' for Web UI."
+            )
+            system_windows_utils.delete_windows_service(
+                self._WEB_SERVICE_WINDOWS_NAME_INTERNAL
+            )  # This should handle if not exists gracefully or raise
+            logger.info(
+                f"Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' removed (if it existed)."
+            )
+            return True  # Assuming delete_windows_service is idempotent or handles "not found"
+        else:
+            raise SystemError(
+                f"Web UI service removal is not supported on OS: {os_type}"
+            )
+
+    def is_web_service_active(self) -> bool:
+        """Checks if the Web UI service is currently active/running."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("is_web_service_active")
+            systemctl_cmd = shutil.which("systemctl")
+            if not systemctl_cmd:
+                logger.warning(
+                    "systemctl command not found, cannot check Web UI service active state."
+                )
+                return False
+            try:
+                process = subprocess.run(
+                    [
+                        systemctl_cmd,
+                        "--user",
+                        "is-active",
+                        self._WEB_SERVICE_SYSTEMD_NAME,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                is_active = (
+                    process.returncode == 0 and process.stdout.strip() == "active"
+                )
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_SYSTEMD_NAME}' active status: {process.stdout.strip()} -> {is_active}"
+                )
+                return is_active
+            except Exception as e:
+                logger.error(
+                    f"Error checking Web UI systemd active status: {e}", exc_info=True
+                )
+                return False
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("is_web_service_active")
+            sc_cmd = shutil.which("sc.exe")
+            if not sc_cmd:
+                logger.warning(
+                    "sc.exe command not found, cannot check Web UI service active state."
+                )
+                return False
+            try:
+                # Use 'sc query' to check the state of the service.
+                result = subprocess.check_output(
+                    [sc_cmd, "query", self._WEB_SERVICE_WINDOWS_NAME_INTERNAL],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=getattr(
+                        subprocess, "CREATE_NO_WINDOW", 0
+                    ),  # CREATE_NO_WINDOW for Windows
+                )
+                is_running = "STATE" in result and "RUNNING" in result
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' running state from query: {is_running}"
+                )
+                return is_running
+            except (
+                subprocess.CalledProcessError
+            ):  # Service does not exist or other sc error
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' not found or error during query."
+                )
+                return False
+            except (
+                FileNotFoundError
+            ):  # sc.exe not found (should be caught by shutil.which)
+                logger.warning("`sc.exe` command not found unexpectedly.")
+                return False
+            except Exception as e:
+                logger.error(
+                    f"Error checking Web UI Windows service active status: {e}",
+                    exc_info=True,
+                )
+                return False
+        else:
+            logger.debug(f"Web UI service active check not supported on OS: {os_type}")
+            return False
+
+    def is_web_service_enabled(self) -> bool:
+        """Checks if the Web UI service is enabled to start on boot/login."""
+        os_type = self.get_os_type()
+        if os_type == "Linux":
+            self._ensure_linux_for_web_service("is_web_service_enabled")
+            systemctl_cmd = shutil.which("systemctl")
+            if not systemctl_cmd:
+                logger.warning(
+                    "systemctl command not found, cannot check Web UI service enabled state."
+                )
+                return False
+            try:
+                process = subprocess.run(
+                    [
+                        systemctl_cmd,
+                        "--user",
+                        "is-enabled",
+                        self._WEB_SERVICE_SYSTEMD_NAME,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                # is-enabled can return "enabled", "enabled-runtime", etc.
+                # "enabled" means it's set to start. Other statuses might also be considered "on".
+                # For simplicity, strict "enabled" check.
+                is_enabled = (
+                    process.returncode == 0 and process.stdout.strip() == "enabled"
+                )
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_SYSTEMD_NAME}' enabled status: {process.stdout.strip()} -> {is_enabled}"
+                )
+                return is_enabled
+            except Exception as e:
+                logger.error(
+                    f"Error checking Web UI systemd enabled status: {e}", exc_info=True
+                )
+                return False
+        elif os_type == "Windows":
+            self._ensure_windows_for_web_service("is_web_service_enabled")
+            sc_cmd = shutil.which("sc.exe")
+            if not sc_cmd:
+                logger.warning(
+                    "sc.exe command not found, cannot check Web UI service enabled state."
+                )
+                return False
+            try:
+                # Use 'sc qc' (query config) to check the start type.
+                result = subprocess.check_output(
+                    [sc_cmd, "qc", self._WEB_SERVICE_WINDOWS_NAME_INTERNAL],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                is_auto_start = (
+                    "START_TYPE" in result and "AUTO_START" in result
+                )  # 2  AUTO_START
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' auto_start state from qc: {is_auto_start}"
+                )
+                return is_auto_start
+            except (
+                subprocess.CalledProcessError
+            ):  # Service does not exist or other sc error
+                logger.debug(
+                    f"Web UI service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' not found or error during qc."
+                )
+                return False
+            except FileNotFoundError:
+                logger.warning("`sc.exe` command not found unexpectedly.")
+                return False
+            except Exception as e:
+                logger.error(
+                    f"Error checking Web UI Windows service enabled status: {e}",
+                    exc_info=True,
+                )
+                return False
+        else:
+            logger.debug(f"Web UI service enabled check not supported on OS: {os_type}")
+            return False
 
     # --- Global Content Directory Management ---
     def _list_content_files(self, sub_folder: str, extensions: List[str]) -> List[str]:
