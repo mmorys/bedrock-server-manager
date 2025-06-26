@@ -196,7 +196,7 @@ def stop_web_server_api() -> Dict[str, str]:
             }
 
         # Verify it's the correct process before terminating.
-        system_process_utils.verify_process_identity(pid, expected_exe, expected_arg)
+        system_process_utils.verify_process_identity(pid, expected_exe)
         system_process_utils.terminate_process_by_pid(pid)
         system_process_utils.remove_pid_file_if_exists(pid_file_path)
         result = {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
