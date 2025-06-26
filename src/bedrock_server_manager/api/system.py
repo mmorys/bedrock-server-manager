@@ -194,8 +194,7 @@ def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
             f"API: Setting 'autoupdate' config for server '{server_name}' to {value_bool}..."
         )
         server = BedrockServer(server_name)
-        # The core method expects a string representation of the boolean.
-        server.set_custom_config_value("autoupdate", str(value_bool))
+        server.set_autoupdate(value_bool)
         result = {
             "status": "success",
             "message": f"Autoupdate setting for '{server_name}' updated to {value_bool}.",

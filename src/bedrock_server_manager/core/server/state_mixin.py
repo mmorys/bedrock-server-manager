@@ -54,11 +54,11 @@ class ServerStateMixin(BedrockServerBaseMixin):
             "config_schema_version": SERVER_CONFIG_SCHEMA_VERSION,
             "server_info": {
                 "installed_version": "UNKNOWN",
-                "target_version": "LATEST",
                 "status": "UNKNOWN",
             },
             "settings": {
                 "autoupdate": False,  # Default to boolean
+                "target_version": "UNKNOWN",
             },
             "custom_values": {},
         }
@@ -76,8 +76,8 @@ class ServerStateMixin(BedrockServerBaseMixin):
         new_config["server_info"]["installed_version"] = old_config.get(
             "installed_version", new_config["server_info"]["installed_version"]
         )
-        new_config["server_info"]["target_version"] = old_config.get(
-            "target_version", new_config["server_info"]["target_version"]
+        new_config["settings"]["target_version"] = old_config.get(
+            "target_version", new_config["settings"]["target_version"]
         )
         new_config["server_info"]["status"] = old_config.get(
             "status", new_config["server_info"]["status"]
@@ -283,6 +283,32 @@ class ServerStateMixin(BedrockServerBaseMixin):
             key="server_info.installed_version", operation="write", value=version_string
         )
         self.logger.info(f"Version for '{self.server_name}' set to '{version_string}'.")
+
+    def get_autoupdate(self) -> str:
+        """Retrieves the 'autoupdte' from 'settings'."""
+        self.logger.debug(f"Getting autoupdate value for server '{self.server_name}'.")
+        try:
+            version = self._manage_json_config(
+                key="settings.autoupdate", operation="read"
+            )
+            return str(version) if version is not None else "UNKNOWN"
+        except Exception as e:  # Catch broader errors from _manage_json_config if any
+            self.logger.error(
+                f"Error getting value for '{self.server_name}': {e}", exc_info=True
+            )
+            return "UNKNOWN"
+
+    def set_autoupdate(self, value: bool):
+        """Sets the 'autoupdate' in 'settings'."""
+        self.logger.debug(f"Setting autoupdate for '{self.server_name}' to '{value}'.")
+        if not isinstance(value, bool):
+            raise UserInputError(
+                f"Vale for '{self.server_name}' must be a boolean, got {type(value)}."
+            )
+        self._manage_json_config(
+            key="settings.autoupdate", operation="write", value=value
+        )
+        self.logger.info(f"Version for '{self.server_name}' set to '{value}'.")
 
     def get_status_from_config(self) -> str:
         """Retrieves the 'status' from 'server_info'."""
