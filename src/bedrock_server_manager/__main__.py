@@ -55,6 +55,7 @@ from bedrock_server_manager.cli import (
     web,
     world,
     plugins,
+    windows_service,
 )
 
 # --- Main Click Group Definition ---
@@ -138,6 +139,7 @@ def _add_commands_to_cli():
     cli.add_command(world.world)
     cli.add_command(server_allowlist.allowlist)
     cli.add_command(plugins.plugin)
+    cli.add_command(windows_service.service)
 
     # Standalone Commands
     cli.add_command(addon.install_addon)

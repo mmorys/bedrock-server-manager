@@ -108,8 +108,8 @@ class ServerWindowsServiceMixin(BedrockServerBaseMixin):
         # 3. Build the full command by joining the parts.
         command_parts = [
             quoted_expath,
-            "system",
-            "_run-service",
+            "service",
+            "_run-bedrock",
             "--server",
             quoted_server_name,
         ]

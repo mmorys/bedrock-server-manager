@@ -558,11 +558,10 @@ class BedrockServerManager:
             actual_svc_name_arg = f'"{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}"'
 
             # Construct the full command for binPath
-            # Example: "C:\path\to\bsm.exe" web service _run-svc "MyWebAppSvc" "C:\path\to\bsm.exe" "localhost" "0.0.0.0"
             windows_service_binpath_command_parts = [
                 quoted_main_exepath,
-                "web",  # Main command group
-                "_run-svc",  # The internal service runner command
+                "service",  # Main command group
+                "_run-web",  # The internal service runner command
                 actual_svc_name_arg,
             ]
 
@@ -579,10 +578,10 @@ class BedrockServerManager:
 
             try:
                 system_windows_utils.create_windows_service(
-                    service_name=self._WEB_SERVICE_WINDOWS_NAME_INTERNAL,  # Name to register with SCM
+                    service_name=self._WEB_SERVICE_WINDOWS_NAME_INTERNAL,
                     display_name=self._WEB_SERVICE_WINDOWS_DISPLAY_NAME,
                     description=description,
-                    command=windows_service_binpath_command,  # This is the correctly formatted binPath
+                    command=windows_service_binpath_command,
                 )
                 logger.info(
                     f"Windows service '{self._WEB_SERVICE_WINDOWS_NAME_INTERNAL}' created/updated successfully."

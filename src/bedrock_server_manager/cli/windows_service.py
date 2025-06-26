@@ -1,12 +1,4 @@
 # bedrock_server_manager/cli/web.py
-"""
-Defines the `bsm web` command group for managing the web server and its OS integrations.
-
-This module contains the Click command group and subcommands for starting,
-stopping, and managing the Flask-based web management interface, as well as
-commands for managing its system service (e.g., systemd, Windows Services).
-"""
-
 import logging
 import platform
 import sys
