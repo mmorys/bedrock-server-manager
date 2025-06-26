@@ -37,6 +37,7 @@ from bedrock_server_manager.web.utils.variable_inject import inject_global_varia
 from bedrock_server_manager.web.routes.schedule_tasks_routes import schedule_tasks_bp
 from bedrock_server_manager.web.routes.server_actions_routes import server_actions_bp
 from bedrock_server_manager.web.routes.backup_restore_routes import backup_restore_bp
+from bedrock_server_manager.web.routes.settings_routes import settings_bp
 from bedrock_server_manager.web.routes.api_info_routes import api_info_bp
 from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.util_routes import util_bp
@@ -183,6 +184,7 @@ def create_app() -> Flask:
     app.register_blueprint(backup_restore_bp)
     app.register_blueprint(content_bp)
     app.register_blueprint(util_bp)
+    app.register_blueprint(settings_bp)
     app.register_blueprint(api_info_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(plugin_bp)
