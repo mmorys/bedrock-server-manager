@@ -14,7 +14,7 @@
     - [`GET /api/server/{server_name}/version` - Get Installed Version](#get-apiserverserver_nameversion---get-installed-version)
     - [`GET /api/server/{server_name}/validate` - Validate Server Existence](#get-apiserverserver_namevalidate---validate-server-existence)
     - [`GET /api/server/{server_name}/process_info` - Get Server Process Info](#get-apiserverserver_nameprocess_info---get-server-process-info)
-    - [`GET /api/server/{server_name}/world/icon` - Get Server World Icon](#get-apiserverserver_nameworldicon---get-server-world-icon)
+    - [`GET /api/server/{server_name}/word/icon` - Get Server World Icon](#get-apiserverserver_namewordicon---get-server-world-icon)
   - [Server Actions](#server-actions)
     - [`POST /api/server/{server_name}/start` - Start Server](#post-apiserverserver_namestart---start-server)
     - [`POST /api/server/{server_name}/stop` - Stop Server](#post-apiserverserver_namestop---stop-server)
@@ -53,7 +53,6 @@
     - [`POST /api/server/{server_name}/cron_scheduler/modify` - Modify Cron Job (Linux Only)](#post-apiserverserver_namecron_schedulermodify---modify-cron-job-linux-only)
     - [`DELETE /api/server/{server_name}/cron_scheduler/delete` - Delete Cron Job (Linux Only)](#delete-apiserverserver_namecron_schedulerdelete---delete-cron-job-linux-only)
     - [`POST /api/server/{server_name}/task_scheduler/add` - Add Windows Task (Windows Only)](#post-apiserverserver_nametask_scheduleradd---add-windows-task-windows-only)
-    - [`POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)](#post-apiserverserver_nametask_schedulerdetails---get-windows-task-details-windows-only)
     - [`PUT/DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify or Delete Windows Task (Windows Only)](#putdelete-apiserverserver_nametask_schedulertasktask_name---modify-or-delete-windows-task-windows-only)
 
 # Bedrock Server Manager - HTTP API Documentation
@@ -350,7 +349,7 @@ ___
 
 ## Server Information
 
-### `GET /api/server/{server_name}/world/icon` - Get Server World Icon
+### `GET /api/server/{server_name}/word/icon` - Get Server World Icon
 
 Serves the `world_icon.jpeg` file for the specified server's currently configured world. This allows UIs to display a visual representation of the server's world.
 
@@ -382,7 +381,42 @@ Returns the JPEG image data directly. If the specific world icon is not found or
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/world/icon --output world_icon.jpeg
+     http://<your-manager-host>:<port>/api/server/<server_name>/word/icon --output world_icon.jpeg
+```
+
+---
+
+### `GET /api/servers` - Get All Servers List and Status
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`, `image/jpeg`)
+
+Returns the JPEG image data directly. If the specific world icon is not found or an error occurs, a default application icon may be served instead.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**: If authentication is missing or invalid.
+*   **`404 Not Found`**: If the server instance or its `world_icon.jpeg` (and fallback default icon) cannot be found.
+*   **`500 Internal Server Error`**: For other server-side errors (e.g., configuration issues preventing path determination).
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/word/icon --output world_icon.jpeg
 ```
 
 ---
@@ -1167,6 +1201,8 @@ Invoke-RestMethod -Method Get -Uri "http://<your-manager-host>:<port>/api/server
 Starts the specified Bedrock server instance process. Uses systemd (with screen fallback) on Linux or direct process creation on Windows. Waits for confirmation that the server process is running.
 
 This endpoint is exempt from CSRF protection but requires authentication.
+
+*Note: To restore all components (world and standard configuration files) from their latest backups, use the `restore_type: "all"` option in the payload. This will find the latest backup for the world and each standard config file (`server.properties`, `allowlist.json`, `permissions.json`) and restore them individually.*
 
 #### Authentication
 
@@ -2034,9 +2070,9 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 
 None.
 
-#### Request Body (`application/json`, optional)
+#### Request Body
 
-This endpoint does not currently process any request body. The number of backups to keep is determined by the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration (defaulting to 3 if the setting is missing or invalid).
+None. The number of backups to keep is determined by the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration (defaulting to 3 if the setting is missing or invalid).
 
 #### Success Response (`200 OK`)
 
@@ -2067,25 +2103,11 @@ Returned when the pruning process for all backup types completes without errors,
             "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
-    *   If the `keep` value in the JSON body is provided but is not a valid integer. Message from `UserInputError`.
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "User input error: Invalid 'keep' value. Must be an integer."
-        }
-        ```
-    *   If the resolved `keep` value (from request or settings) is negative or otherwise invalid. Message from `ConfigurationError` or `UserInputError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: Invalid BACKUP_KEEP setting: must be non-negative integer"
-        }
-        ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "User input error: Invalid backup_keep parameter: Cannot be negative"
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -2137,6 +2159,11 @@ Returned when the pruning process for all backup types completes without errors,
 # Using default keep count from server settings
 curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
      http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune
+
+# Specifying keep count
+curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
+     -d '{"keep": 5}' \
+     http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune
 ```
 
 #### PowerShell Example
@@ -2145,13 +2172,18 @@ curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
 # Using default keep count from server settings
 $headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN' }
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune" -Headers $headers
+
+# Specifying keep count
+$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
+$body = @{ keep = 5 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/<server_name>/backups/prune" -Headers $headers -Body $body
 ```
 
 ---
 
-### `GET /api/server/<server_name>/backups/list/<backup_type>` - List Server Backup Filenames
+### `GET /api/server/{server_name}/backups/list/{backup_type}` - List Server Backup Filenames
 
-Lists available backup **filenames (basenames only)** for a specified server and a given backup type ("world" or "config"). Backups are typically stored in a configured central backup directory, organized by server name.
+Lists available backup **filenames (basenames only)** for a specified server and a given backup type (`"world"` or `"config"`). Backups are typically stored in a configured central backup directory, organized by server name.
 
 The list of backup filenames is sorted by modification time (of the original files), with the newest backups appearing first.
 
@@ -2656,14 +2688,16 @@ Returns a list of world filenames (basenames).
         }
         ```
 
-*   **`500 Internal Server Error`**:
-    *   If the `CONTENT_DIR/worlds` directory itself does not exist (the API layer will return this as a 500 error, though the underlying cause is a file not found). Message from `FileError`.
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/worlds` directory itself does not exist. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "File operation error: Content directory for worlds not found at /path/to/content/dir/worlds"
+            "message": "Required file or directory not found at path: /path/to/content/dir/worlds"
         }
         ```
+
+*   **`500 Internal Server Error`**:
     *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
@@ -2764,14 +2798,16 @@ Returns a list of addon filenames (basenames).
         }
         ```
 
-*   **`500 Internal Server Error`**:
-    *   If the `CONTENT_DIR/addons` directory itself does not exist (the API layer will return this as a 500 error, though the underlying cause is a file not found). Message from `FileError`.
+*   **`404 Not Found`** (Potentially, depending on server setup):
+    *   If the `CONTENT_DIR/addons` directory itself does not exist. Message from `AppFileNotFoundError`.
         ```json
         {
             "status": "error",
-            "message": "File operation error: Content directory for addons not found at /path/to/content/dir/addons"
+            "message": "Required file or directory not found at path: /path/to/content/dir/addons"
         }
         ```
+
+*   **`500 Internal Server Error`**:
     *   If the main `CONTENT_DIR` setting is missing or not configured in the application. Message from `ConfigurationError`.
         ```json
         {
