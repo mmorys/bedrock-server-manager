@@ -90,7 +90,7 @@ class BedrockServerBaseMixin:
                 )
 
         # Resolve critical paths from settings.
-        _base_dir_val = self.settings.get("BASE_DIR")
+        _base_dir_val = self.settings.get("paths.servers")
         if not _base_dir_val:
             raise ConfigurationError(
                 "BASE_DIR not configured in settings. Cannot initialize BedrockServer."

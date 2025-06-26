@@ -72,8 +72,8 @@ class BedrockServerManager:
         except Exception as e:
             raise ConfigurationError(f"Settings object is misconfigured: {e}") from e
 
-        self._base_dir = self.settings.get("BASE_DIR")
-        self._content_dir = self.settings.get("CONTENT_DIR")
+        self._base_dir = self.settings.get("paths.servers")
+        self._content_dir = self.settings.get("paths.content")
 
         # Constants for managing the web server process.
         self._WEB_SERVER_PID_FILENAME = "web_server.pid"

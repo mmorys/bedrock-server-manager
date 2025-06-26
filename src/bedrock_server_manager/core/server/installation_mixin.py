@@ -170,7 +170,7 @@ class ServerInstallationMixin(BedrockServerBaseMixin):
         server_json_config_subdir = self.server_config_dir
 
         # Determine the server's backup directory path.
-        backup_base_dir = self.settings.get("BACKUP_DIR")
+        backup_base_dir = self.settings.get("paths.backups")
         server_backup_dir_path = (
             os.path.join(backup_base_dir, self.server_name) if backup_base_dir else None
         )
