@@ -330,7 +330,7 @@ def create_web_ui_service(autostart: bool = False) -> Dict[str, str]:
 
     result = {}
     try:
-        
+
         if not bsm.can_manage_services:
             return {
                 "status": "error",
@@ -379,7 +379,7 @@ def enable_web_ui_service() -> Dict[str, str]:
     plugin_manager.trigger_event("before_web_service_change", action="enable")
     result = {}
     try:
-        
+
         if not bsm.can_manage_services:
             return {
                 "status": "error",
@@ -417,7 +417,7 @@ def disable_web_ui_service() -> Dict[str, str]:
     plugin_manager.trigger_event("before_web_service_change", action="disable")
     result = {}
     try:
-        
+
         if not bsm.can_manage_services:
             return {
                 "status": "error",
@@ -462,7 +462,7 @@ def remove_web_ui_service() -> Dict[str, str]:
     plugin_manager.trigger_event("before_web_service_change", action="remove")
     result = {}
     try:
-        
+
         if not bsm.can_manage_services:
             return {
                 "status": "error",

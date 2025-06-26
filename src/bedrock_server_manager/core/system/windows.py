@@ -45,11 +45,14 @@ try:
     import win32api
     import perfmon
     import win32evtlogutil
+
     PYWIN32_HAS_OPTIONAL_MODULES = True
 except ImportError:
     PYWIN32_HAS_OPTIONAL_MODULES = False
-    logging.warning("Optional pywin32 modules (perfmon, win32evtlogutil, win32api) not found. "
-                    "Some cleanup steps will be skipped.")
+    logging.warning(
+        "Optional pywin32 modules (perfmon, win32evtlogutil, win32api) not found. "
+        "Some cleanup steps will be skipped."
+    )
 
 # Local application imports.
 from bedrock_server_manager.core.system import process as core_process
@@ -392,8 +395,9 @@ def delete_windows_service(service_name: str) -> None:
             # but good for safety if perfmon itself is missing specific components.
             logger.warning("perfmon module not fully available for counter cleanup.")
     else:
-        logger.info("Skipping performance counter cleanup (optional pywin32 modules not found).")
-
+        logger.info(
+            "Skipping performance counter cleanup (optional pywin32 modules not found)."
+        )
 
     # --- Step 2: Delete the Windows Service ---
     scm_handle = None
@@ -411,17 +415,19 @@ def delete_windows_service(service_name: str) -> None:
         win32service.DeleteService(service_handle)
         logger.info(f"Service '{service_name}' deleted successfully.")
     except pywintypes.error as e:
-        if e.winerror == 5: # Access is denied
+        if e.winerror == 5:  # Access is denied
             raise PermissionsError(
                 f"Failed to delete service '{service_name}'. Administrator privileges required."
             ) from e
-        elif e.winerror == 1060: # The specified service does not exist.
+        elif e.winerror == 1060:  # The specified service does not exist.
             logger.warning(
                 "Attempted to delete service '%s', but it does not exist.", service_name
             )
-            return # Exit early if service doesn't exist, no more cleanup needed for it
-        elif e.winerror == 1072: # The specified service has been marked for deletion.
-            logger.info(f"Service '{service_name}' was already marked for deletion. Continuing with cleanup.")
+            return  # Exit early if service doesn't exist, no more cleanup needed for it
+        elif e.winerror == 1072:  # The specified service has been marked for deletion.
+            logger.info(
+                f"Service '{service_name}' was already marked for deletion. Continuing with cleanup."
+            )
             # Do not return here, continue to cleanup other aspects
         else:
             raise SystemError(
@@ -442,13 +448,18 @@ def delete_windows_service(service_name: str) -> None:
             logger.info(f"Removed event log source for '{service_name}' from registry.")
         except (AttributeError, pywintypes.error, Exception) as e:
             # AttributeError if win32evtlogutil is missing expected function, pywintypes.error for Win32 errors
-            logger.warning(f"Failed to remove event log source for '{service_name}': {e}")
+            logger.warning(
+                f"Failed to remove event log source for '{service_name}': {e}"
+            )
         except ImportError:
             # Safety check if win32evtlogutil itself is missing specific components
-            logger.warning("win32evtlogutil module not fully available for event log cleanup.")
+            logger.warning(
+                "win32evtlogutil module not fully available for event log cleanup."
+            )
     else:
-        logger.info("Skipping event log source cleanup (optional pywin32 modules not found).")
-
+        logger.info(
+            "Skipping event log source cleanup (optional pywin32 modules not found)."
+        )
 
 
 # --- FOREGROUND SERVER MANAGEMENT ---
