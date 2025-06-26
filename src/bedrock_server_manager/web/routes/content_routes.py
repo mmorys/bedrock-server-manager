@@ -186,7 +186,7 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
     status_code: int
 
     try:
-        content_base_dir = os.path.join(settings.get("CONTENT_DIR"), "worlds")
+        content_base_dir = os.path.join(settings.get("paths.content"), "worlds")
         full_world_file_path = os.path.normpath(
             os.path.join(content_base_dir, selected_filename)
         )
@@ -350,7 +350,7 @@ def install_addon_api_route(server_name: str) -> Tuple[Response, int]:
     status_code: int
 
     try:
-        content_base_dir = os.path.join(settings.get("CONTENT_DIR"), "addons")
+        content_base_dir = os.path.join(settings.get("paths.content"), "addons")
         full_addon_file_path = os.path.normpath(
             os.path.join(content_base_dir, selected_filename)
         )

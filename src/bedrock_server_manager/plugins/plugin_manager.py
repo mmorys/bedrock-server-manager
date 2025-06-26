@@ -63,7 +63,7 @@ class PluginManager:
         Sets up plugin directories, configuration paths, and ensures directories exist.
         """
         self.settings = settings
-        user_plugin_dir = Path(self.settings.get("PLUGIN_DIR"))
+        user_plugin_dir = Path(self.settings.get("paths.plugins"))
         default_plugin_dir = Path(__file__).parent / "default"
 
         self.plugin_dirs: List[Path] = [user_plugin_dir, default_plugin_dir]
