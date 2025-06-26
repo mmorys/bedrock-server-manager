@@ -39,13 +39,13 @@ content and scripts using Jinja2 blocks.
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tabs.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/messages.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}"> {# Added controls CSS #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
 
     {# Conditional Panorama Background Override #}
     {% if panorama_url %}
     <style>
         body {
-            background-image: url('{{ panorama_url | safe }}'); {# Use safe filter ONLY if URL source is trusted #}
+            background-image: url('{{ panorama_url | safe }}');
         }
     </style>
     {% endif %}
@@ -111,9 +111,9 @@ content and scripts using Jinja2 blocks.
         <footer class="footer" style="text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #555; font-size: 0.9em; color: #aaa;">
             <p>
                 <a href="{{ url_for('main_routes.index') }}" target="_none" rel="noopener">Index</a> |
-                <a href="{{ url_for('doc_routes.doc_index') }}" target="_none" rel="noopener">Docs</a> |
-                <a href="https://github.com/dmedina559/bedrock-server-manager" target="_none" rel="noopener">GitHub</a> |
-                <strong>{{ app_name }}</strong> {{ app_version }} © 2025
+                <a href="https://github.com/DMedina559/bedrock-server-manager/tree/main/docs" target="_none" rel="noopener">Docs</a> |
+                <a href="https://github.com/dmedina559" target="_none" rel="noopener">GitHub</a> |
+                <strong>{{ app_name }}</strong> {{ app_version }} © MIT 2025
             </p>
 
         </footer>

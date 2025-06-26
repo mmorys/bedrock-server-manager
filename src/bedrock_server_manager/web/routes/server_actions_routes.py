@@ -90,7 +90,6 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
     status_code: int
 
     try:
-        # Route no longer needs to know about start_method, API layer handles it.
         result = server_api.stop_server(server_name)
 
         if result.get("status") == "success":

@@ -142,7 +142,7 @@ Here are all the methods you can implement in your plugin class to react to appl
     -   **Args:**
         -   `server_name` (str): The name of the server.
         -   `result` (dict): The dictionary returned by the `start_server` API call.
--   `before_server_stop(self, server_name: str, mode: str)`
+-   `before_server_stop(self, server_name: str)`
     -   Called just before a server stop is attempted.
     -   **Args:**
         -   `server_name` (str): The name of the server being stopped.

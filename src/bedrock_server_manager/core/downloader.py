@@ -174,7 +174,7 @@ class BedrockDownloader:
         self.logger = logging.getLogger(__name__)
 
         self.os_name: str = platform.system()
-        self.base_download_dir: Optional[str] = self.settings.get("DOWNLOAD_DIR")
+        self.base_download_dir: Optional[str] = self.settings.get("paths.downloads")
         if not self.base_download_dir:
             raise ConfigurationError(
                 "DOWNLOAD_DIR setting is missing or empty in configuration."
@@ -452,7 +452,7 @@ class BedrockDownloader:
             return
 
         try:
-            keep_setting = self.settings.get("DOWNLOAD_KEEP", 3)
+            keep_setting = self.settings.get("retention.downloads", 3)
             effective_keep = int(keep_setting)
             if effective_keep < 0:
                 self.logger.error(

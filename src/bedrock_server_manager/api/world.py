@@ -121,7 +121,7 @@ def export_world(
         if export_dir:
             effective_export_dir = export_dir
         else:
-            content_base_dir = settings.get("CONTENT_DIR")
+            content_base_dir = settings.get("paths.content")
             if not content_base_dir:
                 raise FileOperationError(
                     "CONTENT_DIR setting missing for default export directory."

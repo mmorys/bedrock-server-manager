@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<div style="text-align: center;">
+﻿﻿﻿﻿﻿<div style="text-align: center;">
     <img src="https://raw.githubusercontent.com/dmedina559/bedrock-server-manager/main/src/bedrock_server_manager/web/static/image/icon/favicon.svg" alt="BSM Logo" width="150">
 </div>
 
@@ -14,7 +14,7 @@
     - [`GET /api/server/{server_name}/version` - Get Installed Version](#get-apiserverserver_nameversion---get-installed-version)
     - [`GET /api/server/{server_name}/validate` - Validate Server Existence](#get-apiserverserver_namevalidate---validate-server-existence)
     - [`GET /api/server/{server_name}/process_info` - Get Server Process Info](#get-apiserverserver_nameprocess_info---get-server-process-info)
-    - [`GET /api/server/{server_name}/world/icon` - Get Server World Icon](#get-apiserverserver_nameworldicon---get-server-world-icon)
+    - [`GET /api/server/{server_name}/word/icon` - Get Server World Icon](#get-apiserverserver_namewordicon---get-server-world-icon)
   - [Server Actions](#server-actions)
     - [`POST /api/server/{server_name}/start` - Start Server](#post-apiserverserver_namestart---start-server)
     - [`POST /api/server/{server_name}/stop` - Stop Server](#post-apiserverserver_namestop---stop-server)
@@ -53,7 +53,6 @@
     - [`POST /api/server/{server_name}/cron_scheduler/modify` - Modify Cron Job (Linux Only)](#post-apiserverserver_namecron_schedulermodify---modify-cron-job-linux-only)
     - [`DELETE /api/server/{server_name}/cron_scheduler/delete` - Delete Cron Job (Linux Only)](#delete-apiserverserver_namecron_schedulerdelete---delete-cron-job-linux-only)
     - [`POST /api/server/{server_name}/task_scheduler/add` - Add Windows Task (Windows Only)](#post-apiserverserver_nametask_scheduleradd---add-windows-task-windows-only)
-    - [`POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)](#post-apiserverserver_nametask_schedulerdetails---get-windows-task-details-windows-only)
     - [`PUT/DELETE /api/server/{server_name}/task_scheduler/task/{task_name}` - Modify or Delete Windows Task (Windows Only)](#putdelete-apiserverserver_nametask_schedulertasktask_name---modify-or-delete-windows-task-windows-only)
 
 # Bedrock Server Manager - HTTP API Documentation
@@ -350,7 +349,7 @@ ___
 
 ## Server Information
 
-### `GET /api/server/{server_name}/world/icon` - Get Server World Icon
+### `GET /api/server/{server_name}/word/icon` - Get Server World Icon
 
 Serves the `world_icon.jpeg` file for the specified server's currently configured world. This allows UIs to display a visual representation of the server's world.
 
@@ -382,7 +381,42 @@ Returns the JPEG image data directly. If the specific world icon is not found or
 
 ```bash
 curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-     http://<your-manager-host>:<port>/api/server/<server_name>/world/icon --output world_icon.jpeg
+     http://<your-manager-host>:<port>/api/server/<server_name>/word/icon --output world_icon.jpeg
+```
+
+---
+
+### `GET /api/servers` - Get All Servers List and Status
+
+This endpoint is exempt from CSRF protection but requires authentication.
+
+#### Authentication
+
+Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
+
+#### Path Parameters
+
+*   `**server_name**` (*string*, required): The unique name of the server instance.
+
+#### Request Body
+
+None.
+
+#### Success Response (`200 OK`, `image/jpeg`)
+
+Returns the JPEG image data directly. If the specific world icon is not found or an error occurs, a default application icon may be served instead.
+
+#### Error Responses
+
+*   **`401 Unauthorized`**: If authentication is missing or invalid.
+*   **`404 Not Found`**: If the server instance or its `world_icon.jpeg` (and fallback default icon) cannot be found.
+*   **`500 Internal Server Error`**: For other server-side errors (e.g., configuration issues preventing path determination).
+
+#### `curl` Example (Bash)
+
+```bash
+curl -X GET -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+     http://<your-manager-host>:<port>/api/server/<server_name>/word/icon --output world_icon.jpeg
 ```
 
 ---
@@ -2036,16 +2070,9 @@ Required (JWT via `Authorization: Bearer <token>` header, or active Web UI sessi
 
 None.
 
-#### Request Body (`application/json`, optional)
+#### Request Body
 
-An optional JSON object to specify the number of backups to keep.
-
-```json
-{
-    "keep": 10
-}
-```
-*   **`keep`** (*integer*, optional): The number of the most recent backups of *each type* (world, properties, json) to retain. If omitted or if the request body is empty, the value from the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration will be used (defaulting to 3 if the setting is missing or invalid).
+None. The number of backups to keep is determined by the `BACKUP_KEEP` setting in the Bedrock Server Manager configuration (defaulting to 3 if the setting is missing or invalid).
 
 #### Success Response (`200 OK`)
 
@@ -2076,25 +2103,11 @@ Returned when the pruning process for all backup types completes without errors,
             "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
-    *   If the `keep` value in the JSON body is provided but is not a valid integer. Message from `UserInputError`.
+    *   If the `server_name` path parameter is considered invalid (e.g., empty). Message from `InvalidServerNameError`.
         ```json
         {
             "status": "error",
-            "message": "User input error: Invalid 'keep' value. Must be an integer."
-        }
-        ```
-    *   If the resolved `keep` value (from request or settings) is negative or otherwise invalid. Message from `ConfigurationError` or `UserInputError`.
-        ```json
-        {
-            "status": "error",
-            "message": "Configuration error: Invalid BACKUP_KEEP setting: must be non-negative integer"
-        }
-        ```
-        *or*
-        ```json
-        {
-            "status": "error",
-            "message": "User input error: Invalid backup_keep parameter: Cannot be negative"
+            "message": "Invalid server name provided: Server name cannot be empty."
         }
         ```
 
@@ -2168,9 +2181,9 @@ Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/serve
 
 ---
 
-### `GET /api/server/<server_name>/backups/list/<backup_type>` - List Server Backup Filenames
+### `GET /api/server/{server_name}/backups/list/{backup_type}` - List Server Backup Filenames
 
-Lists available backup **filenames (basenames only)** for a specified server and a given backup type ("world" or "config"). Backups are typically stored in a configured central backup directory, organized by server name.
+Lists available backup **filenames (basenames only)** for a specified server and a given backup type (`"world"` or `"config"`). Backups are typically stored in a configured central backup directory, organized by server name.
 
 The list of backup filenames is sorted by modification time (of the original files), with the newest backups appearing first.
 
@@ -5508,131 +5521,6 @@ $taskBody = @{
 $bodyJson = $taskBody | ConvertTo-Json -Depth 3
 # Expect error if Bedrock Server Manager host is not Windows
 Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/add" -Headers $headers -Body $bodyJson
-```
-
----
-
-### `POST /api/server/{server_name}/task_scheduler/details` - Get Windows Task Details (Windows Only)
-
-Retrieves details (command, triggers) about a specific Windows scheduled task by locating and parsing its associated XML configuration file (stored in the server's configuration subdirectory). **This endpoint is only functional on Windows systems.**
-
-This endpoint is exempt from CSRF protection but requires authentication.
-
-#### Authentication
-
-Required (JWT via `Authorization: Bearer <token>` header, or active Web UI session).
-
-#### Platform
-
-Windows Only.
-
-#### Path Parameters
-
-*   `**server_name**` (*string*, required): The server context used to locate the task's XML configuration file.
-
-#### Request Body (`application/json`)
-
-```json
-{
-    "task_name": "bedrock_MyWinServer_backup-all_..."
-}
-```
-*   **Fields:**
-    *   `task_name` (*string*, required): The full name of the task (as registered in Task Scheduler and usually found in the XML's URI element) whose details are to be retrieved.
-
-#### Success Response (`200 OK`)
-
-Returned when the task XML file is found and successfully parsed.
-
-```json
-{
-    "status": "success",
-    "task_details": {
-        "command_path": "C:\\path\\to\\manager.exe",
-        "command_args": "backup-all --server MyWinServer",
-        "base_command": "backup-all",
-        "triggers": [
-            {
-                "type": "Daily",
-                "start": "2024-01-16T02:30:00",
-                "interval": 1
-            }
-        ]
-    }
-}
-```
-*   **Fields:**
-    *   `status`: "success"
-    *   `task_details` (*object*): Contains the parsed details:
-        *   `command_path` (*string*): Full path to the executable run by the task.
-        *   `command_args` (*string*): Full arguments string passed to the executable.
-        *   `base_command` (*string*): The inferred primary command action (first part of arguments).
-        *   `triggers` (*list[object]*): A list of parsed trigger objects (structure matches the add/modify request format).
-
-#### Error Responses
-
-*   **`400 Bad Request`**:
-    *   If the request body is missing or not valid JSON. Message from `UserInputError`.
-        ```json
-        { "status": "error", "message": "User input error: Invalid or missing JSON request body." }
-        ```
-    *   If the `task_name` field is missing or not a string. Message from `UserInputError`.
-        ```json
-        { "status": "error", "message": "User input error: Missing or invalid 'task_name' in request body." }
-        ```
-
-*   **`401 Unauthorized`**:
-    *   If authentication (JWT or Session) is missing or invalid.
-        ```json
-        { "error": "Unauthorized", "message": "Authentication required." }
-        ```
-
-*   **`404 Not Found`**:
-    *   If the XML configuration file corresponding to the provided `task_name` and `server_name` cannot be found in the expected location (`.config/<server_name>/...xml`). Message from `AppFileNotFoundError`.
-        ```json
-        { "status": "error", "message": "Required file or directory not found at path: Configuration XML file for task '<task_name>' not found." }
-        ```
-*   **`501 Not Implemented`**:
-    *   If the request is made on a non-Windows operating system. Message from `NotImplementedError` or `SystemError`.
-        ```json
-        { "status": "error", "message": "System error: Windows Task Scheduler functions are only supported on Windows." }
-        ```
-
-*   **`500 Internal Server Error`**:
-    *   If essential configuration like the main config directory cannot be determined. Message from `ConfigurationError`.
-        ```json
-        { "status": "error", "message": "Configuration error: Base configuration directory not set." }
-        ```
-    *   If the found XML file cannot be parsed (invalid XML, missing essential elements). Message from `ConfigParseError`.
-        ```json
-        { "status": "error", "message": "Failed to parse configuration file: Error parsing task configuration XML: no element found: line 1, column 0" }
-        ```
-        *or*
-        ```json
-        { "status": "error", "message": "Failed to parse configuration file: Invalid or incomplete task XML structure: ..." }
-        ```
-    *   If an unexpected error occurs during the process.
-        ```json
-        { "status": "error", "message": "An unexpected error occurred: <original error message>" }
-        ```
-
-#### `curl` Example (Bash)
-
-```bash
-# Note: Windows-only endpoint.
-TASK_NAME="bedrock_MyWinServer_backup-all_20240115103000"
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" -H "Content-Type: application/json" \
-     -d "{\"task_name\": \"$TASK_NAME\"}" \
-     "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/details"
-```
-
-#### PowerShell Example
-
-```powershell
-$headers = @{ Authorization = 'Bearer YOUR_JWT_TOKEN'; 'Content-Type' = 'application/json' }
-$taskName = "bedrock_MyWinServer_backup-all_20240115103000"
-$body = @{ task_name = $taskName } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://<your-manager-host>:<port>/api/server/MyWinServer/task_scheduler/details" -Headers $headers -Body $body
 ```
 
 ---
