@@ -157,7 +157,7 @@ class Settings:
         return {
             "config_version": CONFIG_SCHEMA_VERSION,
             "paths": {
-                "base": os.path.join(app_data_dir_val, "servers"),
+                "servers": os.path.join(app_data_dir_val, "servers"),
                 "content": os.path.join(app_data_dir_val, "content"),
                 "downloads": os.path.join(app_data_dir_val, ".downloads"),
                 "backups": os.path.join(app_data_dir_val, "backups"),
