@@ -9,7 +9,6 @@ import logging
 from typing import Dict, Optional, Any, List, Union
 import os
 
-# psutil is an optional dependency required for detached mode process management.
 try:
     import psutil
 
@@ -23,6 +22,7 @@ from bedrock_server_manager.plugins.api_bridge import plugin_method
 
 # Local application imports.
 from bedrock_server_manager.core.manager import BedrockServerManager
+from bedrock_server_manager.config.settings import settings
 from bedrock_server_manager.core.system import process as system_process_utils
 from bedrock_server_manager.error import (
     BSMError,
@@ -30,6 +30,7 @@ from bedrock_server_manager.error import (
     ServerProcessError,
     SystemError,
     UserInputError,
+    MissingArgumentError,
 )
 
 logger = logging.getLogger(__name__)
@@ -302,4 +303,242 @@ def get_web_server_status_api() -> Dict[str, Any]:
             "status": "ERROR",
             "pid": None,
             "message": f"Unexpected error: {str(e)}",
+        }
+
+
+def create_web_ui_service(autostart: bool = False) -> Dict[str, str]:
+    """Creates (or updates) a system service for the Web UI.
+
+    On Linux, this creates a systemd user service.
+    On Windows, this creates a Windows Service (requires Administrator privileges).
+
+    Args:
+        hosts: A list of host strings (IPs or domains) for the web server to listen on.
+        autostart: If True, the service will be enabled to start on system boot/login.
+                   Defaults to False.
+
+    Returns:
+        A dictionary with the operation status and a message.
+
+    Raises:
+        MissingArgumentError: If `hosts` is empty or not provided.
+    """
+
+    plugin_manager.trigger_event(
+        "before_web_service_change", action="create", autostart=autostart
+    )
+
+    result = {}
+    try:
+        
+        if not bsm.can_manage_services:
+            return {
+                "status": "error",
+                "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
+            }
+
+        bsm.create_web_service_file()
+
+        if autostart:
+            bsm.enable_web_service()
+            action_done = "created and enabled"
+        else:
+            bsm.disable_web_service()
+            action_done = "created and disabled"
+
+        result = {
+            "status": "success",
+            "message": f"Web UI system service {action_done} successfully.",
+        }
+
+    except BSMError as e:
+        logger.error(f"API: Failed to create Web UI system service: {e}", exc_info=True)
+        result = {"status": "error", "message": f"Failed to create Web UI service: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error creating Web UI system service: {e}", exc_info=True
+        )
+        result = {
+            "status": "error",
+            "message": f"Unexpected error creating Web UI service: {e}",
+        }
+    finally:
+        plugin_manager.trigger_event(
+            "after_web_service_change", action="create", result=result
+        )
+
+    return result
+
+
+def enable_web_ui_service() -> Dict[str, str]:
+    """Enables the Web UI system service for autostart.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    plugin_manager.trigger_event("before_web_service_change", action="enable")
+    result = {}
+    try:
+        
+        if not bsm.can_manage_services:
+            return {
+                "status": "error",
+                "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
+            }
+        bsm.enable_web_service()
+        result = {
+            "status": "success",
+            "message": "Web UI service enabled successfully.",
+        }
+    except BSMError as e:
+        logger.error(f"API: Failed to enable Web UI system service: {e}", exc_info=True)
+        result = {"status": "error", "message": f"Failed to enable Web UI service: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error enabling Web UI system service: {e}", exc_info=True
+        )
+        result = {
+            "status": "error",
+            "message": f"Unexpected error enabling Web UI service: {e}",
+        }
+    finally:
+        plugin_manager.trigger_event(
+            "after_web_service_change", action="enable", result=result
+        )
+    return result
+
+
+def disable_web_ui_service() -> Dict[str, str]:
+    """Disables the Web UI system service from autostarting.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    plugin_manager.trigger_event("before_web_service_change", action="disable")
+    result = {}
+    try:
+        
+        if not bsm.can_manage_services:
+            return {
+                "status": "error",
+                "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
+            }
+        bsm.disable_web_service()
+        result = {
+            "status": "success",
+            "message": "Web UI service disabled successfully.",
+        }
+    except BSMError as e:
+        logger.error(
+            f"API: Failed to disable Web UI system service: {e}", exc_info=True
+        )
+        result = {
+            "status": "error",
+            "message": f"Failed to disable Web UI service: {e}",
+        }
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error disabling Web UI system service: {e}", exc_info=True
+        )
+        result = {
+            "status": "error",
+            "message": f"Unexpected error disabling Web UI service: {e}",
+        }
+    finally:
+        plugin_manager.trigger_event(
+            "after_web_service_change", action="disable", result=result
+        )
+    return result
+
+
+def remove_web_ui_service() -> Dict[str, str]:
+    """Removes the Web UI system service.
+
+    The service should ideally be stopped and disabled before removal.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    plugin_manager.trigger_event("before_web_service_change", action="remove")
+    result = {}
+    try:
+        
+        if not bsm.can_manage_services:
+            return {
+                "status": "error",
+                "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
+            }
+
+        removed = bsm.remove_web_service_file()
+        if removed:
+            result = {
+                "status": "success",
+                "message": "Web UI service removed successfully.",
+            }
+        else:
+
+            result = {
+                "status": "error",
+                "message": "Web UI service removal failed or file not found.",
+            }
+
+    except BSMError as e:
+        logger.error(f"API: Failed to remove Web UI system service: {e}", exc_info=True)
+        result = {"status": "error", "message": f"Failed to remove Web UI service: {e}"}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error removing Web UI system service: {e}", exc_info=True
+        )
+        result = {
+            "status": "error",
+            "message": f"Unexpected error removing Web UI service: {e}",
+        }
+    finally:
+        plugin_manager.trigger_event(
+            "after_web_service_change", action="remove", result=result
+        )
+    return result
+
+
+def get_web_ui_service_status() -> Dict[str, Any]:
+    """Gets the current status of the Web UI system service.
+
+    Returns:
+        A dictionary with status information:
+        `{"status": "success", "service_exists": bool, "is_active": bool, "is_enabled": bool}`
+        On error: `{"status": "error", "message": "..."}`.
+    """
+    response_data: Dict[str, Any] = {
+        "service_exists": False,
+        "is_active": False,
+        "is_enabled": False,
+    }
+    try:
+        if not bsm.can_manage_services:
+            return {
+                "status": "success",
+                "message": "System service management tool (systemctl/sc.exe) not found. Cannot determine Web UI service status.",
+                **response_data,
+            }
+
+        response_data["service_exists"] = bsm.check_web_service_exists()
+        if response_data["service_exists"]:
+            response_data["is_active"] = bsm.is_web_service_active()
+            response_data["is_enabled"] = bsm.is_web_service_enabled()
+
+        return {"status": "success", **response_data}
+
+    except BSMError as e:
+        logger.error(f"API: Error getting Web UI service status: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Error getting Web UI service status: {e}",
+        }
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error getting Web UI service status: {e}", exc_info=True
+        )
+        return {
+            "status": "error",
+            "message": f"Unexpected error getting Web UI service status: {e}",
         }

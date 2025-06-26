@@ -8,8 +8,11 @@ This module includes functions for:
 - Handling OS signals for graceful shutdown of the foreground server.
 - Sending commands to the server via the named pipe.
 - Stopping the server process by PID.
+- Creating, managing, and deleting Windows Services to run the server in the
+  background, which requires Administrator privileges.
 
-It relies on the optional `pywin32` package for named pipe functionality.
+It relies on the pywin32 package for named pipe and service
+functionality.
 """
 import os
 import threading
@@ -24,6 +27,8 @@ from typing import Optional, List, Dict, Any
 try:
     import win32pipe
     import win32file
+    import win32service
+    import win32serviceutil
     import pywintypes
 
     PYWIN32_AVAILABLE = True
@@ -31,6 +36,8 @@ except ImportError:
     PYWIN32_AVAILABLE = False
     win32pipe = None
     win32file = None
+    win32service = None
+    win32serviceutil = None
     pywintypes = None
 
 # Local application imports.
@@ -45,6 +52,7 @@ from bedrock_server_manager.error import (
     SystemError,
     SendCommandError,
     ServerNotRunningError,
+    PermissionsError,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +67,339 @@ managed_bedrock_servers: Dict[str, Dict[str, Any]] = {}
 
 # A module-level event to signal a shutdown for servers running in the foreground.
 _foreground_server_shutdown_event = threading.Event()
+
+# NOTE: All functions in this section require Administrator privileges to interact
+# with the Windows Service Control Manager (SCM).
+
+
+def check_service_exists(service_name: str) -> bool:
+    """Checks if a Windows service with the given name exists.
+
+    Args:
+        service_name: The short name of the service to check.
+
+    Returns:
+        True if the service exists, False otherwise. Returns False if pywin32
+        is not installed.
+
+    Raises:
+        MissingArgumentError: If `service_name` is empty.
+        SystemError: For unexpected SCM errors.
+    """
+    if not PYWIN32_AVAILABLE:
+        return False
+    if not service_name:
+        raise MissingArgumentError("Service name cannot be empty.")
+
+    scm_handle = None
+    service_handle = None
+    try:
+        scm_handle = win32service.OpenSCManager(
+            None, None, win32service.SC_MANAGER_CONNECT
+        )
+        service_handle = win32service.OpenService(
+            scm_handle, service_name, win32service.SERVICE_QUERY_STATUS
+        )
+        # If OpenService succeeds, the service exists.
+        return True
+    except pywintypes.error as e:
+        # Error 1060: The specified service does not exist.
+        if e.winerror == 1060:
+            return False
+        # Error 5: Access is denied.
+        elif e.winerror == 5:
+            logger.warning(
+                "Access denied when checking for service '%s'. This check requires Administrator privileges.",
+                service_name,
+            )
+            return False
+        else:
+            raise SystemError(
+                f"Failed to check service '{service_name}': {e.strerror}"
+            ) from e
+    finally:
+        if service_handle:
+            win32service.CloseServiceHandle(service_handle)
+        if scm_handle:
+            win32service.CloseServiceHandle(scm_handle)
+
+
+def create_windows_service(
+    service_name: str,
+    display_name: str,
+    description: str,
+    command: str,
+) -> None:
+    """Creates or updates a Windows service.
+
+    Requires Administrator privileges.
+    """
+    if not PYWIN32_AVAILABLE:
+        raise SystemError("pywin32 is required to manage Windows services.")
+    if not all([service_name, display_name, description, command]):
+        raise MissingArgumentError(
+            "service_name, display_name, description, and command are required."
+        )
+
+    logger.info(f"Attempting to create/update Windows service '{service_name}'...")
+
+    scm_handle = None
+    service_handle = None
+    try:
+        scm_handle = win32service.OpenSCManager(
+            None, None, win32service.SC_MANAGER_ALL_ACCESS
+        )
+
+        service_exists = check_service_exists(service_name)
+
+        if not service_exists:
+            logger.info(f"Service '{service_name}' does not exist. Creating...")
+            # When creating, we can rely on defaults for the service account (LocalSystem)
+            service_handle = win32service.CreateService(
+                scm_handle,
+                service_name,
+                display_name,
+                win32service.SERVICE_ALL_ACCESS,
+                win32service.SERVICE_WIN32_OWN_PROCESS,
+                win32service.SERVICE_AUTO_START,
+                win32service.SERVICE_ERROR_NORMAL,
+                command,
+                None,
+                0,
+                None,
+                None,
+                None,
+            )
+            logger.info(f"Service '{service_name}' created successfully.")
+        else:
+            logger.info(f"Service '{service_name}' already exists. Updating...")
+            service_handle = win32service.OpenService(
+                scm_handle, service_name, win32service.SERVICE_ALL_ACCESS
+            )
+
+            win32service.ChangeServiceConfig(
+                service_handle,
+                win32service.SERVICE_NO_CHANGE,  # ServiceType
+                win32service.SERVICE_NO_CHANGE,  # StartType
+                win32service.SERVICE_NO_CHANGE,  # ErrorControl
+                command,  # BinaryPathName
+                None,  # LoadOrderGroup
+                0,  # TagId
+                None,  # Dependencies
+                None,  # ServiceStartName (THE FIX IS HERE)
+                None,  # Password
+                display_name,  # DisplayName
+            )
+            logger.info(f"Service '{service_name}' command and display name updated.")
+
+        # Set or update the service description (this part was already correct)
+        win32service.ChangeServiceConfig2(
+            service_handle, win32service.SERVICE_CONFIG_DESCRIPTION, description
+        )
+        logger.info(f"Service '{service_name}' description updated.")
+
+    except pywintypes.error as e:
+        if e.winerror == 5:
+            raise PermissionsError(
+                f"Failed to create/update service '{service_name}'. This operation requires Administrator privileges."
+            ) from e
+        # Check for error 1057 specifically
+        elif e.winerror == 1057:
+            raise SystemError(
+                f"Failed to update service '{service_name}': {e.strerror}. This can happen if the service account is misconfigured."
+            ) from e
+        else:
+            raise SystemError(
+                f"Failed to create/update service '{service_name}': {e.strerror}"
+            ) from e
+    finally:
+        if service_handle:
+            win32service.CloseServiceHandle(service_handle)
+        if scm_handle:
+            win32service.CloseServiceHandle(scm_handle)
+
+
+def enable_windows_service(service_name: str) -> None:
+    """Enables a Windows service by setting its start type to 'Automatic'.
+
+    This function requires Administrator privileges.
+
+    Args:
+        service_name: The name of the service to enable.
+
+    Raises:
+        PermissionsError: If the user lacks Administrator privileges.
+        SystemError: If the service does not exist or another error occurs.
+    """
+    if not PYWIN32_AVAILABLE:
+        raise SystemError("pywin32 is required to manage Windows services.")
+    if not service_name:
+        raise MissingArgumentError("Service name cannot be empty.")
+
+    logger.info(f"Enabling service '{service_name}' (setting to Automatic start)...")
+    scm_handle = None
+    service_handle = None
+    try:
+        scm_handle = win32service.OpenSCManager(
+            None, None, win32service.SC_MANAGER_CONNECT
+        )
+        service_handle = win32service.OpenService(
+            scm_handle, service_name, win32service.SERVICE_CHANGE_CONFIG
+        )
+
+        win32service.ChangeServiceConfig(
+            service_handle,
+            win32service.SERVICE_NO_CHANGE,
+            win32service.SERVICE_AUTO_START,  # Set to Automatic
+            win32service.SERVICE_NO_CHANGE,
+            None,
+            None,
+            0,
+            None,
+            None,
+            None,
+            None,
+        )
+        logger.info(f"Service '{service_name}' enabled successfully.")
+    except pywintypes.error as e:
+        if e.winerror == 5:
+            raise PermissionsError(
+                f"Failed to enable service '{service_name}'. Administrator privileges required."
+            ) from e
+        elif e.winerror == 1060:
+            raise SystemError(
+                f"Cannot enable: Service '{service_name}' not found."
+            ) from e
+        else:
+            raise SystemError(
+                f"Failed to enable service '{service_name}': {e.strerror}"
+            ) from e
+    finally:
+        if service_handle:
+            win32service.CloseServiceHandle(service_handle)
+        if scm_handle:
+            win32service.CloseServiceHandle(scm_handle)
+
+
+def disable_windows_service(service_name: str) -> None:
+    """Disables a Windows service by setting its start type to 'Disabled'.
+
+    This function requires Administrator privileges.
+
+    Args:
+        service_name: The name of the service to disable.
+
+    Raises:
+        PermissionsError: If the user lacks Administrator privileges.
+        SystemError: If the service does not exist or another error occurs.
+    """
+    if not PYWIN32_AVAILABLE:
+        raise SystemError("pywin32 is required to manage Windows services.")
+    if not service_name:
+        raise MissingArgumentError("Service name cannot be empty.")
+
+    logger.info(f"Disabling service '{service_name}'...")
+    scm_handle = None
+    service_handle = None
+    try:
+        scm_handle = win32service.OpenSCManager(
+            None, None, win32service.SC_MANAGER_CONNECT
+        )
+        service_handle = win32service.OpenService(
+            scm_handle, service_name, win32service.SERVICE_CHANGE_CONFIG
+        )
+        win32service.ChangeServiceConfig(
+            service_handle,
+            win32service.SERVICE_NO_CHANGE,
+            win32service.SERVICE_DISABLED,  # Set to Disabled
+            win32service.SERVICE_NO_CHANGE,
+            None,
+            None,
+            0,
+            None,
+            None,
+            None,
+            None,
+        )
+        logger.info(f"Service '{service_name}' disabled successfully.")
+    except pywintypes.error as e:
+        if e.winerror == 5:
+            raise PermissionsError(
+                f"Failed to disable service '{service_name}'. Administrator privileges required."
+            ) from e
+        elif e.winerror == 1060:
+            logger.warning(
+                "Attempted to disable service '%s', but it does not exist.",
+                service_name,
+            )
+            return
+        else:
+            raise SystemError(
+                f"Failed to disable service '{service_name}': {e.strerror}"
+            ) from e
+    finally:
+        if service_handle:
+            win32service.CloseServiceHandle(service_handle)
+        if scm_handle:
+            win32service.CloseServiceHandle(scm_handle)
+
+
+def delete_windows_service(service_name: str) -> None:
+    """Deletes a Windows service.
+
+    This function requires Administrator privileges. The service must be stopped
+    before it can be deleted.
+
+    Args:
+        service_name: The name of the service to delete.
+
+    Raises:
+        PermissionsError: If the user lacks Administrator privileges.
+        SystemError: If the service does not exist or another error occurs.
+    """
+    if not PYWIN32_AVAILABLE:
+        raise SystemError("pywin32 is required to manage Windows services.")
+    if not service_name:
+        raise MissingArgumentError("Service name cannot be empty.")
+
+    logger.info(f"Deleting service '{service_name}'...")
+    scm_handle = None
+    service_handle = None
+    try:
+        scm_handle = win32service.OpenSCManager(
+            None, None, win32service.SC_MANAGER_ALL_ACCESS
+        )
+        service_handle = win32service.OpenService(
+            scm_handle, service_name, win32service.DELETE
+        )
+        win32service.DeleteService(service_handle)
+        logger.info(f"Service '{service_name}' deleted successfully.")
+    except pywintypes.error as e:
+        if e.winerror == 5:
+            raise PermissionsError(
+                f"Failed to delete service '{service_name}'. Administrator privileges required."
+            ) from e
+        elif e.winerror == 1060:
+            logger.warning(
+                "Attempted to delete service '%s', but it does not exist.", service_name
+            )
+            return
+        elif e.winerror == 1072:  # The specified service has been marked for deletion.
+            logger.info(f"Service '{service_name}' was already marked for deletion.")
+            return
+        else:
+            raise SystemError(
+                f"Failed to delete service '{service_name}': {e.strerror}. "
+                "Ensure the service is stopped before deletion."
+            ) from e
+    finally:
+        if service_handle:
+            win32service.CloseServiceHandle(service_handle)
+        if scm_handle:
+            win32service.CloseServiceHandle(scm_handle)
+
+
+# --- FOREGROUND SERVER MANAGEMENT ---
 
 
 def _handle_os_signals(sig, frame):
