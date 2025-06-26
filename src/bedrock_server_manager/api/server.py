@@ -120,7 +120,7 @@ def set_server_custom_value(server_name: str, key: str, value: Any) -> Dict[str,
 
     Args:
         server_name: The name of the server.
-        key: The key within the 'custom_values' section to set.
+        key: The key within the 'custom' section to set.
         value: The new value to write.
 
     Returns:

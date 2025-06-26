@@ -60,7 +60,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 "autoupdate": False,  # Default to boolean
                 "target_version": "UNKNOWN",
             },
-            "custom_values": {},
+            "custom": {},
         }
 
     def _migrate_server_config_v1_to_v2(
@@ -386,7 +386,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
                 f"Key for custom config on '{self.server_name}' must be a non-empty string."
             )
         # Key will be prefixed with "custom_values."
-        full_key = f"custom_values.{key}"
+        full_key = f"custom.{key}"
         value = self._manage_json_config(key=full_key, operation="read")
         self.logger.debug(  # Changed from info to debug to reduce noise for simple gets
             f"Retrieved custom config for '{self.server_name}': Key='{key}', Value='{value}'."
@@ -402,7 +402,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             raise UserInputError(
                 f"Key for custom config on '{self.server_name}' must be a non-empty string."
             )
-        full_key = f"custom_values.{key}"
+        full_key = f"custom.{key}"
         self._manage_json_config(key=full_key, operation="write", value=value)
         self.logger.info(  # Keep info for writes as they are significant actions
             f"Custom config for '{self.server_name}' set: Key='{key}', Value='{value}'."
