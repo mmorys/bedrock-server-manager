@@ -35,84 +35,6 @@ if platform.system() == "Windows":
 logger = logging.getLogger(__name__)
 
 
-@click.group()
-def web():
-    """Manages the web UI and its OS service integrations.
-
-    This command group provides utilities to start and stop the web-based
-    management interface, and to configure it as a system service for
-    autostart and background operation.
-    """
-    pass
-
-
-@web.command("start")
-@click.option(
-    "-H",
-    "--host",
-    "hosts",
-    multiple=True,
-    help="Host address to bind to. Use multiple times for multiple hosts.",
-)
-@click.option(
-    "-d",
-    "--debug",
-    is_flag=True,
-    help="Run in Flask's debug mode (NOT for production).",
-)
-@click.option(
-    "-m",
-    "--mode",
-    type=click.Choice(["direct", "detached"], case_sensitive=False),
-    default="direct",
-    show_default=True,
-    help="Run mode: 'direct' blocks the terminal, 'detached' runs in the background.",
-)
-def start_web_server(hosts: Tuple[str], debug: bool, mode: str):
-    """Starts the web management server.
-    # ... (docstring and existing code for start_web_server remains the same) ...
-    """
-    click.echo(f"Attempting to start web server in '{mode}' mode...")
-    if mode == "direct":
-        click.secho(
-            "Server will run in this terminal. Press Ctrl+C to stop.", fg="cyan"
-        )
-
-    try:
-        host_list = list(hosts)
-        response = web_api.start_web_server_api(host_list, debug, mode)
-
-        if response.get("status") == "error":
-            message = response.get("message", "An unknown error occurred.")
-            click.secho(f"Error: {message}", fg="red")
-            raise click.Abort()
-        else:
-            if mode == "detached":
-                pid = response.get("pid", "N/A")
-                message = response.get(
-                    "message", f"Web server started in detached mode (PID: {pid})."
-                )
-                click.secho(f"Success: {message}", fg="green")
-
-    except BSMError as e:
-        click.secho(f"Failed to start web server: {e}", fg="red")
-        raise click.Abort()
-
-
-@web.command("stop")
-def stop_web_server():
-    """Stops the detached web server process.
-    # ... (docstring and existing code for stop_web_server remains the same) ...
-    """
-    click.echo("Attempting to stop the web server...")
-    try:
-        response = web_api.stop_web_server_api()
-        _handle_api_response(response, "Web server stopped successfully.")
-    except BSMError as e:
-        click.secho(f"An error occurred: {e}", fg="red")
-        raise click.Abort()
-
-
 # --- Web System Service ---
 def requires_web_service_manager(func: Callable) -> Callable:
     """A decorator that restricts a command to systems with a service manager for Web UI."""
@@ -219,6 +141,84 @@ def interactive_web_service_workflow(bsm: BedrockServerManager):
         click.secho(f"Error during Web UI service configuration: {e}", fg="red")
     except (click.Abort, KeyboardInterrupt):
         click.secho("\nOperation cancelled.", fg="yellow")
+
+
+@click.group()
+def web():
+    """Manages the web UI and its OS service integrations.
+
+    This command group provides utilities to start and stop the web-based
+    management interface, and to configure it as a system service for
+    autostart and background operation.
+    """
+    pass
+
+
+@web.command("start")
+@click.option(
+    "-H",
+    "--host",
+    "hosts",
+    multiple=True,
+    help="Host address to bind to. Use multiple times for multiple hosts.",
+)
+@click.option(
+    "-d",
+    "--debug",
+    is_flag=True,
+    help="Run in Flask's debug mode (NOT for production).",
+)
+@click.option(
+    "-m",
+    "--mode",
+    type=click.Choice(["direct", "detached"], case_sensitive=False),
+    default="direct",
+    show_default=True,
+    help="Run mode: 'direct' blocks the terminal, 'detached' runs in the background.",
+)
+def start_web_server(hosts: Tuple[str], debug: bool, mode: str):
+    """Starts the web management server.
+    # ... (docstring and existing code for start_web_server remains the same) ...
+    """
+    click.echo(f"Attempting to start web server in '{mode}' mode...")
+    if mode == "direct":
+        click.secho(
+            "Server will run in this terminal. Press Ctrl+C to stop.", fg="cyan"
+        )
+
+    try:
+        host_list = list(hosts)
+        response = web_api.start_web_server_api(host_list, debug, mode)
+
+        if response.get("status") == "error":
+            message = response.get("message", "An unknown error occurred.")
+            click.secho(f"Error: {message}", fg="red")
+            raise click.Abort()
+        else:
+            if mode == "detached":
+                pid = response.get("pid", "N/A")
+                message = response.get(
+                    "message", f"Web server started in detached mode (PID: {pid})."
+                )
+                click.secho(f"Success: {message}", fg="green")
+
+    except BSMError as e:
+        click.secho(f"Failed to start web server: {e}", fg="red")
+        raise click.Abort()
+
+
+@web.command("stop")
+def stop_web_server():
+    """Stops the detached web server process.
+    # ... (docstring and existing code for stop_web_server remains the same) ...
+    """
+    click.echo("Attempting to stop the web server...")
+    try:
+        response = web_api.stop_web_server_api()
+        _handle_api_response(response, "Web server stopped successfully.")
+    except BSMError as e:
+        click.secho(f"An error occurred: {e}", fg="red")
+        raise click.Abort()
 
 
 @web.group("service")
@@ -354,34 +354,3 @@ def status_web_service_cli():
     except BSMError as e:
         click.secho(f"Failed to get Web UI service status: {e}", fg="red")
         raise click.Abort()
-
-
-@web.command(
-    "_run-svc",
-    hidden=True,
-    context_settings=dict(
-        ignore_unknown_options=True,
-        allow_extra_args=True,
-    ),
-)
-@click.argument("actual_svc_name_arg", type=str)
-@click.pass_context
-def _run_web_service_windows(ctx, actual_svc_name_arg: str):
-    """
-    (Internal use only) Clean entry point for the Windows SCM and for debugging the Web UI service.
-    """
-    if platform.system() != "Windows" or not PYWIN32_AVAILABLE:
-        sys.exit(1)
-
-    class WebServiceHandler(WebServerWindowsService):
-        _svc_name_ = actual_svc_name_arg
-        _svc_display_name_ = f"Bedrock Manager Web UI ({actual_svc_name_arg})"
-
-    if "debug" in ctx.args:
-        logger.info(f"Starting Web UI service '{actual_svc_name_arg}' in DEBUG mode.")
-
-        win32serviceutil.DebugService(WebServiceHandler, argv=[actual_svc_name_arg])
-    else:
-        servicemanager.Initialize()
-        servicemanager.PrepareToHostSingle(WebServiceHandler)
-        servicemanager.StartServiceCtrlDispatcher()
