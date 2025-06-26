@@ -12,6 +12,7 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
+
 # Import the new API functions for settings
 from bedrock_server_manager.api import settings as settings_api
 from bedrock_server_manager.error import BSMError, UserInputError, MissingArgumentError
@@ -20,7 +21,12 @@ from bedrock_server_manager.error import BSMError, UserInputError, MissingArgume
 logger = logging.getLogger(__name__)
 
 # Create Blueprint
-settings_bp = Blueprint("settings_routes", __name__, template_folder="../templates", static_folder="../static")
+settings_bp = Blueprint(
+    "settings_routes",
+    __name__,
+    template_folder="../templates",
+    static_folder="../static",
+)
 
 
 # --- Route: Manage Global Settings Page ---
@@ -68,10 +74,13 @@ def set_setting_route() -> Tuple[Response, int]:
     data = request.get_json()
 
     if not data or "key" not in data:
-        return jsonify(status="error", message="Request must be JSON with a 'key' field."), 400
+        return (
+            jsonify(status="error", message="Request must be JSON with a 'key' field."),
+            400,
+        )
 
     key = data.get("key")
-    value = data.get("value") # Value can be None, so we get it directly
+    value = data.get("value")  # Value can be None, so we get it directly
 
     logger.info(f"API: Set global setting request for '{key}' by '{identity}'.")
 
@@ -83,7 +92,9 @@ def set_setting_route() -> Tuple[Response, int]:
         logger.warning(f"API Set Setting '{key}': Input error. {e}")
         return jsonify(status="error", message=str(e)), 400
     except Exception as e:
-        logger.error(f"API Set Setting '{key}': Unexpected error in route. {e}", exc_info=True)
+        logger.error(
+            f"API Set Setting '{key}': Unexpected error in route. {e}", exc_info=True
+        )
         return jsonify(status="error", message="An unexpected error occurred."), 500
 
 
@@ -103,5 +114,7 @@ def reload_settings_route() -> Tuple[Response, int]:
         status_code = 200 if result.get("status") == "success" else 500
         return jsonify(result), status_code
     except Exception as e:
-        logger.error(f"API Reload Settings: Unexpected error in route. {e}", exc_info=True)
+        logger.error(
+            f"API Reload Settings: Unexpected error in route. {e}", exc_info=True
+        )
         return jsonify(status="error", message="An unexpected error occurred."), 500

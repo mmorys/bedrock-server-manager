@@ -79,7 +79,9 @@ def get_all_global_settings() -> Dict[str, Any]:
             "data": all_settings,
         }
     except Exception as e:
-        logger.error(f"API: Unexpected error reading all global settings: {e}", exc_info=True)
+        logger.error(
+            f"API: Unexpected error reading all global settings: {e}", exc_info=True
+        )
         return {
             "status": "error",
             "message": f"An unexpected error occurred: {e}",
@@ -155,7 +157,7 @@ def reload_global_settings() -> Dict[str, str]:
             log_keep=settings.get("retention.logs"),
             file_log_level=settings.get("logging.file_level"),
             cli_log_level=settings.get("logging.cli_level"),
-            force_reconfigure=True  # Crucial flag to force removal of old handlers
+            force_reconfigure=True,  # Crucial flag to force removal of old handlers
         )
         logger.info("API: Logging configuration successfully re-applied.")
 
@@ -170,7 +172,9 @@ def reload_global_settings() -> Dict[str, str]:
             "message": f"A configuration error occurred during reload: {e}",
         }
     except Exception as e:
-        logger.error(f"API: Unexpected error reloading settings/logging: {e}", exc_info=True)
+        logger.error(
+            f"API: Unexpected error reloading settings/logging: {e}", exc_info=True
+        )
         return {
             "status": "error",
             "message": f"An unexpected error occurred during reload: {e}",

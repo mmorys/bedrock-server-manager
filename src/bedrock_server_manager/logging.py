@@ -65,8 +65,11 @@ def setup_logging(
         logger.debug("Force reconfigure requested. Removing existing handlers.")
         # Create a list of handlers to remove to avoid modifying the list while iterating
         handlers_to_remove = [
-            h for h in logger.handlers
-            if isinstance(h, (logging.StreamHandler, logging.handlers.TimedRotatingFileHandler))
+            h
+            for h in logger.handlers
+            if isinstance(
+                h, (logging.StreamHandler, logging.handlers.TimedRotatingFileHandler)
+            )
         ]
         for handler in handlers_to_remove:
             logger.debug(f"Removing handler: {handler}")
@@ -82,21 +85,30 @@ def setup_logging(
         os.makedirs(log_dir, exist_ok=True)
     except OSError as e:
         # Use basic print since logging might not be set up yet
-        print(f"CRITICAL: Could not create log directory '{log_dir}': {e}", file=sys.stderr)
+        print(
+            f"CRITICAL: Could not create log directory '{log_dir}': {e}",
+            file=sys.stderr,
+        )
         # Attempt a minimal console-only setup
         if not logger.hasHandlers():
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setLevel(cli_log_level)
-            console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+            console_handler.setFormatter(
+                logging.Formatter("%(levelname)s: %(message)s")
+            )
             logger.addHandler(console_handler)
-            logger.warning(f"File logging disabled due to directory error for '{log_dir}'.")
+            logger.warning(
+                f"File logging disabled due to directory error for '{log_dir}'."
+            )
         return logger
 
     log_path = os.path.join(log_dir, log_filename)
 
     try:
         # --- Define Log Formats ---
-        file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+        file_formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        )
         console_formatter = logging.Formatter("%(levelname)s: %(message)s")
 
         # --- File Handler ---
