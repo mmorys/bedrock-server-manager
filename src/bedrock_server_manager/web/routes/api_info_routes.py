@@ -281,7 +281,7 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
     result: Dict[str, Any] = {}
     status_code = 500  # Default to internal server error
     try:
-        download_cache_base_dir = settings.get("DOWNLOAD_DIR")
+        download_cache_base_dir = settings.get("paths.downloads")
         if not download_cache_base_dir:
             # This will be caught by the BSMError handler below
             raise BSMError("DOWNLOAD_DIR setting is missing or empty in configuration.")

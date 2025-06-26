@@ -260,14 +260,14 @@ def send_command(server_name: str, command_parts: Tuple[str]):
     "-k",
     "--key",
     required=True,
-    help="The configuration key to set (e.g., 'level-name').",
+    help="The configuration key to set (e.g., 'seetings.target_version').",
 )
 @click.option("-v", "--value", required=True, help="The value to assign to the key.")
 def config_server(server_name: str, key: str, value: str):
     """Sets a single key-value pair in a server's properties file."""
     click.echo(f"Setting '{key}' for server '{server_name}'...")
     try:
-        response = server_api.write_server_config(server_name, key, value)
+        response = server_api.set_server_setting(server_name, key, value)
         _handle_api_response(response, f"Config updated: '{key}' set to '{value}'.")
     except BSMError as e:
         click.secho(f"Failed to set config for server: {e}", fg="red")

@@ -63,7 +63,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             The absolute path to the backup directory, or `None` if `BACKUP_DIR`
             is not configured in the settings.
         """
-        backup_base_dir = self.settings.get("BACKUP_DIR")
+        backup_base_dir = self.settings.get("paths.backups")
         if not backup_base_dir:
             self.logger.warning(
                 f"BACKUP_DIR not configured in settings. Cannot determine backup directory for '{self.server_name}'."
@@ -183,7 +183,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
                 f"Cannot prune backups for '{self.server_name}': Backup directory not configured."
             )
 
-        backup_keep_count = self.settings.get("BACKUP_KEEP", 3)
+        backup_keep_count = self.settings.get("retention.backups", 3)
 
         self.logger.info(
             f"Server '{self.server_name}': Pruning backups in '{server_bck_dir}' for prefix '{component_prefix}', ext '{file_extension}', keeping {backup_keep_count}."

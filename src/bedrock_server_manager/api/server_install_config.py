@@ -534,7 +534,7 @@ def install_new_server(
         if val_res.get("status") == "error":
             raise UserInputError(val_res.get("message"))
 
-        base_dir = settings.get("BASE_DIR")
+        base_dir = settings.get("paths.servers")
         if not base_dir:
             raise FileOperationError("BASE_DIR not configured in settings.")
         if os.path.exists(os.path.join(base_dir, server_name)):

@@ -50,57 +50,150 @@ from bedrock_server_manager.error import (
 logger = logging.getLogger(__name__)
 
 
-@plugin_method("write_server_config")
-def write_server_config(server_name: str, key: str, value: Any) -> Dict[str, Any]:
-    """Writes a key-value pair to a server's custom JSON configuration.
+@plugin_method("get_server_setting")
+def get_server_setting(server_name: str, key: str) -> Dict[str, Any]:
+    """
+    Reads any value from a server's configuration file using dot-notation.
 
     Args:
         server_name: The name of the server.
-        key: The configuration key to write.
-        value: The value to associate with the key.
+        key: The dot-notation key (e.g., "server_info.status", "settings.autoupdate").
 
     Returns:
-        A dictionary with the operation status and a message.
-        On success: `{"status": "success", "message": "..."}`.
-        On error: `{"status": "error", "message": "..."}`.
-
-    Raises:
-        InvalidServerNameError: If `server_name` is not provided.
-        MissingArgumentError: If `key` is not provided.
+        A dictionary with the operation status and the retrieved value.
     """
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     if not key:
-        raise MissingArgumentError("Configuration key cannot be empty.")
+        raise MissingArgumentError("A 'key' must be provided.")
 
-    logger.debug(
-        f"API: Attempting to write config for server '{server_name}': Key='{key}', Value='{value}'"
+    logger.debug(f"API: Reading server setting for '{server_name}': Key='{key}'")
+    try:
+        server = BedrockServer(server_name)
+        # Use the internal method to access any key
+        value = server._manage_json_config(key, "read")
+        return {"status": "success", "value": value}
+    except BSMError as e:
+        logger.error(
+            f"API: Error reading setting '{key}' for server '{server_name}': {e}"
+        )
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error reading setting for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": "An unexpected error occurred."}
+
+
+def set_server_setting(server_name: str, key: str, value: Any) -> Dict[str, Any]:
+    """
+    Writes any value to a server's configuration file using dot-notation.
+
+    Args:
+        server_name: The name of the server.
+        key: The dot-notation key to set (e.g., "server_info.status").
+        value: The new value to write.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    if not server_name:
+        raise InvalidServerNameError("Server name cannot be empty.")
+    if not key:
+        raise MissingArgumentError("A 'key' must be provided.")
+
+    logger.info(
+        f"API: Writing server setting for '{server_name}': Key='{key}', Value='{value}'"
     )
     try:
         server = BedrockServer(server_name)
-        server.set_custom_config_value(key, value)
-        logger.debug(
-            f"API: Successfully wrote config key '{key}' for server '{server_name}'."
-        )
+        # Use the internal method to write to any key
+        server._manage_json_config(key, "write", value)
         return {
             "status": "success",
-            "message": f"Configuration key '{key}' updated successfully.",
+            "message": f"Setting '{key}' updated for server '{server_name}'.",
+        }
+    except BSMError as e:
+        logger.error(f"API: Error setting '{key}' for server '{server_name}': {e}")
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error setting value for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": "An unexpected error occurred."}
+
+
+@plugin_method("set_server_custom_value")
+def set_server_custom_value(server_name: str, key: str, value: Any) -> Dict[str, Any]:
+    """
+    Writes a value to the 'custom_values' section of a server's config.
+
+    Args:
+        server_name: The name of the server.
+        key: The key within the 'custom' section to set.
+        value: The new value to write.
+
+    Returns:
+        A dictionary with the operation status and a message.
+    """
+    if not server_name:
+        raise InvalidServerNameError("Server name cannot be empty.")
+    if not key:
+        raise MissingArgumentError("A 'key' must be provided.")
+
+    logger.info(f"API (Plugin): Writing custom value for '{server_name}': Key='{key}'")
+    try:
+        server = BedrockServer(server_name)
+        # This method is sandboxed to the 'custom_values' section
+        server.set_custom_config_value(key, value)
+        return {
+            "status": "success",
+            "message": f"Custom value '{key}' updated for server '{server_name}'.",
         }
     except BSMError as e:
         logger.error(
-            f"API: Failed to write server config for '{server_name}': {e}",
-            exc_info=True,
+            f"API (Plugin): Error setting custom value for '{server_name}': {e}"
         )
-        return {"status": "error", "message": f"Failed to write server config: {e}"}
+        return {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(
-            f"API: Unexpected error writing server config for '{server_name}': {e}",
+            f"API (Plugin): Unexpected error setting custom value for '{server_name}': {e}",
             exc_info=True,
         )
-        return {
-            "status": "error",
-            "message": f"Unexpected error writing server config: {e}",
-        }
+        return {"status": "error", "message": "An unexpected error occurred."}
+
+
+@plugin_method("get_all_server_settings")
+def get_all_server_settings(server_name: str) -> Dict[str, Any]:
+    """
+    Reads the entire configuration for a specific server.
+
+    Args:
+        server_name: The name of the server.
+
+    Returns:
+        A dictionary containing the operation status and all settings data for the server.
+    """
+    if not server_name:
+        raise InvalidServerNameError("Server name cannot be empty.")
+
+    logger.debug(f"API: Reading all settings for server '{server_name}'.")
+    try:
+        server = BedrockServer(server_name)
+        # _load_server_config handles loading and migration
+        all_settings = server._load_server_config()
+        return {"status": "success", "data": all_settings}
+    except BSMError as e:
+        logger.error(f"API: Error reading all settings for server '{server_name}': {e}")
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error reading all settings for '{server_name}': {e}",
+            exc_info=True,
+        )
+        return {"status": "error", "message": "An unexpected error occurred."}
 
 
 @plugin_method("start_server")
@@ -147,7 +240,6 @@ def start_server(
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.start_method = mode
 
         if server.is_running():
             logger.warning(
@@ -169,11 +261,7 @@ def start_server(
                 "message": f"Server '{server_name}' (direct mode) process finished.",
             }
             return result
-
         elif mode == "detached":
-            server.set_custom_config_value("start_method", "detached")
-            use_service_manager = False
-
             # --- OS-Specific Service Start (Preferred Method) ---
             if platform.system() == "Linux" and server.check_service_exists():
                 logger.debug(f"API: Using systemd to start server '{server_name}'.")
@@ -283,6 +371,7 @@ def start_server(
         )
 
 
+@plugin_method("stop_server")
 def stop_server(server_name: str) -> Dict[str, str]:
     """Stops the specified Bedrock server.
 
@@ -309,7 +398,6 @@ def stop_server(server_name: str) -> Dict[str, str]:
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.set_custom_config_value("start_method", "")
 
         if not server.is_running():
             logger.warning(

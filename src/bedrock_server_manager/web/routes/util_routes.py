@@ -39,7 +39,7 @@ util_bp = Blueprint(
 
 
 # --- Route: Serve World Icon ---
-@util_bp.route("/api/server/<string:server_name>/word/icon")
+@util_bp.route("/api/server/<string:server_name>/world/icon")
 @login_required
 def serve_world_icon(server_name: str) -> Response:
     """Serves the `world_icon.jpeg` file for a specific server's world."""

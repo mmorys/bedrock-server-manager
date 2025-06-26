@@ -428,7 +428,7 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
 
     try:
         # --- Path Construction and Security Validation ---
-        backup_base_dir = settings.get("BACKUP_DIR")
+        backup_base_dir = settings.get("paths.backups")
         if not backup_base_dir:
             raise BSMError("BACKUP_DIR is not configured in settings.")
 

@@ -146,12 +146,11 @@ class PluginBase(ABC):
         """
         pass
 
-    def before_server_stop(self, server_name: str, mode: str):
+    def before_server_stop(self, server_name: str):
         """Called by the PluginManager just before a server stop operation is attempted.
 
         Args:
             server_name (str): The name of the server that is about to be stopped.
-            mode (str): The mode or reason for stopping (e.g., "graceful", "force").
         """
         pass
 

@@ -146,7 +146,7 @@ def cleanup(cache: bool, logs: bool, log_dir_override: Optional[Path]):
         # Determine the correct log directory, prioritizing the command-line override.
         final_log_dir = log_dir_override
         if not final_log_dir:
-            settings_log_dir = settings.get("LOG_DIR")
+            settings_log_dir = settings.get("paths.logs")
             if settings_log_dir:
                 final_log_dir = Path(settings_log_dir)
 

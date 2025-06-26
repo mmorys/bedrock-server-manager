@@ -75,7 +75,7 @@ def prune_download_cache(
             # Determine the number of files to keep, prioritizing the function
             # argument over the global setting.
             if keep_count is None:
-                keep_setting = settings.get("DOWNLOAD_KEEP", 3)
+                keep_setting = settings.get("retention.downloads", 3)
                 effective_keep = int(keep_setting)
             else:
                 effective_keep = int(keep_count)
