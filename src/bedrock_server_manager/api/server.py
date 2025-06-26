@@ -134,7 +134,6 @@ def start_server(
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.start_method = mode
 
         if server.is_running():
             logger.warning(
@@ -156,9 +155,7 @@ def start_server(
                 "message": f"Server '{server_name}' (direct mode) process finished.",
             }
             return result
-
         elif mode == "detached":
-            server.set_custom_config_value("start_method", "detached")
 
             # --- Linux/systemd Detached Start (Preferred method on Linux) ---
             if (
@@ -257,7 +254,7 @@ def start_server(
 
 
 @plugin_method("stop_server")
-def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
+def stop_server(server_name: str) -> Dict[str, str]:
     """Stops the specified Bedrock server.
 
     On Linux, it will attempt to use systemd to stop the service if it is
@@ -266,8 +263,6 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
 
     Args:
         server_name: The name of the server to stop.
-        mode: The stop mode (primarily for consistency, logic adapts).
-            Defaults to "direct".
 
     Returns:
         A dictionary with the operation status and a message.
@@ -278,20 +273,13 @@ def stop_server(server_name: str, mode: str = "direct") -> Dict[str, str]:
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
 
-    mode = mode.lower()
-    if platform.system() == "Windows":
-        mode = "direct"  # Windows only supports direct stop logic.
-
     # --- Plugin Hook ---
-    plugin_manager.trigger_guarded_event(
-        "before_server_stop", server_name=server_name, mode=mode
-    )
+    plugin_manager.trigger_guarded_event("before_server_stop", server_name=server_name)
 
-    logger.info(f"API: Attempting to stop server '{server_name}' (mode: {mode})...")
+    logger.info(f"API: Attempting to stop server '{server_name}'...")
     result = {}
     try:
         server = BedrockServer(server_name)
-        server.set_custom_config_value("start_method", "")
 
         if not server.is_running():
             logger.warning(
