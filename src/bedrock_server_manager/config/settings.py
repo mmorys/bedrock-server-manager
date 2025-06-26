@@ -355,6 +355,17 @@ class Settings:
         logger.info(f"Setting '{key}' updated to '{value}'. Saving configuration.")
         self._write_config()
 
+    def reload(self):
+        """Reloads the settings from the configuration file.
+
+        This method re-reads the configuration file and updates the in-memory
+        settings. Any changes made to the file since the last load or save
+        will be reflected.
+        """
+        logger.info(f"Reloading configuration from {self.config_path}")
+        self.load()
+        logger.info("Configuration reloaded successfully.")
+
     @property
     def config_dir(self) -> str:
         """The absolute path to the application's configuration directory."""
