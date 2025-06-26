@@ -7,7 +7,7 @@ changes back to the file, and determining the appropriate application data and
 configuration directories based on the environment.
 
 The configuration is stored in a nested JSON format. Settings are accessed
-programmatically using dot-notation (e.g., `settings.get('paths.base')`).
+programmatically using dot-notation (e.g., `settings.get('paths.servers')`).
 """
 
 import os
@@ -280,7 +280,7 @@ class Settings:
             ConfigurationError: If a directory cannot be created.
         """
         dirs_to_check = [
-            self.get("paths.base"),
+            self.get("paths.servers"),
             self.get("paths.content"),
             self.get("paths.downloads"),
             self.get("paths.backups"),
@@ -312,7 +312,7 @@ class Settings:
     def get(self, key: str, default: Any = None) -> Any:
         """Retrieves a setting value using dot-notation for nested access.
 
-        Example: `settings.get("paths.base")`
+        Example: `settings.get("paths.servers")`
 
         Args:
             key: The dot-separated configuration key.

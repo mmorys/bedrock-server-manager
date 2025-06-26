@@ -68,7 +68,7 @@ def create_app() -> Flask:
     Raises:
         RuntimeError: If essential configurations like SECRET_KEY or JWT_SECRET_KEY
                       cannot be properly set.
-        ConfigurationError: If required settings like 'paths.base' are missing.
+        ConfigurationError: If required settings like 'paths.servers' are missing.
     """
     app = Flask(
         __name__,
@@ -88,11 +88,11 @@ def create_app() -> Flask:
     logger.debug(f"Static Folder: {app.static_folder}")
 
     # --- Validate Essential Settings ---
-    if not settings.get("paths.base"):
+    if not settings.get("paths.servers"):
         logger.critical(
-            "Configuration error: 'paths.base' setting is missing or empty."
+            "Configuration error: 'paths.servers' setting is missing or empty."
         )
-        raise ConfigurationError("Essential setting 'paths.base' is not configured.")
+        raise ConfigurationError("Essential setting 'paths.servers' is not configured.")
 
     # --- Configure Secret Key (CSRF, Session) ---
     secret_key_env = f"{env_name}_SECRET"
