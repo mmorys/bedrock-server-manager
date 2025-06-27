@@ -116,7 +116,7 @@ def set_server_setting(server_name: str, key: str, value: Any) -> Dict[str, Any]
 @plugin_method("set_server_custom_value")
 def set_server_custom_value(server_name: str, key: str, value: Any) -> Dict[str, Any]:
     """
-    Writes a value to the 'custom_values' section of a server's config.
+    Writes a value to the 'custom' section of a server's config.
 
     Args:
         server_name: The name of the server.
@@ -134,7 +134,7 @@ def set_server_custom_value(server_name: str, key: str, value: Any) -> Dict[str,
     logger.info(f"API (Plugin): Writing custom value for '{server_name}': Key='{key}'")
     try:
         server = BedrockServer(server_name)
-        # This method is sandboxed to the 'custom_values' section
+        # This method is sandboxed to the 'custom' section
         server.set_custom_config_value(key, value)
         return {
             "status": "success",
