@@ -40,8 +40,7 @@ except ImportError:
 # Local application imports.
 from bedrock_server_manager.core.system import process as core_process
 from bedrock_server_manager.core.bedrock_server import BedrockServer
-from bedrock_server_manager.core.manager import BedrockServerManager
-from bedrock_server_manager.web.app import run_web_server
+from bedrock_server_manager.api.web import start_web_server_api
 from bedrock_server_manager.core.system.windows import _main_pipe_server_listener_thread
 
 logger = logging.getLogger(__name__)
@@ -257,15 +256,15 @@ class WebServerWindowsService(win32serviceutil.ServiceFramework):
             self._svc_name_ = args[0]
 
         # --- The service is now self-sufficient ---
-        # It creates its own manager to find the settings it needs.
-        bsm = BedrockServerManager()
-        self.hosts = bsm.get_setting("WEB_UI_HOST", ["127.0.0.1"])
-        self.port = bsm.get_setting("WEB_UI_PORT", 8180)  # Example
 
     def SvcStop(self):
         """Called by the SCM when the service is stopping."""
         self.logger.info(f"Web Service '{self._svc_name_}': Stop request received.")
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        try: 
+            stop_web_server_api()
+        except Exception as e:
+            self.logger.info(f"Error sending stop: {e}")
         self.shutdown_event.set()  # Signal the main loop to exit
 
     def SvcDoRun(self):
@@ -284,12 +283,12 @@ class WebServerWindowsService(win32serviceutil.ServiceFramework):
             # --- The service runs the web app DIRECTLY in a thread ---
             # No more complex subprocess calls.
             self.logger.info(
-                f"Starting web server logic in a background thread on hosts {self.hosts}, port {self.port}."
+                f"Starting web server logic in a background thread."
             )
 
             web_thread = threading.Thread(
-                target=run_web_server,
-                args=(self.hosts, False),  # Run in production mode
+                target=start_web_server_api,
+                kwargs={"mode": "direct"},  # Run in production mode
                 daemon=True,
             )
             web_thread.start()
