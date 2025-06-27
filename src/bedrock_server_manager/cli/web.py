@@ -89,8 +89,6 @@ def _perform_web_service_configuration(
 
 def interactive_web_service_workflow(bsm: BedrockServerManager):
     click.secho("\n--- Interactive Web UI Service Configuration ---", bold=True)
-    hosts_list_str: Optional[str] = None
-    parsed_hosts: List[str] = []
     setup_service_choice = None
     enable_autostart_choice = None
 

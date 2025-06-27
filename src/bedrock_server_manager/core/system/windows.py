@@ -200,7 +200,7 @@ def create_windows_service(
                 None,  # LoadOrderGroup
                 0,  # TagId
                 None,  # Dependencies
-                None,  # ServiceStartName (THE FIX IS HERE)
+                None,  # ServiceStartName
                 None,  # Password
                 display_name,  # DisplayName
             )
