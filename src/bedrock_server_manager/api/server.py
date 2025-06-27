@@ -262,6 +262,8 @@ def start_server(
             }
             return result
         elif mode == "detached":
+            use_service_manager = False 
+
             # --- OS-Specific Service Start (Preferred Method) ---
             if platform.system() == "Linux" and server.check_service_exists():
                 logger.debug(f"API: Using systemd to start server '{server_name}'.")
