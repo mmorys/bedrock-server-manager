@@ -7,7 +7,7 @@ and restore operations.
 import os
 import logging
 import threading  # Added for threading
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 # Third-party imports
 from flask import (
