@@ -40,7 +40,7 @@ except ImportError:
 # Local application imports.
 from bedrock_server_manager.core.system import process as core_process
 from bedrock_server_manager.core.bedrock_server import BedrockServer
-from bedrock_server_manager.api.web import start_web_server_api
+from bedrock_server_manager.api.web import start_web_server_api, stop_web_server_api
 from bedrock_server_manager.core.system.windows import _main_pipe_server_listener_thread
 
 logger = logging.getLogger(__name__)
