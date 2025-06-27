@@ -4,6 +4,42 @@
 
 ## Bedrock Server Manager:
 
+### 3.5.0
+
+1. Windows Service: 
+     - windows servoce has the following considerations:
+       - Windows service with one flaw, you must use the `SC.exe` command to start/stop the service `bedrock-server_name`/`BedrockServerManagerWebUI`
+       - A BSM session cannot be opened with the `bedrock-server-manager`/`python -m bedrock_server_manager` command while any service using it are running, all BSM services must be stopped before you can use it again
+       - Services will not run if you have a BSM session already open, but multiple services can be started/stopped
+       - After you create a service you need to go into the SC.exe app and change the account type from local system to your local windows user account
+       -  Requires admin account: 
+          - you can run BSM with the `sudo` command if on a recent version of Windows with sudo enabled in system settings: https://learn.microsoft.com/en-us/windows/advanced-settings/sudo/
+          - You can only create a service through the BSM CLI (when ran as admin), to start/stop a bedrock server service, use the web ui (ONLY if being ran as a service), or the `SC.exe` command
+          - Create a web service first then run the web server through the Windows service app, this will allow you to easily create, start, and stop bedrock services
+2. Web server as a service
+   - Create a system service (Systemd/Windows Service)
+   - On linux youll need to manually create a env file with your BSM env varariables and add the `EnvironmentFile=` line to your systemd file
+   - Host will be read from json config
+3. Config json migrations:
+   - The global script_config.json has been renamed to bedrock_serverm_manager.json
+   - Global settings have been migrated to a new config version using a nested format
+     - A backup config file will be create and an auto migration will be attempted
+   - Server Config jsons have been migrated to a new config version using a nested format
+     - Auto migration will be attempted
+       - Any custom config options will be migrated a nested custom section
+   - Added web server host to config, if web server start command is ran without any host it'll read from the json file insteaad
+   - `BASE_DIR` migrated to `paths.servers`
+4. Threaded routes:
+    - Route apis such as update, start, stop, and more have been changed to be threaded operations
+5. New plugin apis:
+    - Apis to read global and server config
+    - Api to set custom server configs
+6. Fixed world icon API route path typo `word` > `world`
+7. Plugin Event: `before_server_stop` event no longer gives/takes `mode` variable
+8. Added settings menu to Web ui
+   - Note: not all settings will be reloaded such as web host/port, for these they require a full app restart
+
+
 ### 3.4.1
 1. Fixed settings target version for new server installs
 2. For simplicity, docs have been removed from the web server and moved to the repository
