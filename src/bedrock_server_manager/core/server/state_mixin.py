@@ -91,7 +91,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             new_config["settings"]["autoupdate"] = autoupdate_val
         # If missing or other type, it keeps the default from _get_default_server_config
 
-        # Migrate any other keys to custom_values
+        # Migrate any other keys to custom
         known_v1_keys = {
             "installed_version",
             "target_version",
@@ -100,7 +100,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
         }
         for key, value in old_config.items():
             if key not in known_v1_keys:
-                new_config["custom_values"][key] = value
+                new_config["custom"][key] = value
 
         return new_config
 
@@ -377,7 +377,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
         )
 
     def get_custom_config_value(self, key: str) -> Optional[Any]:
-        """Retrieves a value from the 'custom_values' section."""
+        """Retrieves a value from the 'custom' section."""
         self.logger.debug(
             f"Getting custom config key '{key}' for server '{self.server_name}'."
         )
@@ -385,7 +385,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
             raise UserInputError(
                 f"Key for custom config on '{self.server_name}' must be a non-empty string."
             )
-        # Key will be prefixed with "custom_values."
+        # Key will be prefixed with "custom."
         full_key = f"custom.{key}"
         value = self._manage_json_config(key=full_key, operation="read")
         self.logger.debug(  # Changed from info to debug to reduce noise for simple gets
@@ -394,7 +394,7 @@ class ServerStateMixin(BedrockServerBaseMixin):
         return value
 
     def set_custom_config_value(self, key: str, value: Any):
-        """Sets a key-value pair in the 'custom_values' section."""
+        """Sets a key-value pair in the 'custom' section."""
         self.logger.debug(
             f"Setting custom config for '{self.server_name}': Key='{key}', Value='{value}'."
         )
