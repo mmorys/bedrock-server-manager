@@ -6,7 +6,8 @@ and restore operations.
 
 import os
 import logging
-from typing import Dict, Any, Tuple
+import threading  # Added for threading
+from typing import Dict, Any, Tuple, Optional
 
 # Third-party imports
 from flask import (
@@ -185,26 +186,33 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
 
     logger.debug(f"API Prune Backups: Server='{server_name}'")
 
-    result = {}
-    status_code = 500
-    try:
-        # Call the backup API function
-        result = backup_restore_api.prune_old_backups(server_name)
-        status_code = (
-            200
-            if result.get("status") == "success"
-            else 500 if result.get("status") == "error" else 500
-        )
-    except BSMError as e:
-        status_code = 400 if isinstance(e, UserInputError) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API Prune Backups '{server_name}': Unexpected error: {e}", exc_info=True
-        )
-        result = {"status": "error", "message": "Unexpected error pruning backups."}
+    def prune_backups_thread_target(s_name: str):
+        logger.info(f"Thread started for pruning backups for server '{s_name}'.")
+        try:
+            thread_result = backup_restore_api.prune_old_backups(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Prune Backups '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Prune Backups '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
+            logger.warning(f"Thread for Prune Backups '{s_name}': Application error. {e_thread}")
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Prune Backups '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
+            )
 
-    return jsonify(result), status_code
+    thread = threading.Thread(target=prune_backups_thread_target, args=(server_name,))
+    thread.start()
+
+    return jsonify({
+        "status": "success",
+        "message": f"Backup pruning for server '{server_name}' initiated in background."
+    }), 202
 
 
 @backup_restore_bp.route(
@@ -293,62 +301,67 @@ def backup_action_route(server_name: str) -> Tuple[Response, int]:
         return jsonify(status="error", message="Invalid or missing JSON body."), 400
 
     backup_type = data.get("backup_type", "").lower()
-    file_to_backup = data.get("file_to_backup")
+    file_to_backup = data.get("file_to_backup") # Will be passed to thread, validated inside if needed
 
-    result_dict: Dict[str, Any]
-    status_code: int
+    # Initial validation for backup_type before threading
+    valid_types = ["world", "config", "all"]
+    if backup_type not in valid_types:
+        msg = f"Invalid 'backup_type'. Must be one of: {valid_types}."
+        return jsonify(status="error", message=msg), 400
+    if backup_type == "config" and (not file_to_backup or not isinstance(file_to_backup, str)):
+        return (
+            jsonify(
+                status="error",
+                message="Missing or invalid 'file_to_backup' for config backup.",
+            ),
+            400,
+        )
 
-    try:
-        if backup_type == "world":
-            result_dict = backup_restore_api.backup_world(server_name)
-        elif backup_type == "config":
-            if not file_to_backup or not isinstance(file_to_backup, str):
-                return (
-                    jsonify(
-                        status="error",
-                        message="Missing 'file_to_backup' for config backup.",
-                    ),
-                    400,
+    def backup_action_thread_target(s_name: str, b_type: str, f_to_backup: Optional[str]):
+        logger.info(f"Thread started for backup action '{b_type}' for server '{s_name}'.")
+        try:
+            if b_type == "world":
+                thread_result = backup_restore_api.backup_world(s_name)
+            elif b_type == "config":
+                # This was pre-validated, but good to have a check or ensure f_to_backup is not None
+                if not f_to_backup: # Should not happen due to pre-check
+                    logger.error(f"Thread for Backup Config '{s_name}': file_to_backup is None unexpectedly.")
+                    return
+                thread_result = backup_restore_api.backup_config_file(
+                    s_name, f_to_backup.strip()
                 )
-            result_dict = backup_restore_api.backup_config_file(
-                server_name, file_to_backup.strip()
-            )
-        elif backup_type == "all":
-            result_dict = backup_restore_api.backup_all(server_name)
-        else:
-            valid_types = ["world", "config", "all"]
-            msg = f"Invalid 'backup_type'. Must be one of: {valid_types}."
-            return jsonify(status="error", message=msg), 400
+            elif b_type == "all":
+                thread_result = backup_restore_api.backup_all(s_name)
+            else: # Should not be reached due to pre-validation
+                logger.error(f"Thread for Backup Action '{s_name}': Invalid backup type '{b_type}' in thread.")
+                return
 
-        # Determine status code based on the result from the API layer
-        if result_dict.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Backup '{server_name}' ({backup_type}) succeeded: {result_dict.get('message')}"
-            )
-        else:
-            status_code = 500  # API layer handled the error, so it's an internal/operational failure
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Backup Action '{b_type}' for '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Backup Action '{b_type}' for '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
             logger.error(
-                f"API Backup '{server_name}' ({backup_type}) failed: {result_dict.get('message')}"
+                f"Thread for Backup Action '{b_type}' for '{s_name}': Application error. {e_thread}", exc_info=True
+            )
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Backup Action '{b_type}' for '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-    except BSMError as e:
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
-        result_dict = {"status": "error", "message": f"Server operation error: {e}"}
-        logger.error(
-            f"API Backup '{server_name}': Application error: {e}", exc_info=True
-        )
-    except Exception as e:
-        logger.error(
-            f"API Backup '{server_name}': Unexpected error in route: {e}", exc_info=True
-        )
-        result_dict = {
-            "status": "error",
-            "message": "An unexpected server error occurred.",
-        }
-        status_code = 500
+    thread_args = (server_name, backup_type, file_to_backup)
+    thread = threading.Thread(target=backup_action_thread_target, args=thread_args)
+    thread.start()
 
-    return jsonify(result_dict), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Backup action '{backup_type}' for server '{server_name}' initiated in background."
+    }), 202
 
 
 @backup_restore_bp.route(
@@ -376,48 +389,8 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
     if restore_type not in valid_types:
         return jsonify(status="error", message="Invalid 'restore_type' specified."), 400
 
-    # --- LOGIC BRANCH 1: Handle 'all' restore type first ---
-    # This case doesn't require a backup_file, so it has a separate, simpler logic path.
-    if restore_type == "all":
-        try:
-            result_dict = backup_restore_api.restore_all(server_name)
-            if result_dict.get("status") == "success":
-                status_code = 200
-                logger.info(
-                    f"API Restore 'all' for '{server_name}' succeeded: {result_dict.get('message')}"
-                )
-            else:
-                status_code = 500  # Operational error
-                logger.error(
-                    f"API Restore 'all' for '{server_name}' failed: {result_dict.get('message')}"
-                )
-            return jsonify(result_dict), status_code
-
-        except BSMError as e:
-            logger.error(
-                f"API Restore 'all' for '{server_name}': Application error: {e}",
-                exc_info=True,
-            )
-            return (
-                jsonify(status="error", message=f"Server configuration error: {e}"),
-                500,
-            )
-        except Exception as e:
-            logger.error(
-                f"API Restore 'all' for '{server_name}': Unexpected error in route: {e}",
-                exc_info=True,
-            )
-            return (
-                jsonify(status="error", message="An unexpected server error occurred."),
-                500,
-            )
-
-    # --- LOGIC BRANCH 2: Handle all other restore types (world, properties, etc.) ---
-    # These cases require a 'backup_file' to be specified.
-
-    # --- Input Validation for specific file restore ---
-    relative_backup_file = data.get("backup_file")
-    if not relative_backup_file or not isinstance(relative_backup_file, str):
+    relative_backup_file = data.get("backup_file") # Will be passed to thread
+    if restore_type != "all" and (not relative_backup_file or not isinstance(relative_backup_file, str)):
         return (
             jsonify(
                 status="error",
@@ -426,71 +399,73 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
             400,
         )
 
-    try:
-        # --- Path Construction and Security Validation ---
-        backup_base_dir = settings.get("paths.backups")
-        if not backup_base_dir:
-            raise BSMError("BACKUP_DIR is not configured in settings.")
+    def restore_action_thread_target(s_name: str, r_type: str, rel_backup_file: Optional[str]):
+        logger.info(f"Thread started for restore action '{r_type}' for server '{s_name}'.")
+        try:
+            thread_result: Dict[str, Any]
+            if r_type == "all":
+                thread_result = backup_restore_api.restore_all(s_name)
+            else:
+                # This part requires careful path handling inside the thread
+                if not rel_backup_file: # Should not happen due to pre-check
+                    logger.error(f"Thread for Restore '{r_type}' for '{s_name}': relative_backup_file is None unexpectedly.")
+                    return
 
-        server_backup_dir = os.path.join(backup_base_dir, server_name)
-        # Security: Prevent directory traversal by joining and then normalizing
-        full_backup_path = os.path.normpath(
-            os.path.join(server_backup_dir, relative_backup_file)
-        )
+                backup_base_dir = settings.get("paths.backups")
+                if not backup_base_dir:
+                    raise BSMError("BACKUP_DIR is not configured in settings.")
 
-        # Security check: Ensure the final path is within the server's backup directory
-        if not os.path.abspath(full_backup_path).startswith(
-            os.path.abspath(server_backup_dir)
-        ):
-            msg = "Invalid backup file path. Directory traversal attempt detected."
-            logger.error(f"API Restore '{server_name}': Security violation - {msg}")
-            return jsonify(status="error", message=msg), 400
+                server_backup_dir = os.path.join(backup_base_dir, s_name)
+                full_backup_path = os.path.normpath(
+                    os.path.join(server_backup_dir, rel_backup_file)
+                )
 
-        if not os.path.isfile(full_backup_path):
-            return (
-                jsonify(
-                    status="error",
-                    message=f"Backup file not found: {relative_backup_file}",
-                ),
-                404,
-            )
+                if not os.path.abspath(full_backup_path).startswith(
+                    os.path.abspath(server_backup_dir)
+                ):
+                    msg = "Invalid backup file path. Directory traversal attempt detected."
+                    logger.error(f"Thread Restore '{s_name}': Security violation - {msg}")
+                    # How to communicate this back? For now, just log and the operation "fails" silently from client PoV
+                    return
 
-        # --- Call Appropriate API Handler ---
-        result_dict: Dict[str, Any]
-        if restore_type == "world":
-            result_dict = backup_restore_api.restore_world(
-                server_name, full_backup_path
-            )
-        else:  # "properties", "allowlist", "permissions"
-            result_dict = backup_restore_api.restore_config_file(
-                server_name, full_backup_path
-            )
+                if not os.path.isfile(full_backup_path):
+                    logger.error(f"Thread Restore '{s_name}': Backup file not found: {rel_backup_file}")
+                    # Communicate back?
+                    return
 
-        if result_dict.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Restore '{restore_type}' for '{server_name}' succeeded: {result_dict.get('message')}"
-            )
-        else:
-            status_code = 500  # Operational error
+                if r_type == "world":
+                    thread_result = backup_restore_api.restore_world(
+                        s_name, full_backup_path
+                    )
+                else:  # "properties", "allowlist", "permissions"
+                    thread_result = backup_restore_api.restore_config_file(
+                        s_name, full_backup_path
+                    )
+            
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Restore Action '{r_type}' for '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Restore Action '{r_type}' for '{s_name}': Failed. {thread_result.get('message')}"
+                )
+
+        except BSMError as e_thread:
             logger.error(
-                f"API Restore '{restore_type}' for '{server_name}' failed: {result_dict.get('message')}"
+                f"Thread for Restore Action '{r_type}' for '{s_name}': Application error. {e_thread}", exc_info=True
+            )
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Restore Action '{r_type}' for '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-        return jsonify(result_dict), status_code
+    thread_args = (server_name, restore_type, relative_backup_file)
+    thread = threading.Thread(target=restore_action_thread_target, args=thread_args)
+    thread.start()
 
-    except BSMError as e:
-        logger.error(
-            f"API Restore '{restore_type}' for '{server_name}': Application error: {e}",
-            exc_info=True,
-        )
-        return jsonify(status="error", message=f"Server configuration error: {e}"), 500
-    except Exception as e:
-        logger.error(
-            f"API Restore '{restore_type}' for '{server_name}': Unexpected error in route: {e}",
-            exc_info=True,
-        )
-        return (
-            jsonify(status="error", message="An unexpected server error occurred."),
-            500,
-        )
+    return jsonify({
+        "status": "success",
+        "message": f"Restore action '{restore_type}' for server '{server_name}' initiated in background."
+    }), 202

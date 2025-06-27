@@ -4,6 +4,7 @@ Flask Blueprint defining API endpoints for controlling Bedrock server instances.
 """
 
 import logging
+import threading # Added for threading
 from typing import Tuple, Dict, Any
 
 # Third-party imports
@@ -41,40 +42,36 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
     identity = get_current_identity() or "Unknown"
     logger.info(f"API: Start server request for '{server_name}' by user '{identity}'.")
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        result = server_api.start_server(server_name, mode="detached")
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Start Server '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            status_code = 500  # Operational error handled by the API layer
+    def start_server_thread_target(s_name: str):
+        logger.info(f"Thread started for starting server '{s_name}'.")
+        try:
+            # This call can have minor blocking due to plugin after_server_start hook
+            thread_result = server_api.start_server(s_name, mode="detached")
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Start Server '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Start Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Start Server '{s_name}': Input error. {e_thread}")
+        except BSMError as e_thread:
+            logger.error(f"Thread for Start Server '{s_name}': Application error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Start Server '{server_name}': Failed. {result.get('message')}"
+                f"Thread for Start Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Start Server '{server_name}': Input error. {e}")
-    except BSMError as e:
-        status_code = 500
-        result = {"status": "error", "message": str(e)}
-        logger.error(f"API Start Server '{server_name}': Application error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {"status": "error", "message": "An unexpected error occurred."}
-        logger.error(
-            f"API Start Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=start_server_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Start operation for server '{server_name}' initiated in background."
+    }), 202
 
 
 # --- API Route: Stop Server ---
@@ -86,36 +83,35 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
     identity = get_current_identity() or "Unknown"
     logger.info(f"API: Stop server request for '{server_name}' by user '{identity}'.")
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        result = server_api.stop_server(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Stop Server '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def stop_server_thread_target(s_name: str):
+        logger.info(f"Thread started for stopping server '{s_name}'.")
+        try:
+            # This call can block due to sleeps in server.stop() and plugin hooks
+            thread_result = server_api.stop_server(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Stop Server '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Stop Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Stop Server '{s_name}': Input error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Stop Server '{server_name}': Failed. {result.get('message')}"
+                f"Thread for Stop Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Stop Server '{server_name}': Input error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {"status": "error", "message": "An unexpected error occurred."}
-        logger.error(
-            f"API Stop Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=stop_server_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    # Return immediately to the client
+    return jsonify({
+        "status": "success",
+        "message": f"Stop operation for server '{server_name}' initiated in background."
+    }), 202  # 202 Accepted: The request has been accepted for processing, but the processing has not been completed.
 
 
 # --- API Route: Restart Server ---
@@ -129,36 +125,34 @@ def restart_server_route(server_name: str) -> Tuple[Response, int]:
         f"API: Restart server request for '{server_name}' by user '{identity}'."
     )
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        result = server_api.restart_server(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Restart Server '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def restart_server_thread_target(s_name: str):
+        logger.info(f"Thread started for restarting server '{s_name}'.")
+        try:
+            # This call can block due to stop_server and start_server (plugin sleeps)
+            thread_result = server_api.restart_server(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Restart Server '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Restart Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Restart Server '{s_name}': Input error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Restart Server '{server_name}': Failed. {result.get('message')}"
+                f"Thread for Restart Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Restart Server '{server_name}': Input error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {"status": "error", "message": "An unexpected error occurred."}
-        logger.error(
-            f"API Restart Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=restart_server_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Restart operation for server '{server_name}' initiated in background."
+    }), 202
 
 
 # --- API Route: Send Command ---
@@ -231,40 +225,35 @@ def update_server_route(server_name: str) -> Tuple[Response, int]:
     identity = get_current_identity() or "Unknown"
     logger.info(f"API: Update server request for '{server_name}' by user '{identity}'.")
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        # The update function is now in the 'application' API module.
-        result = server_install_config.update_server(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Update Server '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def update_server_thread_target(s_name: str):
+        logger.info(f"Thread started for updating server '{s_name}'.")
+        try:
+            # This call can block due to stop_server and start_server (plugin sleeps)
+            # within the update_server logic.
+            thread_result = server_install_config.update_server(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Update Server '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Update Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Update Server '{s_name}': Input error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Update Server '{server_name}': Failed. {result.get('message')}"
+                f"Thread for Update Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Update Server '{server_name}': Input error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {
-            "status": "error",
-            "message": "An unexpected error occurred during update.",
-        }
-        logger.error(
-            f"API Update Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=update_server_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Update operation for server '{server_name}' initiated in background."
+    }), 202
 
 
 # --- API Route: Delete Server ---
@@ -278,36 +267,31 @@ def delete_server_route(server_name: str) -> Tuple[Response, int]:
         f"API: DELETE server request for '{server_name}' by user '{identity}'."
     )
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        result = server_api.delete_server_data(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Delete Server '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def delete_server_thread_target(s_name: str):
+        logger.info(f"Thread started for deleting server '{s_name}'.")
+        try:
+            # This call can block if it needs to stop the server first.
+            thread_result = server_api.delete_server_data(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Delete Server '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Delete Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Delete Server '{s_name}': Input error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Delete Server '{server_name}': Failed. {result.get('message')}"
+                f"Thread for Delete Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Delete Server '{server_name}': Input error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {
-            "status": "error",
-            "message": "An unexpected error occurred during deletion.",
-        }
-        logger.error(
-            f"API Delete Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=delete_server_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Delete operation for server '{server_name}' initiated in background."
+    }), 202

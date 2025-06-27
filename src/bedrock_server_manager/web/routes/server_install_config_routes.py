@@ -7,6 +7,7 @@ permissions, OS services).
 
 import logging
 import platform
+import threading  # Added for threading
 from typing import Dict, List, Any, Tuple
 
 # Third-party imports

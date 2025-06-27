@@ -6,6 +6,7 @@ server content management (Worlds, Addons).
 
 import os
 import logging
+import threading  # Added for threading
 from typing import Tuple, Dict, Any, List
 
 # Third-party imports
@@ -182,60 +183,63 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
         )
 
     selected_filename = data["filename"]
-    result: Dict[str, Any]
-    status_code: int
 
+    # Perform initial file existence and security checks before threading
     try:
         content_base_dir = os.path.join(settings.get("paths.content"), "worlds")
         full_world_file_path = os.path.normpath(
             os.path.join(content_base_dir, selected_filename)
         )
 
-        # Security: Critical check to prevent directory traversal
         if not os.path.abspath(full_world_file_path).startswith(
             os.path.abspath(content_base_dir)
         ):
-            return jsonify(status="error", message="Invalid file path."), 400
+            return jsonify(status="error", message="Invalid file path (security check failed)."), 400
 
         if not os.path.isfile(full_world_file_path):
             return (
                 jsonify(
                     status="error",
-                    message=f"World file '{selected_filename}' not found.",
+                    message=f"World file '{selected_filename}' not found for import.",
                 ),
                 404,
             )
+    except Exception as e_pre_check: # Catch broad exceptions during pre-check
+        logger.error(f"API Install World '{server_name}': Pre-check error: {e_pre_check}", exc_info=True)
+        return jsonify(status="error", message=f"Server error during pre-check: {e_pre_check}"), 500
 
-        # Call the API function
-        result = world_api.import_world(server_name, full_world_file_path)
 
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Install World '{server_name}': Succeeded. Message: {result.get('message')}"
-            )
-        else:
-            status_code = 500  # API handled an operational error
+    def install_world_thread_target(s_name: str, world_f_path: str):
+        logger.info(f"Thread started for installing world '{os.path.basename(world_f_path)}' to server '{s_name}'.")
+        try:
+            # The actual import_world call can be long (stopping server, copying files, starting server)
+            thread_result = world_api.import_world(s_name, world_f_path)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Install World '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Install World '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
             logger.error(
-                f"API Install World '{server_name}': Failed. Message: {result.get('message')}"
+                f"Thread for Install World '{s_name}': Application error. {e_thread}", exc_info=True
+            )
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Install World '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-    except BSMError as e:
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
-        result = {"status": "error", "message": str(e)}
-        logger.error(
-            f"API Install World '{server_name}': Config or server name error: {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        logger.error(
-            f"API Install World '{server_name}': Unexpected error in route: {e}",
-            exc_info=True,
-        )
-        result = {"status": "error", "message": "An unexpected server error occurred."}
-        status_code = 500
+    # Pass the validated full_world_file_path to the thread
+    thread = threading.Thread(target=install_world_thread_target, args=(server_name, full_world_file_path))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"World install from '{selected_filename}' for server '{server_name}' initiated in background."
+    }), 202
 
 
 @content_bp.route("/api/server/<string:server_name>/world/export", methods=["POST"])
@@ -248,41 +252,36 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
         f"API: World export requested for '{server_name}' by user '{identity}'."
     )
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-
-        # Call the API function with the explicit export directory
-        result = world_api.export_world(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Export World '{server_name}': Succeeded. Message: {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def export_world_thread_target(s_name: str):
+        logger.info(f"Thread started for exporting world from server '{s_name}'.")
+        try:
+            # The export_world call can be long (stopping server, copying/zipping files, starting server)
+            thread_result = world_api.export_world(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Export World '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Export World '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
             logger.error(
-                f"API Export World '{server_name}': Failed. Message: {result.get('message')}"
+                f"Thread for Export World '{s_name}': Application error. {e_thread}", exc_info=True
+            )
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Export World '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-    except BSMError as e:
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
-        result = {"status": "error", "message": str(e)}
-        logger.error(
-            f"API Export World '{server_name}': Config or server name error: {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        logger.error(
-            f"API Export World '{server_name}': Unexpected error in route: {e}",
-            exc_info=True,
-        )
-        result = {"status": "error", "message": "An unexpected server error occurred."}
-        status_code = 500
+    thread = threading.Thread(target=export_world_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"World export for server '{server_name}' initiated in background."
+    }), 202
 
 
 @content_bp.route("/api/server/<string:server_name>/world/reset", methods=["DELETE"])
@@ -293,36 +292,34 @@ def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
     identity = get_current_identity() or "Unknown"
     logger.info(f"API: World reset requested for '{server_name}' by user '{identity}'.")
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        result = world_api.reset_world(server_name)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Reset World '{server_name}': Succeeded. Message: {result.get('message')}"
-            )
-        else:
-            status_code = 500
+    def reset_world_thread_target(s_name: str):
+        logger.info(f"Thread started for resetting world for server '{s_name}'.")
+        try:
+            # Resetting world can involve stopping the server, deleting files, potentially starting.
+            thread_result = world_api.reset_world(s_name)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Reset World '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Reset World '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
+            logger.warning(f"Thread for Reset World '{s_name}': Application error. {e_thread}", exc_info=True)
+        except Exception as e_thread:
             logger.error(
-                f"API Reset World '{server_name}': Failed. Message: {result.get('message')}"
+                f"Thread for Reset World '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-    except BSMError as e:
-        logger.warning(f"API Reset World '{server_name}': Application error: {e}")
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
-        result = {"status": "error", "message": str(e)}
-    except Exception as e:
-        logger.error(
-            f"API Reset World '{server_name}': Unexpected error in route: {e}",
-            exc_info=True,
-        )
-        result = {"status": "error", "message": "An unexpected server error occurred."}
-        status_code = 500
+    thread = threading.Thread(target=reset_world_thread_target, args=(server_name,))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"World reset for server '{server_name}' initiated in background."
+    }), 202
 
 
 @content_bp.route("/api/server/<string:server_name>/addon/install", methods=["POST"])
@@ -346,57 +343,58 @@ def install_addon_api_route(server_name: str) -> Tuple[Response, int]:
         )
 
     selected_filename = data["filename"]
-    result: Dict[str, Any]
-    status_code: int
 
+    # Perform initial file existence and security checks before threading
     try:
         content_base_dir = os.path.join(settings.get("paths.content"), "addons")
         full_addon_file_path = os.path.normpath(
             os.path.join(content_base_dir, selected_filename)
         )
 
-        # Security: Critical check to prevent directory traversal
         if not os.path.abspath(full_addon_file_path).startswith(
             os.path.abspath(content_base_dir)
         ):
-            return jsonify(status="error", message="Invalid file path."), 400
+            return jsonify(status="error", message="Invalid file path (security check failed)."), 400
 
         if not os.path.isfile(full_addon_file_path):
             return (
                 jsonify(
                     status="error",
-                    message=f"Addon file '{selected_filename}' not found.",
+                    message=f"Addon file '{selected_filename}' not found for import.",
                 ),
                 404,
             )
+    except Exception as e_pre_check:
+        logger.error(f"API Install Addon '{server_name}': Pre-check error: {e_pre_check}", exc_info=True)
+        return jsonify(status="error", message=f"Server error during pre-check: {e_pre_check}"), 500
 
-        # Call the API function
-        result = addon_api.import_addon(server_name, full_addon_file_path)
-
-        if result.get("status") == "success":
-            status_code = 200
-            logger.info(
-                f"API Install Addon '{server_name}': Succeeded. Message: {result.get('message')}"
-            )
-        else:
-            status_code = 500  # API handled an operational error
+    def install_addon_thread_target(s_name: str, addon_f_path: str):
+        logger.info(f"Thread started for installing addon '{os.path.basename(addon_f_path)}' to server '{s_name}'.")
+        try:
+            # Importing an addon can involve file I/O and potentially server restart.
+            thread_result = addon_api.import_addon(s_name, addon_f_path)
+            if thread_result.get("status") == "success":
+                logger.info(
+                    f"Thread for Install Addon '{s_name}': Succeeded. {thread_result.get('message')}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Install Addon '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except BSMError as e_thread:
             logger.error(
-                f"API Install Addon '{server_name}': Failed. Message: {result.get('message')}"
+                f"Thread for Install Addon '{s_name}': Application error. {e_thread}", exc_info=True
+            )
+        except Exception as e_thread:
+            logger.error(
+                f"Thread for Install Addon '{s_name}': Unexpected error. {e_thread}",
+                exc_info=True,
             )
 
-    except BSMError as e:
-        status_code = 404 if isinstance(e, InvalidServerNameError) else 500
-        result = {"status": "error", "message": str(e)}
-        logger.error(
-            f"API Install Addon '{server_name}': Config or server name error: {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        logger.error(
-            f"API Install Addon '{server_name}': Unexpected error in route: {e}",
-            exc_info=True,
-        )
-        result = {"status": "error", "message": "An unexpected server error occurred."}
-        status_code = 500
+    thread = threading.Thread(target=install_addon_thread_target, args=(server_name, full_addon_file_path))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Addon install from '{selected_filename}' for server '{server_name}' initiated in background."
+    }), 202
