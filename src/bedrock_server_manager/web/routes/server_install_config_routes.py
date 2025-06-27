@@ -7,6 +7,7 @@ permissions, OS services).
 
 import logging
 import platform
+import threading  # Added for threading
 from typing import Dict, List, Any, Tuple
 
 # Third-party imports
@@ -182,64 +183,81 @@ def install_server_api_route() -> Tuple[Response, int]:
     if validation_result.get("status") == "error":
         return jsonify(validation_result), 400
 
-    result: Dict[str, Any]
-    status_code: int
-
-    try:
-        # Check for existence and handle overwrite logic
-        if not overwrite and utils_api.validate_server_exist(server_name):
-            return (
-                jsonify(
-                    status="confirm_needed",
-                    message=f"Server '{server_name}' already exists. Overwrite?",
-                ),
-                200,
-            )
-
-        # If overwriting, delete first
-        if overwrite and utils_api.validate_server_exist(server_name):
-            delete_result = server_api.delete_server_data(server_name)
-            if delete_result.get("status") == "error":
-                return (
+    # Preliminary check for existence if not overwriting.
+    # This specific check needs to happen before threading to give immediate feedback.
+    if not overwrite:
+        try:
+            # utils_api.validate_server_exist returns a dict, not a boolean directly in all cases.
+            # It might return {'status': 'error', 'message': 'Server ... not found.'} which is what we want for "does not exist"
+            # or {'status': 'success', 'message': 'Server ... exists.'}
+            # For the purpose of this check, we only care if it *definitively* exists.
+            # A more robust check might be needed if the return contract of validate_server_exist is complex.
+            # Assuming a simple check here:
+            server_exists_check = utils_api.validate_server_exist(server_name)
+            if server_exists_check.get("status") == "success" and server_exists_check.get("exists", False): # Check for explicit exists flag if present
+                 return (
                     jsonify(
-                        status="error",
-                        message=f"Failed to delete existing server for overwrite: {delete_result['message']}",
+                        status="confirm_needed", # This specific status might need client-side handling for confirmation UI
+                        message=f"Server '{server_name}' already exists. Overwrite?",
                     ),
-                    500,
+                    200, # Or 409 Conflict if preferred for "exists"
                 )
+        except Exception as e_check:
+            logger.warning(f"Pre-check for server existence for '{server_name}' failed: {e_check}. Proceeding with threaded install.")
 
-        # Proceed with installation
-        result = server_install_config.install_new_server(server_name, server_version)
 
-        if result.get("status") == "success":
-            status_code = 201  # Created
-            result["next_step_url"] = url_for(
-                ".configure_properties_route", server_name=server_name, new_install=True
-            )
-            logger.info(f"API Install Server successful for '{server_name}'.")
-        else:
-            status_code = 500
+    def install_server_thread_target(s_name: str, s_version: str, ovrwrt: bool):
+        logger.info(f"Thread started for installing server '{s_name}' (version: {s_version}, overwrite: {ovrwrt}).")
+        try:
+            # If overwriting, delete first (this part is now inside the thread)
+            if ovrwrt:
+                # We need to re-check existence inside the thread for safety,
+                # though the main pre-check might have caught non-overwrite cases.
+                server_exists_check_thread = utils_api.validate_server_exist(s_name)
+                if server_exists_check_thread.get("status") == "success" and server_exists_check_thread.get("exists", False):
+                    logger.info(f"Thread: Server '{s_name}' exists and overwrite is true. Deleting existing data.")
+                    # Note: delete_server_data itself might be blocking and could also be threaded if it becomes an issue.
+                    # For now, assuming it's acceptable within this install thread.
+                    delete_result = server_api.delete_server_data(s_name, stop_if_running=True) # Ensure it stops if running
+                    if delete_result.get("status") == "error":
+                        logger.error(
+                            f"Thread: Failed to delete existing server '{s_name}' for overwrite: {delete_result['message']}"
+                        )
+                        # Optionally, communicate this failure back via a status update mechanism if one exists
+                        return # Stop further processing in this thread
+
+            # Proceed with installation
+            thread_result = server_install_config.install_new_server(s_name, s_version)
+
+            if thread_result.get("status") == "success":
+                # The next_step_url is useful if the client polls for completion,
+                # but can't be directly returned in the initial 202 response.
+                # Log it for now.
+                next_url = url_for(".configure_properties_route", server_name=s_name, new_install=True)
+                logger.info(
+                    f"Thread for Install Server '{s_name}': Succeeded. {thread_result.get('message')}. Next step: {next_url}"
+                )
+            else:
+                logger.error(
+                    f"Thread for Install Server '{s_name}': Failed. {thread_result.get('message')}"
+                )
+        except UserInputError as e_thread:
+            logger.warning(f"Thread for Install Server '{s_name}': Input error. {e_thread}")
+        except BSMError as e_thread:
+            logger.error(f"Thread for Install Server '{s_name}': Configuration error. {e_thread}")
+        except Exception as e_thread:
             logger.error(
-                f"API Install Server failed for '{server_name}': {result.get('message')}"
+                f"Thread for Install Server '{s_name}': Unexpected error in thread. {e_thread}",
+                exc_info=True,
             )
 
-    except UserInputError as e:
-        status_code = 400
-        result = {"status": "error", "message": str(e)}
-        logger.warning(f"API Install Server '{server_name}': Input error. {e}")
-    except BSMError as e:
-        status_code = 500
-        result = {"status": "error", "message": str(e)}
-        logger.error(f"API Install Server '{server_name}': Configuration error. {e}")
-    except Exception as e:
-        status_code = 500
-        result = {"status": "error", "message": "An unexpected error occurred."}
-        logger.error(
-            f"API Install Server '{server_name}': Unexpected error in route. {e}",
-            exc_info=True,
-        )
+    thread = threading.Thread(target=install_server_thread_target, args=(server_name, server_version, overwrite))
+    thread.start()
 
-    return jsonify(result), status_code
+    return jsonify({
+        "status": "success",
+        "message": f"Installation for server '{server_name}' (version: {server_version}) initiated in background."
+    }), 202
 
 
 @server_install_config_bp.route(
