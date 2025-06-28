@@ -10,7 +10,7 @@ safe, and version-agnostic access to these registered functions. It also
 facilitates inter-plugin communication through a custom event system.
 """
 import logging
-from typing import Dict, Any, Callable, TYPE_CHECKING, TypeVar
+from typing import Dict, Any, Callable, TYPE_CHECKING, TypeVar, List
 
 if TYPE_CHECKING:
     # Used for type hinting to avoid circular import at runtime.
@@ -151,23 +151,69 @@ class PluginAPI:
         )
         return api_function
 
-    def list_available_apis(self) -> list[str]:
-        """Returns a list of all registered API function names.
+    def list_available_apis(self) -> List[Dict[str, Any]]:
+        """
+        Returns a detailed list of all registered API functions, including
+        their names, parameters, and documentation.
 
         This method can be useful for plugins that need to introspect the
         available core functionalities at runtime, or for debugging purposes
-        to verify which APIs are exposed.
+        to verify which APIs are exposed and how to call them.
 
         Returns:
-            list[str]: A list of strings, where each string is the public name
-            of an available (registered) API function.
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary
+            describes a registered API function.
         """
-        available_apis = list(_api_registry.keys())
+        import inspect
+
+        api_details = []
         logger.debug(
-            f"Plugin '{self._plugin_name}' requested list of available APIs. "
-            f"Found {len(available_apis)} APIs: {available_apis}"
+            f"Plugin '{self._plugin_name}' requested detailed list of available APIs."
         )
-        return available_apis
+
+        # Iterate through the registered name and the actual function object
+        for name, func in sorted(_api_registry.items()):
+            try:
+                # Use inspect.signature to get the function's signature
+                sig = inspect.signature(func)
+                params_info = []
+
+                for param in sig.parameters.values():
+                    param_info = {
+                        "name": param.name,
+                        "type_obj": param.annotation,
+                        # Check if there's a default value
+                        "default": (
+                            param.default
+                            if param.default != inspect.Parameter.empty
+                            else "REQUIRED"
+                        ),
+                    }
+                    params_info.append(param_info)
+
+                # Get the first line of the docstring as a summary
+                doc = inspect.getdoc(func)
+                summary = (
+                    doc.strip().split("\n")[0] if doc else "No documentation available."
+                )
+
+                api_details.append(
+                    {"name": name, "parameters": params_info, "docstring": summary}
+                )
+            except (ValueError, TypeError) as e:
+                # Handle cases where we can't get a signature (e.g., for some built-in C functions)
+                logger.warning(f"Could not inspect signature for API '{name}': {e}")
+                api_details.append(
+                    {
+                        "name": name,
+                        "parameters": [
+                            {"name": "unknown", "type": "Any", "default": "unknown"}
+                        ],
+                        "docstring": "Could not inspect function signature.",
+                    }
+                )
+
+        return api_details
 
     def listen_for_event(self, event_name: str, callback: Callable[..., None]):
         """Registers a callback to be executed when a specific custom plugin event occurs.
