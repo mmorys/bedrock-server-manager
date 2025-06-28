@@ -4,7 +4,7 @@ Flask Blueprint defining API endpoints for controlling Bedrock server instances.
 """
 
 import logging
-import threading # Added for threading
+import threading  # Added for threading
 from typing import Tuple, Dict, Any
 
 # Third-party imports
@@ -56,9 +56,13 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
                     f"Thread for Start Server '{s_name}': Failed. {thread_result.get('message')}"
                 )
         except UserInputError as e_thread:
-            logger.warning(f"Thread for Start Server '{s_name}': Input error. {e_thread}")
+            logger.warning(
+                f"Thread for Start Server '{s_name}': Input error. {e_thread}"
+            )
         except BSMError as e_thread:
-            logger.error(f"Thread for Start Server '{s_name}': Application error. {e_thread}")
+            logger.error(
+                f"Thread for Start Server '{s_name}': Application error. {e_thread}"
+            )
         except Exception as e_thread:
             logger.error(
                 f"Thread for Start Server '{s_name}': Unexpected error in thread. {e_thread}",
@@ -68,10 +72,15 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
     thread = threading.Thread(target=start_server_thread_target, args=(server_name,))
     thread.start()
 
-    return jsonify({
-        "status": "success",
-        "message": f"Start operation for server '{server_name}' initiated in background."
-    }), 202
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": f"Start operation for server '{server_name}' initiated in background.",
+            }
+        ),
+        202,
+    )
 
 
 # --- API Route: Stop Server ---
@@ -97,7 +106,9 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
                     f"Thread for Stop Server '{s_name}': Failed. {thread_result.get('message')}"
                 )
         except UserInputError as e_thread:
-            logger.warning(f"Thread for Stop Server '{s_name}': Input error. {e_thread}")
+            logger.warning(
+                f"Thread for Stop Server '{s_name}': Input error. {e_thread}"
+            )
         except Exception as e_thread:
             logger.error(
                 f"Thread for Stop Server '{s_name}': Unexpected error in thread. {e_thread}",
@@ -108,10 +119,15 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
     thread.start()
 
     # Return immediately to the client
-    return jsonify({
-        "status": "success",
-        "message": f"Stop operation for server '{server_name}' initiated in background."
-    }), 202  # 202 Accepted: The request has been accepted for processing, but the processing has not been completed.
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": f"Stop operation for server '{server_name}' initiated in background.",
+            }
+        ),
+        202,
+    )  # 202 Accepted: The request has been accepted for processing, but the processing has not been completed.
 
 
 # --- API Route: Restart Server ---
@@ -139,7 +155,9 @@ def restart_server_route(server_name: str) -> Tuple[Response, int]:
                     f"Thread for Restart Server '{s_name}': Failed. {thread_result.get('message')}"
                 )
         except UserInputError as e_thread:
-            logger.warning(f"Thread for Restart Server '{s_name}': Input error. {e_thread}")
+            logger.warning(
+                f"Thread for Restart Server '{s_name}': Input error. {e_thread}"
+            )
         except Exception as e_thread:
             logger.error(
                 f"Thread for Restart Server '{s_name}': Unexpected error in thread. {e_thread}",
@@ -149,10 +167,15 @@ def restart_server_route(server_name: str) -> Tuple[Response, int]:
     thread = threading.Thread(target=restart_server_thread_target, args=(server_name,))
     thread.start()
 
-    return jsonify({
-        "status": "success",
-        "message": f"Restart operation for server '{server_name}' initiated in background."
-    }), 202
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": f"Restart operation for server '{server_name}' initiated in background.",
+            }
+        ),
+        202,
+    )
 
 
 # --- API Route: Send Command ---
@@ -240,7 +263,9 @@ def update_server_route(server_name: str) -> Tuple[Response, int]:
                     f"Thread for Update Server '{s_name}': Failed. {thread_result.get('message')}"
                 )
         except UserInputError as e_thread:
-            logger.warning(f"Thread for Update Server '{s_name}': Input error. {e_thread}")
+            logger.warning(
+                f"Thread for Update Server '{s_name}': Input error. {e_thread}"
+            )
         except Exception as e_thread:
             logger.error(
                 f"Thread for Update Server '{s_name}': Unexpected error in thread. {e_thread}",
@@ -250,10 +275,15 @@ def update_server_route(server_name: str) -> Tuple[Response, int]:
     thread = threading.Thread(target=update_server_thread_target, args=(server_name,))
     thread.start()
 
-    return jsonify({
-        "status": "success",
-        "message": f"Update operation for server '{server_name}' initiated in background."
-    }), 202
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": f"Update operation for server '{server_name}' initiated in background.",
+            }
+        ),
+        202,
+    )
 
 
 # --- API Route: Delete Server ---
@@ -281,7 +311,9 @@ def delete_server_route(server_name: str) -> Tuple[Response, int]:
                     f"Thread for Delete Server '{s_name}': Failed. {thread_result.get('message')}"
                 )
         except UserInputError as e_thread:
-            logger.warning(f"Thread for Delete Server '{s_name}': Input error. {e_thread}")
+            logger.warning(
+                f"Thread for Delete Server '{s_name}': Input error. {e_thread}"
+            )
         except Exception as e_thread:
             logger.error(
                 f"Thread for Delete Server '{s_name}': Unexpected error in thread. {e_thread}",
@@ -291,7 +323,12 @@ def delete_server_route(server_name: str) -> Tuple[Response, int]:
     thread = threading.Thread(target=delete_server_thread_target, args=(server_name,))
     thread.start()
 
-    return jsonify({
-        "status": "success",
-        "message": f"Delete operation for server '{server_name}' initiated in background."
-    }), 202
+    return (
+        jsonify(
+            {
+                "status": "success",
+                "message": f"Delete operation for server '{server_name}' initiated in background.",
+            }
+        ),
+        202,
+    )

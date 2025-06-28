@@ -261,7 +261,7 @@ class WebServerWindowsService(win32serviceutil.ServiceFramework):
         """Called by the SCM when the service is stopping."""
         self.logger.info(f"Web Service '{self._svc_name_}': Stop request received.")
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        try: 
+        try:
             stop_web_server_api()
         except Exception as e:
             self.logger.info(f"Error sending stop: {e}")
@@ -282,9 +282,7 @@ class WebServerWindowsService(win32serviceutil.ServiceFramework):
             os.chdir(script_dir)
             # --- The service runs the web app DIRECTLY in a thread ---
             # No more complex subprocess calls.
-            self.logger.info(
-                f"Starting web server logic in a background thread."
-            )
+            self.logger.info(f"Starting web server logic in a background thread.")
 
             web_thread = threading.Thread(
                 target=start_web_server_api,
