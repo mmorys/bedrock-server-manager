@@ -46,6 +46,8 @@ Changelog = "https://github.com/DMedina559/bedrock-server-manager/blob/main/docs
 dev = [
     "black",
     "pytest",
+    "sphinx",
+    "sphinx-click"
 ]
 
 [tool.setuptools.packages.find]
