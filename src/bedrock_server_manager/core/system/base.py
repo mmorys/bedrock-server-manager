@@ -269,10 +269,15 @@ class ResourceMonitor:
             self._last_readings: Dict[int, Tuple[Any, float]] = {}
             self._initialized = True
 
-    def get_stats(self, process: psutil.Process) -> Optional[Dict[str, Any]]:
+    def get_stats(self, process: "psutil.Process") -> Optional[Dict[str, Any]]:
         """
         Calculates resource usage statistics for the given process.
         """
+        if not PSUTIL_AVAILABLE:
+            # If psutil is not available, we can't use psutil.Process for isinstance check
+            # and the method shouldn't have been called or should return gracefully.
+            logger.warning("psutil is not available, cannot get process stats.")
+            return None
         if not isinstance(process, psutil.Process):
             raise TypeError("Input must be a valid psutil.Process object.")
 
