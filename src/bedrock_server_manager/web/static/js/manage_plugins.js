@@ -56,14 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 showStatusMessage(`Unexpected error during plugin reload: ${error.message}`, 'error');
             }
             // Ensure button is re-enabled in case of an unexpected error here
-            reloadPluginsBtn.disabled = false;
+            // reloadPluginsBtn.disabled = false; // Handled by finally
+            // reloadPluginsBtn.innerHTML = originalButtonText; // Handled by finally
+        } finally {
+            // Always restore the original button text and ensure it's enabled.
             reloadPluginsBtn.innerHTML = originalButtonText;
+            // sendServerActionRequest should also try to re-enable, but this is a safeguard.
+            if (reloadPluginsBtn.disabled) {
+                reloadPluginsBtn.disabled = false;
+            }
         }
-        // Note: sendServerActionRequest handles button re-enabling in its 'finally' block for typical cases.
-        // If the call to sendServerActionRequest itself throws an error that bypasses its finally,
-        // the button might remain disabled. The above catch helps, but it's not foolproof if the
-        // originalButtonText is not correctly restored.
-        // However, sendServerActionRequest is designed to be robust.
     }
 
 
