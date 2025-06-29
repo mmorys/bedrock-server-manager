@@ -197,6 +197,14 @@
 
         if (!serverSelect || !serverCardList || !noServersMessage) {
             console.error(`${functionName}: A critical element for the dashboard is missing. Functionality may be impaired.`);
+            // Use showStatusMessage if available, otherwise fallback
+            if (typeof showStatusMessage === 'function') {
+                showStatusMessage("Dashboard Error: Critical page elements missing.", "error");
+            } else {
+                // Can't use showStatusMessage, so perhaps update a known element or alert
+                const body = document.querySelector('body');
+                if (body) body.insertAdjacentHTML('afterbegin', '<p style="color:red; text-align:center; padding:10px; background:lightyellow; border:1px solid red;">Critical Dashboard Error: Page elements missing.</p>');
+            }
             return;
         }
 
@@ -318,15 +326,15 @@
          */
         async function updateDashboard() {
             try {
-                const response = await fetch('/api/servers');
-                if (!response.ok) {
-                    console.error(`${functionName}: API request to /api/servers failed with status ${response.status}`);
-                    return;
-                }
+                // Refactor to use sendServerActionRequest
+                const data = await window.sendServerActionRequest(null, '/api/servers', 'GET', null, null);
 
-                const data = await response.json();
-                if (data.status !== 'success' || !Array.isArray(data.servers)) {
-                    console.warn(`${functionName}: API returned a non-success status or invalid data.`, data.message);
+                if (!data || data.status !== 'success' || !Array.isArray(data.servers)) {
+                    console.warn(`${functionName}: API call to /api/servers did not return success or valid server data.`, data?.message);
+                    // showStatusMessage might have already been called by sendServerActionRequest for errors
+                    if (typeof showStatusMessage === 'function' && !(data && data.message)) {
+                        showStatusMessage("Failed to update dashboard: Could not retrieve server list.", "warning");
+                    }
                     return;
                 }
 
@@ -364,8 +372,11 @@
                 // 4. Show/hide the 'No Servers' message
                 noServersMessage.style.display = newServers.length === 0 ? 'block' : 'none';
 
-            } catch (error) {
-                console.error(`${functionName}: Error during dashboard update:`, error);
+            } catch (error) { // Catches errors from this script's logic, not sendServerActionRequest's fetch
+                console.error(`${functionName}: Client-side error during dashboard update:`, error);
+                if (typeof showStatusMessage === 'function') {
+                    showStatusMessage(`Dashboard update error: ${error.message}`, "error");
+                }
             }
         }
 

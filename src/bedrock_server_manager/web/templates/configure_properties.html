@@ -305,23 +305,29 @@
             const formContainer = document.getElementById('properties-form-container');
 
             try {
-                const response = await fetch(`/api/server/${serverName}/properties/get`);
-                const data = await response.json();
+                // Refactored to use sendServerActionRequest
+                const data = await window.sendServerActionRequest(serverName, 'properties/get', 'GET', null, null);
 
-                if (!response.ok || data.status !== 'success') {
-                    throw new Error(data.message || `HTTP error! Status: ${response.status}`);
+                if (data && data.status === 'success' && data.properties) {
+                    populateForm(data.properties);
+                } else {
+                    // Error message should be handled by sendServerActionRequest
+                    // If data is false, it was a fetch/network error.
+                    // If data.status is 'error', it was an API error.
+                    const errorMsg = (data && data.message) ? data.message : 'Failed to load server properties.';
+                    console.error('Failed to load server properties:', errorMsg);
+                    if (typeof showStatusMessage === 'function' && !(data && data.status === 'error')) {
+                         showStatusMessage(`Error loading properties: ${errorMsg}`, 'error');
+                    }
                 }
-
-                populateForm(data.properties);
-
-            } catch (error) {
-                console.error('Failed to load server properties:', error);
-                showStatusMessage(`Error loading properties: ${error.message}`, 'error');
+            } catch (error) { // Catch errors from this script's logic
+                console.error('Client-side error in loadProperties:', error);
+                if (typeof showStatusMessage === 'function') {
+                    showStatusMessage(`Client-side error loading properties: ${error.message}`, 'error');
+                }
             } finally {
-                // Hide loader and show the form, even if population fails,
-                // so the user can see the form with default values.
                 loader.style.display = 'none';
-                formContainer.style.display = 'block';
+                formContainer.style.display = 'block'; // Changed from 'grid' to 'block' for consistency, assuming CSS handles grid
                 console.log(`${functionName}: Loading complete. Form is now visible.`);
             }
         }

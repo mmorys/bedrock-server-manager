@@ -105,34 +105,31 @@
         const saveButton = document.getElementById('save-permissions-btn');
         const playerRowTemplate = document.getElementById('player-row-template');
         const noPlayersRowTemplate = document.getElementById('no-players-row-template');
+        const loaderRow = tableBody.querySelector('tr'); // Get the initial loader row
 
         try {
-            // --- 1. Fetch both data sources in parallel for speed ---
             console.log("Fetching global players and server permissions in parallel...");
-            const [allPlayersResponse, serverPermissionsResponse] = await Promise.all([
-                fetch('/api/players/get'),
-                fetch(`/api/server/${serverName}/permissions/get`)
+            // Refactor fetch to use sendServerActionRequest
+            const [allPlayersData, serverPermissionsData] = await Promise.all([
+                window.sendServerActionRequest(null, '/api/players/get', 'GET', null, null),
+                window.sendServerActionRequest(serverName, 'permissions/get', 'GET', null, null)
             ]);
 
-            // --- 2. Check responses and parse JSON ---
-            if (!allPlayersResponse.ok) throw new Error(`Failed to load global players: ${allPlayersResponse.statusText}`);
-            if (!serverPermissionsResponse.ok) throw new Error(`Failed to load server permissions: ${serverPermissionsResponse.statusText}`);
-
-            const allPlayersData = await allPlayersResponse.json();
-            const serverPermissionsData = await serverPermissionsResponse.json();
-
-            if (allPlayersData.status !== 'success') throw new Error(`API error loading players: ${allPlayersData.message}`);
-            if (serverPermissionsData.status !== 'success') throw new Error(`API error loading permissions: ${serverPermissionsData.message}`);
+            // Check responses
+            if (!allPlayersData || allPlayersData.status !== 'success') {
+                throw new Error(allPlayersData.message || 'Failed to load global players.');
+            }
+            if (!serverPermissionsData || serverPermissionsData.status !== 'success') {
+                throw new Error(serverPermissionsData.message || 'Failed to load server permissions.');
+            }
 
             let allPlayers = allPlayersData.players || [];
             const serverPermissions = serverPermissionsData.data?.permissions || [];
             console.log(`Loaded ${allPlayers.length} global players and ${serverPermissions.length} server permissions.`);
 
-            // --- 3. Merge the data (replicating the Python logic) ---
             const permissionsMap = new Map(serverPermissions.map(p => [String(p.xuid), p.permission_level]));
             const knownPlayerXuids = new Set(allPlayers.map(p => String(p.xuid)));
 
-            // Add any players that exist in permissions but not the global list
             for (const [xuid, level] of permissionsMap.entries()) {
                 if (!knownPlayerXuids.has(xuid)) {
                     allPlayers.push({ xuid: xuid, name: `Unknown (XUID: ${xuid})` });
@@ -140,16 +137,15 @@
                 }
             }
 
-            // Sort players by name, case-insensitively
-            allPlayers.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+            allPlayers.sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
 
-            // --- 4. Render the table ---
             tableBody.innerHTML = ''; // Clear the loader
 
             if (allPlayers.length === 0) {
                 tableBody.appendChild(noPlayersRowTemplate.content.cloneNode(true));
                 saveButton.title = "No players loaded to configure";
-                return; // Exit after showing the message
+                saveButton.disabled = true; // Keep disabled if no players
+                return;
             }
 
             const fragment = document.createDocumentFragment();
@@ -159,33 +155,36 @@
 
                 rowClone.querySelector('.player-name').textContent = player.name || 'N/A';
                 rowClone.querySelector('.player-xuid').textContent = player.xuid || 'N/A';
-
-                // Set attributes on the select element
-                select.name = player.xuid;
-                select.dataset.xuid = player.xuid;
-
-                // Set the selected option
-                const currentPermission = permissionsMap.get(String(player.xuid)) || 'member'; // Default to member
+                select.name = player.xuid; // Used by savePermissions
+                select.dataset.xuid = player.xuid; // Also useful for identification
+                const currentPermission = permissionsMap.get(String(player.xuid)) || 'member';
                 select.value = currentPermission;
-
-                // Set the field for validation errors
                 rowClone.querySelector('.validation-error').dataset.field = player.xuid;
-
                 fragment.appendChild(rowClone);
             });
             tableBody.appendChild(fragment);
 
-            // --- 5. Enable the save button ---
             saveButton.disabled = false;
             saveButton.title = "Save all player permissions";
 
         } catch (error) {
             console.error('Failed to load permissions page data:', error);
-            tableBody.innerHTML = `
-            <tr class="list-item-error">
-                <td colspan="3">Error loading page data: ${error.message}</td>
-            </tr>`;
+            tableBody.innerHTML = ''; // Clear loader if it's still there
+            // Use showStatusMessage for displaying the error
+            if (typeof showStatusMessage === 'function') {
+                showStatusMessage(`Error loading page data: ${error.message}`, 'error');
+            } else {
+                // Fallback if showStatusMessage somehow isn't available
+                const errorRow = document.createElement('tr');
+                errorRow.className = 'list-item-error';
+                const errorCell = document.createElement('td');
+                errorCell.colSpan = 3;
+                errorCell.textContent = `Error loading page data: ${error.message}`;
+                errorRow.appendChild(errorCell);
+                tableBody.appendChild(errorRow);
+            }
             saveButton.title = "Could not load data";
+            saveButton.disabled = true; // Keep disabled on error
         }
     });
 </script>

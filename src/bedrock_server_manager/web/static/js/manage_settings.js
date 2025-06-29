@@ -24,16 +24,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadAndRenderSettings = async () => {
         showLoader(true);
         try {
-            const response = await fetch('/api/settings', { credentials: 'same-origin' });
-            if (!response.ok) throw new Error(`Server responded with status ${response.status}`);
-            const result = await response.json();
-            if (result.status === 'success' && result.data) {
+            // Refactored to use sendServerActionRequest
+            const result = await sendServerActionRequest(null, '/api/settings', 'GET', null, null);
+
+            if (result && result.status === 'success' && result.data) {
                 renderSettings(result.data);
             } else {
-                showError('Failed to load settings: ' + (result.message || 'Unknown error.'));
+                // Error message should be handled by sendServerActionRequest, 
+                // but showError provides a fallback and specific UI handling.
+                const errorMsg = (result && result.message) ? result.message : 'Unknown error loading settings.';
+                showError('Failed to load settings: ' + errorMsg);
             }
-        } catch (error) {
-            console.error('Error fetching settings:', error);
+        } catch (error) { // Catch errors from this script's logic, not from sendServerActionRequest's fetch
+            console.error('Client-side error in loadAndRenderSettings:', error);
             showError(`An error occurred while fetching settings: ${error.message}`);
         } finally {
             showLoader(false);
@@ -51,14 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showError = (message) => {
         loader.style.display = 'none';
-        settingsFormSection.style.display = 'none';
-        settingsFormContainer.innerHTML = '';
-        showStatusMessage(message, 'error');
+        settingsFormSection.style.display = 'none'; // Hide form section on error
+        settingsFormContainer.innerHTML = ''; // Clear potentially partially rendered form
+        showStatusMessage(message, 'error'); // Use the global status message display
     };
 
     // --- Rendering Logic ---
     const renderSettings = (data) => {
-        settingsFormContainer.innerHTML = ''; // Ensure container is clear before rendering
+        settingsFormContainer.innerHTML = '';
         const excludedKeys = ['config_version'];
         let totalFieldsRendered = 0;
 
@@ -66,8 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (excludedKeys.includes(categoryKey) || typeof data[categoryKey] !== 'object' || data[categoryKey] === null) return;
 
             const fieldset = document.createElement('fieldset');
-            // No class needed on fieldset itself unless you have specific styles for it
-
             const legend = document.createElement('legend');
             legend.textContent = categoryKey.charAt(0).toUpperCase() + categoryKey.slice(1);
             fieldset.appendChild(legend);
@@ -93,19 +94,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (totalFieldsRendered === 0) {
-            showError("No configurable settings available.");
+            showError("No configurable settings available."); // Uses the updated showError
         }
     };
 
-    // --- THIS IS THE FULLY CORRECTED FUNCTION ---
     const createFormElement = (fullKey, labelText, value) => {
         try {
             const formGroup = document.createElement('div');
-            formGroup.className = 'form-group'; // Use the standard form group class
+            formGroup.className = 'form-group';
 
             const label = document.createElement('label');
             label.htmlFor = fullKey;
-            // --- FIX: Add .form-label class and improve text formatting ---
             label.className = 'form-label';
             label.textContent = (labelText.charAt(0).toUpperCase() + labelText.slice(1)).replace(/_/g, ' ');
 
@@ -113,18 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const inputType = typeof value;
 
             if (inputType === 'boolean') {
-                // --- FIX: Replicate the exact toggle switch structure ---
                 formGroup.classList.add('form-group-toggle-container');
-
                 const labelGroup = document.createElement('div');
                 labelGroup.className = 'form-label-group';
                 labelGroup.appendChild(label);
-
-                // You could add a help text span here if needed in the future
-                // const helpText = document.createElement('small');
-                // helpText.className = 'form-help-text';
-                // helpText.textContent = 'A description for this setting.';
-                // labelGroup.appendChild(helpText);
 
                 const toggleSwitchContainer = document.createElement('div');
                 toggleSwitchContainer.className = 'toggle-switch-container';
@@ -136,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.id = fullKey;
                 input.name = fullKey;
 
-                // The clickable label that acts as the switch's visual
                 const switchVisualLabel = document.createElement('label');
                 switchVisualLabel.htmlFor = fullKey;
                 switchVisualLabel.className = 'toggle-switch';
@@ -146,10 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 formGroup.appendChild(labelGroup);
                 formGroup.appendChild(toggleSwitchContainer);
-                inputElement = input; // The actual input element
+                inputElement = input;
             } else {
-                // For number, string, array, etc.
-                formGroup.appendChild(label); // Append label first for standard layout
+                formGroup.appendChild(label);
 
                 if (Array.isArray(value)) {
                     inputElement = document.createElement('input');
@@ -167,13 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (inputElement) {
-                    // --- FIX: Use .form-input class for styling ---
                     inputElement.className = 'form-input';
                     inputElement.id = fullKey;
                     inputElement.name = fullKey;
                     formGroup.appendChild(inputElement);
                 } else {
-                    // Handle unsupported types if necessary
                     const span = document.createElement('span');
                     span.textContent = `[Value type "${inputType}" not supported]`;
                     formGroup.appendChild(span);
@@ -191,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Event Handlers (Unchanged) ---
+    // --- Event Handlers ---
     async function handleInputChange(event) {
         const input = event.target;
         const key = input.name;
@@ -200,16 +187,18 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (input.type === 'number') value = parseFloat(value);
         else if (input.placeholder === 'comma, separated, list') value = value.split(',').map(s => s.trim()).filter(Boolean);
 
-        await sendServerActionRequest(null, '/api/settings', 'POST', { key, value }, null);
+        // Use sendServerActionRequest for POST
+        await sendServerActionRequest(null, '/api/settings', 'POST', { key, value }, null); // No specific button to disable for individual field changes
     }
 
     reloadButton.addEventListener('click', async () => {
         if (!confirm('This will discard any unsaved changes and reload the settings from the configuration file. Are you sure?')) return;
 
+        // Use sendServerActionRequest for POST
         const result = await sendServerActionRequest(null, '/api/settings/reload', 'POST', null, reloadButton);
 
         if (result && result.status === 'success') {
-            await loadAndRenderSettings();
+            await loadAndRenderSettings(); // Reload and render settings on success
         }
     });
 

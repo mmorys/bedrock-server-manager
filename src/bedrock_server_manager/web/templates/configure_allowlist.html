@@ -106,48 +106,56 @@
             allowlistDisplay.innerHTML = `<div class="loader-container-small"><div class="spinner"></div><p>Loading...</p></div>`;
 
             try {
-                const response = await fetch(`/api/server/${serverName}/allowlist/get`);
-                const data = await response.json();
+                // Refactored to use sendServerActionRequest
+                const data = await window.sendServerActionRequest(serverName, 'allowlist/get', 'GET', null, null);
 
-                if (!response.ok || data.status !== 'success') {
-                    throw new Error(data.message || `HTTP error! Status: ${response.status}`);
-                }
+                allowlistDisplay.innerHTML = ''; // Clear loader/previous content
 
-                // 2. Clear the list (removes loader)
-                allowlistDisplay.innerHTML = '';
+                if (data && data.status === 'success' && Array.isArray(data.existing_players)) {
+                    const players = data.existing_players;
+                    if (players.length > 0) {
+                        players.forEach(player => {
+                            const playerClone = playerItemTemplate.content.cloneNode(true);
+                            const nameSpan = playerClone.querySelector('.item-name');
+                            const tagSpan = playerClone.querySelector('.ignores-limit-tag');
+                            const removeButton = playerClone.querySelector('.remove-button');
 
-                // 3. Populate the list
-                if (data.existing_players && data.existing_players.length > 0) {
-                    data.existing_players.forEach(player => {
-                        const playerClone = playerItemTemplate.content.cloneNode(true);
-                        const nameSpan = playerClone.querySelector('.item-name');
-                        const tagSpan = playerClone.querySelector('.ignores-limit-tag');
-                        const removeButton = playerClone.querySelector('.remove-button');
+                            nameSpan.textContent = player.name;
+                            if (String(player.ignoresPlayerLimit).toLowerCase() === 'true') {
+                                tagSpan.style.display = 'inline-block';
+                            }
 
-                        nameSpan.textContent = player.name;
-                        if (String(player.ignoresPlayerLimit).toLowerCase() === 'true') {
-                            tagSpan.style.display = 'inline-block';
-                        }
-
-                        // The removeAllowlistPlayer function is expected to be in allowlist.js
-                        if (window.removeAllowlistPlayer) {
-                            removeButton.onclick = () => removeAllowlistPlayer(removeButton, serverName, player.name);
-                        } else {
-                            removeButton.style.display = 'none'; // Hide if function doesn't exist
-                            console.warn('removeAllowlistPlayer function not found in allowlist.js');
-                        }
-
-                        allowlistDisplay.appendChild(playerClone);
-                    });
+                            if (window.removeAllowlistPlayer) { // removeAllowlistPlayer is in allowlist.js
+                                removeButton.onclick = () => removeAllowlistPlayer(removeButton, serverName, player.name);
+                            } else {
+                                removeButton.style.display = 'none';
+                                console.warn('removeAllowlistPlayer function not found in allowlist.js');
+                            }
+                            allowlistDisplay.appendChild(playerClone);
+                        });
+                    } else {
+                        const noPlayersClone = noPlayersTemplate.content.cloneNode(true);
+                        allowlistDisplay.appendChild(noPlayersClone);
+                    }
                 } else {
-                    // Show the "no players" message
-                    const noPlayersClone = noPlayersTemplate.content.cloneNode(true);
-                    allowlistDisplay.appendChild(noPlayersClone);
+                    // Error message should have been shown by sendServerActionRequest
+                    // If data is false, it was a fetch/network error.
+                    // If data.status is 'error', it was an API error.
+                    const errorMsg = (data && data.message) ? data.message : 'Failed to load allowlist data.';
+                    console.error('Failed to load allowlist:', errorMsg);
+                    // showStatusMessage is called by sendServerActionRequest, but if we want to clear the list:
+                    // allowlistDisplay.innerHTML = ''; // Clear if preferred, or let showStatusMessage handle it
+                    if (typeof showStatusMessage === 'function' && !(data && data.status === 'error')) {
+                        // If sendServerActionRequest returned false (network error) and didn't show a detailed message
+                        showStatusMessage(`Error loading allowlist: ${errorMsg}`, 'error');
+                    }
                 }
-            } catch (error) {
-                console.error('Failed to load allowlist:', error);
-                // Replace loader with an error message
-                allowlistDisplay.innerHTML = `<li class="list-item-error">Error loading allowlist: ${error.message}</li>`;
+            } catch (error) { // Catch errors from this script's logic, not from sendServerActionRequest's fetch
+                console.error('Client-side error in fetchAndUpdateAllowlistDisplay:', error);
+                allowlistDisplay.innerHTML = ''; // Clear loader
+                if (typeof showStatusMessage === 'function') {
+                    showStatusMessage(`Client-side error loading allowlist: ${error.message}`, 'error');
+                }
             }
         };
 

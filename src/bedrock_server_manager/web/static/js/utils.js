@@ -130,8 +130,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
     const fetchOptions = {
         method: method.toUpperCase(), // Ensure method is uppercase
         headers: {
-            'Accept': 'application/json', // We always want JSON back
-            // 'X-CSRFToken': csrfToken     // Add CSRF token header // CSRF token removed
+            'Accept': 'application/json',
         }
     };
 
