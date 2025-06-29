@@ -84,6 +84,7 @@ function showStatusMessage(message, type = 'info') {
  * @param {object|null} [body=null] - Optional JavaScript object to send as the JSON request body.
  *                                    Ignored for methods like 'GET'.
  * @param {HTMLElement|null} [buttonElement=null] - Optional button element to disable while the request is pending.
+ * @param {boolean} [suppressSuccessPopup=false] - Optional. If true, success messages will not be shown via showStatusMessage.
  * @returns {Promise<object|false>} A promise that resolves with:
  *                                  - The parsed JSON response data object if the HTTP request was successful (status 2xx)
  *                                    and the response was valid JSON or 204 No Content. The caller *must* check the
@@ -95,10 +96,10 @@ function showStatusMessage(message, type = 'info') {
  * @throws {Error} Can throw errors if JSON parsing fails unexpectedly on a response claiming to be JSON,
  *                 though attempts are made to handle this gracefully.
  */
-async function sendServerActionRequest(serverName, actionPath, method = 'POST', body = null, buttonElement = null) {
+async function sendServerActionRequest(serverName, actionPath, method = 'POST', body = null, buttonElement = null, suppressSuccessPopup = false) {
     const functionName = 'sendServerActionRequest';
     // Use console.debug for potentially verbose parameter logging
-    console.debug(`${functionName}: Initiating request - Server: '${serverName || 'N/A'}', Path: '${actionPath}', Method: ${method}`);
+    console.debug(`${functionName}: Initiating request - Server: '${serverName || 'N/A'}', Path: '${actionPath}', Method: ${method}, SuppressSuccess: ${suppressSuccessPopup}`);
     if (body) console.debug(`${functionName}: Request Body:`, body); // Log body only if present
     if (buttonElement) console.debug(`${functionName}: Associated Button:`, buttonElement);
 
@@ -125,7 +126,9 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
         buttonElement.disabled = true;
     }
     // Show initial user feedback immediately
-    showStatusMessage(`Processing action at ${apiUrl}...`, 'info');
+    if (!suppressSuccessPopup) {
+        showStatusMessage(`Processing action at ${apiUrl}...`, 'info');
+    }
 
     const fetchOptions = {
         method: method.toUpperCase(), // Ensure method is uppercase
@@ -239,7 +242,9 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             if (responseData && responseData.status === 'success') {
                 const successMsg = responseData.message || `Action at ${apiUrl} completed successfully.`;
                 console.info(`${functionName}: Application success. Message: "${successMsg}"`);
-                showStatusMessage(successMsg, 'success');
+                if (!suppressSuccessPopup) { // Only show popup if not suppressed
+                    showStatusMessage(successMsg, 'success');
+                }
                 // Optionally trigger UI updates based on success here if needed
             } else if (responseData && responseData.status === 'confirm_needed') {
                 // Special status - let the caller handle confirmation logic

@@ -197,11 +197,9 @@
 
         if (!serverSelect || !serverCardList || !noServersMessage) {
             console.error(`${functionName}: A critical element for the dashboard is missing. Functionality may be impaired.`);
-            // Use showStatusMessage if available, otherwise fallback
             if (typeof showStatusMessage === 'function') {
                 showStatusMessage("Dashboard Error: Critical page elements missing.", "error");
             } else {
-                // Can't use showStatusMessage, so perhaps update a known element or alert
                 const body = document.querySelector('body');
                 if (body) body.insertAdjacentHTML('afterbegin', '<p style="color:red; text-align:center; padding:10px; background:lightyellow; border:1px solid red;">Critical Dashboard Error: Page elements missing.</p>');
             }
@@ -210,27 +208,17 @@
 
         // --- State Management and UI Updates ---
 
-        /**
-         * Updates enabled/disabled state and hrefs of all actions based on dropdown selection.
-         * @param {string} selectedServerName - The name of the selected server, or empty string.
-         */
         function updateActionStates(selectedServerName) {
             const hasSelection = selectedServerName && selectedServerName !== "";
             const serverNameEncoded = hasSelection ? encodeURIComponent(selectedServerName) : '';
-
-            // 1. Update Global Action Buttons (Top Bar)
             globalActionButtons.forEach(button => button.disabled = !hasSelection);
-
-            // 2. Update Section-Specific Actions and Links
             serverDependentSections.forEach(section => {
                 const span = section.querySelector('span[id^="selected-server-"]');
                 const actions = section.querySelectorAll('.action-button, .action-link');
-
                 if (span) {
                     span.textContent = hasSelection ? selectedServerName : "(No server selected)";
                     span.style.fontStyle = hasSelection ? 'normal' : 'italic';
                 }
-
                 actions.forEach(action => {
                     action.disabled = !hasSelection;
                     if (action.tagName === 'A' && action.id && hasSelection) {
@@ -250,56 +238,35 @@
                         }
                         action.href = targetUrl;
                     } else if (action.tagName === 'A' && !hasSelection) {
-                        action.href = '#'; // Reset href if no server is selected
+                        action.href = '#';
                     }
                 });
             });
         }
 
-        // --- Dynamic Data Fetching and Rendering ---
-
-        /**
-         * Creates an HTML element for a single server card.
-         * @param {object} server - The server data object {name, status, version}.
-         * @returns {HTMLElement} - The created div element for the server card.
-         */
         function createServerCardElement(server) {
             const card = document.createElement('div');
             card.className = 'server-card';
             card.dataset.serverName = server.name;
-
             const safeServerName = encodeURIComponent(server.name);
             const status = server.status || 'UNKNOWN';
             const version = server.version || 'N/A';
-
             card.innerHTML = `
             <div class="server-card-thumbnail">
                 <img src="/api/server/${safeServerName}/world/icon" alt="${server.name} World Icon" class="world-icon-img">
             </div>
             <div class="server-card-info">
                 <h3>${server.name}</h3>
-                <p>
-                    <span class="info-label">Status:</span>
-                    <span class="status-text status-${status.toLowerCase()}">${status.toUpperCase()}</span>
-                </p>
-                <p>
-                    <span class="info-label">Version:</span>
-                    <span class="version-text">${version}</span>
-                </p>
+                <p><span class="info-label">Status:</span> <span class="status-text status-${status.toLowerCase()}">${status.toUpperCase()}</span></p>
+                <p><span class="info-label">Version:</span> <span class="version-text">${version}</span></p>
             </div>
-            <div class="server-card-actions"></div>
-        `;
+            <div class="server-card-actions"></div>`;
             return card;
         }
 
-        /**
-         * Intelligently updates the server selection dropdown menu.
-         * @param {Array<object>} servers - The new list of server objects.
-         */
         function updateServerDropdown(servers) {
             const previouslySelected = serverSelect.value;
-            serverSelect.innerHTML = ''; // Clear all existing options
-
+            serverSelect.innerHTML = '';
             if (servers.length === 0) {
                 const noServerOption = new Option('-- No Servers Installed --', '');
                 noServerOption.disabled = true;
@@ -308,31 +275,29 @@
                 serverSelect.title = 'No servers available';
             } else {
                 serverSelect.add(new Option('-- Select a Server --', ''));
-                servers.forEach(server => {
-                    serverSelect.add(new Option(server.name, server.name));
-                });
+                servers.forEach(server => serverSelect.add(new Option(server.name, server.name)));
                 serverSelect.disabled = false;
                 serverSelect.title = 'Select a server';
             }
-
             serverSelect.value = previouslySelected;
             if (serverSelect.value !== previouslySelected) {
                 serverSelect.dispatchEvent(new Event('change'));
             }
         }
 
-        /**
-         * Fetches server data and updates the entire dashboard UI.
-         */
         async function updateDashboard() {
             try {
-                // Refactor to use sendServerActionRequest
-                const data = await window.sendServerActionRequest(null, '/api/servers', 'GET', null, null);
+                // Use sendServerActionRequest and suppress success pop-up for polling
+                const data = await window.sendServerActionRequest(null, '/api/servers', 'GET', null, null, true);
 
                 if (!data || data.status !== 'success' || !Array.isArray(data.servers)) {
-                    console.warn(`${functionName}: API call to /api/servers did not return success or valid server data.`, data?.message);
-                    // showStatusMessage might have already been called by sendServerActionRequest for errors
-                    if (typeof showStatusMessage === 'function' && !(data && data.message)) {
+                    console.warn(`${functionName}: API call to /api/servers did not return success or valid server data. Message:`, data?.message);
+                    // sendServerActionRequest handles error pop-ups.
+                    // Optionally, provide a persistent placeholder if the list can't load.
+                    // For example, serverCardList.innerHTML = '<p>Could not load server list.</p>';
+                    // For now, relying on sendServerActionRequest's error message.
+                    if (typeof showStatusMessage === 'function' && !(data && data.message && data.status === 'error')) {
+                        // If sendServerActionRequest returned false (network error) or an unexpected structure
                         showStatusMessage("Failed to update dashboard: Could not retrieve server list.", "warning");
                     }
                     return;
@@ -343,7 +308,6 @@
                 const existingCardElements = serverCardList.querySelectorAll('.server-card');
                 const existingServerNames = new Set(Array.from(existingCardElements).map(card => card.dataset.serverName));
 
-                // 1. Update and Remove existing cards
                 existingCardElements.forEach(card => {
                     const serverName = card.dataset.serverName;
                     if (newServerMap.has(serverName)) {
@@ -355,24 +319,20 @@
                         statusEl.className = `status-text status-${newStatus.toLowerCase()}`;
                         versionEl.textContent = serverData.version || 'N/A';
                     } else {
-                        card.remove(); // Server was deleted
+                        card.remove();
                     }
                 });
 
-                // 2. Add new cards
                 newServers.forEach(server => {
                     if (!existingServerNames.has(server.name)) {
                         serverCardList.appendChild(createServerCardElement(server));
                     }
                 });
 
-                // 3. Update the dropdown selector
                 updateServerDropdown(newServers);
-
-                // 4. Show/hide the 'No Servers' message
                 noServersMessage.style.display = newServers.length === 0 ? 'block' : 'none';
 
-            } catch (error) { // Catches errors from this script's logic, not sendServerActionRequest's fetch
+            } catch (error) {
                 console.error(`${functionName}: Client-side error during dashboard update:`, error);
                 if (typeof showStatusMessage === 'function') {
                     showStatusMessage(`Dashboard update error: ${error.message}`, "error");
@@ -380,19 +340,12 @@
             }
         }
 
-        // --- Event Listeners and Initial Execution ---
-
-        // Listen for changes on the server dropdown to update action states
         serverSelect.addEventListener('change', (event) => {
             updateActionStates(event.target.value);
         });
 
-        // Run once on load to populate the page
         updateDashboard();
-
-        // Then run on a timer to keep the page live
         setInterval(updateDashboard, POLLING_INTERVAL_MS);
-
         console.log(`${functionName}: Initialization complete. Polling every ${POLLING_INTERVAL_MS}ms.`);
     });
 </script>
