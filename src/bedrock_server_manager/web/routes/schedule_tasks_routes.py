@@ -156,7 +156,6 @@ def schedule_tasks_windows_route(server_name: str) -> Response:
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/cron_scheduler/add", methods=["POST"]
 )
-
 @auth_required
 def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to add a new Linux cron job."""
@@ -197,7 +196,6 @@ def add_cron_job_route(server_name: str) -> Tuple[Response, int]:
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/cron_scheduler/modify", methods=["POST"]
 )
-
 @auth_required
 def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to modify an existing Linux cron job."""
@@ -247,7 +245,6 @@ def modify_cron_job_route(server_name: str) -> Tuple[Response, int]:
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/cron_scheduler/delete", methods=["DELETE"]
 )
-
 @auth_required
 def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to delete a specific Linux cron job."""
@@ -288,7 +285,6 @@ def delete_cron_job_route(server_name: str) -> Tuple[Response, int]:
 @schedule_tasks_bp.route(
     "/api/server/<string:server_name>/task_scheduler/add", methods=["POST"]
 )
-
 @auth_required
 def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
     """API endpoint to add a new Windows scheduled task."""
@@ -361,7 +357,6 @@ def add_windows_task_api(server_name: str) -> Tuple[Response, int]:
     "/api/server/<string:server_name>/task_scheduler/task/<path:task_name>",
     methods=["PUT", "DELETE"],
 )
-
 @auth_required
 def manage_windows_task_api(server_name: str, task_name: str) -> Tuple[Response, int]:
     """API endpoint to modify or delete an existing Windows scheduled task."""

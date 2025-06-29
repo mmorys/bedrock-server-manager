@@ -30,6 +30,7 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
+
 # from bedrock_server_manager.web.routes.auth_routes import login_required, csrf # CSRF removed
 from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.error import (
@@ -102,7 +103,10 @@ def restore_menu_route(server_name: str) -> Response:
     )
 
 
-@backup_restore_bp.route("/server/<string:server_name>/restore/<string:restore_type>/select_file", methods=["GET"])
+@backup_restore_bp.route(
+    "/server/<string:server_name>/restore/<string:restore_type>/select_file",
+    methods=["GET"],
+)
 @login_required
 def show_select_backup_file_page_route(server_name: str, restore_type: str) -> Response:
     """
@@ -126,12 +130,16 @@ def show_select_backup_file_page_route(server_name: str, restore_type: str) -> R
             full_paths = api_result.get("backups", [])
             if not full_paths:
                 flash(
-                    f"No '{restore_type}' backups found for server '{server_name}'.", "info"
+                    f"No '{restore_type}' backups found for server '{server_name}'.",
+                    "info",
                 )
                 return redirect(url_for(".restore_menu_route", server_name=server_name))
 
-            backups_for_template = [{"name": os.path.basename(p), "path": os.path.basename(p)} for p in full_paths]
-            
+            backups_for_template = [
+                {"name": os.path.basename(p), "path": os.path.basename(p)}
+                for p in full_paths
+            ]
+
             return render_template(
                 "restore_select_backup.html",
                 server_name=server_name,
@@ -140,13 +148,16 @@ def show_select_backup_file_page_route(server_name: str, restore_type: str) -> R
             )
         else:
             error_msg = api_result.get("message", "Unknown error listing backups.")
-            logger.error(f"Error listing backups for '{server_name}' ({restore_type}): {error_msg}")
+            logger.error(
+                f"Error listing backups for '{server_name}' ({restore_type}): {error_msg}"
+            )
             flash(f"Error listing backups: {error_msg}", "error")
             return redirect(url_for(".restore_menu_route", server_name=server_name))
 
     except Exception as e:
         logger.error(
-            f"Unexpected error on backup selection page for '{server_name}' ({restore_type}): {e}", exc_info=True
+            f"Unexpected error on backup selection page for '{server_name}' ({restore_type}): {e}",
+            exc_info=True,
         )
         flash("An unexpected error occurred while preparing backup selection.", "error")
         return redirect(url_for(".restore_menu_route", server_name=server_name))
@@ -156,7 +167,10 @@ def show_select_backup_file_page_route(server_name: str, restore_type: str) -> R
 
 # --- API Routes ---
 
-@backup_restore_bp.route("/api/server/<string:server_name>/restore/select_backup_type", methods=["POST"])
+
+@backup_restore_bp.route(
+    "/api/server/<string:server_name>/restore/select_backup_type", methods=["POST"]
+)
 @auth_required
 def handle_restore_select_backup_api(server_name: str) -> Tuple[Response, int]:
     """
@@ -167,43 +181,67 @@ def handle_restore_select_backup_api(server_name: str) -> Tuple[Response, int]:
     data = request.get_json()
 
     if not data or not (restore_type := data.get("restore_type", "").lower()):
-        logger.warning(f"API: Invalid/missing restore_type from '{identity}' for server '{server_name}'. Data: {data}")
-        return jsonify(status="error", message="Missing or invalid 'restore_type' in request body."), 400
-    
+        logger.warning(
+            f"API: Invalid/missing restore_type from '{identity}' for server '{server_name}'. Data: {data}"
+        )
+        return (
+            jsonify(
+                status="error",
+                message="Missing or invalid 'restore_type' in request body.",
+            ),
+            400,
+        )
+
     logger.info(
         f"API: User '{identity}' initiated selection of restore_type '{restore_type}' for server '{server_name}'."
     )
 
     valid_types = ["world", "properties", "allowlist", "permissions"]
     if restore_type not in valid_types:
-        logger.warning(f"API: Invalid restore_type '{restore_type}' selected by '{identity}' for '{server_name}'.")
-        return jsonify(status="error", message=f"Invalid restore type '{restore_type}' selected."), 400
+        logger.warning(
+            f"API: Invalid restore_type '{restore_type}' selected by '{identity}' for '{server_name}'."
+        )
+        return (
+            jsonify(
+                status="error",
+                message=f"Invalid restore type '{restore_type}' selected.",
+            ),
+            400,
+        )
 
     try:
-        
+
         redirect_page_url = url_for(
             ".show_select_backup_file_page_route",
             server_name=server_name,
-            restore_type=restore_type
+            restore_type=restore_type,
         )
-        
-        return jsonify({
-            "status": "success",
-            "message": f"Proceed to select {restore_type} backup.",
-            "redirect_url": redirect_page_url
-        }), 200
+
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": f"Proceed to select {restore_type} backup.",
+                    "redirect_url": redirect_page_url,
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         logger.error(
-            f"API: Unexpected error during restore type selection for '{server_name}' by '{identity}': {e}", exc_info=True
+            f"API: Unexpected error during restore type selection for '{server_name}' by '{identity}': {e}",
+            exc_info=True,
         )
-        return jsonify(status="error", message="An unexpected server error occurred."), 500
+        return (
+            jsonify(status="error", message="An unexpected server error occurred."),
+            500,
+        )
 
 
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/backups/prune", methods=["POST"]
 )
-
 @auth_required
 def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     """
@@ -257,7 +295,6 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     "/api/server/<string:server_name>/backup/list/<string:backup_type>",
     methods=["GET"],
 )
-
 @auth_required
 def list_server_backups_route(
     server_name: str, backup_type: str
@@ -323,7 +360,6 @@ def list_server_backups_route(
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/backup/action", methods=["POST"]
 )
-
 @auth_required
 def backup_action_route(server_name: str) -> Tuple[Response, int]:
     """

@@ -44,7 +44,6 @@ def manage_settings_page() -> Response:
 
 # --- API Route: Get All Global Settings ---
 @settings_bp.route("/api/settings", methods=["GET"])
-
 @auth_required
 def get_settings_route() -> Tuple[Response, int]:
     """
@@ -64,7 +63,6 @@ def get_settings_route() -> Tuple[Response, int]:
 
 # --- API Route: Set a Global Setting ---
 @settings_bp.route("/api/settings", methods=["POST"])
-
 @auth_required
 def set_setting_route() -> Tuple[Response, int]:
     """
@@ -101,7 +99,6 @@ def set_setting_route() -> Tuple[Response, int]:
 
 # --- API Route: Reload Global Settings ---
 @settings_bp.route("/api/settings/reload", methods=["POST"])
-
 @auth_required
 def reload_settings_route() -> Tuple[Response, int]:
     """

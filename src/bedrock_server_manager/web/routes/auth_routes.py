@@ -52,6 +52,7 @@ jwt = JWTManager()
 # --- Forms ---
 class LoginForm(FlaskForm):
     """Login form definition using Flask-WTF."""
+
     class Meta:
         csrf = False
 

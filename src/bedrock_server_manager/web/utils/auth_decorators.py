@@ -84,7 +84,7 @@ def auth_required(view: Callable) -> Callable:
             logger.debug(
                 f"CSRF check skipped as CSRF protection has been removed. Proceeding for method '{request.method}'."
             )
-            return view(*args, **kwargs) # Proceed to view
+            return view(*args, **kwargs)  # Proceed to view
 
         # --- 3. Authentication Failed ---
         log_message = f"Authentication failed for path '{request.path}'."

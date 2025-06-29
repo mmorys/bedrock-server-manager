@@ -36,7 +36,6 @@ def manage_plugins_page() -> Response:
 
 # --- API Route: Get Plugin Statuses ---
 @plugin_bp.route("/api/plugins", methods=["GET"])
-
 @auth_required  # Requires token or web session for API access
 def get_plugins_status_route() -> Tuple[Response, int]:
     """
@@ -76,7 +75,6 @@ def get_plugins_status_route() -> Tuple[Response, int]:
 
 # --- API Route: Trigger Custom Plugin Event ---
 @plugin_bp.route("/api/plugins/trigger_event", methods=["POST"])
-
 @auth_required
 def trigger_custom_event_route() -> Tuple[Response, int]:
     """
@@ -223,7 +221,6 @@ def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
 
 
 @plugin_bp.route("/api/plugins/reload", methods=["POST"])
-
 @auth_required
 def reload_plugins_route() -> Tuple[Response, int]:
     """

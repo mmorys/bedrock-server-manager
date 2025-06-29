@@ -211,7 +211,6 @@ def scan_players_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/downloads/prune", methods=["POST"])
-
 @auth_required
 def prune_downloads_api_route() -> Tuple[Response, int]:
     """
@@ -361,7 +360,6 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/servers", methods=["GET"])
-
 @auth_required
 def get_servers_list_api():
     """
@@ -432,7 +430,6 @@ def get_system_info_api():
 
 
 @api_info_bp.route("/api/players/get", methods=["GET"])
-
 @auth_required
 def get_all_players_api_route() -> Tuple[Response, int]:
     """
@@ -486,7 +483,6 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/players/add", methods=["POST"])
-
 @auth_required
 def add_players_api_route() -> Tuple[Response, int]:
     """
