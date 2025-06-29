@@ -17,7 +17,7 @@ if platform.system() == "Windows":
 logger = logging.getLogger(__name__)
 
 
-@click.group()
+@click.group(hidden=True)
 def service():
     """Manages the Windows OS service integrations."""
     pass
