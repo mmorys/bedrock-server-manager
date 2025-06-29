@@ -43,7 +43,6 @@ from bedrock_server_manager.web.routes.content_routes import content_bp
 from bedrock_server_manager.web.routes.util_routes import util_bp
 from bedrock_server_manager.web.routes.auth_routes import (
     auth_bp,
-    csrf,
     jwt,
 )
 from bedrock_server_manager.web.utils.validators import register_server_validation
@@ -116,10 +115,6 @@ def create_app() -> Flask:
             "SECRET_KEY must be set for CSRF protection and session management."
         )
     logger.debug("SECRET_KEY configured.")
-
-    # --- Initialize CSRF Protection ---
-    csrf.init_app(app)
-    logger.debug("Initialized Flask-WTF CSRF Protection.")
 
     # --- Configure JWT ---
     jwt_secret_key_env = f"{env_name}_TOKEN"

@@ -18,7 +18,6 @@ from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.api import utils as utils_api
 from bedrock_server_manager.api import application as api_application
 from bedrock_server_manager.api import misc as misc_api
-from bedrock_server_manager.web.routes.auth_routes import csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
@@ -38,7 +37,6 @@ api_info_bp = Blueprint("api_info_routes", __name__)
 
 
 @api_info_bp.route("/api/server/<string:server_name>/status", methods=["GET"])
-@csrf.exempt
 @auth_required
 def get_running_status_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to check if a server process is currently running."""
@@ -66,7 +64,6 @@ def get_running_status_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/server/<string:server_name>/config_status", methods=["GET"])
-@csrf.exempt
 @auth_required
 def get_config_status_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to get the status string stored in the server's config file."""
@@ -94,7 +91,6 @@ def get_config_status_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/server/<string:server_name>/version", methods=["GET"])
-@csrf.exempt
 @auth_required
 def get_version_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to get the installed version string from the server's config file."""
@@ -123,7 +119,6 @@ def get_version_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/server/<string:server_name>/validate", methods=["GET"])
-@csrf.exempt
 @auth_required
 def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to validate if a server directory and executable exist."""
@@ -151,7 +146,6 @@ def validate_server_api_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Server Status ---
 @api_info_bp.route("/api/server/<string:server_name>/process_info", methods=["GET"])
-@csrf.exempt
 @auth_required
 def server_status_api(server_name: str) -> Tuple[Response, int]:
     """API endpoint to retrieve status information for a specific server."""
@@ -191,7 +185,6 @@ def server_status_api(server_name: str) -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/players/scan", methods=["POST"])
-@csrf.exempt
 @auth_required
 def scan_players_api_route() -> Tuple[Response, int]:
     """API endpoint to trigger scanning all server logs for player data."""
@@ -218,7 +211,7 @@ def scan_players_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/downloads/prune", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def prune_downloads_api_route() -> Tuple[Response, int]:
     """
@@ -368,7 +361,7 @@ def prune_downloads_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/servers", methods=["GET"])
-@csrf.exempt
+
 @auth_required
 def get_servers_list_api():
     """
@@ -439,7 +432,7 @@ def get_system_info_api():
 
 
 @api_info_bp.route("/api/players/get", methods=["GET"])
-@csrf.exempt
+
 @auth_required
 def get_all_players_api_route() -> Tuple[Response, int]:
     """
@@ -493,7 +486,7 @@ def get_all_players_api_route() -> Tuple[Response, int]:
 
 
 @api_info_bp.route("/api/players/add", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def add_players_api_route() -> Tuple[Response, int]:
     """

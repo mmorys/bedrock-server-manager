@@ -7,7 +7,6 @@ permissions, OS services).
 
 import logging
 import platform
-import threading  # Added for threading
 from typing import Dict, List, Any, Tuple
 
 # Third-party imports
@@ -28,7 +27,7 @@ from bedrock_server_manager.api import server as server_api
 from bedrock_server_manager.api import player as player_api
 from bedrock_server_manager.api import system as system_api
 from bedrock_server_manager.api import utils as utils_api
-from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
@@ -163,7 +162,7 @@ def configure_service_route(server_name: str) -> Response:
 
 # --- API Routes ---
 @server_install_config_bp.route("/api/server/install", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def install_server_api_route() -> Tuple[Response, int]:
     """API endpoint to handle the creation and installation of a new server instance."""
@@ -246,7 +245,7 @@ def install_server_api_route() -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/properties/set", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to update server.properties."""
@@ -298,7 +297,7 @@ def configure_properties_api_route(server_name: str) -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/properties/get", methods=["GET"]
 )
-@csrf.exempt
+
 @auth_required
 def get_server_properties_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to retrieve the parsed server.properties for a specific server."""
@@ -313,7 +312,7 @@ def get_server_properties_route(server_name: str) -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/allowlist/add", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def add_to_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to add players to the server's allowlist."""
@@ -357,7 +356,7 @@ def add_to_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/allowlist/get", methods=["GET"]
 )
-@csrf.exempt
+
 @auth_required
 def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to retrieve the current allowlist for a server."""
@@ -376,7 +375,7 @@ def get_allowlist_api_route(server_name: str) -> Tuple[Response, int]:
     "/api/server/<string:server_name>/allowlist/remove",
     methods=["DELETE"],
 )
-@csrf.exempt
+
 @auth_required
 def remove_allowlist_players_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to remove multiple players from a server's allowlist."""
@@ -418,7 +417,7 @@ def remove_allowlist_players_api_route(server_name: str) -> Tuple[Response, int]
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/permissions/set", methods=["PUT"]
 )
-@csrf.exempt
+
 @auth_required
 def configure_permissions_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to update player permissions."""
@@ -479,7 +478,7 @@ def configure_permissions_api_route(server_name: str) -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/permissions/get", methods=["GET"]
 )
-@csrf.exempt
+
 @auth_required
 def get_server_permissions_data_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to retrieve player permission levels for a specific server."""
@@ -495,7 +494,7 @@ def get_server_permissions_data_route(server_name: str) -> Tuple[Response, int]:
 @server_install_config_bp.route(
     "/api/server/<string:server_name>/service/update", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def configure_service_api_route(server_name: str) -> Tuple[Response, int]:
     """

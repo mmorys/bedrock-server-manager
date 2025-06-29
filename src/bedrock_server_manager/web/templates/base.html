@@ -6,13 +6,12 @@ header, main content area with flash messages, and placeholders for page-specifi
 content and scripts using Jinja2 blocks.
 -->
 <!DOCTYPE html>
-<html lang="en"> {# Specify language for accessibility #}
+<html lang="en">
+ {# Specify language for accessibility #}
 <head>
     <meta charset="UTF-8">
     {# Responsive viewport settings #}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {# CSRF Protection Token (for AJAX requests) #}
-    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {# --- Page Title Block --- #}
     {# Child templates override this block with their specific title. #}
@@ -87,19 +86,19 @@ content and scripts using Jinja2 blocks.
         <main>
             {# Flash Messages Display Area #}
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        {% set css_class = 'message-box' %}
-                        {% if category == 'error' or category == 'danger' %}
-                            {% set css_class = 'message-box message-error' %}
-                        {% elif category == 'warning' %}
-                            {% set css_class = 'message-box message-warning' %}
-                        {% elif category == 'info' %}
-                            {# {% set css_class = 'message-box message-info' %} #}
-                        {% endif %}
-                        <div class="{{ css_class }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
+            {% if messages %}
+            {% for category, message in messages %}
+            {% set css_class = 'message-box' %}
+            {% if category == 'error' or category == 'danger' %}
+            {% set css_class = 'message-box message-error' %}
+            {% elif category == 'warning' %}
+            {% set css_class = 'message-box message-warning' %}
+            {% elif category == 'info' %}
+            {# {% set css_class = 'message-box message-info' %} #}
+            {% endif %}
+            <div class="{{ css_class }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
             {% endwith %}
             {# --- End Flash Messages --- #}
 
@@ -117,7 +116,7 @@ content and scripts using Jinja2 blocks.
             </p>
 
         </footer>
-        
+
         {# --- End Footer --- #}
 
     </div> {# --- End of .container --- #}

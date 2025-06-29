@@ -29,7 +29,6 @@ from flask import (
 )
 from werkzeug.security import check_password_hash
 from flask_wtf import FlaskForm
-from flask_wtf.csrf import CSRFProtect
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length
 from flask_jwt_extended import create_access_token, JWTManager
@@ -46,13 +45,15 @@ auth_bp = Blueprint(
     template_folder="../templates",
     static_folder="../static",
 )
-csrf = CSRFProtect()
+# csrf = CSRFProtect() # CSRF protection removed
 jwt = JWTManager()
 
 
 # --- Forms ---
 class LoginForm(FlaskForm):
     """Login form definition using Flask-WTF."""
+    class Meta:
+        csrf = False
 
     username = StringField(
         "Username",
@@ -189,7 +190,7 @@ def login() -> Response:
 
 # --- API Login Route ---
 @auth_bp.route("/api/login", methods=["POST"])
-@csrf.exempt
+# @csrf.exempt # CSRF protection removed
 def api_login() -> Response:
     """Handles API user login (JWT-based)."""
     if not request.is_json:

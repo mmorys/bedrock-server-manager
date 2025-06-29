@@ -30,7 +30,8 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
-from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+# from bedrock_server_manager.web.routes.auth_routes import login_required, csrf # CSRF removed
+from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.error import (
     BSMError,
     UserInputError,
@@ -101,66 +102,53 @@ def restore_menu_route(server_name: str) -> Response:
     )
 
 
-@backup_restore_bp.route(
-    "/server/<string:server_name>/restore/select", methods=["POST"]
-)
+@backup_restore_bp.route("/server/<string:server_name>/restore/<string:restore_type>/select_file", methods=["GET"])
 @login_required
-def restore_select_backup_route(server_name: str) -> Response:
+def show_select_backup_file_page_route(server_name: str, restore_type: str) -> Response:
     """
-    Handles form submission to list available backups for a user to choose from.
+    Renders the page that lists available backup files for a given type for selection.
+    This is the target for the redirect from the JavaScript handler.
     """
     identity = get_current_identity()
-    restore_type = request.form.get("restore_type", "").lower()
     logger.info(
-        f"User '{identity}' selected restore_type '{restore_type}' for server '{server_name}'."
+        f"User '{identity}' viewing selection page for '{restore_type}' backups for server '{server_name}'."
     )
 
     valid_types = ["world", "properties", "allowlist", "permissions"]
-    if restore_type not in valid_types:
-        flash(f"Invalid restore type '{restore_type}' selected.", "warning")
+    if restore_type.lower() not in valid_types:
+        flash(f"Invalid restore type '{restore_type}' specified.", "warning")
         return redirect(url_for(".restore_menu_route", server_name=server_name))
 
     try:
-        # Call the API function directly
         api_result = backup_restore_api.list_backup_files(server_name, restore_type)
 
         if api_result.get("status") == "success":
             full_paths = api_result.get("backups", [])
             if not full_paths:
                 flash(
-                    f"No '{restore_type}' backups found for server '{server_name}'.",
-                    "info",
+                    f"No '{restore_type}' backups found for server '{server_name}'.", "info"
                 )
                 return redirect(url_for(".restore_menu_route", server_name=server_name))
 
-            # Pass basenames to the template for user selection
-            backups_for_template = []
-            for p in full_paths:
-                basename = os.path.basename(p)
-                backups_for_template.append(
-                    {
-                        "name": basename,  # For display in the table
-                        "path": basename,  # For the JavaScript function
-                    }
-                )
+            backups_for_template = [{"name": os.path.basename(p), "path": os.path.basename(p)} for p in full_paths]
+            
             return render_template(
                 "restore_select_backup.html",
                 server_name=server_name,
                 restore_type=restore_type,
-                backups=backups_for_template,  # Template will use these basenames
+                backups=backups_for_template,
             )
         else:
-            # Handle error reported by the API function
             error_msg = api_result.get("message", "Unknown error listing backups.")
-            logger.error(f"Error listing backups for '{server_name}': {error_msg}")
+            logger.error(f"Error listing backups for '{server_name}' ({restore_type}): {error_msg}")
             flash(f"Error listing backups: {error_msg}", "error")
             return redirect(url_for(".restore_menu_route", server_name=server_name))
 
     except Exception as e:
         logger.error(
-            f"Unexpected error listing backups for '{server_name}': {e}", exc_info=True
+            f"Unexpected error on backup selection page for '{server_name}' ({restore_type}): {e}", exc_info=True
         )
-        flash("An unexpected error occurred while listing backups.", "error")
+        flash("An unexpected error occurred while preparing backup selection.", "error")
         return redirect(url_for(".restore_menu_route", server_name=server_name))
 
 
@@ -168,11 +156,54 @@ def restore_select_backup_route(server_name: str) -> Response:
 
 # --- API Routes ---
 
+@backup_restore_bp.route("/api/server/<string:server_name>/restore/select_backup_type", methods=["POST"])
+@auth_required
+def handle_restore_select_backup_api(server_name: str) -> Tuple[Response, int]:
+    """
+    API endpoint to handle the selection of a backup type.
+    It expects JSON and returns JSON with a redirect_url.
+    """
+    identity = get_current_identity()
+    data = request.get_json()
+
+    if not data or not (restore_type := data.get("restore_type", "").lower()):
+        logger.warning(f"API: Invalid/missing restore_type from '{identity}' for server '{server_name}'. Data: {data}")
+        return jsonify(status="error", message="Missing or invalid 'restore_type' in request body."), 400
+    
+    logger.info(
+        f"API: User '{identity}' initiated selection of restore_type '{restore_type}' for server '{server_name}'."
+    )
+
+    valid_types = ["world", "properties", "allowlist", "permissions"]
+    if restore_type not in valid_types:
+        logger.warning(f"API: Invalid restore_type '{restore_type}' selected by '{identity}' for '{server_name}'.")
+        return jsonify(status="error", message=f"Invalid restore type '{restore_type}' selected."), 400
+
+    try:
+        
+        redirect_page_url = url_for(
+            ".show_select_backup_file_page_route",
+            server_name=server_name,
+            restore_type=restore_type
+        )
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Proceed to select {restore_type} backup.",
+            "redirect_url": redirect_page_url
+        }), 200
+
+    except Exception as e:
+        logger.error(
+            f"API: Unexpected error during restore type selection for '{server_name}' by '{identity}': {e}", exc_info=True
+        )
+        return jsonify(status="error", message="An unexpected server error occurred."), 500
+
 
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/backups/prune", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     """
@@ -226,7 +257,7 @@ def prune_backups_api_route(server_name: str) -> Tuple[Response, int]:
     "/api/server/<string:server_name>/backup/list/<string:backup_type>",
     methods=["GET"],
 )
-@csrf.exempt
+
 @auth_required
 def list_server_backups_route(
     server_name: str, backup_type: str
@@ -292,7 +323,7 @@ def list_server_backups_route(
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/backup/action", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def backup_action_route(server_name: str) -> Tuple[Response, int]:
     """
@@ -392,8 +423,7 @@ def backup_action_route(server_name: str) -> Tuple[Response, int]:
 @backup_restore_bp.route(
     "/api/server/<string:server_name>/restore/action", methods=["POST"]
 )
-@csrf.exempt  # API endpoint
-@auth_required  # Requires session OR JWT
+@auth_required
 def restore_action_route(server_name: str) -> Tuple[Response, int]:
     """
     API endpoint to trigger a server restoration from a specified backup file.
@@ -460,14 +490,12 @@ def restore_action_route(server_name: str) -> Tuple[Response, int]:
                     logger.error(
                         f"Thread Restore '{s_name}': Security violation - {msg}"
                     )
-                    # How to communicate this back? For now, just log and the operation "fails" silently from client PoV
                     return
 
                 if not os.path.isfile(full_backup_path):
                     logger.error(
                         f"Thread Restore '{s_name}': Backup file not found: {rel_backup_file}"
                     )
-                    # Communicate back?
                     return
 
                 if r_type == "world":

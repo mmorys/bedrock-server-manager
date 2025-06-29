@@ -6,8 +6,8 @@ server content management (Worlds, Addons).
 
 import os
 import logging
-import threading  # Added for threading
-from typing import Tuple, Dict, Any, List
+import threading
+from typing import Tuple, List
 
 # Third-party imports
 from flask import (
@@ -28,10 +28,9 @@ from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
-from bedrock_server_manager.web.routes.auth_routes import login_required, csrf
+from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.error import (
     BSMError,
-    InvalidServerNameError,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,7 +104,6 @@ def install_addon_route(server_name: str) -> Response:
 
 # --- API Routes ---
 @content_bp.route("/api/content/worlds", methods=["GET"])
-@csrf.exempt
 @auth_required
 def list_worlds_route() -> Tuple[Response, int]:
     """API endpoint to list available world content files."""
@@ -134,7 +132,6 @@ def list_worlds_route() -> Tuple[Response, int]:
 
 
 @content_bp.route("/api/content/addons", methods=["GET"])
-@csrf.exempt
 @auth_required
 def list_addons_route() -> Tuple[Response, int]:
     """API endpoint to list available addon content files."""
@@ -163,7 +160,6 @@ def list_addons_route() -> Tuple[Response, int]:
 
 
 @content_bp.route("/api/server/<string:server_name>/world/install", methods=["POST"])
-@csrf.exempt
 @auth_required
 def install_world_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to install a user-selected world to a server."""
@@ -265,7 +261,6 @@ def install_world_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @content_bp.route("/api/server/<string:server_name>/world/export", methods=["POST"])
-@csrf.exempt
 @auth_required
 def export_world_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to export the current world to the content directory."""
@@ -313,7 +308,6 @@ def export_world_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @content_bp.route("/api/server/<string:server_name>/world/reset", methods=["DELETE"])
-@csrf.exempt
 @auth_required
 def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to delete the current world of a specified server."""
@@ -359,7 +353,6 @@ def reset_world_api_route(server_name: str) -> Tuple[Response, int]:
 
 
 @content_bp.route("/api/server/<string:server_name>/addon/install", methods=["POST"])
-@csrf.exempt
 @auth_required
 def install_addon_api_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to install a user-selected addon to a server."""

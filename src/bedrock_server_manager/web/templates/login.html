@@ -14,75 +14,72 @@
 {# --- Main Content Block --- #}
 {% block content %}
     {# Wrapper for login form styling and centering (defined in forms.css) #}
-    <div class="login-wrapper">
+<div class="login-wrapper">
 
-        {# Page Heading (Optional, header in base.html might suffice) #}
-        <h2 style="text-align: center; margin-bottom: 20px;">Login</h2>
+    {# Page Heading (Optional, header in base.html might suffice) #}
+    <h2 style="text-align: center; margin-bottom: 20px;">Login</h2>
 
-        {# Flash messages area (Included from base.html - displays above this block) #}
-        {# Server-side flash messages (e.g., 'Invalid credentials') appear here #}
+    {# Flash messages area (Included from base.html - displays above this block) #}
+    {# Server-side flash messages (e.g., 'Invalid credentials') appear here #}
 
-        {# Login Form #}
-        {# Assumes 'form' object (instance of LoginForm) is passed from the Flask route #}
-        {# Uses POST method, targets the login route URL #}
-        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" class="login-form" novalidate> {# novalidate disables browser validation #}
+    {# Login Form #}
+    {# Assumes 'form' object (instance of LoginForm) is passed from the Flask route #}
+    {# Uses POST method, targets the login route URL #}
+    <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" class="login-form" novalidate>
+        {# novalidate disables browser validation #}
 
-            {# --- CSRF Token --- #}
-            {# Render the hidden CSRF token field provided by Flask-WTF #}
-            {{ form.csrf_token }}
-            {# Manual alternative if not using Flask-WTF CSRF extension directly: #}
-            {# <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> #}
+        {# --- Username Field --- #}
+        <div class="form-group">
+            {# Render label associated with the username input #}
+            {{ form.username.label(class="form-label") }}
+            {# Render the username input field #}
+            {# Add 'is-invalid' class dynamically if validation errors exist for this field #}
+            {{ form.username(class="form-input" + (" is-invalid" if form.username.errors else ""), placeholder="Enter your username", required=True, autofocus=True) }}
+            {# Display validation errors for the username field #}
+            {% if form.username.errors %}
+            <ul class="form-error">
+                {# Defined in forms.css #}
+                {% for error in form.username.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
 
-            {# --- Username Field --- #}
-            <div class="form-group">
-                {# Render label associated with the username input #}
-                {{ form.username.label(class="form-label") }}
-                {# Render the username input field #}
-                {# Add 'is-invalid' class dynamically if validation errors exist for this field #}
-                {{ form.username(class="form-input" + (" is-invalid" if form.username.errors else ""), placeholder="Enter your username", required=True, autofocus=True) }}
-                {# Display validation errors for the username field #}
-                {% if form.username.errors %}
-                    <ul class="form-error"> {# Defined in forms.css #}
-                        {% for error in form.username.errors %}
-                            <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-            </div>
+        {# --- Password Field --- #}
+        <div class="form-group">
+            {# Render label associated with the password input #}
+            {{ form.password.label(class="form-label") }}
+            {# Render the password input field #}
+            {# Add 'is-invalid' class dynamically if errors exist #}
+            {{ form.password(class="form-input" + (" is-invalid" if form.password.errors else ""), placeholder="Enter your password", required=True) }}
+            {# Display validation errors for the password field #}
+            {% if form.password.errors %}
+            <ul class="form-error">
+                {% for error in form.password.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
 
-            {# --- Password Field --- #}
-            <div class="form-group">
-                {# Render label associated with the password input #}
-                {{ form.password.label(class="form-label") }}
-                {# Render the password input field #}
-                {# Add 'is-invalid' class dynamically if errors exist #}
-                {{ form.password(class="form-input" + (" is-invalid" if form.password.errors else ""), placeholder="Enter your password", required=True) }}
-                {# Display validation errors for the password field #}
-                {% if form.password.errors %}
-                    <ul class="form-error">
-                        {% for error in form.password.errors %}
-                            <li>{{ error }}</li>
-                        {% endfor %}
-                    </ul>
-                {% endif %}
-            </div>
+        {# --- Submit Button --- #}
+        {# Use form-actions and login-actions classes for layout/styling #}
+        <div class="form-actions login-actions">
+            {# Render the submit button using WTForms field #}
+            {# Apply standard button styles #}
+            {{ form.submit(class="action-button start-button") }} {# Use standard green button style #}
+        </div>
 
-            {# --- Submit Button --- #}
-            {# Use form-actions and login-actions classes for layout/styling #}
-            <div class="form-actions login-actions">
-                 {# Render the submit button using WTForms field #}
-                 {# Apply standard button styles #}
-                 {{ form.submit(class="action-button start-button") }} {# Use standard green button style #}
-            </div>
+    </form> {# --- End Login Form --- #}
 
-        </form> {# --- End Login Form --- #}
-
-    </div> {# --- End .login-wrapper --- #}
+</div> {# --- End .login-wrapper --- #}
 {% endblock %}
 
 {# --- Optional Body Scripts Block --- #}
 {% block body_scripts %}
-{# <script>
+{#
+<script>
     // Example: Add focus to username field if it has errors
     // document.addEventListener('DOMContentLoaded', () => {
     //     const usernameInput = document.getElementById('username'); // Assuming WTForms generates 'username' as ID

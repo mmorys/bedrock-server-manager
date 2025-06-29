@@ -7,7 +7,8 @@ from typing import Tuple, Dict, Any
 
 from flask import Blueprint, render_template, request, jsonify, Response
 
-from bedrock_server_manager.web.routes.auth_routes import csrf, login_required
+# Local imports
+from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
@@ -43,7 +44,7 @@ def manage_settings_page() -> Response:
 
 # --- API Route: Get All Global Settings ---
 @settings_bp.route("/api/settings", methods=["GET"])
-@csrf.exempt
+
 @auth_required
 def get_settings_route() -> Tuple[Response, int]:
     """
@@ -63,7 +64,7 @@ def get_settings_route() -> Tuple[Response, int]:
 
 # --- API Route: Set a Global Setting ---
 @settings_bp.route("/api/settings", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def set_setting_route() -> Tuple[Response, int]:
     """
@@ -100,7 +101,7 @@ def set_setting_route() -> Tuple[Response, int]:
 
 # --- API Route: Reload Global Settings ---
 @settings_bp.route("/api/settings/reload", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def reload_settings_route() -> Tuple[Response, int]:
     """

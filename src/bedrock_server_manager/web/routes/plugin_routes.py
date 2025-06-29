@@ -7,12 +7,12 @@ from typing import Tuple, Dict, Any
 
 from flask import Blueprint, render_template, request, jsonify, Response
 
-from bedrock_server_manager.web.routes.auth_routes import csrf, login_required
+from bedrock_server_manager.web.routes.auth_routes import login_required
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
 )
-from bedrock_server_manager.api import plugins as plugins_api  # Renamed for clarity
+from bedrock_server_manager.api import plugins as plugins_api
 from bedrock_server_manager.error import BSMError, UserInputError
 
 # Initialize logger
@@ -36,7 +36,7 @@ def manage_plugins_page() -> Response:
 
 # --- API Route: Get Plugin Statuses ---
 @plugin_bp.route("/api/plugins", methods=["GET"])
-@csrf.exempt
+
 @auth_required  # Requires token or web session for API access
 def get_plugins_status_route() -> Tuple[Response, int]:
     """
@@ -76,7 +76,7 @@ def get_plugins_status_route() -> Tuple[Response, int]:
 
 # --- API Route: Trigger Custom Plugin Event ---
 @plugin_bp.route("/api/plugins/trigger_event", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def trigger_custom_event_route() -> Tuple[Response, int]:
     """
@@ -152,7 +152,7 @@ def trigger_custom_event_route() -> Tuple[Response, int]:
 
 # --- API Route: Set Plugin Status ---
 @plugin_bp.route("/api/plugins/<string:plugin_name>", methods=["POST"])
-@csrf.exempt  # Exempt CSRF for this API endpoint if using token auth primarily
+# @csrf.exempt  # Exempt CSRF for this API endpoint if using token auth primarily # CSRF removed
 @auth_required  # Requires token or web session
 def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
     """
@@ -223,7 +223,7 @@ def set_plugin_status_route(plugin_name: str) -> Tuple[Response, int]:
 
 
 @plugin_bp.route("/api/plugins/reload", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def reload_plugins_route() -> Tuple[Response, int]:
     """

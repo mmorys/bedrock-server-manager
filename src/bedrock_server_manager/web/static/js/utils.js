@@ -61,7 +61,7 @@ function showStatusMessage(message, type = 'info') {
                 }
             }, 500); // Match fade duration (500ms)
         } else {
-             console.debug(`${functionName}: Aborting fade-out for messageId ${messageId} - a newer message was displayed.`);
+            console.debug(`${functionName}: Aborting fade-out for messageId ${messageId} - a newer message was displayed.`);
         }
     }, 5000); // Start fade-out after 5 seconds
 }
@@ -102,19 +102,6 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
     if (body) console.debug(`${functionName}: Request Body:`, body); // Log body only if present
     if (buttonElement) console.debug(`${functionName}: Associated Button:`, buttonElement);
 
-    // --- 1. Get CSRF Token ---
-    const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
-    const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : null;
-    if (!csrfToken) {
-        const errorMsg = "CSRF protection token not found in page meta tags. Cannot proceed.";
-        console.error(`${functionName}: ${errorMsg}`);
-        showStatusMessage(errorMsg, "error");
-        if (buttonElement) buttonElement.disabled = false; // Ensure button re-enabled
-        return false; // Critical failure
-    }
-    // Avoid logging the token itself for security:
-    console.debug(`${functionName}: CSRF token obtained.`);
-
     // --- 2. Construct URL ---
     let apiUrl;
     if (actionPath.startsWith('/')) {
@@ -144,7 +131,7 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
         method: method.toUpperCase(), // Ensure method is uppercase
         headers: {
             'Accept': 'application/json', // We always want JSON back
-            'X-CSRFToken': csrfToken     // Add CSRF token header
+            // 'X-CSRFToken': csrfToken     // Add CSRF token header // CSRF token removed
         }
     };
 
@@ -163,9 +150,9 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             return false; // Cannot proceed if body cannot be stringified
         }
     } else if (body && !methodAllowsBody) {
-         console.warn(`${functionName}: Body provided for HTTP method '${fetchOptions.method}' which typically does not support it. Body ignored.`);
+        console.warn(`${functionName}: Body provided for HTTP method '${fetchOptions.method}' which typically does not support it. Body ignored.`);
     } else {
-         console.debug(`${functionName}: No request body provided or method does not support it.`);
+        console.debug(`${functionName}: No request body provided or method does not support it.`);
     }
 
     // --- 4. Execute Fetch Request and Process Response ---
@@ -236,9 +223,9 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             }
             // Specific handling for CSRF error (often 400 with specific message from Flask-WTF)
             else if (response.status === 400 && errorMessage.toLowerCase().includes("csrf token")) {
-                 const csrfErrorMsg = "Security token error. Please refresh the page and try again.";
-                 console.error(`${functionName}: CSRF Token Error detected.`);
-                 showStatusMessage(csrfErrorMsg, "error");
+                const csrfErrorMsg = "Security token error. Please refresh the page and try again.";
+                console.error(`${functionName}: CSRF Token Error detected.`);
+                showStatusMessage(csrfErrorMsg, "error");
             }
             else {
                 // Show generic error message for other HTTP errors
@@ -247,26 +234,26 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
             // Return false as the HTTP request failed
             return false;
         } else {
-             // --- 6. Handle Application-Level Status in SUCCESSFUL (2xx) HTTP Responses ---
-             console.debug(`${functionName}: HTTP request successful (Status: ${response.status}). Checking application status in response...`);
-             // Check 'status' field within the JSON response data
-             if (responseData && responseData.status === 'success') {
-                 const successMsg = responseData.message || `Action at ${apiUrl} completed successfully.`;
-                 console.info(`${functionName}: Application success. Message: "${successMsg}"`);
-                 showStatusMessage(successMsg, 'success');
-                 // Optionally trigger UI updates based on success here if needed
-             } else if (responseData && responseData.status === 'confirm_needed') {
-                  // Special status - let the caller handle confirmation logic
-                  console.info(`${functionName}: Application status 'confirm_needed'. Returning data for confirmation handling.`);
-                  // Message usually shown by caller based on responseData.message
-                  // Button is handled in finally block (remains disabled)
-             } else {
-                  // HTTP success (2xx), but application status is 'error' or missing/unexpected
-                  const appStatus = responseData?.status || 'unknown';
-                  const appMessage = responseData?.message || `Action at ${apiUrl} reported status: ${appStatus}.`;
-                  console.warn(`${functionName}: HTTP success but application status is '${appStatus}'. Message: ${appMessage}`);
-                  showStatusMessage(appMessage, 'warning'); // Use warning or error depending on severity preference
-             }
+            // --- 6. Handle Application-Level Status in SUCCESSFUL (2xx) HTTP Responses ---
+            console.debug(`${functionName}: HTTP request successful (Status: ${response.status}). Checking application status in response...`);
+            // Check 'status' field within the JSON response data
+            if (responseData && responseData.status === 'success') {
+                const successMsg = responseData.message || `Action at ${apiUrl} completed successfully.`;
+                console.info(`${functionName}: Application success. Message: "${successMsg}"`);
+                showStatusMessage(successMsg, 'success');
+                // Optionally trigger UI updates based on success here if needed
+            } else if (responseData && responseData.status === 'confirm_needed') {
+                // Special status - let the caller handle confirmation logic
+                console.info(`${functionName}: Application status 'confirm_needed'. Returning data for confirmation handling.`);
+                // Message usually shown by caller based on responseData.message
+                // Button is handled in finally block (remains disabled)
+            } else {
+                // HTTP success (2xx), but application status is 'error' or missing/unexpected
+                const appStatus = responseData?.status || 'unknown';
+                const appMessage = responseData?.message || `Action at ${apiUrl} reported status: ${appStatus}.`;
+                console.warn(`${functionName}: HTTP success but application status is '${appStatus}'. Message: ${appMessage}`);
+                showStatusMessage(appMessage, 'warning'); // Use warning or error depending on severity preference
+            }
         }
 
     } catch (error) { // Catch network errors, CORS, DNS, unexpected JSON parse errors
@@ -281,16 +268,16 @@ async function sendServerActionRequest(serverName, actionPath, method = 'POST', 
         // Re-enable the button unless the operation requires confirmation ('confirm_needed')
         console.debug(`${functionName}: Finally block executing. httpSuccess=${httpSuccess}, responseData.status=${responseData?.status}`);
         if (buttonElement) { // Only if a button was provided
-             if (responseData?.status !== 'confirm_needed') {
-                 if (buttonElement.disabled) {
-                     console.debug(`${functionName}: Re-enabling button in finally block.`);
-                     buttonElement.disabled = false;
-                 } else {
-                      console.debug(`${functionName}: Button was already enabled in finally block.`);
-                 }
-             } else {
-                  console.debug(`${functionName}: Button remains disabled due to 'confirm_needed' status.`);
-             }
+            if (responseData?.status !== 'confirm_needed') {
+                if (buttonElement.disabled) {
+                    console.debug(`${functionName}: Re-enabling button in finally block.`);
+                    buttonElement.disabled = false;
+                } else {
+                    console.debug(`${functionName}: Button was already enabled in finally block.`);
+                }
+            } else {
+                console.debug(`${functionName}: Button remains disabled due to 'confirm_needed' status.`);
+            }
         }
     }
 

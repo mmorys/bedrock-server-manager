@@ -1,17 +1,16 @@
-# bedrock_server_manager/web/routes/action_routes.py
+# bedrock_server_manager/web/routes/server_action_routes.py
 """
 Flask Blueprint defining API endpoints for controlling Bedrock server instances.
 """
 
 import logging
-import threading  # Added for threading
+import threading 
 from typing import Tuple, Dict, Any
 
 # Third-party imports
 from flask import Blueprint, request, jsonify, Response
 
 # Local imports
-from bedrock_server_manager.web.routes.auth_routes import csrf
 from bedrock_server_manager.web.utils.auth_decorators import (
     auth_required,
     get_current_identity,
@@ -35,7 +34,7 @@ server_actions_bp = Blueprint("action_routes", __name__)
 
 # --- API Route: Start Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/start", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def start_server_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to start a specific Bedrock server instance."""
@@ -85,7 +84,7 @@ def start_server_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Stop Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/stop", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def stop_server_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to stop a specific running Bedrock server instance."""
@@ -132,7 +131,7 @@ def stop_server_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Restart Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/restart", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def restart_server_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to restart a specific Bedrock server instance."""
@@ -182,7 +181,7 @@ def restart_server_route(server_name: str) -> Tuple[Response, int]:
 @server_actions_bp.route(
     "/api/server/<string:server_name>/send_command", methods=["POST"]
 )
-@csrf.exempt
+
 @auth_required
 def send_command_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to send a command to a running Bedrock server instance."""
@@ -241,7 +240,7 @@ def send_command_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Update Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/update", methods=["POST"])
-@csrf.exempt
+
 @auth_required
 def update_server_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to trigger an update for a specific Bedrock server instance."""
@@ -288,7 +287,7 @@ def update_server_route(server_name: str) -> Tuple[Response, int]:
 
 # --- API Route: Delete Server ---
 @server_actions_bp.route("/api/server/<string:server_name>/delete", methods=["DELETE"])
-@csrf.exempt
+
 @auth_required
 def delete_server_route(server_name: str) -> Tuple[Response, int]:
     """API endpoint to delete a specific server's data."""

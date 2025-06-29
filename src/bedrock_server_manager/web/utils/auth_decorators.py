@@ -81,32 +81,10 @@ def auth_required(view: Callable) -> Callable:
                 f"Auth successful via session for user '{session_username}'. Stored in g."
             )
 
-            # --- 2a. CSRF Check for Session Auth ---
-            csrf_needed_methods = ["POST", "PUT", "PATCH", "DELETE"]
-            if request.method in csrf_needed_methods:
-                logger.debug(
-                    f"Session auth requires CSRF check for method '{request.method}'."
-                )
-                csrf_token = request.headers.get("X-CSRFToken") or request.form.get(
-                    "csrf_token"
-                )
-                try:
-                    validate_csrf(csrf_token)
-                    logger.debug(
-                        f"CSRF validation successful for session user '{session_username}'."
-                    )
-                    return view(*args, **kwargs)  # Proceed to view
-                except CSRFError as e:
-                    auth_error = e
-                    logger.warning(
-                        f"CSRF validation failed for session user '{session_username}': {e}"
-                    )
-                    return jsonify(error="CSRF Validation Failed", message=str(e)), 400
-            else:
-                logger.debug(
-                    f"CSRF check not required for method '{request.method}'. Proceeding."
-                )
-                return view(*args, **kwargs)  # Proceed to view (GET request, etc.)
+            logger.debug(
+                f"CSRF check skipped as CSRF protection has been removed. Proceeding for method '{request.method}'."
+            )
+            return view(*args, **kwargs) # Proceed to view
 
         # --- 3. Authentication Failed ---
         log_message = f"Authentication failed for path '{request.path}'."
