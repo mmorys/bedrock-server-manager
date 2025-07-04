@@ -8,6 +8,19 @@
 
 ## 3.5.0
 
+```{warning}
+BREAKING CHANGE: WEB USERS
+If you are using the web server, you must regenerate your password hash and auth tokens.
+```
+
+```{tip}
+Documentation for the Bedrock Server Manager (BSM) has been completely revamped and is now available at: 
+
+Main:   [https://bedrock-server-manager.readthedocs.io/](https://bedrock-server-manager.readthedocs.io/)
+
+Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina559.github.io/bedrock-server-manager/)
+```
+
 1.  **Windows Service**:
     *   Windows service has the following considerations:
         *   You must use the `sc.exe` command to start/stop the services (`bedrock-server_name`/`BedrockServerManagerWebUI`).
@@ -32,13 +45,21 @@
     *   API routes for `update`, `start`, `stop`, and more have been converted to threaded operations for better responsiveness.
 5.  **New plugin APIs**:
     *   APIs to read global and server configurations.
-    *   API to set custom server configurations.
+    *   API to set custom global and server configurations.
 6.  Fixed world icon API route path typo: `word` -> `world`.
 7.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
 8.  Added a settings menu to the Web UI.
     ```{note}
     Not all settings (like web host/port) will be reloaded on the fly. These require a full application restart to take effect.
     ```
+9. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
+    *   This allows for better performance and more modern features.
+    *   The Web UI has been updated to work with the new FastAPI routes.
+    *   Always up-to-date HTTP API docs are now available at `/docs` in the Web UI.
+    *   Switched to `uvicorn` as the ASGI server for the Web API.
+    *   Switched to `bcrypt` for password hashing in the Web API.
+        * This requires you to regenerate your password hash and auth tokens.
+10 
 
 ## 3.4.1
 
