@@ -83,11 +83,13 @@ def cli(ctx: click.Context):
         # This block runs every time the CLI is invoked.
         settings = Settings()
         log_dir = settings.get("paths.logs")
+
         logger = setup_logging(
             log_dir=log_dir,
             log_keep=settings.get("retention.logs"),
             file_log_level=settings.get("logging.file_level"),
             cli_log_level=settings.get("logging.cli_level"),
+            force_reconfigure=True,
         )
         log_separator(logger, app_name=app_name_title, app_version=__version__)
 
