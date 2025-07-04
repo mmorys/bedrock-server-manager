@@ -38,4 +38,3 @@ html_static_path = ["_static"]
 html_favicon = "_static/favicon.ico"
 html_logo = "_static/favicon-96x96.png"
 html_css_files = ["css/custom_sphinx_styles.css"]
-
