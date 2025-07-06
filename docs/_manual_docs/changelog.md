@@ -59,7 +59,7 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   Switched to `uvicorn` as the ASGI server for the Web API.
     *   Switched to `bcrypt` for password hashing in the Web API.
         * This requires you to regenerate your password hash and auth tokens.
-10 
+10. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
 
 ## 3.4.1
 
