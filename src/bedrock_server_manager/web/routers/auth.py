@@ -148,7 +148,7 @@ async def api_login_for_access_token(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "message": "Login successful! Redirecting...",
+        "message": "Successfully authenticated.",
     }
 
 
