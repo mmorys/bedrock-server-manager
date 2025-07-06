@@ -153,7 +153,7 @@ async def install_addon_page(
 
 # --- API Routes ---
 @router.get(
-    "/api/worlds", response_model=GeneralContentListResponse, tags=["Content API"]
+    "/api/content/worlds", response_model=GeneralContentListResponse, tags=["Content API"]
 )
 async def list_worlds_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -183,7 +183,7 @@ async def list_worlds_api_route(
 
 
 @router.get(
-    "/api/addons", response_model=GeneralContentListResponse, tags=["Content API"]
+    "/api/content/addons", response_model=GeneralContentListResponse, tags=["Content API"]
 )
 async def list_addons_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
