@@ -176,8 +176,7 @@ class ServerProcessMixin(BedrockServerBaseMixin):
                 or if the required system module (linux/windows) is not available.
             SendCommandError: For underlying failures during the send operation
                 (e.g., pipe errors, `schtasks` errors).
-            CommandNotFoundError: If platform-specific helper commands (like `screen`
-                if it were used, or `schtasks` if it was missing but passed init)
+            CommandNotFoundError: If platform-specific helper commands (`schtasks` if it was missing but passed init)
                 are not found. (More likely caught during scheduler init).
             SystemError: For other unexpected system-level errors during the send.
         """

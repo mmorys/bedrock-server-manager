@@ -22,8 +22,6 @@ for the Bedrock Server Manager CLI. It includes:
     - Standalone Click Commands:
         - ``bsm list-servers`` (from :func:`~.list_servers`): Lists all configured
           servers and their current status, with an optional live refresh loop.
-        - ``bsm attach-console`` (from :func:`~.attach_console`): Attaches the
-          terminal to a running server's console (Linux-only, uses screen).
 
 These utilities aim to promote code reuse and provide a consistent user
 experience across different parts of the CLI.

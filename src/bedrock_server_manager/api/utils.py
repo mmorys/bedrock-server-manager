@@ -11,8 +11,6 @@ modules or perform general application-wide tasks. Key functionalities include:
     - :func:`~.update_server_statuses`: Reconciles the configured status of all
       servers with their actual runtime state.
 - System interaction:
-    - :func:`~.attach_to_screen_session`: Provides a way to attach to a server's
-      screen session on Linux.
     - :func:`~.get_system_and_app_info`: Retrieves basic OS and application version details.
 - Lifecycle management:
     - :func:`~.server_lifecycle_manager`: A context manager for safely performing
@@ -209,74 +207,6 @@ def update_server_statuses() -> Dict[str, Any]:
         return {"status": "error", "message": f"Error accessing directories: {e}"}
     except Exception as e:
         logger.error(f"API: Unexpected error during status update: {e}", exc_info=True)
-        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
-
-
-def attach_to_screen_session(server_name: str) -> Dict[str, str]:
-    """Attaches the current terminal to a server's screen session (Linux-only).
-
-    This function first checks if the system is Linux and if the server is running.
-    It then delegates to
-    :func:`~bedrock_server_manager.core.utils.core_execute_screen_attach`
-    to attempt the screen attach. The screen session is typically named
-    ``bedrock-<server_name>``.
-
-    Args:
-        server_name (str): The name of the server whose screen session to attach to.
-
-    Returns:
-        Dict[str, str]: A dictionary with the operation status and a message.
-        Returns an error on non-Linux systems, if the server is not running,
-        or if the screen attach command fails (e.g., session not found).
-
-    Raises:
-        BSMError: Can be raised by :class:`~.core.bedrock_server.BedrockServer`
-            during instantiation if core application settings are misconfigured.
-    """
-    if platform.system() != "Linux":
-        return {
-            "status": "error",
-            "message": "Attaching to screen is only supported on Linux.",
-        }
-
-    if not server_name:
-        return {"status": "error", "message": "Server name cannot be empty."}
-
-    logger.info(f"API: Attempting screen attach for server '{server_name}'...")
-    try:
-        server = BedrockServer(server_name)
-
-        if not server.is_running():
-            msg = f"Cannot attach: Server '{server_name}' is not currently running."
-            logger.warning(f"API: {msg}")
-            return {"status": "error", "message": msg}
-
-        # Delegate the actual screen command execution to the core utility.
-        screen_session_name = f"bedrock-{server.server_name}"
-        success, message = core_utils.core_execute_screen_attach(screen_session_name)
-
-        if success:
-            logger.info(
-                f"API: Screen attach command issued for '{screen_session_name}'."
-            )
-            return {"status": "success", "message": message}
-        else:
-            logger.warning(
-                f"API: Screen attach failed for '{screen_session_name}': {message}"
-            )
-            return {"status": "error", "message": message}
-
-    except BSMError as e:
-        logger.error(
-            f"API: Prerequisite error for screen attach on '{server_name}': {e}",
-            exc_info=True,
-        )
-        return {"status": "error", "message": f"Error preparing for screen attach: {e}"}
-    except Exception as e:
-        logger.error(
-            f"API: Unexpected error during screen attach for '{server_name}': {e}",
-            exc_info=True,
-        )
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
 
 
