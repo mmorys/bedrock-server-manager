@@ -40,6 +40,6 @@ Bedrock Server Manager
 
 .. toctree::
    :maxdepth: 2
-   :caption: Internals Documentation
+   :caption: Developer Documentation
 
    core_functions

@@ -14,7 +14,7 @@ Quick links:
 
 - [Changelog](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/changelog.html)
 - [Installation](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/introduction.html#prerequisites)
-- [CLI Commands](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/cli_commands.html)
+- [CLI Commands](https://bedrock-server-manager.readthedocs.io/en/latest/cli.html)
 - [Web Interface](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/web_general.html)
 - [Plugins](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/plugin_general.html)
 
