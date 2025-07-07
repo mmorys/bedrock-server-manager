@@ -11,18 +11,31 @@ It serves as the central point for constructing the web application, preparing
 it to be run by an ASGI server like Uvicorn. The Uvicorn server is also
 started here if the script is run directly.
 """
+from sys import version
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
 
 from bedrock_server_manager.web import templating
+from bedrock_server_manager.config.const import get_installed_version
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES_DIR = os.path.join(APP_ROOT, "templates")
 STATIC_DIR = os.path.join(APP_ROOT, "static")
+version = get_installed_version()
 
-app = FastAPI()
+app = FastAPI(
+    title="Bedrock Server Manager",
+    version=version,
+    redoc_url=None,
+    openapi_url="/api/openapi.json",
+    swagger_ui_parameters={
+        "defaultModelsExpandDepth": -1,  # Hide models section by default
+        "filter": True,  # Enable filtering for operations
+        "deepLinking": True,  # Enable deep linking for tags and operations
+    },
+)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

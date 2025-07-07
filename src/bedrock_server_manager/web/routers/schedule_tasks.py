@@ -21,17 +21,18 @@ from fastapi import APIRouter, Request, Depends, HTTPException, status, Query, P
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field, validator
 
+from ..schemas import BaseApiResponse
 from bedrock_server_manager.web.templating import templates
 from bedrock_server_manager.web.auth_utils import get_current_user
-from ..dependencies import validate_server_exists  # Import the dependency
+from ..dependencies import validate_server_exists
 from bedrock_server_manager.api import task_scheduler as task_scheduler_api
 from bedrock_server_manager.config.settings import settings
-from bedrock_server_manager.config.const import EXPATH  # Used in Linux template
+from bedrock_server_manager.config.const import EXPATH
 from bedrock_server_manager.error import BSMError, UserInputError
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()  # No prefix
+router = APIRouter()
 
 
 # --- Pydantic Models ---
@@ -94,19 +95,14 @@ class WindowsTaskPayload(BaseModel):
     )
 
 
-class GeneralTaskApiResponse(BaseModel):
+class TaskApiResponse(BaseApiResponse):
     """
     Pydantic model for a generic API response from task scheduling operations.
     Provides status and optional details about the operation's outcome.
     """
 
-    status: str = Field(
-        ..., description="The status of the operation (e.g., 'success', 'error')."
-    )
-    message: Optional[str] = Field(
-        None,
-        description="A message providing more details about the operation's result.",
-    )
+    # status: str = Field(...) -> Inherited
+    # message: Optional[str] = Field(None) -> Inherited
     cron_jobs: Optional[List[Dict[str, Any]]] = Field(
         None,
         description="A list of cron jobs, typically returned when fetching Linux tasks.",
@@ -150,10 +146,17 @@ async def schedule_tasks_linux_page_route(
         current_user (Dict[str, Any]): The authenticated user object, injected by
                                        `get_current_user`.
 
+    Args:
+        request (Request): The incoming FastAPI request object.
+        server_name (str): The name of the server. Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
     Returns:
-        HTMLResponse: Renders the `schedule_tasks.html` template with cron job data.
-        RedirectResponse: If the system is not Linux or an error occurs, redirects
-                          to the main page with an error message.
+        HTMLResponse: Renders the ``schedule_tasks.html`` template, providing it
+                      with formatted cron job data for the server, the server name,
+                      and the path to the application executable (EXPATH) for command examples.
+        RedirectResponse: If the system is not Linux or if cron job scheduling is
+                          not supported/available, redirects to the main dashboard.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -231,10 +234,16 @@ async def schedule_tasks_windows_page_route(
         current_user (Dict[str, Any]): The authenticated user object, injected by
                                        `get_current_user`.
 
+    Args:
+        request (Request): The incoming FastAPI request object.
+        server_name (str): The name of the server. Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
     Returns:
-        HTMLResponse: Renders the `schedule_tasks_windows.html` template with task data.
-        RedirectResponse: If the system is not Windows or an error occurs, redirects
-                          to the main page with an error message.
+        HTMLResponse: Renders the ``schedule_tasks_windows.html`` template, providing it
+                      with details of existing Windows Scheduled Tasks for the server.
+        RedirectResponse: If the system is not Windows or if Task Scheduler is
+                          not supported/available, redirects to the main dashboard.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -292,7 +301,7 @@ async def schedule_tasks_windows_page_route(
 # --- API Routes (Linux Cron) ---
 @router.post(
     "/api/server/{server_name}/cron_scheduler/add",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["Task Scheduler - Linux"],
 )
@@ -318,11 +327,41 @@ async def add_cron_job_api_route(
         GeneralTaskApiResponse: JSON response indicating success or failure.
                                 On success, status is 201.
 
+    Args:
+        payload (CronJobPayload): Pydantic model containing the ``new_cron_job`` string.
+        server_name (str): The name of the server (context for logging/validation).
+                           Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse:
+            - ``status``: "success" or "error"
+            - ``message``: Confirmation or error message.
+
     Raises:
         HTTPException:
             - 400 (Bad Request): If input is invalid (e.g., bad cron string format).
             - 403 (Forbidden): If the system is not Linux.
             - 500 (Internal Server Error): For other errors during cron job addition.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "new_cron_job": "0 2 * * * /usr/local/bin/bsm server update --server MyServer"
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Cron job added successfully.",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": null,
+            "new_task_name": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -340,9 +379,7 @@ async def add_cron_job_api_route(
     try:
         result = task_scheduler_api.add_cron_job(payload.new_cron_job)
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
-                status="success", message=result.get("message")
-            )
+            return TaskApiResponse(status="success", message=result.get("message"))
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -370,7 +407,7 @@ async def add_cron_job_api_route(
 
 @router.post(
     "/api/server/{server_name}/cron_scheduler/modify",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     tags=["Task Scheduler - Linux"],
 )
 async def modify_cron_job_api_route(
@@ -395,12 +432,42 @@ async def modify_cron_job_api_route(
     Returns:
         GeneralTaskApiResponse: JSON response indicating success or failure.
 
+    Args:
+        payload (CronJobPayload): Pydantic model containing ``old_cron_job``
+                                  and ``new_cron_job`` strings.
+        server_name (str): The name of the server (context for logging/validation).
+                           Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse: JSON response indicating success or failure.
+
     Raises:
         HTTPException:
             - 400 (Bad Request): If `old_cron_job` is missing or input is invalid.
             - 403 (Forbidden): If the system is not Linux.
             - 404 (Not Found): If the `old_cron_job` is not found in the crontab.
             - 500 (Internal Server Error): For other errors during cron job modification.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "old_cron_job": "0 2 * * * /usr/local/bin/bsm server update --server MyServer",
+            "new_cron_job": "0 3 * * * /usr/local/bin/bsm server update --server MyServer"
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Cron job modified successfully.",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": null,
+            "new_task_name": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -426,9 +493,7 @@ async def modify_cron_job_api_route(
             payload.old_cron_job, payload.new_cron_job
         )
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
-                status="success", message=result.get("message")
-            )
+            return TaskApiResponse(status="success", message=result.get("message"))
         else:
             detail = result.get("message", "Failed to modify cron job.")
             status_code_err = (
@@ -465,7 +530,7 @@ async def modify_cron_job_api_route(
 
 @router.delete(
     "/api/server/{server_name}/cron_scheduler/delete",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     tags=["Task Scheduler - Linux"],
 )
 async def delete_cron_job_api_route(
@@ -492,12 +557,36 @@ async def delete_cron_job_api_route(
     Returns:
         GeneralTaskApiResponse: JSON response indicating success or failure.
 
+    Args:
+        cron_string (str): The exact cron string of the job to delete (Query Parameter).
+        server_name (str): The name of the server (context for logging/validation).
+                           Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse: JSON response indicating success or failure.
+
     Raises:
         HTTPException:
             - 400 (Bad Request): If `cron_string` is missing or invalid.
             - 403 (Forbidden): If the system is not Linux.
-            - 404 (Not Found): If the specified `cron_string` is not found.
+            - 404 (Not Found): If the specified `cron_string` is not found (though API attempts idempotent delete).
             - 500 (Internal Server Error): For other errors during cron job deletion.
+
+    Example URI:
+    ``/api/server/MyServer/cron_scheduler/delete?cron_string=0%203%20*%20*%20*%20/usr/local/bin/bsm%20server%20update%20--server%20MyServer``
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Cron job deleted successfully (if it existed).",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": null,
+            "new_task_name": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -515,9 +604,7 @@ async def delete_cron_job_api_route(
     try:
         result = task_scheduler_api.delete_cron_job(cron_string)
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
-                status="success", message=result.get("message")
-            )
+            return TaskApiResponse(status="success", message=result.get("message"))
         else:
             detail = result.get("message", "Failed to delete cron job.")
             status_code_err = (
@@ -555,7 +642,7 @@ async def delete_cron_job_api_route(
 # --- API Routes (Windows Scheduled Tasks) ---
 @router.post(
     "/api/server/{server_name}/task_scheduler/add",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["Task Scheduler - Windows"],
 )
@@ -582,12 +669,45 @@ async def add_windows_task_api_route(
         GeneralTaskApiResponse: JSON response indicating success or failure, including
                                 the `created_task_name`. On success, status is 201.
 
+    Args:
+        payload (WindowsTaskPayload): Pydantic model containing ``command`` and ``triggers``.
+        server_name (str): The name of the server. Validated by `validate_server_exists`.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse: JSON response indicating success or failure.
+                         On success, includes ``created_task_name``.
+
     Raises:
         HTTPException:
             - 400 (Bad Request): If the command is invalid or input is malformed.
             - 403 (Forbidden): If the system is not Windows.
-            - 500 (Internal Server Error): If the configuration directory is not set
-              or for other errors during task creation.
+            - 500 (Internal Server Error): If config dir not set or other task creation errors.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "command": "server update",
+            "triggers": [
+                {
+                    "Type": "Daily",
+                    "Time": "03:00"
+                }
+            ]
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Windows task 'bedrock_MyServer_server_update_...' created successfully.",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": "bedrock_MyServer_server_update_...",
+            "new_task_name": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -637,7 +757,7 @@ async def add_windows_task_api_route(
         )
 
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
+            return TaskApiResponse(
                 status="success",
                 message=result.get("message"),
                 created_task_name=task_name,
@@ -670,7 +790,7 @@ async def add_windows_task_api_route(
 
 @router.put(
     "/api/server/{server_name}/task_scheduler/task/{task_name:path}",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     tags=["Task Scheduler - Windows"],
 )
 async def modify_windows_task_api_route(
@@ -702,12 +822,48 @@ async def modify_windows_task_api_route(
         GeneralTaskApiResponse: JSON response indicating success or failure.
                                 May include `new_task_name` if the task was renamed.
 
+    Args:
+        server_name (str): The name of the server associated with the task.
+        payload (WindowsTaskPayload): Pydantic model with the new ``command`` and ``triggers``.
+        task_name (str): The full name of the task to modify (Path Parameter).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse: JSON response indicating success or failure.
+                         May include ``new_task_name`` if the task was renamed.
+
     Raises:
         HTTPException:
             - 400 (Bad Request): If the command is invalid or input is malformed.
             - 403 (Forbidden): If the system is not Windows.
             - 404 (Not Found): If the original `task_name` is not found.
             - 500 (Internal Server Error): If config dir not set or other modification errors.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "command": "backup create all",
+            "triggers": [
+                {
+                    "Type": "Weekly",
+                    "DaysOfWeek": ["Sunday"],
+                    "Time": "04:00"
+                }
+            ]
+        }
+
+    Example Response (Success, task possibly renamed):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Windows task 'bedrock_MyServer_backup_create_all_...' created successfully.",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": null,
+            "new_task_name": "bedrock_MyServer_backup_create_all_..."
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -765,7 +921,7 @@ async def modify_windows_task_api_route(
 
         # Handle the result of the modification
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
+            return TaskApiResponse(
                 status="success",
                 message=result.get("message"),
                 new_task_name=new_task_name_str,
@@ -805,7 +961,7 @@ async def modify_windows_task_api_route(
 
 @router.delete(
     "/api/server/{server_name}/task_scheduler/task/{task_name:path}",
-    response_model=GeneralTaskApiResponse,
+    response_model=TaskApiResponse,
     tags=["Task Scheduler - Windows"],
 )
 async def delete_windows_task_api_route(
@@ -831,11 +987,34 @@ async def delete_windows_task_api_route(
     Returns:
         GeneralTaskApiResponse: JSON response indicating success or failure.
 
+    Args:
+        server_name (str): The name of the server associated with the task.
+        task_name (str): The full name of the task to delete (Path Parameter).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        TaskApiResponse: JSON response indicating success or failure.
+
     Raises:
         HTTPException:
             - 403 (Forbidden): If the system is not Windows.
             - 404 (Not Found): If the task or its configuration file is not found.
             - 500 (Internal Server Error): If config dir not set or other deletion errors.
+
+    Example URI:
+    ``/api/server/MyServer/task_scheduler/task/bedrock_MyServer_server_update_...``
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Task 'bedrock_MyServer_server_update_...' and its definition file deleted successfully.",
+            "cron_jobs": null,
+            "tasks": null,
+            "created_task_name": null,
+            "new_task_name": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -880,9 +1059,7 @@ async def delete_windows_task_api_route(
 
         result = task_scheduler_api.delete_windows_task(task_name, task_file_path)
         if result.get("status") == "success":
-            return GeneralTaskApiResponse(
-                status="success", message=result.get("message")
-            )
+            return TaskApiResponse(status="success", message=result.get("message"))
         else:
             detail = result.get("message", "Failed to delete Windows task.")
             status_code_err = (

@@ -27,6 +27,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from ..schemas import ActionResponse
 from bedrock_server_manager.web.auth_utils import get_current_user
 from ..dependencies import validate_server_exists
 from bedrock_server_manager.api import server as server_api, server_install_config
@@ -49,14 +50,6 @@ class CommandPayload(BaseModel):
     command: str = Field(
         ..., min_length=1, description="The command to send to the server."
     )
-
-
-class ActionResponse(BaseModel):
-    """Generic response model for actions, indicating status and message."""
-
-    status: str = "success"
-    message: str
-    details: Optional[Any] = None
 
 
 # --- Helper for background task logging ---
@@ -132,6 +125,23 @@ async def start_server_route(
 
     - **server_name**: Path parameter, validated by `validate_server_exists` dependency.
     - Requires authentication.
+
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server to start. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse: Confirmation that the start operation has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Start operation for server 'MyServer' initiated in background.",
+            "details": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Start server request for '{server_name}' by user '{identity}'.")
@@ -186,6 +196,26 @@ async def stop_server_route(
 ):
     """
     Initiates stopping a specific Bedrock server instance in the background.
+
+    The server stop operation is performed as a background task.
+    This endpoint immediately returns a 202 Accepted response.
+
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server to stop. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse: Confirmation that the stop operation has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Stop operation for server 'MyServer' initiated in background.",
+            "details": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Stop server request for '{server_name}' by user '{identity}'.")
@@ -246,6 +276,23 @@ async def restart_server_route(
 
     - **server_name**: Path parameter, validated by `validate_server_exists` dependency.
     - Requires authentication.
+
+    Args:
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server to restart. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse: Confirmation that the restart operation has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Restart operation for server 'MyServer' initiated in background.",
+            "details": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -272,6 +319,44 @@ async def send_command_route(
 ):
     """
     Sends a command to a specific running Bedrock server instance.
+
+    The underlying API call (:func:`~bedrock_server_manager.api.server.send_command`)
+    checks the command against a blacklist.
+
+    Args:
+        server_name (str): The name of the server to send the command to.
+        payload (CommandPayload): Contains the ``command`` string.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse:
+            - ``status``: "success" or "error" (if HTTPExceptions are not raised first for specific errors)
+            - ``message``: Outcome of the command execution.
+            - ``details``: (Optional) Any output or details from the command if successful.
+
+    Raises:
+        HTTPException:
+            - 400 (Bad Request): If command is empty or underlying API call fails.
+            - 403 (Forbidden): If the command is blocked.
+            - 404 (Not Found): If the server name is invalid.
+            - 409 (Conflict): If the server is not running.
+            - 500 (Internal Server Error): For other unexpected errors.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "command": "list"
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Command 'list' sent successfully.",
+            "details": "There are 0/10 players online:\\n"
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -384,6 +469,26 @@ async def update_server_route(
 ):
     """
     Initiates updating a specific Bedrock server instance in the background.
+
+    The server update operation is performed as a background task.
+    This endpoint immediately returns a 202 Accepted response.
+
+    Args:
+        server_name (str): The name of the server to update.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse: Confirmation that the update operation has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Update operation for server 'MyServer' initiated in background.",
+            "details": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Update server request for '{server_name}' by user '{identity}'.")
@@ -438,6 +543,26 @@ async def delete_server_route(
 ):
     """
     Initiates deleting a specific Bedrock server instance and its data in the background.
+
+    This is a **DESTRUCTIVE** operation. The deletion is performed as a background task.
+    This endpoint immediately returns a 202 Accepted response.
+
+    Args:
+        server_name (str): The name of the server to delete.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse: Confirmation that the delete operation has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Delete operation for server 'MyServer' initiated in background.",
+            "details": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.warning(

@@ -32,8 +32,6 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-# from jose import jwt # jose.jwt is used in auth_utils, not directly here.
-
 from bedrock_server_manager.web.templating import templates
 from bedrock_server_manager.web.auth_utils import (
     create_access_token,
@@ -48,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/auth",
-    tags=["authentication"],
+    tags=["Authentication"],
 )
 
 
@@ -68,13 +66,6 @@ class UserLogin(BaseModel):
     password: str = Field(..., min_length=1)
 
 
-class MessageResponse(BaseModel):
-    """Generic response model for simple status messages."""
-
-    status: str
-    message: str
-
-
 # --- Web UI Login Page Route ---
 @router.get("/login", response_class=HTMLResponse, include_in_schema=False)
 async def login_page(
@@ -87,6 +78,15 @@ async def login_page(
     :func:`~.auth_utils.get_current_user_optional` dependency),
     they are redirected to the main application page ("/").
     Otherwise, it renders and returns the ``login.html`` template.
+
+    Args:
+        request (Request): The FastAPI request object.
+        user (Optional[Dict[str, Any]]): The authenticated user object, if any.
+                                         Injected by `get_current_user_optional`.
+
+    Returns:
+        HTMLResponse: Renders the ``login.html`` template if the user is not authenticated.
+        RedirectResponse: Redirects to "/" if the user is already authenticated.
     """
     if user:
         return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
@@ -114,10 +114,20 @@ async def api_login_for_access_token(
         password (str): Password submitted via form data.
 
     Returns:
-        Token: A :class:`.Token` object containing the access token and token type.
+        Token: A :class:`.Token` object containing the access token, token type,
+               and a success message. The token is also set as an HTTP-only cookie.
 
     Raises:
         fastapi.HTTPException: With status code 401 if authentication fails.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            "token_type": "bearer",
+            "message": "Successfully authenticated."
+        }
     """
     logger.info(f"API login attempt for '{username}'")
     authenticated_username = authenticate_user(username, password)
@@ -167,13 +177,15 @@ async def logout(
     with a logout success message.
 
     Args:
-        response (:class:`fastapi.FastAPIResponse`): FastAPI response object, used to delete cookies.
-            Note: This parameter is available but the final response is a new
-            RedirectResponse object, so cookie operations should ideally be on that.
+        response (:class:`fastapi.FastAPIResponse`): FastAPI response object. While available,
+            cookie deletion is performed on the new `RedirectResponse` object.
         current_user (Dict[str, Any]): The authenticated user object, injected by dependency.
+            Ensures only authenticated users can logout.
 
     Returns:
-        :class:`fastapi.responses.RedirectResponse`: Redirects to the login page.
+        :class:`fastapi.responses.RedirectResponse`: Redirects to the login page
+            (``/auth/login``) with a success message in the query parameters.
+            The ``access_token_cookie`` is cleared.
     """
     username = current_user.get("username", "Unknown user")
     logger.info(f"User '{username}' logging out. Clearing JWT cookie.")

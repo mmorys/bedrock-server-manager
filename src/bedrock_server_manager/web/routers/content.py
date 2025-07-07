@@ -18,6 +18,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from ..schemas import ActionResponse, BaseApiResponse
 from bedrock_server_manager.web.templating import templates
 from bedrock_server_manager.web.auth_utils import get_current_user
 from ..dependencies import validate_server_exists
@@ -40,16 +41,10 @@ class FileNamePayload(BaseModel):
     filename: str
 
 
-class GeneralContentListResponse(BaseModel):
-    status: str
-    message: Optional[str] = None
+class ContentListResponse(BaseApiResponse):
+    # status: str -> Inherited
+    # message: Optional[str] = None -> Inherited
     files: Optional[List[str]] = None
-
-
-class ActionResponse(BaseModel):
-    status: str = "success"
-    message: str
-    details: Optional[Any] = None
 
 
 # --- HTML Routes ---
@@ -64,6 +59,20 @@ async def install_world_page(
     server_name: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Serves the HTML page for selecting a world file to install on a server.
+
+    Lists available .mcworld files from the application's content directory.
+
+    Args:
+        request (Request): The FastAPI request object.
+        server_name (str): The name of the server for which to install the world.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``select_world.html`` template, providing it
+                      with a list of available world files and the server name.
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"User '{identity}' accessed world install selection page for server '{server_name}'."
@@ -113,6 +122,20 @@ async def install_addon_page(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Serves the HTML page for selecting an addon file to install on a server.
+
+    Lists available .mcaddon or .mcpack files from the application's content directory.
+
+    Args:
+        request (Request): The FastAPI request object.
+        server_name (str): The name of the server for which to install the addon. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``select_addon.html`` template, providing it
+                      with a list of available addon files and the server name.
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"User '{identity}' accessed addon install selection page for server '{server_name}'."
@@ -154,12 +177,36 @@ async def install_addon_page(
 # --- API Routes ---
 @router.get(
     "/api/content/worlds",
-    response_model=GeneralContentListResponse,
+    response_model=ContentListResponse,
     tags=["Content API"],
 )
 async def list_worlds_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Retrieves a list of available .mcworld template files.
+
+    These files are sourced from the application's global content directory.
+    Calls :func:`~bedrock_server_manager.api.application.list_available_worlds_api`.
+
+    Args:
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ContentListResponse:
+            - ``status``: "success" or "error"
+            - ``files``: List of world file basenames (e.g., ``["MyWorldTemplate.mcworld"]``).
+            - ``message``: (Optional) Confirmation or error message.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Successfully listed available worlds.",
+            "files": ["Skyblock.mcworld", "CityLiving.mcworld"]
+        }
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: List available worlds request by user '{identity}'.")
     try:
@@ -167,7 +214,9 @@ async def list_worlds_api_route(
         if api_result.get("status") == "success":
             full_paths = api_result.get("files", [])
             basenames = [os.path.basename(p) for p in full_paths]
-            return GeneralContentListResponse(status="success", files=basenames)
+            return ContentListResponse(
+                status="success", files=basenames, message=api_result.get("message")
+            )
         else:
             logger.warning(f"API: Error listing worlds: {api_result.get('message')}")
             raise HTTPException(
@@ -186,12 +235,36 @@ async def list_worlds_api_route(
 
 @router.get(
     "/api/content/addons",
-    response_model=GeneralContentListResponse,
+    response_model=ContentListResponse,
     tags=["Content API"],
 )
 async def list_addons_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Retrieves a list of available .mcaddon or .mcpack template files.
+
+    These files are sourced from the application's global content directory.
+    Calls :func:`~bedrock_server_manager.api.application.list_available_addons_api`.
+
+    Args:
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ContentListResponse:
+            - ``status``: "success" or "error"
+            - ``files``: List of addon file basenames (e.g., ``["Furniture.mcaddon"]``).
+            - ``message``: (Optional) Confirmation or error message.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Successfully listed available addons.",
+            "files": ["ModernFurniture.mcaddon", "LuckyBlocks.mcpack"]
+        }
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: List available addons request by user '{identity}'.")
     try:
@@ -199,7 +272,9 @@ async def list_addons_api_route(
         if api_result.get("status") == "success":
             full_paths = api_result.get("files", [])
             basenames = [os.path.basename(p) for p in full_paths]
-            return GeneralContentListResponse(status="success", files=basenames)
+            return ContentListResponse(
+                status="success", files=basenames, message=api_result.get("message")
+            )
         else:
             logger.warning(f"API: Error listing addons: {api_result.get('message')}")
             raise HTTPException(
@@ -261,6 +336,39 @@ async def install_world_api_route(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Initiates a background task to install a world from a .mcworld file to a server.
+
+    The selected world file must exist in the application's content/worlds directory.
+    The server will be stopped before import and restarted after if the operation is successful.
+
+    Args:
+        payload (FileNamePayload): Contains the `filename` of the .mcworld file.
+        tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse:
+            - ``status``: "success"
+            - ``message``: Confirmation that the world installation has been initiated.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "filename": "MyAwesomeWorld.mcworld"
+        }
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "World install from 'MyAwesomeWorld.mcworld' for server 'MyServer' initiated in background.",
+            "details": null
+        }
+    """
     identity = current_user.get("username", "Unknown")
     selected_filename = payload.filename
     logger.info(
@@ -360,6 +468,31 @@ async def export_world_api_route(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Initiates a background task to export the active world of a server to a .mcworld file.
+
+    The exported file will be saved in the application's content/worlds directory.
+    The server will be stopped before export and restarted after.
+
+    Args:
+        tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse:
+            - ``status``: "success"
+            - ``message``: Confirmation that the world export has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "World export for server 'MyServer' initiated in background.",
+            "details": null
+        }
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"API: World export requested for '{server_name}' by user '{identity}'."
@@ -406,13 +539,11 @@ def reset_world_task(server_name: str):
             logger.error(
                 f"Background task 'reset_world' for '{server_name}': Failed. {result.get('message')}"
             )
-    except (
-        BSMError
-    ) as e:  # Original had UserInputError, but reset_world likely BSMError for wider issues
+    except BSMError as e:
         logger.warning(
             f"Background task 'reset_world' for '{server_name}': Application error. {e}",
             exc_info=True,
-        )  # Changed to warning as per original
+        )
     except Exception as e:
         log_background_task_error(f"reset_world", server_name, e)
 
@@ -428,6 +559,32 @@ async def reset_world_api_route(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Initiates a background task to reset a server's world.
+
+    This is a destructive operation: the current active world directory is deleted.
+    The server will be stopped before the reset and restarted afterwards, which
+    will trigger the generation of a new world based on server properties.
+
+    Args:
+        tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse:
+            - ``status``: "success"
+            - ``message``: Confirmation that the world reset has been initiated.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "World reset for server 'MyServer' initiated in background.",
+            "details": null
+        }
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: World reset requested for '{server_name}' by user '{identity}'.")
 
@@ -495,6 +652,39 @@ async def install_addon_api_route(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Initiates a background task to install an addon from a .mcaddon or .mcpack file to a server.
+
+    The selected addon file must exist in the application's content/addons directory.
+    The server will be stopped before installation and restarted after if the operation is successful.
+
+    Args:
+        payload (FileNamePayload): Contains the `filename` of the addon file.
+        tasks (BackgroundTasks): FastAPI background tasks utility.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        ActionResponse:
+            - ``status``: "success"
+            - ``message``: Confirmation that the addon installation has been initiated.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "filename": "CoolFurniture.mcaddon"
+        }
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Addon install from 'CoolFurniture.mcaddon' for server 'MyServer' initiated in background.",
+            "details": null
+        }
+    """
     identity = current_user.get("username", "Unknown")
     selected_filename = payload.filename
     logger.info(

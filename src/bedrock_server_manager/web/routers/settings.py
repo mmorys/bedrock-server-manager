@@ -22,9 +22,10 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import (
     HTMLResponse,
-)  # JSONResponse not used in this snippet directly
+)
 from pydantic import BaseModel, Field
 
+from ..schemas import BaseApiResponse
 from bedrock_server_manager.web.templating import templates
 from bedrock_server_manager.web.auth_utils import get_current_user
 from bedrock_server_manager.api import settings as settings_api
@@ -45,15 +46,11 @@ class SettingItem(BaseModel):
     value: Any = Field(..., description="The new value for the setting.")
 
 
-class SettingsResponse(BaseModel):
+class SettingsResponse(BaseApiResponse):
     """Response model for settings operations."""
 
-    status: str = Field(
-        ..., description="Status of the operation (e.g., 'success', 'error')."
-    )
-    message: Optional[str] = Field(
-        default=None, description="Optional descriptive message."
-    )
+    # status: str = Field(...) -> Inherited
+    # message: Optional[str] = Field(default=None) -> Inherited
     settings: Optional[Dict[str, Any]] = Field(
         default=None, description="Dictionary of all settings (for get_all)."
     )
@@ -102,13 +99,53 @@ async def get_all_settings_api_route(
 
     - Requires authentication.
     - Returns a :class:`.SettingsResponse` containing all settings data.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Global settings retrieved successfully.",
+            "settings": {
+                "config_version": "1.0",
+                "paths": {
+                    "servers": "<app_data_dir>/servers",
+                    "content": "<app_data_dir>/content",
+                    "downloads": "<app_data_dir>/.downloads",
+                    "backups": "<app_data_dir>/backups",
+                    "plugins": "<app_data_dir>/plugins",
+                    "logs": "<app_data_dir>/.logs"
+                },
+                "retention": {
+                    "backups": 3,
+                    "downloads": 3,
+                    "logs": 3
+                },
+                "logging": {
+                    "file_level": "INFO",
+                    "cli_level": "WARN"
+                },
+                "web": {
+                    "host": "127.0.0.1",
+                    "port": 11325,
+                    "token_expires_weeks": 4,
+                    "threads": 4
+                },
+                "custom": {}
+            },
+            "setting": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Get global settings request by '{identity}'.")
     try:
         result = settings_api.get_all_global_settings()
         if result.get("status") == "success":
-            return SettingsResponse(status="success", settings=result.get("data"))
+            return SettingsResponse(
+                status="success",
+                settings=result.get("data"),
+                message=result.get("message"),
+            )
         else:
             # This case might indicate an internal issue with settings loading
             raise HTTPException(
@@ -139,6 +176,27 @@ async def set_setting_api_route(
     - **Request body**: Expects a :class:`.SettingItem` with the `key` and `value`.
     - Requires authentication.
     - Returns a :class:`.SettingsResponse` indicating success or failure.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "key": "retention.backups",
+            "value": 5
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Setting 'retention.backups' updated successfully. Changes will apply after the next reload or restart.",
+            "settings": null,
+            "setting": {
+                "key": "retention.backups",
+                "value": 5
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -161,7 +219,7 @@ async def set_setting_api_route(
                 message=result.get("message", "Setting updated successfully."),
                 setting=SettingItem(
                     key=payload.key, value=payload.value
-                ),  # Return the set item
+                ),  # Return the set item - No change needed here as it already matches BaseApiResponse for status/message
             )
         else:
             # Errors from settings_api.set_global_setting should ideally raise specific BSMError types
@@ -206,6 +264,16 @@ async def reload_settings_api_route(
 
     - Requires authentication.
     - Returns a :class:`.SettingsResponse` indicating the outcome.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Global settings and logging configuration reloaded successfully.",
+            "settings": null,
+            "setting": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Reload global settings request by '{identity}'.")
@@ -215,6 +283,7 @@ async def reload_settings_api_route(
             return SettingsResponse(
                 status="success",
                 message=result.get("message", "Settings reloaded successfully."),
+                # No other specific fields like 'settings' or 'setting' for this response
             )
         else:
             # Errors from settings_api.reload_global_settings

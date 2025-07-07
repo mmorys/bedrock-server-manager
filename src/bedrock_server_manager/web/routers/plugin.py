@@ -28,6 +28,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from ..schemas import BaseApiResponse
 from bedrock_server_manager.web.templating import templates
 from bedrock_server_manager.web.auth_utils import get_current_user
 from bedrock_server_manager.api import plugins as plugins_api
@@ -60,15 +61,11 @@ class TriggerEventPayload(BaseModel):
     )
 
 
-class GeneralPluginApiResponse(BaseModel):
+class PluginApiResponse(BaseApiResponse):
     """Generic API response model for plugin operations."""
 
-    status: str = Field(
-        ..., description="Status of the operation (e.g., 'success', 'error')."
-    )
-    message: Optional[str] = Field(
-        default=None, description="Optional descriptive message."
-    )
+    # status: str -> Inherited
+    # message: Optional[str] = None -> Inherited
     data: Optional[Any] = Field(
         default=None,
         description="Optional data payload, structure depends on the endpoint (e.g., plugin statuses).",
@@ -93,8 +90,11 @@ async def manage_plugins_page_route(
     and provides controls to enable/disable or reload plugins.
 
     Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        current_user (Dict[str, Any]): Authenticated user (from dependency).
+        request (Request): The FastAPI request object.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``manage_plugins.html`` template.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"User '{identity}' accessed plugin management page.")
@@ -104,9 +104,7 @@ async def manage_plugins_page_route(
 
 
 # --- API Route ---
-@router.get(
-    "/api/plugins", response_model=GeneralPluginApiResponse, tags=["Plugin API"]
-)
+@router.get("/api/plugins", response_model=PluginApiResponse, tags=["Plugin API"])
 async def get_plugins_status_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -118,16 +116,43 @@ async def get_plugins_status_api_route(
     The response includes whether each plugin is enabled, its description,
     and version.
 
-    - Requires authentication.
+    Args:
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        PluginApiResponse:
+            - ``status``: "success" or "error"
+            - ``data``: A dictionary where keys are plugin names and values are
+              dictionaries containing "enabled" (bool), "description" (str),
+              and "version" (str) for each plugin.
+            - ``message``: (Optional) Message, especially on error.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": null,
+            "data": {
+                "MyPlugin1": {
+                    "enabled": true,
+                    "description": "Does cool stuff.",
+                    "version": "1.0.0"
+                },
+                "AnotherPlugin": {
+                    "enabled": false,
+                    "description": "Does other things.",
+                    "version": "0.1.0"
+                }
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Get plugin statuses request by '{identity}'.")
     try:
         result = plugins_api.get_plugin_statuses()
         if result.get("status") == "success":
-            return GeneralPluginApiResponse(
-                status="success", data=result.get("plugins")
-            )
+            return PluginApiResponse(status="success", data=result.get("plugins"))
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -144,7 +169,7 @@ async def get_plugins_status_api_route(
 # --- API Route ---
 @router.post(
     "/api/plugins/trigger_event",
-    response_model=GeneralPluginApiResponse,
+    response_model=PluginApiResponse,
     tags=["Plugin API"],
 )
 async def trigger_event_api_route(
@@ -160,6 +185,33 @@ async def trigger_event_api_route(
     - **Request body**: Expects a :class:`.TriggerEventPayload` specifying the
       `event_name` and an optional `payload` dictionary for the event.
     - Requires authentication.
+
+    Args:
+        payload (TriggerEventPayload): The event name and optional payload.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        PluginApiResponse:
+            - ``status``: "success" or "error"
+            - ``message``: Confirmation or error message.
+            - ``data``: Contains details from the event trigger result if provided by the API.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "event_name": "myplugin:custom_action",
+            "payload": {"value": 42}
+        }
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Event 'myplugin:custom_action' triggered.",
+            "data": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -172,7 +224,7 @@ async def trigger_event_api_route(
         )
         if result.get("status") == "success":
 
-            return GeneralPluginApiResponse(
+            return PluginApiResponse(
                 status="success",
                 message=result.get("message"),
                 data=result.get("details"),  # API returns 'details', model has 'data'
@@ -205,7 +257,7 @@ async def trigger_event_api_route(
 
 @router.post(
     "/api/plugins/{plugin_name}",
-    response_model=GeneralPluginApiResponse,
+    response_model=PluginApiResponse,
     tags=["Plugin API"],
 )
 async def set_plugin_status_api_route(
@@ -223,6 +275,32 @@ async def set_plugin_status_api_route(
     - **plugin_name**: Path parameter specifying the plugin to configure.
     - **Request body**: Expects a :class:`.PluginStatusSetPayload` with the boolean `enabled` field.
     - Requires authentication.
+
+    Args:
+        plugin_name (str): The name of the plugin to enable/disable.
+        payload (PluginStatusSetPayload): Contains the `enabled` status.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        PluginApiResponse:
+            - ``status``: "success" or "error"
+            - ``message``: Confirmation or error message.
+
+    Example Request Body (Enable):
+    .. code-block:: json
+
+        {
+            "enabled": true
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Plugin 'MyPlugin1' has been enabled. Reload plugins for changes to take full effect.",
+            "data": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     action = "enable" if payload.enabled else "disable"
@@ -233,9 +311,7 @@ async def set_plugin_status_api_route(
     try:
         result = plugins_api.set_plugin_status(plugin_name, payload.enabled)
         if result.get("status") == "success":
-            return GeneralPluginApiResponse(
-                status="success", message=result.get("message")
-            )
+            return PluginApiResponse(status="success", message=result.get("message"))
         else:
             detail = result.get("message", f"Failed to {action} plugin.")
             if "not found" in detail.lower() or "invalid plugin" in detail.lower():
@@ -266,7 +342,7 @@ async def set_plugin_status_api_route(
 
 
 @router.put(
-    "/api/plugins/reload", response_model=GeneralPluginApiResponse, tags=["Plugin API"]
+    "/api/plugins/reload", response_model=PluginApiResponse, tags=["Plugin API"]
 )
 async def reload_plugins_api_route(
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -279,7 +355,22 @@ async def reload_plugins_api_route(
     hooks) and then re-scanning, re-validating, and re-loading all plugins
     based on their current configuration and files on disk.
 
-    - Requires authentication.
+    Args:
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        PluginApiResponse:
+            - ``status``: "success" or "error"
+            - ``message``: Confirmation or error message.
+
+    Example Response:
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Plugins have been reloaded successfully.",
+            "data": null
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Reload plugins request by '{identity}'.")
@@ -287,9 +378,7 @@ async def reload_plugins_api_route(
     try:
         result = plugins_api.reload_plugins()
         if result.get("status") == "success":
-            return GeneralPluginApiResponse(
-                status="success", message=result.get("message")
-            )
+            return PluginApiResponse(status="success", message=result.get("message"))
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

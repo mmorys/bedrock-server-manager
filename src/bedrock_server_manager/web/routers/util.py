@@ -1,4 +1,4 @@
-# bedrock_server_manager/web/routers/settings.py
+# bedrock_server_manager/web/routers/util.py
 """
 Utility and miscellaneous web server routes for the Bedrock Server Manager.
 

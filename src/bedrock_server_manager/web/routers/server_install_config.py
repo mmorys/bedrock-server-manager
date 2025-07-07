@@ -106,19 +106,18 @@ class AllowlistRemovePayload(BaseModel):
     players: List[str] = Field(..., description="List of player gamertags to remove.")
 
 
-# Define Item model before it's used in PermissionsSetPayload
 class PlayerPermissionItem(BaseModel):
     """Represents a single player's permission data sent from the client."""
 
     xuid: str
     name: str
-    permission_level: str  # Matches key from client-side JS and GET response
+    permission_level: str
 
 
 class PermissionsSetPayload(BaseModel):
     """Request model for setting multiple player permissions."""
 
-    permissions: List[PlayerPermissionItem] = Field(  # Use the defined model
+    permissions: List[PlayerPermissionItem] = Field(
         ..., description="List of player permission entries."
     )
 
@@ -144,7 +143,19 @@ class ServiceUpdatePayload(BaseModel):
 async def install_server_page(
     request: Request, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """Serves the HTML page for installing a new Bedrock server."""
+    """
+    Serves the HTML page for installing a new Bedrock server.
+
+    This page provides a form for users to specify the name and version
+    for a new server instance.
+
+    Args:
+        request (Request): The FastAPI request object.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``install.html`` template.
+    """
     identity = current_user.get("username", "Unknown")
     logger.info(f"User '{identity}' accessed new server install page.")
     return templates.TemplateResponse(
@@ -169,10 +180,48 @@ async def install_server_api_route(
     deletes existing data if overwrite is true, and then calls
     :func:`~bedrock_server_manager.api.server_install_config.install_new_server`.
 
-    - **Request body**: Expects an :class:`.InstallServerPayload`.
-    - Requires authentication.
-    - Returns :class:`.InstallServerResponse` which may indicate success,
-      a need for overwrite confirmation, or an error.
+    Args:
+        payload (InstallServerPayload): Server name, version, and overwrite flag.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        InstallServerResponse:
+            - ``status``: "success", "confirm_needed", or "error"
+            - ``message``: Descriptive message about the operation.
+            - ``next_step_url``: (Optional) URL for the next configuration step on success.
+            - ``server_name``: (Optional) Name of the server, if confirmation is needed.
+
+    Raises:
+        HTTPException: For validation errors or internal server errors during installation.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "server_name": "NewSurvival",
+            "server_version": "LATEST",
+            "overwrite": false
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Server 'NewSurvival' installed successfully.",
+            "next_step_url": "/server/NewSurvival/configure_properties?new_install=true",
+            "server_name": "NewSurvival"
+        }
+
+    Example Response (Confirmation Needed):
+    .. code-block:: json
+
+        {
+            "status": "confirm_needed",
+            "message": "Server 'NewSurvival' already exists. Overwrite?",
+            "next_step_url": null,
+            "server_name": "NewSurvival"
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -278,13 +327,17 @@ async def configure_properties_page(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Serves the HTML page for configuring server.properties.
+    """
+    Serves the HTML page for configuring a server's ``server.properties`` file.
 
     Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        new_install (bool, optional): Flag indicating if this is part of a new server setup flow.
+        request (Request): The FastAPI request object.
+        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user (from dependency).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``configure_properties.html`` template.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -314,13 +367,17 @@ async def configure_allowlist_page(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Serves the HTML page for configuring the server's allowlist.
+    """
+    Serves the HTML page for configuring a server's ``allowlist.json`` file.
 
     Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        new_install (bool, optional): Flag indicating if this is part of a new server setup flow.
+        request (Request): The FastAPI request object.
+        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user (from dependency).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``configure_allowlist.html`` template.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -350,13 +407,17 @@ async def configure_permissions_page(
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Serves the HTML page for configuring player permissions (permissions.json).
+    """
+    Serves the HTML page for configuring player permissions (``permissions.json``).
 
     Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        new_install (bool, optional): Flag indicating if this is part of a new server setup flow.
+        request (Request): The FastAPI request object.
+        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user (from dependency).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``configure_permissions.html`` template.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -393,10 +454,13 @@ async def configure_service_page(
     and typically updated by client-side JavaScript calls to other API endpoints.
 
     Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        new_install (bool, optional): Flag indicating if this is part of a new server setup flow.
+        request (Request): The FastAPI request object.
+        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user (from dependency).
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        HTMLResponse: Renders the ``configure_service.html`` template.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -437,6 +501,38 @@ async def configure_properties_api_route(
     - **Request body**: Expects a :class:`.PropertiesPayload`.
     - Requires authentication.
     - Returns the result from the API call, typically ``{"status": "success", ...}`` or an error.
+
+    Args:
+        payload (PropertiesPayload): Dictionary of properties to set.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call, usually including
+              ``{"status": "success", "message": "Properties updated..."}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+
+    Raises:
+        HTTPException: For invalid input, file errors, or if the server is not found.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "properties": {
+                "level-name": "MyNewWorld",
+                "gamemode": "survival",
+                "difficulty": "hard"
+            }
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Server properties updated successfully. Server MyServer may have been restarted if it was running."
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -503,6 +599,28 @@ async def get_server_properties_api_route(
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - Requires authentication.
     - Returns a dictionary containing the properties on success.
+
+    Args:
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call:
+              ``{"status": "success", "properties": Dict[str, str]}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "properties": {
+                "level-name": "MyNewWorld",
+                "gamemode": "survival",
+                "difficulty": "hard",
+                "max-players": "10"
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -543,6 +661,37 @@ async def add_to_allowlist_api_route(
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - **Request body**: Expects an :class:`.AllowlistAddPayload`.
     - Requires authentication.
+
+    Args:
+        payload (AllowlistAddPayload): Contains ``players`` (list of gamertags)
+                                     and ``ignoresPlayerLimit`` (bool).
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call:
+              ``{"status": "success", "message": "Successfully added <n> players...", "added_count": <n>}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+
+    Raises:
+        HTTPException: For invalid input or errors during the operation.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "players": ["PlayerX", "PlayerY"],
+            "ignoresPlayerLimit": false
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Successfully added 2 new players to the allowlist.",
+            "added_count": 2
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -598,6 +747,35 @@ async def get_allowlist_api_route(
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - Requires authentication.
     - Returns a list of player objects on the allowlist.
+
+    Args:
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call:
+              ``{"status": "success", "players": List[AllowlistPlayerDict]}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+              Each ``AllowlistPlayerDict`` contains "name", "xuid", "ignoresPlayerLimit".
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "players": [
+                {
+                    "ignoresPlayerLimit": false,
+                    "name": "PlayerX",
+                    "xuid": "1234567890123456"
+                },
+                {
+                    "ignoresPlayerLimit": true,
+                    "name": "AdminPlayer",
+                    "xuid": "0987654321098765"
+                }
+            ]
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Get allowlist request for '{server_name}' by user '{identity}'.")
@@ -636,6 +814,38 @@ async def remove_allowlist_players_api_route(
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - **Request body**: Expects an :class:`.AllowlistRemovePayload`.
     - Requires authentication.
+
+    Args:
+        payload (AllowlistRemovePayload): Contains ``players`` (list of gamertags to remove).
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call:
+              ``{"status": "success", "message": "...", "details": {"removed": [], "not_found": []}}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+
+    Raises:
+        HTTPException: For invalid input or errors during the operation.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "players": ["PlayerY", "NonExistentPlayer"]
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Allowlist update process completed.",
+            "details": {
+                "removed": ["PlayerY"],
+                "not_found": ["NonExistentPlayer"]
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -698,13 +908,55 @@ async def configure_permissions_api_route(
     - **Request body**: Expects a :class:`.PermissionsSetPayload`.
     - Requires authentication.
     - Returns a summary of successes and errors.
+
+    Args:
+        payload (PermissionsSetPayload): List of player permission entries.
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        JSONResponse:
+            If all successful: ``{"status": "success", "message": "Permissions updated for <n> player(s)."}``
+            If errors: ``{"status": "error", "message": "One or more errors...", "errors": Dict[str, str]}``
+            The status code of the JSONResponse will vary based on the nature of errors (400, 404, 500).
+
+    Raises:
+        HTTPException: Indirectly via JSONResponse for various error conditions.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "permissions": [
+                {"xuid": "123", "name": "AdminUser", "permission_level": "operator"},
+                {"xuid": "456", "name": "PlayerUser", "permission_level": "member"}
+            ]
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Permissions updated for 2 player(s)."
+        }
+
+    Example Response (Partial Error):
+    .. code-block:: json
+
+        {
+            "status": "error",
+            "message": "One or more errors occurred while setting permissions.",
+            "errors": {
+                "789": "Player XUID '789' not found in known players database for name enrichment."
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"API: Configure permissions request for '{server_name}' by user '{identity}'."
     )
 
-    # payload.permissions is now a List[PlayerPermissionItem]
     permission_entries = payload.permissions
     errors: Dict[str, str] = {}  # Store errors by XUID
     success_count = 0
@@ -800,6 +1052,37 @@ async def get_server_permissions_api_route(
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - Requires authentication.
     - Returns a dictionary containing the formatted permissions list on success.
+
+    Args:
+        server_name (str): The name of the server. Validated by dependency.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary from the underlying API call:
+              ``{"status": "success", "data": {"permissions": List[PlayerPermissionItemDict]}}`` or
+              ``{"status": "error", "message": "<error detail>"}``.
+              Each ``PlayerPermissionItemDict`` contains "xuid", "name", and "permission_level".
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "data": {
+                "permissions": [
+                    {
+                        "xuid": "1234567890123456",
+                        "name": "AdminUser",
+                        "permission_level": "operator"
+                    },
+                    {
+                        "xuid": "9876543210987654",
+                        "name": "PlayerUser",
+                        "permission_level": "member"
+                    }
+                ]
+            }
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -844,6 +1127,35 @@ async def configure_service_api_route(
     - **Request body**: Expects a :class:`.ServiceUpdatePayload`.
     - Requires authentication.
     - At least one of `autoupdate` or `autostart` must be provided in the payload.
+
+    Args:
+        server_name (str): The name of the server. Validated by dependency.
+        payload (ServiceUpdatePayload): Contains ``autoupdate`` and/or ``autostart`` booleans.
+        current_user (Dict[str, Any]): Authenticated user object.
+
+    Returns:
+        dict: A dictionary confirming success or detailing an error:
+              ``{"status": "success", "message": "Service configuration applied successfully."}`` or
+              ``{"status": "error", "message": "<error_detail>"}`` (via HTTPException).
+
+    Raises:
+        HTTPException: For invalid input, or if underlying service/autoupdate operations fail.
+
+    Example Request Body:
+    .. code-block:: json
+
+        {
+            "autoupdate": true,
+            "autostart": false
+        }
+
+    Example Response (Success):
+    .. code-block:: json
+
+        {
+            "status": "success",
+            "message": "Service configuration applied successfully."
+        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
