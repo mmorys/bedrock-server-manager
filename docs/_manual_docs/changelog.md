@@ -38,6 +38,7 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   Create a system service (Systemd on Linux / Windows Service).
     *   On Linux, you'll need to manually create an environment file with your BSM environment variables and add the `EnvironmentFile=` line to your systemd file.
     *   The `host` will be read from the JSON config file.
+    *   On Windows, uvicorn workers will default to 1 instead of the configured settings value.
 3.  **Config JSON migrations**:
     *   The global `script_config.json` has been renamed to `bedrock_server_manager.json`.
     *   Global settings have been migrated to a new nested format. A backup will be created, and an auto-migration will be attempted.

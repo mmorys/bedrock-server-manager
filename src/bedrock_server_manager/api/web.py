@@ -52,6 +52,7 @@ def start_web_server_api(
     host: Optional[Union[str, List[str]]] = None,
     debug: bool = False,
     mode: str = "direct",
+    threads: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Starts the application's web server.
 
@@ -99,7 +100,7 @@ def start_web_server_api(
         logger.info(f"API: Attempting to start web server in '{mode}' mode...")
         # --- Direct (Blocking) Mode ---
         if mode == "direct":
-            bsm.start_web_ui_direct(host, debug)
+            bsm.start_web_ui_direct(host, debug, threads)
             result = {
                 "status": "success",
                 "message": "Web server (direct mode) shut down.",
