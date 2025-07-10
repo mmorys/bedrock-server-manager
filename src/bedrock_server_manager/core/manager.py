@@ -596,6 +596,9 @@ class BedrockServerManager:
             debug (bool): If ``True``, runs the underlying Uvicorn/FastAPI app
                 in debug mode (e.g., with auto-reload). Passed directly to
                 :func:`~.web.app.run_web_server`. Defaults to ``False``.
+            threads (Optional[int]): Specifies the number of worker processes for Uvicorn
+
+                Only used for Windows Service
 
         Raises:
             RuntimeError: If :func:`~.web.app.run_web_server` raises a RuntimeError

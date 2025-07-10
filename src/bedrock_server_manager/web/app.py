@@ -56,6 +56,9 @@ def run_web_server(
             and uses a single worker process. If ``False`` (default), Uvicorn runs in
             production mode, with the number of worker processes determined by the
             ``web.threads`` setting (or its default).
+        threads (Optional[int]): Specifies the number of worker processes for Uvicorn
+
+            Only used for Windows Service
 
     Raises:
         RuntimeError: If the required authentication environment variables
@@ -161,8 +164,10 @@ def run_web_server(
                         f"Invalid '{threads_setting_key}' ({workers_val}). Using default: {workers}."
                     )
             else:
-                workers = int(threads)
-                if workers <= 0:
+                workers_val = int(threads)
+                if workers_val > 0:
+                    workers = workers_val
+                else:
                     logger.warning(
                         f"Invalid 'threads' passed ({workers}). Using default: {workers}."
                     )

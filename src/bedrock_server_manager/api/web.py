@@ -75,6 +75,9 @@ def start_web_server_api(
             debug mode (e.g., with auto-reload). Defaults to ``False``.
         mode (str, optional): The start mode, either 'direct' or 'detached'.
             Defaults to 'direct'.
+        threads (Optional[int]): Specifies the number of worker processes for Uvicorn
+
+            Only used for Windows Service
 
     Returns:
         Dict[str, Any]: A dictionary with the operation result.
