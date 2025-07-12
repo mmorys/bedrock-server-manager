@@ -1,30 +1,4 @@
 // bedrock_server_manager/web/static/js/install_config.js
-async function checkCustomVersion(version) {
-    const customZipGroup = document.getElementById('custom-zip-selector-group');
-    if (version.toUpperCase() === 'CUSTOM') {
-        customZipGroup.style.display = 'block';
-        const response = await fetch('/api/downloads/list');
-        const data = await response.json();
-        const selector = document.getElementById('custom-zip-selector');
-        selector.innerHTML = '';
-        if (data.custom_zips && data.custom_zips.length > 0) {
-            data.custom_zips.forEach(zip => {
-                const option = document.createElement('option');
-                option.value = zip;
-                option.textContent = zip;
-                selector.appendChild(option);
-            });
-        } else {
-            const option = document.createElement('option');
-            option.textContent = 'No custom zips found';
-            option.disabled = true;
-            selector.appendChild(option);
-        }
-    } else {
-        customZipGroup.style.display = 'none';
-    }
-}
-
 /**
  * @fileoverview Frontend JavaScript for handling the multi-step server installation
  * and configuration process (Properties, Allowlist, Permissions, Service).
@@ -45,32 +19,6 @@ if (typeof sendServerActionRequest === 'undefined' || typeof showStatusMessage =
         errorDiv.style.padding = '10px';
         errorDiv.style.border = '2px solid red';
         body.insertBefore(errorDiv, body.firstChild);
-    }
-}
-
-async function checkCustomVersion(version) {
-    const customZipGroup = document.getElementById('custom-zip-selector-group');
-    if (version.toUpperCase() === 'CUSTOM') {
-        customZipGroup.style.display = 'block';
-        const response = await fetch('/api/downloads/list');
-        const data = await response.json();
-        const selector = document.getElementById('custom-zip-selector');
-        selector.innerHTML = '';
-        if (data.custom_zips && data.custom_zips.length > 0) {
-            data.custom_zips.forEach(zip => {
-                const option = document.createElement('option');
-                option.value = zip;
-                option.textContent = zip;
-                selector.appendChild(option);
-            });
-        } else {
-            const option = document.createElement('option');
-            option.textContent = 'No custom zips found';
-            option.disabled = true;
-            selector.appendChild(option);
-        }
-    } else {
-        customZipGroup.style.display = 'none';
     }
 }
 
@@ -623,4 +571,29 @@ async function saveServiceSettings(buttonElement, serverName, currentOs, isNewIn
         // Button re-enabling handled by sendServerActionRequest
     }
     console.log(`${functionName}: Execution finished.`);
+}
+
+async function checkCustomVersion(version) {
+    const customZipGroup = document.getElementById('custom-zip-selector-group');
+    if (version.toUpperCase() === 'CUSTOM') {
+        customZipGroup.style.display = 'block';
+        const data = await sendServerActionRequest(null, '/api/downloads/list', 'GET', null, null, true);
+        const selector = document.getElementById('custom-zip-selector');
+        selector.innerHTML = '';
+        if (data && data.custom_zips && data.custom_zips.length > 0) {
+            data.custom_zips.forEach(zip => {
+                const option = document.createElement('option');
+                option.value = zip;
+                option.textContent = zip;
+                selector.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.textContent = 'No custom zips found';
+            option.disabled = true;
+            selector.appendChild(option);
+        }
+    } else {
+        customZipGroup.style.display = 'none';
+    }
 }
