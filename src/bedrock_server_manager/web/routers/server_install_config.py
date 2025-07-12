@@ -1216,40 +1216,60 @@ async def configure_service_api_route(
             detail="No options provided (autoupdate or autostart must be present).",
         )
 
+    messages = []
+    warnings = []
+
     try:
+        # Handle autoupdate first
         if payload.autoupdate is not None:
             result_autoupdate = system_api.set_autoupdate(
                 server_name, str(payload.autoupdate).lower()
             )
-            if result_autoupdate.get("status") != "success":
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to set autoupdate: {result_autoupdate.get('message')}",
+            if result_autoupdate.get("status") == "success":
+                messages.append("Autoupdate setting applied successfully.")
+            else:
+                # Raise to be caught by the generic error handlers below
+                raise BSMError(
+                    f"Failed to set autoupdate: {result_autoupdate.get('message')}"
                 )
 
+        # Handle autostart
         if payload.autostart is not None:
             if current_os in ["Linux", "Windows"]:
                 result_autostart = system_api.create_server_service(
                     server_name, payload.autostart
                 )
-                if result_autostart.get("status") != "success":
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Failed to set autostart: {result_autostart.get('message')}",
-                    )
+                if result_autostart.get("status") == "success":
+                    messages.append("Autostart setting applied successfully.")
+                else:
+                    error_message = result_autostart.get("message", "").lower()
+                    if (
+                        "permissions" in error_message
+                        or "administrator" in error_message
+                    ):
+                        warning_msg = f"Could not set autostart due to a permissions error (requires admin rights)."
+                        warnings.append(warning_msg)
+                        logger.warning(
+                            f"API: Skipping autostart for '{server_name}': {warning_msg}"
+                        )
+                    else:
+                        # For other errors, raise to be caught below
+                        raise BSMError(
+                            f"Failed to set autostart: {result_autostart.get('message')}"
+                        )
             else:
-                logger.warning(
-                    f"API: 'autostart' configuration ignored for '{server_name}': unsupported OS ({current_os})."
+                warnings.append(
+                    f"Autostart configuration ignored: unsupported OS ({current_os})."
                 )
-                if payload.autoupdate is None:
-                    return {
-                        "status": "success",
-                        "message": "Autoupdate not specified. Autostart configuration ignored on unsupported OS.",
-                    }
+
+        # Combine messages and warnings for the final response
+        final_message = " ".join(messages)
+        if warnings:
+            final_message += " " + " ".join(warnings)
 
         return {
-            "status": "success",
-            "message": "Service configuration applied successfully.",
+            "status": "success_with_warning" if warnings else "success",
+            "message": final_message or "No configuration changes were made.",
         }
 
     except UserInputError as e:

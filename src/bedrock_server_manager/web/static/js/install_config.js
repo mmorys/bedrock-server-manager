@@ -568,7 +568,7 @@ async function saveServiceSettings(buttonElement, serverName, currentOs, isNewIn
     const saveResponse = await sendServerActionRequest(null, apiUrl, 'POST', requestBody, buttonElement);
     console.log(`${functionName}: Save service settings API call finished. Response data:`, saveResponse);
 
-    if (!saveResponse || saveResponse.status !== 'success') {
+    if (!saveResponse || !['success', 'success_with_warning'].includes(saveResponse.status)) {
         console.error(`${functionName}: Saving service settings failed. API response indicated failure or error.`);
         // Error message shown by sendServerActionRequest
         return; // Stop the workflow if saving settings failed
