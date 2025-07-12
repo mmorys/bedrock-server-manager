@@ -628,7 +628,9 @@ def modify_server_properties(
 # --- INSTALL/UPDATE FUNCTIONS ---
 @plugin_method("install_new_server")
 def install_new_server(
-    server_name: str, target_version: str = "LATEST"
+    server_name: str,
+    target_version: str = "LATEST",
+    server_zip_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Installs a new Bedrock server.
 
@@ -687,7 +689,7 @@ def install_new_server(
             f"API: Installing new server '{server_name}', target version '{target_version}'."
         )
         server = BedrockServer(server_name)
-        server.install_or_update(target_version)
+        server.install_or_update(target_version, server_zip_path=server_zip_path)
         result = {
             "status": "success",
             "version": server.get_version(),

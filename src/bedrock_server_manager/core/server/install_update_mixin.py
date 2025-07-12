@@ -325,7 +325,10 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             return True  # Fail-safe: assume update needed
 
     def install_or_update(
-        self, target_version_specification: str, force_reinstall: bool = False
+        self,
+        target_version_specification: str,
+        force_reinstall: bool = False,
+        server_zip_path: Optional[str] = None,
     ) -> None:
         """Installs or updates the Bedrock server to a specified version or dynamic target.
 
@@ -439,9 +442,10 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             )
 
         downloader = BedrockDownloader(
-            settings_obj=self.settings,  # from BaseServerMixin
-            server_dir=self.server_dir,  # from BaseServerMixin
+            settings_obj=self.settings,
+            server_dir=self.server_dir,
             target_version=target_version_specification,
+            server_zip_path=server_zip_path,
         )
         actual_version_downloaded: Optional[str] = None
 
@@ -495,16 +499,3 @@ class ServerInstallUpdateMixin(BedrockServerBaseMixin):
             raise FileOperationError(
                 f"Unexpected failure during install/update for '{self.server_name}': {e_unexp_install}"
             ) from e_unexp_install
-        finally:
-            # Attempt to clean up the downloaded zip file, regardless of success/failure of install
-            zip_path_to_clean = downloader.get_zip_file_path()
-            if zip_path_to_clean and os.path.exists(zip_path_to_clean):
-                try:
-                    self.logger.debug(
-                        f"Cleaning up downloaded ZIP: {zip_path_to_clean}"
-                    )
-                    os.remove(zip_path_to_clean)
-                except OSError as e_clean:
-                    self.logger.warning(
-                        f"Failed to clean up downloaded ZIP '{zip_path_to_clean}': {e_clean}"
-                    )

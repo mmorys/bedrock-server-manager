@@ -612,7 +612,7 @@ class PluginBase(ABC):
         Plugins should override this method to return a list of Click objects.
 
         Example:
-            
+
             import click
 
             @click.command()

@@ -28,11 +28,13 @@ exceptions and aborting with a user-friendly message.
 """
 
 import logging
+import os
 from typing import Tuple
 
 import click
 import questionary
 
+from ..config import settings
 from ..api import server as server_api
 from ..api import server_install_config as config_api
 from .system import interactive_service_workflow
@@ -188,14 +190,40 @@ def install(ctx: click.Context):
             raise click.Abort()
 
         target_version = questionary.text(
-            "Enter server version (e.g., LATEST, PREVIEW, 1.20.81.01):",
+            "Enter server version (e.g., LATEST, PREVIEW, CUSTOM, 1.20.81.01):",
             default="LATEST",
         ).ask()
         if not target_version:
             raise click.Abort()
 
+        server_zip_path = None
+        if target_version.upper() == "CUSTOM":
+            download_dir = settings.get("paths.downloads")
+            custom_dir = os.path.join(download_dir, "custom")
+            if not os.path.isdir(custom_dir):
+                click.secho(
+                    f"Custom downloads directory not found at: {custom_dir}", fg="red"
+                )
+                raise click.Abort()
+
+            custom_zips = [f for f in os.listdir(custom_dir) if f.endswith(".zip")]
+            if not custom_zips:
+                click.secho(
+                    f"No custom server ZIP files found in {custom_dir}", fg="red"
+                )
+                raise click.Abort()
+
+            selected_zip = questionary.select(
+                "Select the custom Bedrock server ZIP file to use:", choices=custom_zips
+            ).ask()
+            if not selected_zip:
+                raise click.Abort()
+            server_zip_path = os.path.abspath(os.path.join(custom_dir, selected_zip))
+
         click.echo(f"\nInstalling server '{server_name}' version '{target_version}'...")
-        install_result = config_api.install_new_server(server_name, target_version)
+        install_result = config_api.install_new_server(
+            server_name, target_version, server_zip_path
+        )
 
         # Handle case where the server directory already exists
         if install_result.get(
@@ -211,7 +239,7 @@ def install(ctx: click.Context):
                 )  # Assuming this API call exists and works
                 click.echo("Retrying installation...")
                 install_result = config_api.install_new_server(
-                    server_name, target_version
+                    server_name, target_version, server_zip_path
                 )
             else:
                 raise click.Abort()

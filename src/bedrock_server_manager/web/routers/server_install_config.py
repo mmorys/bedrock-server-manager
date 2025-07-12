@@ -15,6 +15,7 @@ operations, and server existence is typically validated for server-specific rout
 """
 import logging
 import platform
+import os
 from typing import Dict, Any, List, Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status, Body, Path
@@ -34,6 +35,7 @@ from ...api import (
     utils as utils_api,
 )
 from ...error import BSMError, UserInputError, AppFileNotFoundError
+from ...config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,11 @@ class InstallServerPayload(BaseModel):
     )
     server_version: str = Field(
         default="LATEST",
-        description="Version to install (e.g., 'LATEST', '1.20.10.01').",
+        description="Version to install (e.g., 'LATEST', '1.20.10.01', 'CUSTOM').",
+    )
+    server_zip_path: Optional[str] = Field(
+        default=None,
+        description="Absolute path to a custom server ZIP file. Required if server_version is 'CUSTOM'.",
     )
     overwrite: bool = Field(
         default=False,
@@ -131,6 +137,31 @@ class ServiceUpdatePayload(BaseModel):
     autostart: Optional[bool] = Field(
         default=None, description="Enable/disable service autostart for the server."
     )
+
+
+# --- API Route: /api/server/custom-zips ---
+@router.get(
+    "/api/server/custom-zips",
+    tags=["Server Installation API"],
+)
+async def get_custom_zips(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """
+    Retrieves a list of available custom server ZIP files.
+    """
+    try:
+        download_dir = settings.get("paths.downloads")
+        custom_dir = os.path.join(download_dir, "custom")
+        if not os.path.isdir(custom_dir):
+            return {"status": "success", "custom_zips": []}
+
+        custom_zips = [f for f in os.listdir(custom_dir) if f.endswith(".zip")]
+        return {"status": "success", "custom_zips": custom_zips}
+    except Exception as e:
+        logger.error(f"Failed to get custom zips: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve custom zips.",
+        )
 
 
 # --- HTML Route: /install ---
@@ -267,8 +298,23 @@ async def install_server_api_route(
                 f"Successfully deleted existing server '{payload.server_name}' for overwrite."
             )
 
+        server_zip_path = None
+        if payload.server_version.upper() == "CUSTOM":
+            if not payload.server_zip_path:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="server_zip_path is required for CUSTOM version.",
+                )
+            download_dir = settings.get("paths.downloads")
+            custom_dir = os.path.join(download_dir, "custom")
+            server_zip_path = os.path.abspath(
+                os.path.join(custom_dir, payload.server_zip_path)
+            )
+
         install_result = server_install_config.install_new_server(
-            payload.server_name, payload.server_version
+            payload.server_name,
+            payload.server_version,
+            server_zip_path=server_zip_path,
         )
 
         if install_result.get("status") == "success":

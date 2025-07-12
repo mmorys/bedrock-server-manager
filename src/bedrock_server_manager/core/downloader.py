@@ -99,18 +99,16 @@ def prune_old_downloads(download_dir: str, download_keep: int):
         # though typically downloads are flat in their respective 'stable'/'preview' dirs.
         download_files = list(dir_path.glob("bedrock-server-*.zip"))
 
-        # Sort files by modification time (oldest first) to identify which to delete.
-        download_files.sort(key=lambda p: p.stat().st_mtime)
+        # Sort files by modification time (newest first) to identify which to keep.
+        download_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         logger.debug(
             f"Found {len(download_files)} potential download files matching pattern in '{download_dir}'."
         )
 
-        num_files = len(download_files)
-        if num_files > download_keep:
-            num_to_delete = num_files - download_keep
-            files_to_delete = download_files[:num_to_delete]
+        if len(download_files) > download_keep:
+            files_to_delete = download_files[download_keep:]
             logger.info(
-                f"Found {num_files} downloads in '{download_dir}'. Will delete {num_to_delete} oldest file(s) to keep {download_keep}."
+                f"Found {len(download_files)} downloads in '{download_dir}'. Will delete {len(files_to_delete)} oldest file(s) to keep {download_keep}."
             )
 
             deleted_count = 0
@@ -143,10 +141,9 @@ def prune_old_downloads(download_dir: str, download_keep: int):
                 logger.info(
                     f"No files were deleted from '{download_dir}' as part of this pruning operation."
                 )
-
         else:
             logger.info(
-                f"Found {num_files} download(s) in '{download_dir}', which is not more than the {download_keep} to keep. No files deleted."
+                f"Found {len(download_files)} download(s) in '{download_dir}', which is not more than the {download_keep} to keep. No files deleted."
             )
 
     except OSError as e_os:
@@ -205,10 +202,13 @@ class BedrockDownloader:
     }
 
     def __init__(
-        self, settings_obj: Optional[Settings], server_dir: str, target_version: str = "LATEST"  # type: ignore
+        self,
+        settings_obj: Optional[Settings],
+        server_dir: str,
+        target_version: str = "LATEST",
+        server_zip_path: Optional[str] = None,
     ):
         """Initializes the BedrockDownloader.
-
         Args:
             settings_obj (Settings): The application's ``Settings`` object,
                 providing access to configuration like download paths.
@@ -216,8 +216,9 @@ class BedrockDownloader:
                 installed or updated. This path will be converted to an absolute path.
             target_version (str, optional): The version identifier for the server
                 to download. Defaults to "LATEST".
-                Examples: "LATEST", "PREVIEW", "1.20.10.01", "1.20.10.01-PREVIEW".
-
+                Examples: "LATEST", "PREVIEW", "CUSTOM", "1.20.10.01", "1.20.10.01-PREVIEW".
+            server_zip_path (str, optional): Absolute path to a custom server ZIP file.
+                Required if `target_version` is "CUSTOM".
         Raises:
             MissingArgumentError: If `settings_obj`, `server_dir`, or
                 `target_version` are not provided or are empty.
@@ -241,6 +242,20 @@ class BedrockDownloader:
         self.server_dir: str = os.path.abspath(server_dir)
         self.input_target_version: str = target_version.strip()
         self.logger = logging.getLogger(__name__)
+
+        # For "CUSTOM" version, the path to the ZIP file must be provided.
+        if self.input_target_version.upper() == "CUSTOM":
+            if not server_zip_path or not os.path.isabs(server_zip_path):
+                raise MissingArgumentError(
+                    "Absolute path to server ZIP file is required for CUSTOM version."
+                )
+            if not os.path.exists(server_zip_path):
+                raise AppFileNotFoundError(
+                    server_zip_path, "Custom server ZIP file not found"
+                )
+            self.server_zip_path = server_zip_path
+        else:
+            self.server_zip_path = None
 
         self.os_name: str = platform.system()
         self.base_download_dir: Optional[str] = self.settings.get("paths.downloads")
@@ -280,7 +295,12 @@ class BedrockDownloader:
 
         """
         target_upper = self.input_target_version.upper()
-        if target_upper == "PREVIEW":
+        if target_upper == "CUSTOM":
+            self._version_type = "CUSTOM"
+            self.logger.info(
+                f"Instance targeting CUSTOM version for server: {self.server_dir}"
+            )
+        elif target_upper == "PREVIEW":
             self._version_type = "PREVIEW"
             self.logger.info(
                 f"Instance targeting latest PREVIEW version for server: {self.server_dir}"
@@ -416,34 +436,46 @@ class BedrockDownloader:
         return self.resolved_download_url
 
     def _get_version_from_url(self) -> str:
-        """Extracts the version number from the resolved download URL.
-
+        """Extracts the version number from the resolved download URL or custom zip path.
         This method populates `self.actual_version`.
-
         Returns:
             The extracted version string (e.g., "1.20.10.01").
-
         Raises:
             MissingArgumentError: If the download URL has not been resolved yet.
             DownloadError: If the URL format is unexpected and the version
                 cannot be parsed.
         """
-        if not self.resolved_download_url:
+        source_path = (
+            self.server_zip_path
+            if self._version_type == "CUSTOM"
+            else self.resolved_download_url
+        )
+
+        if not source_path:
             raise MissingArgumentError(
-                "Download URL is not set. Cannot extract version."
+                "Download URL or custom zip path is not set. Cannot extract version."
             )
 
-        match = re.search(r"bedrock-server-([0-9.]+)\.zip", self.resolved_download_url)
+        match = re.search(r"bedrock-server-([0-9.]+)\.zip", source_path)
         if match:
             version = match.group(1).rstrip(".")
-            self.logger.debug(
-                f"Extracted version '{version}' from URL: {self.resolved_download_url}"
-            )
+            self.logger.debug(f"Extracted version '{version}' from path: {source_path}")
             self.actual_version = version
             return self.actual_version
         else:
+            # For custom zips, we can be more lenient and just use the file name as the version
+            # if it doesn't match the standard pattern.
+            if self._version_type == "CUSTOM":
+                custom_version = Path(source_path).stem
+                self.logger.warning(
+                    f"Custom ZIP '{source_path}' does not match 'bedrock-server-X.Y.Z.W.zip' format. "
+                    f"Using filename stem '{custom_version}' as version."
+                )
+                self.actual_version = custom_version
+                return self.actual_version
+
             raise DownloadError(
-                f"Failed to extract version number from URL format: {self.resolved_download_url}"
+                f"Failed to extract version number from URL format: {source_path}"
             )
 
     def _download_server_zip_file(self):
@@ -531,6 +563,10 @@ class BedrockDownloader:
         Pruning failures are logged as warnings and do not interrupt the main
         download or setup operations, as pruning is a non-critical maintenance task.
         """
+        if self._version_type == "CUSTOM":
+            self.logger.debug("Skipping pruning for CUSTOM version.")
+            return
+
         if not self.specific_download_dir:
             self.logger.debug(
                 "Instance's specific_download_dir not set, skipping instance pruning."
@@ -593,10 +629,15 @@ class BedrockDownloader:
         self.logger.debug(
             f"Getting prospective version for target spec: '{self.input_target_version}'"
         )
-        # 1. Resolve the download URL.
-        self._lookup_bedrock_download_url()
-        # 2. Parse the version from the resolved URL.
-        self._get_version_from_url()
+        if self._version_type == "CUSTOM":
+            self.logger.debug("Custom version specified, skipping download URL lookup.")
+            self._get_version_from_url()
+        else:
+            # 1. Resolve the download URL.
+            self._lookup_bedrock_download_url()
+            # 2. Parse the version from the resolved URL.
+            self._get_version_from_url()
+
         # 3. Return the result.
         if not self.actual_version:
             raise DownloadError("Could not determine actual version from resolved URL.")
@@ -642,6 +683,38 @@ class BedrockDownloader:
         self.logger.info(
             f"Starting Bedrock server download preparation for directory: '{self.server_dir}'"
         )
+
+        # For CUSTOM version, we use a local file, so we skip most of the download logic.
+        if self._version_type == "CUSTOM":
+            self.logger.info(
+                f"Custom version specified. Using local ZIP: {self.server_zip_path}"
+            )
+            if not self.server_zip_path:
+                raise MissingArgumentError(
+                    "server_zip_path is required for CUSTOM version."
+                )
+
+            # Set the zip_file_path and actual_version from the custom path.
+            self.zip_file_path = self.server_zip_path
+            self._get_version_from_url()
+
+            # The specific_download_dir for a custom zip is its parent directory.
+            self.specific_download_dir = str(Path(self.server_zip_path).parent)
+            self.logger.debug(
+                f"Setting specific_download_dir for custom zip to: {self.specific_download_dir}"
+            )
+
+            if (
+                not self.actual_version
+                or not self.zip_file_path
+                or not self.specific_download_dir
+            ):
+                raise DownloadError(
+                    "Critical state missing after custom ZIP preparation."
+                )
+
+            return self.actual_version, self.zip_file_path, self.specific_download_dir
+
         system_base.check_internet_connectivity()
 
         try:
