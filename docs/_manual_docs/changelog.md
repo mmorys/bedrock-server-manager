@@ -67,13 +67,17 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
 6.  **New plugin APIs**:
     *   APIs to read global and server configurations.
     *   API to set custom global and server configurations.
-7.  Fixed world icon API route path typo: `word` -> `world`.
-8.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
-9.  Added a settings menu to the Web UI.
+7.  **Custom Bedrock Server Zips**
+    *   Added support for custom Bedrock Server zips.
+    *   These can be placed in the `DOWNLOAD_DIR/custom` directory.
+    *   The Web/CLI UI will automatically list them in the server creation, when target version is set to `CUSTOM`.
+8.  Fixed world icon API route path typo: `word` -> `world`.
+9.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
+10.  Added a settings menu to the Web UI.
     ```{note}
     Not all settings (like web host/port) will be reloaded on the fly. These require a full application restart to take effect.
     ```
-10. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
+11. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
     *   This allows for better performance and more modern features.
     *   The Web UI has been updated to work with the new FastAPI routes.
     *   Always up-to-date HTTP API docs are now available in the Web UI footer `HTTP API` link or at `http(s)/bs.host.url/docs`.
@@ -81,8 +85,8 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   Switched to `uvicorn` as the ASGI server for the Web API.
     *   Switched to `bcrypt` for password hashing in the Web API.
         * This requires you to regenerate your password hash and auth tokens.
-11. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
-12. Noteworthy change:
+12. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
+13. Noteworthy change:
     * `/api/plugins/reload` method changed to `PUT` instead of `POST`.
 
 ## 3.4.1
