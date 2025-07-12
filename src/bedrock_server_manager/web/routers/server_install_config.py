@@ -139,9 +139,9 @@ class ServiceUpdatePayload(BaseModel):
     )
 
 
-# --- API Route: /api/server/custom-zips ---
+# --- API Route: /api/downloads/list ---
 @router.get(
-    "/api/server/custom-zips",
+    "/api/downloads/list",
     tags=["Server Installation API"],
 )
 async def get_custom_zips(current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -155,6 +155,7 @@ async def get_custom_zips(current_user: Dict[str, Any] = Depends(get_current_use
             return {"status": "success", "custom_zips": []}
 
         custom_zips = [f for f in os.listdir(custom_dir) if f.endswith(".zip")]
+        print(f"Custom zips found: {custom_zips}")
         return {"status": "success", "custom_zips": custom_zips}
     except Exception as e:
         logger.error(f"Failed to get custom zips: {e}", exc_info=True)

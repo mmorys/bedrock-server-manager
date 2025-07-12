@@ -3,7 +3,7 @@ async function checkCustomVersion(version) {
     const customZipGroup = document.getElementById('custom-zip-selector-group');
     if (version.toUpperCase() === 'CUSTOM') {
         customZipGroup.style.display = 'block';
-        const response = await fetch('/api/server/custom-zips');
+        const response = await fetch('/api/downloads/list');
         const data = await response.json();
         const selector = document.getElementById('custom-zip-selector');
         selector.innerHTML = '';
@@ -52,7 +52,7 @@ async function checkCustomVersion(version) {
     const customZipGroup = document.getElementById('custom-zip-selector-group');
     if (version.toUpperCase() === 'CUSTOM') {
         customZipGroup.style.display = 'block';
-        const response = await fetch('/api/server/custom-zips');
+        const response = await fetch('/api/downloads/list');
         const data = await response.json();
         const selector = document.getElementById('custom-zip-selector');
         selector.innerHTML = '';
