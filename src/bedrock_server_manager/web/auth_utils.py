@@ -11,21 +11,21 @@ including:
   for protecting routes and retrieving authenticated user information.
 - User authentication against credentials stored in environment variables.
 
-The JWT secret key and token expiration are configurable via environment variables
-or application settings.
+The JWT secret key and token expiration are configurable via environment variables.
 """
 import os
 import datetime
 import logging
 from typing import Optional, Dict, Any
+import secrets
 
 from jose import JWTError, jwt
 from fastapi import HTTPException, Security, Request
 from fastapi.security import OAuth2PasswordBearer, APIKeyCookie
 from passlib.context import CryptContext
 
-from bedrock_server_manager.config.const import env_name
-from bedrock_server_manager.config.settings import settings
+from ..error import MissingArgumentError
+from ..config import env_name, settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +38,11 @@ JWT_SECRET_KEY_ENV = f"{env_name}_TOKEN"
 JWT_SECRET_KEY = os.environ.get(JWT_SECRET_KEY_ENV)
 
 if not JWT_SECRET_KEY:
-    JWT_SECRET_KEY = settings.get(
-        "web.jwt_secret_key", "a_very_secret_key_that_should_be_changed"
+    JWT_SECRET_KEY = secrets.token_urlsafe(32)
+    logger.warning(
+        "JWT secret key not found in environment variables. Using a randomly generated key. Tokens will not be valid across server restarts."
     )
-    if JWT_SECRET_KEY == "a_very_secret_key_that_should_be_changed":
-        logger.error(
-            f"!!! SECURITY WARNING !!! Using default JWT_SECRET_KEY from settings. "
-            f"Set the '{JWT_SECRET_KEY_ENV}' environment variable for production."
-        )
+
 ALGORITHM = "HS256"
 try:
     JWT_EXPIRES_WEEKS = float(settings.get("web.token_expires_weeks", 4.0))
@@ -182,21 +179,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         bool: ``True`` if the password matches the hash, ``False`` otherwise.
     """
     return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    """Hashes a password using passlib (for generating new password hashes).
-
-    Uses the global :data:`pwd_context` (a :class:`passlib.context.CryptContext` instance)
-    to generate the hash.
-
-    Args:
-        password (str): The plain text password to hash.
-
-    Returns:
-        str: The generated password hash.
-    """
-    return pwd_context.hash(password)
 
 
 def authenticate_user(username_form: str, password_form: str) -> Optional[str]:
