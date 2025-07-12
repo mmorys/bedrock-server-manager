@@ -21,7 +21,23 @@ Main:   [https://bedrock-server-manager.readthedocs.io/](https://bedrock-server-
 Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina559.github.io/bedrock-server-manager/)
 ```
 
-1.  **Windows Service**:
+1. **CLI/WEB Plugins**: Experimental support for custom CLI and Web plugins 
+
+    ```{important}
+    When using these new plugin types that extend Bedrock Server Manager (BSM) functionality, exercise caution during installation and execution. Always ensure you understand the plugin's operations before running it.
+    ```
+
+    ```{warning}
+    Plugins that add web endpoints have the potential to expose sensitive data. If you're developing such a plugin, it's highly recommended to use  the `bedrock_server_manager.web` `get_current_user` dependencies within your FastAPI routers. This helps secure your endpoints with the same authentication system the main web app uses.
+    ```
+
+    * Plugins can add custom CLI commands or entities to the CLI menu
+    * Plugins can add custom web API endpoints/UI menus
+    * New default plugin: Upload Content Plugin (disabled by default)
+    * Support for package format plugin 
+       * In addition to the standalone py file plugins, support for plugins in a python package format has been added
+
+2.  **Windows Service**:
  
     Running Bedrock Server Manager components (Web UI, individual Bedrock Servers) as Windows Services allows them to run in the background, start automatically on boot, and be managed by the Windows Service Control Manager.
 
@@ -34,36 +50,40 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
             * Using the sudo command on recent versions of Windows if you have it configured.
                 * See [Microsoft Sudo for Windows documentation](https://learn.microsoft.com/en-us/windows/advanced-settings/sudo/).
         * Service Account: By default, services created by BSM might be configured to run as the "Local System" account. For Bedrock servers, which often need to access user-specific paths for server files, content, and backups (e.g., in your user profile or a directory your user owns), it is usually necessary to change the service's "Log On As" account to your local Windows user account. This can be done via the Services app (services.msc) after the service has been created by BSM. This step ensures the service has the correct permissions. Failure to do this is a common cause of services not starting or functioning correctly.
-2.  **Web server as a service**:
+3.  **Web server as a service**:
     *   Create a system service (Systemd on Linux / Windows Service).
     *   On Linux, you'll need to manually create an environment file with your BSM environment variables and add the `EnvironmentFile=` line to your systemd file.
     *   The `host` will be read from the JSON config file.
     *   On Windows, uvicorn workers will default to 1 instead of the configured settings value.
-3.  **Config JSON migrations**:
+4.  **Config JSON migrations**:
     *   The global `script_config.json` has been renamed to `bedrock_server_manager.json`.
     *   Global settings have been migrated to a new nested format. A backup will be created, and an auto-migration will be attempted.
     *   Server config JSONs have been migrated to a new nested format. Auto-migration will be attempted, and any custom config options will be moved to a nested `custom` section.
     *   Added `web_server_host` to config. If the web server is started without a host argument, it will read from the JSON file.
     *   `BASE_DIR` has been migrated to `paths.servers`.
-4.  **Threaded routes**:
-    *   API routes for `update`, `start`, `stop`, and more have been converted to threaded operations for better responsiveness.
-5.  **New plugin APIs**:
+5.  **Background Task**:
+    *   API routes for `update`, `start`, `stop`, and other long running endpoints have been converted to FastAPI's BackgroundTasks for better responsiveness.
+      * As a result Web APIs now instantly return a success response instead of the actual result for the task. In future versions, these endpoints will be updated to handle this.
+6.  **New plugin APIs**:
     *   APIs to read global and server configurations.
     *   API to set custom global and server configurations.
-6.  Fixed world icon API route path typo: `word` -> `world`.
-7.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
-8.  Added a settings menu to the Web UI.
+7.  Fixed world icon API route path typo: `word` -> `world`.
+8.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
+9.  Added a settings menu to the Web UI.
     ```{note}
     Not all settings (like web host/port) will be reloaded on the fly. These require a full application restart to take effect.
     ```
-9. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
+10. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
     *   This allows for better performance and more modern features.
     *   The Web UI has been updated to work with the new FastAPI routes.
-    *   Always up-to-date HTTP API docs are now available at `/docs` in the Web UI.
+    *   Always up-to-date HTTP API docs are now available in the Web UI footer `HTTP API` link or at `http(s)/bs.host.url/docs`.
+      * The OpenAPI json are also available at `http(s)/bs.host.url/api/openapi.json`.
     *   Switched to `uvicorn` as the ASGI server for the Web API.
     *   Switched to `bcrypt` for password hashing in the Web API.
         * This requires you to regenerate your password hash and auth tokens.
-10. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
+11. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
+12. Noteworthy change:
+    * `/api/plugins/reload` method changed to `PUT` instead of `POST`.
 
 ## 3.4.1
 

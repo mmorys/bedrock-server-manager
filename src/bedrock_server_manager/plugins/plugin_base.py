@@ -612,10 +612,12 @@ class PluginBase(ABC):
         Plugins should override this method to return a list of Click objects.
 
         Example:
+            
             import click
 
             @click.command()
             def my_command():
+
                 click.echo("Hello from plugin command!")
 
             return [my_command]
@@ -667,11 +669,11 @@ class PluginBase(ABC):
         Each configuration should be a tuple: `(mount_path, directory_path, name)`,
         suitable for `FastAPI.mount(mount_path, StaticFiles(directory=directory_path), name=name)`.
 
-        - `mount_path` (str): The URL path prefix for these static files (e.g., "/static/myplugin").
-                              This should be unique among plugins.
-        - `directory_path` (Path): A `pathlib.Path` object pointing to the directory
-                                   containing the static files for this plugin.
-        - `name` (str): A unique name for this static mount (e.g., "myplugin_static").
+            - `mount_path` (str): The URL path prefix for these static files (e.g., "/static/myplugin").
+                                  This should be unique among plugins.
+            - `directory_path` (Path): A `pathlib.Path` object pointing to the directory
+                                       containing the static files for this plugin.
+            - `name` (str): A unique name for this static mount (e.g., "myplugin_static").
 
         Example:
             from pathlib import Path
@@ -691,11 +693,12 @@ class PluginBase(ABC):
         a list of menu item configurations for the main CLI interactive menu.
 
         Each configuration should be a dictionary with at least:
-        - "name" (str): The text to display for the menu item.
-        - "handler" (Callable): A callable (e.g., a method of the plugin instance)
-                                that will be executed when this menu item is selected.
-                                This handler is expected to accept a `click.Context`
-                                object as its first argument.
+
+            - "name" (str): The text to display for the menu item.
+            - "handler" (Callable): A callable (e.g., a method of the plugin instance)
+                                    that will be executed when this menu item is selected.
+                                    This handler is expected to accept a `click.Context`
+                                    object as its first argument.
 
         Example:
             def my_plugin_menu_handler(self, ctx: click.Context):
