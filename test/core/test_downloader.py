@@ -412,6 +412,8 @@ def test_downloader_initialization_missing_download_path_setting(
         ("1.19.80.20-PREVIEW", "PREVIEW", "1.19.80.20"),
         ("  1.20.30.02  ", "LATEST", "1.20.30.02"),  # Test stripping of whitespace
         ("  1.20.40.01-PREVIEW  ", "PREVIEW", "1.20.40.01"),
+        ("CUSTOM", "CUSTOM", ""),
+        ("custom", "CUSTOM", ""),
     ],
 )
 def test_downloader_determine_version_parameters(
@@ -420,11 +422,23 @@ def test_downloader_determine_version_parameters(
     target_version_input,
     expected_version_type,
     expected_custom_number,
+    tmp_path,
 ):
     """Test _determine_version_parameters with various version inputs."""
-    downloader = BedrockDownloader(
-        mock_settings, str(temp_server_dir), target_version_input
-    )
+    if "custom" in target_version_input.lower():
+        # Create a dummy file for the custom zip path to exist
+        dummy_zip = tmp_path / "dummy.zip"
+        dummy_zip.touch()
+        downloader = BedrockDownloader(
+            mock_settings,
+            str(temp_server_dir),
+            target_version_input,
+            server_zip_path=str(dummy_zip),
+        )
+    else:
+        downloader = BedrockDownloader(
+            mock_settings, str(temp_server_dir), target_version_input
+        )
     assert downloader._version_type == expected_version_type
     assert downloader._custom_version_number == expected_custom_number
 
@@ -1173,3 +1187,56 @@ def test_downloader_getters_after_prepare_assets(
 
     expected_zip_path = expected_specific_dir / "bedrock-server-1.20.0.zip"
     assert downloader_instance.get_zip_file_path() == str(expected_zip_path)
+
+
+def test_prepare_download_assets_custom_zip_success(
+    downloader_instance, mock_requests_get, mocker, temp_download_base_dir
+):
+    """Test prepare_download_assets with a custom local ZIP file."""
+    # This test should not call the network
+    mocker.patch("bedrock_server_manager.core.downloader.prune_old_downloads")
+
+    # 1. Create a dummy custom zip file
+    custom_zip_dir = temp_download_base_dir / "custom"
+    custom_zip_dir.mkdir(exist_ok=True)
+    custom_zip_path = custom_zip_dir / "my-custom-server-1.0.0.zip"
+    create_dummy_zip(custom_zip_path, {"custom_file.txt": b"custom data"})
+
+    # 2. Re-initialize downloader for a CUSTOM target
+    downloader = BedrockDownloader(
+        downloader_instance.settings,
+        downloader_instance.server_dir,
+        "CUSTOM",
+        server_zip_path=str(custom_zip_path),
+    )
+
+    # 3. Run the prepare assets function
+    actual_version, zip_file_path, specific_download_dir = (
+        downloader.prepare_download_assets()
+    )
+
+    # 4. Assertions
+    assert actual_version == "1.0.0"  # Version should be extracted from filename
+    assert zip_file_path == str(custom_zip_path)
+    # For custom zips, specific_download_dir is the 'custom' folder
+    assert Path(specific_download_dir).name == "custom"
+    assert Path(zip_file_path).exists()
+
+    # Crucially, ensure no network activity occurred
+    mock_requests_get.assert_not_called()
+
+
+def test_prepare_download_assets_custom_zip_not_found(downloader_instance):
+    """Test prepare_download_assets with a non-existent custom ZIP file."""
+    non_existent_zip_path = "/path/to/non_existent.zip"
+
+    with pytest.raises(
+        AppFileNotFoundError,
+        match=f"Custom server ZIP file not found",
+    ):
+        BedrockDownloader(
+            downloader_instance.settings,
+            downloader_instance.server_dir,
+            "CUSTOM",
+            server_zip_path=non_existent_zip_path,
+        )

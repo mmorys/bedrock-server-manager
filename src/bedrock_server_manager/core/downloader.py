@@ -209,6 +209,7 @@ class BedrockDownloader:
         server_zip_path: Optional[str] = None,
     ):
         """Initializes the BedrockDownloader.
+
         Args:
             settings_obj (Settings): The application's ``Settings`` object,
                 providing access to configuration like download paths.
@@ -456,27 +457,41 @@ class BedrockDownloader:
                 "Download URL or custom zip path is not set. Cannot extract version."
             )
 
+        # First, try to match the official bedrock-server-X.Y.Z.W.zip format
         match = re.search(r"bedrock-server-([0-9.]+)\.zip", source_path)
         if match:
             version = match.group(1).rstrip(".")
-            self.logger.debug(f"Extracted version '{version}' from path: {source_path}")
+            self.logger.debug(
+                f"Extracted version '{version}' from standard path format: {source_path}"
+            )
             self.actual_version = version
             return self.actual_version
-        else:
-            # For custom zips, we can be more lenient and just use the file name as the version
-            # if it doesn't match the standard pattern.
-            if self._version_type == "CUSTOM":
+
+        # If it's a custom zip, try a more general version extraction
+        if self._version_type == "CUSTOM":
+            # Try to find any version-like number in the filename (e.g., 1.0.0, 2.3.4.5)
+            match = re.search(r"(\d+\.\d+\.\d+(\.\d+)?)", Path(source_path).name)
+            if match:
+                version = match.group(1)
+                self.logger.debug(
+                    f"Extracted version '{version}' from custom ZIP name: {source_path}"
+                )
+                self.actual_version = version
+                return self.actual_version
+            else:
+                # Fallback for custom zips that don't have a clear version number
                 custom_version = Path(source_path).stem
                 self.logger.warning(
-                    f"Custom ZIP '{source_path}' does not match 'bedrock-server-X.Y.Z.W.zip' format. "
+                    f"Could not parse a version number from custom ZIP '{source_path}'. "
                     f"Using filename stem '{custom_version}' as version."
                 )
                 self.actual_version = custom_version
                 return self.actual_version
 
-            raise DownloadError(
-                f"Failed to extract version number from URL format: {source_path}"
-            )
+        # If it's not a custom zip and didn't match the standard format, it's an error
+        raise DownloadError(
+            f"Failed to extract version number from URL format: {source_path}"
+        )
 
     def _download_server_zip_file(self):
         """Downloads the server ZIP file from the resolved URL.
