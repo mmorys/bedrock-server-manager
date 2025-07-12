@@ -202,7 +202,7 @@
             Save Properties
         </button>
         {% if new_install %}
-        <a href="{{ request.url_for('configure_allowlist_page', server_name=server_name, new_install=True) if request else '#' }}" class="action-link">
+        <a href="{{ request.url_for('configure_allowlist_page', server_name=server_name) ~ ('?new_install=true' if new_install else '') if request else '#' }}" class="action-link">
             Skip & Go to Allowlist »
         </a>
         {% else %}
