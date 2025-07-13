@@ -1,4 +1,4 @@
-# bedrock_server_manager/cli/web.py
+# bedrock_server_manager/cli/windows_service.py
 import logging
 import platform
 import sys

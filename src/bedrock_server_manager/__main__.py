@@ -201,7 +201,10 @@ def _add_commands_to_cli():
     cli.add_command(world.world)
     cli.add_command(server_allowlist.allowlist)
     cli.add_command(plugins.plugin)
-    cli.add_command(windows_service.service)
+
+    if platform.system() == "Windows":
+        from .cli import windows_service
+        cli.add_command(windows_service.service)
 
     # Standalone Commands
     cli.add_command(addon.install_addon)
