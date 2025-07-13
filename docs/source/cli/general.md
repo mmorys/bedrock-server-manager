@@ -4,7 +4,7 @@
     <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/docs/images/cli_menu.png" alt="CLI Menu" width="300" height="200">
 </div>
 
-For a complete list of commands, see [CLI Commands](../../cli.rst).
+For a complete list of commands, see [CLI Commands](./commands.rst).
 
 >Note: If you are using a version of the app prior to 3.3.0, you must run `bedrock-server-manager --help` to see the list of commands for your version.
 

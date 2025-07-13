@@ -30,6 +30,6 @@ Running `bedrock-server-manager plugin` without a subcommand will launch an inte
 
 To learn how to create your own plugins, please refer to the comprehensive:
 
-**[Plugin Documentation](../plugins/plugin_general.md)**
+**[Plugin Documentation](../plugins/introduction.md)**
 
-This documentation covers everything from creating your first plugin, understanding the `PluginBase` class, using event hooks and the plugin API, to advanced topics like custom inter-plugin events.
+This documentation covers everything from creating your first plugin, understanding the [`PluginBase`](../developer/plugins/plugin_base.rst) class, using event hooks and the plugin API, to advanced topics like custom inter-plugin events.

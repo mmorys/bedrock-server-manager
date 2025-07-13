@@ -1,18 +1,7 @@
-.. autoclass:: bedrock_server_manager.Settings
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :member-order: bysource
+.. Bedrock Server Manager Bedrock Server Core documentation file
 
-   .. automethod:: __init__
-
-.. autoclass:: bedrock_server_manager.BedrockServerManager
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :member-order: bysource
-
-   .. automethod:: __init__
+Bedrock Server Core Documentation
+=================================
 
 .. autoclass:: bedrock_server_manager.BedrockServer
    :members:
@@ -22,12 +11,3 @@
    :member-order: bysource
 
    .. automethod:: __init__
-
-.. autoclass:: bedrock_server_manager.BedrockDownloader
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :member-order: bysource
-
-   .. automethod:: __init__
-

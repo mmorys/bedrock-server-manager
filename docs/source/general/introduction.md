@@ -112,6 +112,16 @@ or
 python -m bedrock_server_manager <command> [options] # 3.3.0 and later
 ```
 
-See the [CLI Usage](cli_general.md) for example on how to run the cli app.
+See the [CLI Usage](../cli/general.md) for example on how to run the cli app.
 
-See the [Web Usage](web_general.md) for example on how to run the web server.
+See the [Web Usage](../web/general.md) for example on how to run the web server.
+
+## Whats Next?
+Bedrock Server Manager is a powerful tool for managing Minecraft Bedrock Dedicated Servers, and it continues to evolve with new features and improvements.
+To explore more about its capabilities, check out the following sections:
+- [CLI Commands](../cli/commands.rst): Learn what commands are available in the command-line interface and how to use them effectively.
+- [Web Usage](../web/general.md): Discover how to use the web interface for server management.
+- [Plugins](../plugins/introduction.md): Explore how to extend the functionality of Bedrock Server Manager with custom plugins.
+- [Changelog](../changelog.md): Stay updated with the latest changes and improvements in each release.
+- [Contributing](https://github.com/DMedina559/bedrock-server-manager/blob/main/CONTRIBUTING.md): Find out how you can contribute to the project and help improve it.
+- [License](https://github.com/DMedina559/bedrock-server-manager/blob/main/LICENSE): Understand the licensing terms under which Bedrock Server Manager is distributed.
