@@ -632,7 +632,7 @@ def test_start_web_ui_direct_success(manager_instance, mocker):
 
     manager_instance.start_web_ui_direct(host="0.0.0.0", debug=True)
 
-    mock_run_web_server.assert_called_once_with("0.0.0.0", True)
+    mock_run_web_server.assert_called_once_with("0.0.0.0", True, None)
 
 
 def test_start_web_ui_direct_run_raises_runtime_error(manager_instance, mocker):
