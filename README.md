@@ -12,11 +12,11 @@ See the brand new [documentation](https://bedrock-server-manager.readthedocs.io/
 
 Quick links:
 
-- [Changelog](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/changelog.html)
-- [Installation](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/introduction.html#prerequisites)
-- [CLI Commands](https://bedrock-server-manager.readthedocs.io/en/latest/cli.html)
-- [Web Interface](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/web_general.html)
-- [Plugins](https://bedrock-server-manager.readthedocs.io/en/latest/_manual_docs/general/plugin_general.html)
+- [Changelog](https://bedrock-server-manager.readthedocs.io/en/latest/changelog.html)
+- [Installation](https://bedrock-server-manager.readthedocs.io/en/latest/general/introduction.html#prerequisites)
+- [CLI Commands](https://bedrock-server-manager.readthedocs.io/en/latest/cli/commands.html)
+- [Web Interface](https://bedrock-server-manager.readthedocs.io/en/latest/web/general.html)
+- [Plugins](https://bedrock-server-manager.readthedocs.io/en/latest/plugins/introduction.html)
 
 # Project Images
 
