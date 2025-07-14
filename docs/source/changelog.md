@@ -59,7 +59,17 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   Added support for custom themes in the Web UI.
     *   Themes can be placed in the `themes` directory.
     *   The Web UI will automatically list them in the settings menu.
-    *   The default theme is now `dark` theme (original OreUI insipred).
+    *   Various themes are available, including:
+        *   `dark`
+        *   `light`
+        *   `red`
+        *   `blue`
+        *   `yellow`
+        *   `green`
+        *   `black`
+        *   `gradient`
+ 
+    *   The default theme is `dark` theme (original OreUI insipred).
 5.  **Config JSON migrations**:
     *   The global `script_config.json` has been renamed to `bedrock_server_manager.json`.
     *   Global settings have been migrated to a new nested format. A backup will be created, and an auto-migration will be attempted.

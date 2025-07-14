@@ -6,6 +6,11 @@
 :align: center
 ```
 
+## Themes
+The Bedrock Server Manager web UI supports theming, allowing you to customize the look and feel of the application.
+
+See the [**Theming**](../web/theming.md) documentation for more information on how to create and apply custom themes.
+
 ## Custom Web Server Panorama
 
 You can personalize the background panorama displayed on the main web server page.

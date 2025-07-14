@@ -36,6 +36,7 @@ Source Code: `Github <https://github.com/DMedina559/bedrock-server-manager>`_
    extras/installation.md
    extras/install_content.md
    extras/web_extras.md
+   web/theming.md
 
 .. toctree::
    :maxdepth: 2
