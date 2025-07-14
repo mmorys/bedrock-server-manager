@@ -5,6 +5,8 @@
 :width: 200px
 :align: center
 ```
+## 3.5.1
+1. Fixed a bug where running the web server behind a reverse proxy was causing issues with the web UI and API routes.
 
 ## 3.5.0
 

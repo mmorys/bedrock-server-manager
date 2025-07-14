@@ -199,6 +199,8 @@ def run_web_server(
             log_level=uvicorn_log_level.lower(),  # Ensure log level is lowercase
             reload=reload_enabled,
             workers=workers if not reload_enabled and workers > 1 else None,
+            forwarded_allow_ips="*",
+            proxy_headers=True,
         )
     except Exception as e:
         logger.critical(f"Failed to start Uvicorn: {e}", exc_info=True)
