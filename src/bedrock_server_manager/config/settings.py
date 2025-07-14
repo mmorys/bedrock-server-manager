@@ -243,6 +243,7 @@ class Settings:
                     "port": 11325,
                     "token_expires_weeks": 4,
                     "threads": 4,
+                    "theme": "dark",
                 },
                 "custom": {}
             }
@@ -260,6 +261,7 @@ class Settings:
                 "backups": os.path.join(app_data_dir_val, "backups"),
                 "plugins": os.path.join(app_data_dir_val, "plugins"),
                 "logs": os.path.join(app_data_dir_val, ".logs"),
+                "themes": os.path.join(app_data_dir_val, "themes"),
             },
             "retention": {
                 "backups": 3,
@@ -415,6 +417,7 @@ class Settings:
             self.get("paths.backups"),
             self.get("paths.plugins"),
             self.get("paths.logs"),
+            self.get("paths.themes"),
         ]
         for dir_path in dirs_to_check:
             if dir_path and isinstance(dir_path, str):

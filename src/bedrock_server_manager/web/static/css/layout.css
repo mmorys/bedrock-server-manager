@@ -28,8 +28,8 @@
 .sidebar-nav {
     /* Flex properties: Don't grow, don't shrink, fixed base width */
     flex: 0 0 220px;
-    background-color: #3a3a3a; /* Slightly different background */
-    border: 1px solid #555;
+    background-color: var(--sidebar-background-color); /* Slightly different background */
+    border: 1px solid var(--sidebar-border-color);
     padding: 15px 0; /* Vertical padding only */
     border-radius: 0; /* Sharp corners */
     /* Adjust height automatically based on content */
@@ -44,7 +44,7 @@
     display: flex; /* Align icon (if added) and text */
     align-items: center;
     padding: 10px 20px; /* Spacing inside link */
-    color: #ccc; /* Default text color */
+    color: var(--sidebar-link-text-color); /* Default text color */
     text-decoration: none;
     font-weight: 600; /* Semi-bold */
     /* Indicator space: Transparent border initially */
@@ -66,22 +66,22 @@
 
 /* Hover state for navigation links */
 .nav-link:hover {
-    background-color: #444; /* Slightly darker background on hover */
-    color: #fff; /* Brighter text */
+    background-color: var(--sidebar-link-hover-background-color); /* Slightly darker background on hover */
+    color: var(--sidebar-link-hover-text-color); /* Brighter text */
 }
 
 /* Active state for the currently selected navigation link */
 .nav-link.active {
-    background-color: #484848; /* Different background for active */
-    color: #fff;
+    background-color: var(--sidebar-link-active-background-color); /* Different background for active */
+    color: var(--sidebar-link-hover-text-color);
     /* Green indicator border */
-    border-left-color: #4CAF50;
+    border-left-color: var(--sidebar-link-active-border-color);
 }
 
 /* Optional visual separator within the navigation */
 .nav-separator {
     border: none; /* Reset default */
-    border-top: 1px solid #555; /* Horizontal line */
+    border-top: 1px solid var(--border-color); /* Horizontal line */
     margin: 15px 10px; /* Vertical margin, reduced horizontal margin */
 }
 
@@ -119,8 +119,8 @@
 /* Individual content sections linked from the sidebar */
 .content-section {
     display: none; /* Hide all sections by default */
-    background-color: #3a3a3a; /* Match sidebar background */
-    border: 1px solid #555;
+    background-color: var(--sidebar-background-color); /* Match sidebar background */
+    border: 1px solid var(--sidebar-border-color);
     padding: 20px 25px; /* Inner spacing */
     border-radius: 0;
     box-sizing: border-box;
@@ -138,10 +138,10 @@
     margin-top: 0; /* Remove default top margin */
     margin-bottom: 20px; /* Space below heading */
     padding-bottom: 15px; /* Space above border */
-    border-bottom: 1px solid #555; /* Separator line */
+    border-bottom: 1px solid var(--sidebar-border-color); /* Separator line */
     font-size: 1.6em; /* Section heading size */
     font-weight: 600;
-    color: #eee;
+    color: var(--text-color);
     text-shadow: none; /* Ensure no text shadow */
 }
 
@@ -163,8 +163,8 @@
 
 /* Individual server status card */
 .server-card {
-    background-color: #444; /* Card background */
-    border: 1px solid #555;
+    background-color: var(--server-card-background-color); /* Card background */
+    border: 1px solid var(--server-card-border-color);
     justify-content: space-between;
     padding: 10px; /* Reduced padding */
     border-radius: 0;
@@ -178,7 +178,7 @@
 /* Optional: Slight hover effect */
 /* Consider disabling on touch devices if :hover causes issues */
 .server-card:hover {
-     background-color: #4a4a4a;
+     background-color: var(--server-card-hover-background-color);
 }
 
 /* Thumbnail area for world icon */
@@ -225,7 +225,7 @@
 .server-card-info h3 {
     margin: 0 0 3px 0; /* Tight spacing */
     font-size: 1.05em; /* Slightly larger than body */
-    color: #eee;
+    color: var(--server-card-info-label-color);
     /* Prevent long names breaking layout */
     white-space: nowrap;
     overflow: hidden;
@@ -236,25 +236,25 @@
 .server-card-info p {
     margin: 0;
     font-size: 0.85em;
-    color: #ccc;
+    color: var(--server-card-info-text-color);
 }
 
 /* Label part of status/version lines */
 .server-card-info .info-label {
     font-weight: 600;
-    color: #ddd;
+    color: var(--server-card-info-label-color);
 }
 /* Specific coloring for status text */
 /* Use classes on the span containing the status text */
-.server-card-info .status-text.status-running { color: #81C784; } /* Light Green */
-.server-card-info .status-text.status-stopped { color: #e57373; } /* Light Red */
+.server-card-info .status-text.status-running { color: var(--primary-button-background-color); } /* Light Green */
+.server-card-info .status-text.status-stopped { color: var(--danger-button-background-color); } /* Light Red */
 .server-card-info .status-text.status-starting,
 .server-card-info .status-text.status-stopping,
 .server-card-info .status-text.status-restarting,
-.server-card-info .status-text.status-updating { color: #FFB74D; } /* Orange */
-.server-card-info .status-text.status-installed { color: #90CAF9; } /* Light Blue */
+.server-card-info .status-text.status-updating { color: var(--message-warning-border-color); } /* Orange */
+.server-card-info .status-text.status-installed { color: var(--sidebar-link-active-border-color); } /* Light Blue */
 .server-card-info .status-text.status-unknown,
-.server-card-info .status-text.status-error { color: #ef9a9a; } /* Lighter Red for Error/Unknown */
+.server-card-info .status-text.status-error { color: var(--danger-button-border-color); } /* Lighter Red for Error/Unknown */
 
 
 /* Container for action buttons on the card */
@@ -275,9 +275,9 @@
     padding: 25px;
     text-align: center;
     font-style: italic;
-    color: #aaa;
-    background-color: #404040; /* Slightly different background */
-    border: 1px dashed #666; /* Dashed border to indicate placeholder */
+    color: var(--text-color);
+    background-color: var(--container-background-color); /* Slightly different background */
+    border: 1px dashed var(--border-color); /* Dashed border to indicate placeholder */
     border-radius: 0;
     /* Ensure it spans grid columns if used within .server-card-list */
     grid-column: 1 / -1;
@@ -320,8 +320,8 @@
     /* Active state indicator for horizontal nav */
     .nav-link.active {
         border-left-color: transparent; /* Ensure no left border */
-        border-bottom-color: #4CAF50; /* Highlight bottom */
-        background-color: #404040; /* Slightly different active bg */
+        border-bottom-color: var(--sidebar-link-active-border-color); /* Highlight bottom */
+        background-color: var(--sidebar-link-active-background-color); /* Slightly different active bg */
     }
 
     .nav-separator { display: none; } /* Hide vertical separators */
@@ -330,7 +330,7 @@
     .nav-action-button {
         margin: 0 5px; /* Align with other links */
         border-left: none;
-        border-bottom: 3px solid #4CAF50; /* Match active style */
+        border-bottom: 3px solid var(--sidebar-link-active-border-color); /* Match active style */
         flex-shrink: 0; /* Prevent shrinking */
         padding: 6px 12px; /* Adjust padding */
         display: inline-block; /* Make inline */
@@ -367,12 +367,16 @@
      .server-card-actions { justify-content: center; } /* Center buttons on small screens */
 }
 
+.footer {
+    text-align: center;
+}
+
 .footer a {
-    color: #ccc;
+    color: var(--text-color);
     text-decoration: none;
 }
 
     .footer a:hover {
-        color: #fff;
+        color: var(--text-color);
         text-decoration: underline;
     }

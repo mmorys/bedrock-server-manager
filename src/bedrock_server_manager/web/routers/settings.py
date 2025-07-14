@@ -17,6 +17,7 @@ These routes interface with the underlying settings management logic in
 :mod:`~bedrock_server_manager.api.settings` and require user authentication.
 """
 import logging
+import os
 from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status
@@ -245,6 +246,50 @@ async def set_setting_api_route(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while setting the value.",
+        )
+
+
+# --- API Route: Get Available Themes ---
+@router.get("/api/themes", response_model=Dict[str, str], tags=["Settings API"])
+async def get_themes_api_route(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Retrieves a list of available themes.
+
+    Scans the built-in and custom theme directories for CSS files.
+
+    - Requires authentication.
+    - Returns a dictionary of theme names to their paths.
+    """
+    identity = current_user.get("username", "Unknown")
+    logger.info(f"API: Get themes request by '{identity}'.")
+    try:
+        themes = {}
+        # Scan built-in themes
+        builtin_themes_path = os.path.join(
+            os.path.dirname(__file__), "..", "static", "css", "themes"
+        )
+        if os.path.isdir(builtin_themes_path):
+            for filename in os.listdir(builtin_themes_path):
+                if filename.endswith(".css"):
+                    theme_name = os.path.splitext(filename)[0]
+                    themes[theme_name] = f"/static/css/themes/{filename}"
+
+        # Scan custom themes
+        custom_themes_path = settings_api.settings.get("paths.themes")
+        if os.path.isdir(custom_themes_path):
+            for filename in os.listdir(custom_themes_path):
+                if filename.endswith(".css"):
+                    theme_name = os.path.splitext(filename)[0]
+                    themes[theme_name] = f"/themes/{filename}"
+
+        return themes
+    except Exception as e:
+        logger.error(f"API Get Themes: Unexpected error. {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while retrieving themes.",
         )
 
 

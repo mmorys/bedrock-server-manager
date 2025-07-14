@@ -47,10 +47,13 @@ def configure_templates(template_directories: List[Path]):
     templates.env.filters["basename"] = os.path.basename
 
     # Add global variables
+    from ..config import settings
+
     templates.env.globals["app_name"] = app_name_title
     templates.env.globals["app_version"] = get_installed_version()
     templates.env.globals["splash_text"] = get_utils._get_splash_text()
     templates.env.globals["panorama_url"] = "/api/panorama"
+    templates.env.globals["settings"] = settings
 
 
 def get_templates() -> Jinja2Templates:
