@@ -75,10 +75,6 @@ try:
     PYWIN32_HAS_OPTIONAL_MODULES = True
 except ImportError:
     PYWIN32_HAS_OPTIONAL_MODULES = False
-    logging.warning(
-        "Optional pywin32 modules (perfmon, win32evtlogutil, win32api) not found. "
-        "Some cleanup steps will be skipped."
-    )
 
 # Local application imports.
 from . import process as core_process

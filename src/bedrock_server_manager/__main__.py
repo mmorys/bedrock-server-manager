@@ -58,12 +58,6 @@ from .cli import (
     plugins,
 )
 
-# Guarded import for Windows-specific functionality
-if platform.system() == "Windows":
-    from .cli import windows_service
-else:
-    windows_service = None
-
 # --- Import the shared PluginManager instance ---
 # This instance is created in bedrock_server_manager/__init__.py
 # and plugins are loaded by bedrock_server_manager/api/__init__.py when it's imported.
@@ -204,6 +198,7 @@ def _add_commands_to_cli():
 
     if platform.system() == "Windows":
         from .cli import windows_service
+
         cli.add_command(windows_service.service)
 
     # Standalone Commands
