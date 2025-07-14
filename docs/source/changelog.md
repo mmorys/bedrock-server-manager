@@ -55,29 +55,34 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   On Linux, you'll need to manually create an environment file with your BSM environment variables and add the `EnvironmentFile=` line to your systemd file.
     *   The `host` will be read from the JSON config file.
     *   On Windows, uvicorn workers will default to 1 instead of the configured settings value.
-4.  **Config JSON migrations**:
+4.  **Web UI Themes**:
+    *   Added support for custom themes in the Web UI.
+    *   Themes can be placed in the `themes` directory.
+    *   The Web UI will automatically list them in the settings menu.
+    *   The default theme is now `dark` theme (original OreUI insipred).
+5.  **Config JSON migrations**:
     *   The global `script_config.json` has been renamed to `bedrock_server_manager.json`.
     *   Global settings have been migrated to a new nested format. A backup will be created, and an auto-migration will be attempted.
     *   Server config JSONs have been migrated to a new nested format. Auto-migration will be attempted, and any custom config options will be moved to a nested `custom` section.
     *   Added `web_server_host` to config. If the web server is started without a host argument, it will read from the JSON file.
     *   `BASE_DIR` has been migrated to `paths.servers`.
-5.  **Background Task**:
+6.  **Background Task**:
     *   API routes for `update`, `start`, `stop`, and other long running endpoints have been converted to FastAPI's BackgroundTasks for better responsiveness.
       * As a result Web APIs now instantly return a success response instead of the actual result for the task. In future versions, these endpoints will be updated to handle this.
-6.  **New plugin APIs**:
+7.  **New plugin APIs**:
     *   APIs to read global and server configurations.
     *   API to set custom global and server configurations.
-7.  **Custom Bedrock Server Zips**
+8.  **Custom Bedrock Server Zips**
     *   Added support for custom Bedrock Server zips.
     *   These can be placed in the `DOWNLOAD_DIR/custom` directory.
     *   The Web/CLI UI will automatically list them in the server creation, when target version is set to `CUSTOM`.
-8.  Fixed world icon API route path typo: `word` -> `world`.
-9.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
-10.  Added a settings menu to the Web UI.
+9.  Fixed world icon API route path typo: `word` -> `world`.
+10.  Plugin Event: The `before_server_stop` event no longer uses the `mode` variable.
+11.  Added a settings menu to the Web UI.
     ```{note}
     Not all settings (like web host/port) will be reloaded on the fly. These require a full application restart to take effect.
     ```
-11. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
+12. BREAKING CHANGE: Migrated Flask to FastAPI for the Web API.
     *   This allows for better performance and more modern features.
     *   The Web UI has been updated to work with the new FastAPI routes.
     *   Always up-to-date HTTP API docs are now available in the Web UI footer `HTTP API` link or at `http(s)/bs.host.url/docs`.
@@ -85,8 +90,8 @@ Mirror: [https://dmedina559.github.io/bedrock-server-manager/](https://dmedina55
     *   Switched to `uvicorn` as the ASGI server for the Web API.
     *   Switched to `bcrypt` for password hashing in the Web API.
         * This requires you to regenerate your password hash and auth tokens.
-12. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
-13. Noteworthy change:
+13. BREAKING CHANGE: `/api/login` has been changed to `/auth/token`
+14. Noteworthy change:
     * `/api/plugins/reload` method changed to `PUT` instead of `POST`.
 
 ## 3.4.1
