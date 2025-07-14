@@ -23,25 +23,22 @@ input[type="time"].form-input,
 input[type="datetime-local"].form-input, /* Added datetime-local */
 textarea.form-input,
 select.form-input,
-.server-dropdown /* Apply to specific select class too */
-{
+.server-dropdown /* Apply to specific select class too */ {
     /* Display & Box Model */
     display: inline-block; /* Default display */
     width: auto; /* Default width (overridden below for text types) */
     padding: 8px 12px; /* Inner spacing */
     margin: 0; /* Reset default margins */
-    border: 1px solid #555; /* Standard border */
+    border: 1px solid var(--form-input-border-color); /* Standard border */
     border-radius: 0; /* Sharp corners */
-    background-color: #444; /* Dark background */
-    color: #eee; /* Light text */
+    background-color: var(--form-input-background-color); /* Dark background */
+    color: var(--form-input-text-color); /* Light text */
     vertical-align: middle; /* Align with adjacent elements */
     box-sizing: border-box; /* Consistent box model */
-
     /* Typography */
     font-family: inherit; /* Use body font */
     font-size: 1em; /* Use base font size */
     line-height: 1.4; /* Consistent line height */
-
     /* Transitions & Appearance */
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
     box-shadow: none; /* Remove default shadows */
@@ -64,6 +61,7 @@ textarea.form-input {
     cursor: text; /* Indicate text input */
     /* Removed max-width - let container control width */
 }
+
 textarea.form-input {
     min-height: 80px; /* Default height for textareas */
     resize: vertical; /* Allow vertical resizing */
@@ -83,23 +81,23 @@ select.form-input,
     padding-right: 30px; /* Add padding to prevent text overlapping arrow */
 }
 
-/* Focus State for all inputs */
-.form-input:focus,
-input[type="text"].form-input:focus,
-input[type="email"].form-input:focus,
-input[type="password"].form-input:focus,
-input[type="number"].form-input:focus,
-input[type="date"].form-input:focus,
-input[type="time"].form-input:focus,
-input[type="datetime-local"].form-input:focus,
-select.form-input:focus,
-textarea.form-input:focus,
-.server-dropdown:focus {
-    outline: none; /* Remove default browser outline */
-    border-color: #888; /* Slightly lighter border on focus */
-    /* Optional focus glow: */
-    /* box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.3); */
-}
+    /* Focus State for all inputs */
+    .form-input:focus,
+    input[type="text"].form-input:focus,
+    input[type="email"].form-input:focus,
+    input[type="password"].form-input:focus,
+    input[type="number"].form-input:focus,
+    input[type="date"].form-input:focus,
+    input[type="time"].form-input:focus,
+    input[type="datetime-local"].form-input:focus,
+    select.form-input:focus,
+    textarea.form-input:focus,
+    .server-dropdown:focus {
+        outline: none; /* Remove default browser outline */
+        border-color: var(--form-input-focus-border-color); /* Slightly lighter border on focus */
+        /* Optional focus glow: */
+        /* box-shadow: 0 0 0 2px rgba(136, 136, 136, 0.3); */
+    }
 
 
 /* ==========================================================================
@@ -111,7 +109,7 @@ textarea.form-input:focus,
     display: block; /* Takes its own line */
     margin-bottom: 6px; /* Space below label */
     font-weight: 600; /* Semi-bold */
-    color: #ddd; /* Slightly lighter than body text */
+    color: var(--form-label-text-color); /* Slightly lighter than body text */
     font-family: inherit;
     font-size: 1em;
     text-shadow: none; /* Ensure no shadow */
@@ -123,14 +121,14 @@ textarea.form-input:focus,
     margin-right: 8px; /* Space after label */
     vertical-align: middle; /* Align with dropdown */
     font-weight: 600;
-    color: #ddd;
+    color: var(--form-label-text-color);
 }
 
 /* Label used for checkboxes/radios (inline with control) */
 .form-label-inline {
     display: inline-block;
     font-weight: normal; /* Normal weight */
-    color: #ddd;
+    color: var(--form-label-text-color);
     font-family: inherit;
     cursor: pointer; /* Indicate clickable label */
     margin-bottom: 5px; /* Consistent spacing */
@@ -162,19 +160,19 @@ textarea.form-input:focus,
 .form-actions {
     margin-top: 25px; /* Space above actions */
     padding-top: 20px; /* Space above separator line */
-    border-top: 1px solid #555; /* Separator line */
+    border-top: 1px solid var(--form-input-border-color); /* Separator line */
     text-align: right; /* Align buttons to the right */
 }
-/* Spacing between buttons in the actions area */
-.form-actions .main-button,
-.form-actions .action-button,
-.form-actions .action-link {
-    margin-left: 10px;
-}
-/* Remove left margin from the first button/link */
-.form-actions > *:first-child {
-    margin-left: 0;
-}
+    /* Spacing between buttons in the actions area */
+    .form-actions .main-button,
+    .form-actions .action-button,
+    .form-actions .action-link {
+        margin-left: 10px;
+    }
+    /* Remove left margin from the first button/link */
+    .form-actions > *:first-child {
+        margin-left: 0;
+    }
 
 
 /* ==========================================================================
@@ -184,8 +182,8 @@ textarea.form-input:focus,
 .server-selection-section {
     margin-bottom: 25px; /* Increased spacing */
     padding: 15px 20px;
-    background-color: #3a3a3a; /* Slightly different background */
-    border: 1px solid #555;
+    background-color: var(--container-background-color); /* Slightly different background */
+    border: 1px solid var(--form-input-border-color);
     border-radius: 0;
     box-sizing: border-box;
     text-align: left; /* Align content left by default */
@@ -207,13 +205,13 @@ textarea.form-input:focus,
     vertical-align: middle;
     margin-bottom: 5px; /* Allow wrapping nicely */
 }
-/* Adjust button size within this group */
-.action-buttons-group .action-button,
-.action-buttons_group .start-button,
-.action-buttons_group .danger-button {
-     padding: 6px 10px;
-     font-size: 0.9em;
-}
+    /* Adjust button size within this group */
+    .action-buttons-group .action-button,
+    .action-buttons_group .start-button,
+    .action-buttons_group .danger-button {
+        padding: 6px 10px;
+        font-size: 0.9em;
+    }
 
 
 /* ==========================================================================
@@ -225,13 +223,13 @@ textarea.form-input:focus,
     /* These are often visually hidden and replaced by custom controls */
     /* like toggle switches or styled labels. */
     /* Provide basic accessible styling if custom controls fail to load */
-     display: inline-block;
-     width: auto;
-     margin-right: 5px;
-     vertical-align: middle;
-     cursor: pointer;
-     /* Basic styling */
-     accent-color: #4CAF50; /* Use theme color if browser supports */
+    display: inline-block;
+    width: auto;
+    margin-right: 5px;
+    vertical-align: middle;
+    cursor: pointer;
+    /* Basic styling */
+    accent-color: #4CAF50; /* Use theme color if browser supports */
 }
 /* Example: Hide if not part of a specific custom control setup */
 /* label > input[type="checkbox"]:not(.toggle-input) { display: none; } */
@@ -254,9 +252,8 @@ textarea.form-input:focus,
 
 /* Style for validation error messages */
 .validation-error,
-.form-error /* Used by Flask-WTF? */
-{
-    color: #ef9a9a; /* Light red */
+.form-error /* Used by Flask-WTF? */ {
+    color: var(--validation-error-text-color); /* Light red */
     font-size: 0.9em;
     padding-top: 4px; /* Space above message */
     display: block; /* Take its own line */
@@ -271,25 +268,27 @@ textarea.form-input:focus,
     margin-top: 4px;
     margin-bottom: 0;
 }
-.form-error li {
-    margin-bottom: 2px;
-}
+
+    .form-error li {
+        margin-bottom: 2px;
+    }
 /* Specific style for inline validation errors (e.g., in tables) */
 .validation-error.inline-error {
-     display: inline-block;
-     margin-left: 10px;
-     /* Adjust styling as needed */
+    display: inline-block;
+    margin-left: 10px;
+    /* Adjust styling as needed */
 }
 
 /* Style for input fields marked as invalid */
 .form-input.is-invalid {
-    border-color: #D32F2F; /* Red border */
-    background-color: #503a3a; /* Dark red background tint */
+    border-color: var(--form-input-invalid-border-color); /* Red border */
+    background-color: var(--form-input-invalid-background-color); /* Dark red background tint */
 }
-.form-input.is-invalid:focus {
-    border-color: #E57373; /* Lighter red border on focus */
-    box-shadow: none; /* Remove focus glow for invalid state */
-}
+
+    .form-input.is-invalid:focus {
+        border-color: var(--danger-button-border-color); /* Lighter red border on focus */
+        box-shadow: none; /* Remove focus glow for invalid state */
+    }
 
 
 /* ==========================================================================
@@ -300,19 +299,19 @@ textarea.form-input:focus,
 .list-section {
     margin-top: 30px;
     padding-top: 15px;
-    border-top: 1px solid #555; /* Separator line */
+    border-top: 1px solid var(--form-input-border-color); /* Separator line */
 }
-/* Heading within list section */
-.list-section h2 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #555;
-    font-size: 1.4em;
-    font-weight: 600;
-    color: #eee;
-    text-shadow: none;
-}
+    /* Heading within list section */
+    .list-section h2 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--form-input-border-color);
+        font-size: 1.4em;
+        font-weight: 600;
+        color: var(--form-label-text-color);
+        text-shadow: none;
+    }
 
 /* The list itself */
 .item-list {
@@ -320,38 +319,38 @@ textarea.form-input:focus,
     padding: 0;
     margin: 0;
 }
-/* Individual list items */
-.item-list li {
-    background-color: #444;
-    padding: 10px 15px;
-    margin-bottom: 6px;
-    border: 1px solid #555;
-    border-radius: 0; /* Sharp corners */
-    /* Flex layout for item content alignment */
-    display: flex;
-    justify-content: space-between; /* Push button to right */
-    align-items: center;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
-    gap: 5px 10px; /* Vertical and horizontal gap */
-}
-/* Optional: subtle background striping */
-.item-list li:nth-child(even) {
-    background-color: #4a4a4a;
-}
-/* Player name part */
-.item-list .player-name {
-    font-weight: 600;
-    flex-grow: 1; /* Allow name to take available space */
-    margin-right: 10px; /* Space before meta/button */
-    word-break: break-all; /* Break long names */
-}
-/* Additional player info (e.g., ignores limit) */
-.item-list .player-meta {
-    font-size: 0.9em;
-    color: #bbb;
-    margin-right: 10px; /* Space before button */
-    flex-shrink: 0; /* Prevent shrinking */
-}
+    /* Individual list items */
+    .item-list li {
+        background-color: var(--form-input-background-color);
+        padding: 10px 15px;
+        margin-bottom: 6px;
+        border: 1px solid var(--form-input-border-color);
+        border-radius: 0; /* Sharp corners */
+        /* Flex layout for item content alignment */
+        display: flex;
+        justify-content: space-between; /* Push button to right */
+        align-items: center;
+        flex-wrap: wrap; /* Allow wrapping on small screens */
+        gap: 5px 10px; /* Vertical and horizontal gap */
+    }
+        /* Optional: subtle background striping */
+        .item-list li:nth-child(even) {
+            background-color: var(--form-input-invalid-background-color);
+        }
+    /* Player name part */
+    .item-list .player-name {
+        font-weight: 600;
+        flex-grow: 1; /* Allow name to take available space */
+        margin-right: 10px; /* Space before meta/button */
+        word-break: break-all; /* Break long names */
+    }
+    /* Additional player info (e.g., ignores limit) */
+    .item-list .player-meta {
+        font-size: 0.9em;
+        color: #bbb;
+        margin-right: 10px; /* Space before button */
+        flex-shrink: 0; /* Prevent shrinking */
+    }
 /* Special styling for the "No players" message */
 #no-players-message {
     font-style: italic;
@@ -384,8 +383,8 @@ textarea.form-input:focus,
     max-width: 450px; /* Limit width */
     margin: 40px auto; /* Center horizontally */
     padding: 25px 30px;
-    background-color: #3a3a3a; /* Slightly different background */
-    border: 1px solid #555;
+    background-color: var(--container-background-color); /* Slightly different background */
+    border: 1px solid var(--form-input-border-color);
     border-radius: 0;
 }
 
@@ -396,12 +395,12 @@ textarea.form-input:focus,
     padding-top: 10px;
     margin-top: 15px;
 }
-/* Style the login button itself */
-.login-actions .main-button { /* Assuming login uses .main-button */
-    margin-left: 0; /* Reset margin if centered */
-    width: 100%; /* Full width button */
-    padding: 10px 15px; /* Larger padding */
-}
+    /* Style the login button itself */
+    .login-actions .main-button { /* Assuming login uses .main-button */
+        margin-left: 0; /* Reset margin if centered */
+        width: 100%; /* Full width button */
+        padding: 10px 15px; /* Larger padding */
+    }
 
 /* ==========================================================================
    Task Scheduler Trigger Group Styling
@@ -410,37 +409,64 @@ textarea.form-input:focus,
 
 /* Container for a single trigger definition */
 .trigger-group {
-    border: 1px solid #555;
+    border: 1px solid var(--form-input-border-color);
     padding: 18px 20px;
     margin-bottom: 20px; /* Space between trigger groups */
-    background-color: #404040; /* Slightly different background */
+    background-color: var(--container-background-color); /* Slightly different background */
     border-radius: 0;
     box-sizing: border-box;
     position: relative; /* For absolute positioning of remove button */
 }
 
-/* Header within the trigger group */
-/* H3 is used in the JS, ensure it exists or adjust selector */
-.trigger-group h3 {
-    margin: 0 0 15px 0; /* Space below title */
-    font-size: 1.2em;
-    font-weight: 600;
-    color: #eee;
-    border-bottom: 1px solid #555;
-    padding-bottom: 10px;
-}
+    /* Header within the trigger group */
+    /* H3 is used in the JS, ensure it exists or adjust selector */
+    .trigger-group h3 {
+        margin: 0 0 15px 0; /* Space below title */
+        font-size: 1.2em;
+        font-weight: 600;
+        color: var(--form-label-text-color);
+        border-bottom: 1px solid var(--form-input-border-color);
+        padding-bottom: 10px;
+    }
 
 /* Remove button for trigger group */
 .remove-trigger-btn { /* Renamed class for clarity */
     /* Style as a small danger button */
-    display: inline-block; padding: 2px 6px; margin: 0; border-width: 1px; border-style: solid; border-radius: 0; cursor: pointer; font-weight: bold; text-align: center; text-decoration: none; vertical-align: middle; box-sizing: border-box; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; text-shadow: none; box-shadow: none; font-size: 1.1em; line-height: 1; background-color: #D32F2F; border-color: #E57373; color: #fff;
+    display: inline-block;
+    padding: 2px 6px;
+    margin: 0;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    text-shadow: none;
+    box-shadow: none;
+    font-size: 1.1em;
+    line-height: 1;
+    background-color: #D32F2F;
+    border-color: #E57373;
+    color: #fff;
     /* Position top-right */
     position: absolute;
     top: 10px; /* Adjust as needed */
     right: 10px; /* Adjust as needed */
 }
-.remove-trigger-btn:hover { background-color: #E53935; border-color: #EF9A9A; }
-.remove-trigger-btn:active { background-color: #B71C1C; border-color: #D32F2F; }
+
+    .remove-trigger-btn:hover {
+        background-color: #E53935;
+        border-color: #EF9A9A;
+    }
+
+    .remove-trigger-btn:active {
+        background-color: #B71C1C;
+        border-color: #D32F2F;
+    }
 
 /* Container for dynamically added trigger fields */
 .trigger-fields-container {
@@ -451,10 +477,36 @@ textarea.form-input:focus,
 /* "Add Trigger" button style */
 .add-trigger-btn { /* Renamed class */
     /* Style as a primary (green) button */
-    display: inline-block; padding: 8px 16px; margin: 10px 0 20px 0; border-width: 1px; border-style: solid; border-radius: 0; cursor: pointer; font-size: 1em; font-weight: 600; text-align: center; text-decoration: none; vertical-align: middle; box-sizing: border-box; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.1s ease; text-shadow: none; box-shadow: none; background-color: #4CAF50; border-color: #66BB6A; color: #fff;
+    display: inline-block;
+    padding: 8px 16px;
+    margin: 10px 0 20px 0;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.1s ease;
+    text-shadow: none;
+    box-shadow: none;
+    background-color: #4CAF50;
+    border-color: #66BB6A;
+    color: #fff;
 }
-.add-trigger-btn:hover { background-color: #6fcf97; border-color: #81e0aa; }
-.add-trigger-btn:active { background-color: #388E3C; border-color: #4CAF50; }
+
+    .add-trigger-btn:hover {
+        background-color: #6fcf97;
+        border-color: #81e0aa;
+    }
+
+    .add-trigger-btn:active {
+        background-color: #388E3C;
+        border-color: #4CAF50;
+    }
 /* Ensure consistent styling with other buttons */
 
 
@@ -479,8 +531,9 @@ textarea.form-input:focus,
         max-width: 100%; /* Ensure it doesn't exceed container */
         padding: 10px 12px; /* Slightly larger padding */
     }
+
     select.form-input, .server-dropdown {
-         padding-right: 30px; /* Maintain space for arrow */
+        padding-right: 30px; /* Maintain space for arrow */
     }
 
 
@@ -493,53 +546,73 @@ textarea.form-input:focus,
     .form-actions {
         text-align: center; /* Center action buttons */
     }
-    .form-actions .main-button,
-    .form-actions .action-button,
-    .form-actions .action-link {
-        margin: 5px; /* Adjust margin */
-        display: inline-block; /* Ensure they align if enough space */
-    }
+
+        .form-actions .main-button,
+        .form-actions .action-button,
+        .form-actions .action-link {
+            margin: 5px; /* Adjust margin */
+            display: inline-block; /* Ensure they align if enough space */
+        }
 
     /* Server Selection adjustments */
-     .server-selection-section {
+    .server-selection-section {
         text-align: center;
     }
-     .select-server-group, .action-buttons-group {
-         display: block; /* Stack elements vertically */
-         margin-right: 0;
-         margin-bottom: 10px;
-         width: 100%;
-     }
-     .select-label {
-         display: block;
-         text-align: center;
-         margin-bottom: 5px;
-     }
-     .server-dropdown {
-         display: block; /* Make dropdown block */
-         width: 100%; /* Full width */
-         max-width: 90%; /* Limit width */
-         margin: 0 auto; /* Center */
-     }
-     .action-buttons-group .action-button, /* Target buttons inside */
-     .action-buttons-group .start-button,
-     .action-buttons-group .danger-button {
-         display: inline-block; /* Keep buttons inline */
-         margin: 3px;
-     }
+
+    .select-server-group, .action-buttons-group {
+        display: block; /* Stack elements vertically */
+        margin-right: 0;
+        margin-bottom: 10px;
+        width: 100%;
+    }
+
+    .select-label {
+        display: block;
+        text-align: center;
+        margin-bottom: 5px;
+    }
+
+    .server-dropdown {
+        display: block; /* Make dropdown block */
+        width: 100%; /* Full width */
+        max-width: 90%; /* Limit width */
+        margin: 0 auto; /* Center */
+    }
+
+    .action-buttons-group .action-button, /* Target buttons inside */
+    .action-buttons-group .start-button,
+    .action-buttons-group .danger-button {
+        display: inline-block; /* Keep buttons inline */
+        margin: 3px;
+    }
 
     /* Item List adjustments */
     .item-list li {
         padding: 8px 12px;
     }
-     /* Stack list item content */
-     .item-list .player-name { flex-basis: 100%; margin-bottom: 3px; }
-     .item-list .player-meta { flex-basis: auto; margin-right: 10px; }
-     .item-list .remove-button { margin-left: auto; } /* Push button right */
+    /* Stack list item content */
+    .item-list .player-name {
+        flex-basis: 100%;
+        margin-bottom: 3px;
+    }
+
+    .item-list .player-meta {
+        flex-basis: auto;
+        margin-right: 10px;
+    }
+
+    .item-list .remove-button {
+        margin-left: auto;
+    }
+    /* Push button right */
 
 
-     /* Login Form adjustments */
-     .login-wrapper { margin: 20px 15px; padding: 20px; } /* Reduce margins/padding */
+    /* Login Form adjustments */
+    .login-wrapper {
+        margin: 20px 15px;
+        padding: 20px;
+    }
+    /* Reduce margins/padding */
 }
 
 @media (max-width: 600px) { /* Smaller tablets / Large phones */
@@ -547,30 +620,47 @@ textarea.form-input:focus,
         grid-template-columns: 1fr; /* Force single column */
         gap: 15px 0;
     }
-    /* Ensure form groups take full width in single column */
-    .form-grid > .form-group { width: 100%; }
+        /* Ensure form groups take full width in single column */
+        .form-grid > .form-group {
+            width: 100%;
+        }
 
     /* Make toggle switch layout potentially stack label above */
-     .form-group-toggle-container {
-         flex-direction: column; /* Stack label group and switch */
-         align-items: flex-start; /* Align left */
-          padding: 8px 0;
-     }
-     .form-label-group {
-         padding-right: 0; /* No need for right padding */
-         margin-bottom: 8px; /* Space below text */
-     }
-     .toggle-switch-container {
-         margin-left: 0; /* Reset margin */
-     }
+    .form-group-toggle-container {
+        flex-direction: column; /* Stack label group and switch */
+        align-items: flex-start; /* Align left */
+        padding: 8px 0;
+    }
+
+    .form-label-group {
+        padding-right: 0; /* No need for right padding */
+        margin-bottom: 8px; /* Space below text */
+    }
+
+    .toggle-switch-container {
+        margin-left: 0; /* Reset margin */
+    }
 }
 
 @media (max-width: 480px) { /* Mobile phones */
     /* Further adjust fonts/padding if needed */
-     body { font-size: 15px; } /* Reduce base font slightly */
-     .form-input, input[type=text].form-input, etc. { font-size: 1em; padding: 9px 10px; } /* Use relative font size */
-     .form-actions .main-button, /* etc. */ { font-size: 0.95em; padding: 8px 12px; }
-     .item-list li { padding: 8px 10px; }
+    body {
+        font-size: 15px;
+    }
+    /* Reduce base font slightly */
+    .form-input, input[type=text].form-input, etc. {
+        font-size: 1em;
+        padding: 9px 10px;
+    }
+    /* Use relative font size */
+    .form-actions .main-button, /* etc. */ {
+        font-size: 0.95em;
+        padding: 8px 12px;
+    }
+
+    .item-list li {
+        padding: 8px 10px;
+    }
 }
 
 
