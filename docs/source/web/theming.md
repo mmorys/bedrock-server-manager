@@ -126,5 +126,5 @@ Plugins can also use the theme engine to style their own custom pages. To do thi
 </div>
 
 <div style="text-align: left;">
-    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/docs/images/web_ui_blue_theme.png" alt="Blue Theme" width="300" height="200">
+    <img src="https://raw.githubusercontent.com/DMedina559/bedrock-server-manager/main/docs/images/web_ui_green_theme.png" alt="Blue Theme" width="300" height="200">
 </div>
