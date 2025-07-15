@@ -198,7 +198,7 @@ def run_web_server(
             port=port,
             log_level=uvicorn_log_level.lower(),  # Ensure log level is lowercase
             reload=reload_enabled,
-            workers=workers if not reload_enabled and workers > 1 else None,
+            workers=1,#workers if not reload_enabled and workers > 1 else None,
             forwarded_allow_ips="*",
             proxy_headers=True,
         )
