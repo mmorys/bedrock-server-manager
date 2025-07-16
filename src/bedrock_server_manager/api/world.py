@@ -29,12 +29,14 @@ import threading
 from typing import Dict, Optional, Any
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..core import BedrockServer
-from ..config import settings
+from ..instances import (
+    get_settings_instance,
+    get_server_instance,
+    get_plugin_manager_instance,
+)
 from .utils import server_lifecycle_manager
 from ..error import (
     BSMError,
@@ -45,6 +47,8 @@ from ..error import (
 from bedrock_server_manager.utils.general import get_timestamp
 
 logger = logging.getLogger(__name__)
+
+plugin_manager = get_plugin_manager_instance()
 
 # A unified lock to prevent race conditions during any world file operation
 # (export, import, reset). This ensures data integrity.
@@ -80,7 +84,7 @@ def get_world_name(server_name: str) -> Dict[str, Any]:
 
     logger.debug(f"API: Attempting to get world name for server '{server_name}'...")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         world_name_str = server.get_world_name()
         logger.info(
             f"API: Retrieved world name for '{server_name}': '{world_name_str}'"
@@ -160,7 +164,7 @@ def export_world(
         if export_dir:
             effective_export_dir = export_dir
         else:
-            content_base_dir = settings.get("paths.content")
+            content_base_dir = get_settings_instance().get("paths.content")
             if not content_base_dir:
                 raise FileOperationError(
                     "CONTENT_DIR setting missing for default export directory."
@@ -177,7 +181,7 @@ def export_world(
         )
 
         try:
-            server = BedrockServer(server_name)
+            server = get_server_instance(server_name)
 
             os.makedirs(effective_export_dir, exist_ok=True)
             world_name_str = server.get_world_name()
@@ -294,7 +298,7 @@ def import_world(
         )
 
         try:
-            server = BedrockServer(server_name)
+            server = get_server_instance(server_name)
             if not os.path.isfile(selected_file_path):
                 raise FileNotFoundError(
                     f"Source .mcworld file not found: {selected_file_path}"
@@ -395,7 +399,7 @@ def reset_world(server_name: str) -> Dict[str, str]:
         logger.info(f"API: Initiating world reset for server '{server_name}'...")
 
         try:
-            server = BedrockServer(server_name)
+            server = get_server_instance(server_name)
             world_name_for_msg = server.get_world_name()
 
             # The lifecycle manager ensures the server is stopped, the world is deleted,

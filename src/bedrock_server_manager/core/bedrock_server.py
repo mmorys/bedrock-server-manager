@@ -8,11 +8,7 @@ specialized mixin classes (e.g., for process control, world management, backups)
 each contributing a distinct set of features. This compositional approach promotes
 code organization and modularity, allowing for clear separation of concerns.
 """
-from typing import TYPE_CHECKING, Dict, Any, Optional
-
-if TYPE_CHECKING:
-    # This allows for type hinting the Settings class without creating a circular import.
-    from ..config import Settings
+from typing import Dict, Any, Optional
 
 # Import all the mixin classes that will be combined to form the BedrockServer.
 from . import server
@@ -58,11 +54,11 @@ class BedrockServer(
         manager_expath (Optional[str]): Path to the main BSM executable/script,
             used for tasks like service file generation.
         base_dir (str): The base directory where all server installation
-            directories reside (from settings: ``paths.servers_base_dir``).
+            directories reside (from settings: ``paths.servers``).
         server_dir (str): The full path to this specific server's installation
             directory (e.g., ``<base_dir>/<server_name>``).
         app_config_dir (str): Path to the application's global configuration
-            directory (from settings: ``paths.app_config_dir``).
+            directory (from settings: ``_config_dir``).
         os_type (str): The current operating system, e.g., "Linux", "Windows".
         logger (:class:`logging.Logger`): A logger instance specific to this
             server instance.
@@ -143,7 +139,6 @@ class BedrockServer(
     def __init__(
         self,
         server_name: str,
-        settings_instance: Optional["Settings"] = None,
         manager_expath: Optional[str] = None,
     ) -> None:
         """Initializes a BedrockServer instance.
@@ -173,7 +168,6 @@ class BedrockServer(
         """
         super().__init__(
             server_name=server_name,
-            settings_instance=settings_instance,
             manager_expath=manager_expath,
         )
         self.logger.info(

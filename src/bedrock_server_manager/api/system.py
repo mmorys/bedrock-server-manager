@@ -23,11 +23,10 @@ import logging
 from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..core import BedrockServer
+from ..instances import get_server_instance, get_plugin_manager_instance
 from ..error import (
     BSMError,
     InvalidServerNameError,
@@ -36,6 +35,8 @@ from ..error import (
 )
 
 logger = logging.getLogger(__name__)
+
+plugin_manager = get_plugin_manager_instance()
 
 
 @plugin_method("get_bedrock_process_info")
@@ -69,7 +70,7 @@ def get_bedrock_process_info(server_name: str) -> Dict[str, Any]:
 
     logger.debug(f"API: Getting process info for server '{server_name}'...")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         process_info = server.get_process_info()
 
         # If get_process_info returns None, the server is not running or inaccessible.
@@ -138,7 +139,7 @@ def create_server_service(server_name: str, autostart: bool = False) -> Dict[str
 
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         # These methods are implemented on BedrockServer, which delegates to
         # the appropriate OS-specific mixin.
         server.create_service()
@@ -231,7 +232,7 @@ def set_autoupdate(server_name: str, autoupdate_value: str) -> Dict[str, str]:
         logger.info(
             f"API: Setting 'autoupdate' config for server '{server_name}' to {value_bool}..."
         )
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.set_autoupdate(value_bool)
         result = {
             "status": "success",
@@ -294,7 +295,7 @@ def enable_server_service(server_name: str) -> Dict[str, str]:
 
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.enable_service()
         result = {
             "status": "success",
@@ -360,7 +361,7 @@ def disable_server_service(server_name: str) -> Dict[str, str]:
 
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.disable_service()
         result = {
             "status": "success",

@@ -11,12 +11,11 @@ import threading
 from typing import Dict, Optional
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
 from ..core import prune_old_downloads
-from ..config import settings
+from ..instances import get_settings_instance, get_plugin_manager_instance
 from ..error import (
     BSMError,
     UserInputError,
@@ -27,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 # A lock to prevent race conditions during miscellaneous file operations.
 _misc_lock = threading.Lock()
+
+plugin_manager = get_plugin_manager_instance()
 
 
 @plugin_method("prune_download_cache")
@@ -87,7 +88,7 @@ def prune_download_cache(
             # Determine the number of files to keep, prioritizing the function
             # argument over the global setting.
             if keep_count is None:
-                keep_setting = settings.get("retention.downloads", 3)
+                keep_setting = get_settings_instance().get("retention.downloads", 3)
                 effective_keep = int(keep_setting)
             else:
                 effective_keep = int(keep_count)

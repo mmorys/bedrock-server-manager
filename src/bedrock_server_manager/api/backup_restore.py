@@ -29,11 +29,10 @@ import threading
 from typing import Dict, Any
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..core import BedrockServer
+from ..instances import get_server_instance, get_plugin_manager_instance
 from .utils import server_lifecycle_manager
 from ..error import (
     BSMError,
@@ -48,6 +47,8 @@ logger = logging.getLogger(__name__)
 # This ensures that only one file-modifying operation can run at a time across
 # the entire module, preventing race conditions and potential data corruption.
 _backup_restore_lock = threading.Lock()
+
+plugin_manager = get_plugin_manager_instance()
 
 
 @plugin_method("list_backup_files")
@@ -83,7 +84,7 @@ def list_backup_files(server_name: str, backup_type: str) -> Dict[str, Any]:
     if not server_name:
         raise InvalidServerNameError("Server name cannot be empty.")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         backup_data = server.list_backups(backup_type)
         return {"status": "success", "backups": backup_data}
     except BSMError as e:
@@ -155,7 +156,7 @@ def backup_world(server_name: str, stop_start_server: bool = True) -> Dict[str, 
         try:
             # Use a context manager to handle stopping and starting the server.
             with server_lifecycle_manager(server_name, stop_start_server):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 backup_file = server._backup_world_data_internal()
             result = {
                 "status": "success",
@@ -261,7 +262,7 @@ def backup_config_file(
 
         try:
             with server_lifecycle_manager(server_name, stop_start_server):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 backup_file = server._backup_config_file_internal(filename_base)
             result = {
                 "status": "success",
@@ -358,7 +359,7 @@ def backup_all(server_name: str, stop_start_server: bool = True) -> Dict[str, An
         try:
             # The server is stopped before the backup but not restarted after.
             with server_lifecycle_manager(server_name, stop_before=stop_start_server):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 backup_results = server.backup_all_data()
             result = {
                 "status": "success",
@@ -460,7 +461,7 @@ def restore_all(server_name: str, stop_start_server: bool = True) -> Dict[str, A
             with server_lifecycle_manager(
                 server_name, stop_before=stop_start_server, restart_on_success_only=True
             ):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 restore_results = server.restore_all_data_from_latest()
 
             if not restore_results:
@@ -578,7 +579,7 @@ def restore_world(
             with server_lifecycle_manager(
                 server_name, stop_before=stop_start_server, restart_on_success_only=True
             ):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 server.import_active_world_from_mcworld(backup_file_path)
 
             result = {
@@ -690,7 +691,7 @@ def restore_config_file(
             with server_lifecycle_manager(
                 server_name, stop_before=stop_start_server, restart_on_success_only=True
             ):
-                server = BedrockServer(server_name)
+                server = get_server_instance(server_name)
                 restored_file = server._restore_config_file_internal(backup_file_path)
 
             result = {
@@ -778,7 +779,7 @@ def prune_old_backups(server_name: str) -> Dict[str, str]:
         )
 
         try:
-            server = BedrockServer(server_name)
+            server = get_server_instance(server_name)
             # If the backup directory doesn't exist, there's nothing to do.
             if not server.server_backup_directory or not os.path.isdir(
                 server.server_backup_directory

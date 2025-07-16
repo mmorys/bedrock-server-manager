@@ -32,7 +32,7 @@ from typing import Optional, List, Dict, Any, Union, Tuple
 
 # Local application imports.
 from ..config import Settings
-from .bedrock_server import BedrockServer
+from ..instances import get_server_instance
 from ..config import EXPATH, app_name_title, package_name
 from ..error import (
     ConfigurationError,
@@ -104,7 +104,7 @@ class BedrockServerManager:
         _WEB_SERVICE_WINDOWS_DISPLAY_NAME (str): Display name for the Web UI Windows service.
     """
 
-    def __init__(self, settings_instance: Optional[Settings] = None) -> None:
+    def __init__(self) -> None:
         """
         Initializes the BedrockServerManager instance.
 
@@ -125,11 +125,6 @@ class BedrockServerManager:
                :class:`~.error.ConfigurationError` if not.
 
         Args:
-            settings_instance (Optional[:class:`~.config.settings.Settings`]):
-                An optional, pre-configured :class:`~.config.settings.Settings`
-                object. If ``None`` (default), a new :class:`~.config.settings.Settings`
-                object will be instantiated and loaded. This parameter allows for
-                dependency injection, primarily for testing purposes.
 
         Raises:
             ConfigurationError: If the provided or loaded :class:`~.config.settings.Settings`
@@ -137,10 +132,9 @@ class BedrockServerManager:
                 ``paths.servers`` or ``paths.content``), or if core application
                 constants cannot be accessed.
         """
-        if settings_instance:
-            self.settings = settings_instance
-        else:
-            self.settings = Settings()
+        from ..instances import get_settings_instance
+
+        self.settings = get_settings_instance()
         logger.debug(
             f"BedrockServerManager initialized using settings from: {self.settings.config_path}"
         )
@@ -501,10 +495,8 @@ class BedrockServerManager:
             logger.debug(f"BSM: Processing potential server '{server_name_candidate}'.")
             try:
                 # Instantiate a BedrockServer to use its encapsulated logic.
-                server_instance = BedrockServer(
+                server_instance = get_server_instance(
                     server_name=server_name_candidate,
-                    settings_instance=self.settings,
-                    manager_expath=self._expath,
                 )
 
                 # Validate it's a real server before trying to scan its logs.
@@ -1491,10 +1483,8 @@ class BedrockServerManager:
             f"BSM: Validating server '{server_name}' using BedrockServer class."
         )
         try:
-            server_instance = BedrockServer(
+            server_instance = get_server_instance(
                 server_name=server_name,
-                settings_instance=self.settings,
-                manager_expath=self._expath,
             )
             is_valid = server_instance.is_installed()
             if is_valid:
@@ -1565,10 +1555,8 @@ class BedrockServerManager:
 
             try:
                 # Instantiate a BedrockServer to leverage its encapsulated logic.
-                server = BedrockServer(
+                server = get_server_instance(
                     server_name=server_name_candidate,
-                    settings_instance=self.settings,
-                    manager_expath=self._expath,
                 )
 
                 # Use the instance's own method to validate its installation.
