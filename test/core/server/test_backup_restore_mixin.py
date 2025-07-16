@@ -1,8 +1,9 @@
-import unittest
+import pytest
 import os
 import shutil
 import zipfile
 import tempfile
+import time
 from bedrock_server_manager.core.server.backup_restore_mixin import ServerBackupMixin
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
 from bedrock_server_manager.core.server.config_management_mixin import (
@@ -42,72 +43,63 @@ def zip_dir(path, zip_path):
                 )
 
 
-class TestServerBackupRestoreMixin(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.server_name = "test_server"
-        self.settings = Settings()
-        self.settings.set("paths.servers", os.path.join(self.temp_dir, "servers"))
-        self.settings.set("paths.backups", os.path.join(self.temp_dir, "backups"))
-        self.settings._config_dir_path = os.path.join(self.temp_dir, "config")
+@pytest.fixture
+def backup_restore_fixture():
+    temp_dir = tempfile.mkdtemp()
+    server_name = "test_server"
+    settings = Settings()
+    settings.set("paths.servers", os.path.join(temp_dir, "servers"))
+    settings.set("paths.backups", os.path.join(temp_dir, "backups"))
+    settings._config_dir_path = os.path.join(temp_dir, "config")
 
-        self.server = TestBedrockServer(
-            server_name=self.server_name, settings_instance=self.settings
-        )
-        os.makedirs(self.server.server_dir, exist_ok=True)
-        os.makedirs(
-            os.path.join(self.server.server_dir, "worlds", "Bedrock level"),
-            exist_ok=True,
-        )
-        with open(os.path.join(self.server.server_dir, "server.properties"), "w") as f:
-            f.write("level-name=Bedrock level\n")
-        with open(
-            os.path.join(self.server.server_dir, "worlds", "Bedrock level", "test.txt"),
-            "w",
-        ) as f:
-            f.write("test content")
+    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    os.makedirs(server.server_dir, exist_ok=True)
+    os.makedirs(
+        os.path.join(server.server_dir, "worlds", "Bedrock level"), exist_ok=True
+    )
+    with open(os.path.join(server.server_dir, "server.properties"), "w") as f:
+        f.write("level-name=Bedrock level\n")
+    with open(
+        os.path.join(server.server_dir, "worlds", "Bedrock level", "test.txt"), "w"
+    ) as f:
+        f.write("test content")
 
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+    yield server
 
-    def test_backup_all_data(self):
-        results = self.server.backup_all_data()
-        self.assertIsNotNone(results["world"])
-        backups = self.server.list_backups("all")
-        self.assertEqual(len(backups["world_backups"]), 1)
-        self.assertTrue(
-            os.path.basename(backups["world_backups"][0]).startswith(
-                "Bedrock level_backup_"
-            )
-        )
-
-    def test_list_backups(self):
-        backup_dir = self.server.server_backup_directory
-        os.makedirs(backup_dir, exist_ok=True)
-        self.server.backup_all_data()
-        import time
-
-        time.sleep(1)
-        self.server.backup_all_data()
-
-        backups = self.server.list_backups("world")
-        self.assertEqual(len(backups), 2)
-
-    def test_restore_all_data_from_latest(self):
-        self.server.backup_all_data()
-
-        shutil.rmtree(os.path.join(self.server.server_dir, "worlds"))
-
-        self.server.restore_all_data_from_latest()
-
-        self.assertTrue(
-            os.path.exists(
-                os.path.join(
-                    self.server.server_dir, "worlds", "Bedrock level", "test.txt"
-                )
-            )
-        )
+    shutil.rmtree(temp_dir)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_backup_all_data(backup_restore_fixture):
+    server = backup_restore_fixture
+    results = server.backup_all_data()
+    assert results["world"] is not None
+    backups = server.list_backups("all")
+    assert len(backups["world_backups"]) == 1
+    assert os.path.basename(backups["world_backups"][0]).startswith(
+        "Bedrock level_backup_"
+    )
+
+
+def test_list_backups(backup_restore_fixture):
+    server = backup_restore_fixture
+    backup_dir = server.server_backup_directory
+    os.makedirs(backup_dir, exist_ok=True)
+    server.backup_all_data()
+    time.sleep(1)
+    server.backup_all_data()
+
+    backups = server.list_backups("world")
+    assert len(backups) == 2
+
+
+def test_restore_all_data_from_latest(backup_restore_fixture):
+    server = backup_restore_fixture
+    server.backup_all_data()
+
+    shutil.rmtree(os.path.join(server.server_dir, "worlds"))
+
+    server.restore_all_data_from_latest()
+
+    assert os.path.exists(
+        os.path.join(server.server_dir, "worlds", "Bedrock level", "test.txt")
+    )
