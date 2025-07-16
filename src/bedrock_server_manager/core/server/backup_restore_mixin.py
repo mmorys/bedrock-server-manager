@@ -432,7 +432,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
         timestamp = get_timestamp()
         # Sanitize the world name to ensure it's a valid filename component.
-        safe_world_name_for_file = re.sub(r'[<>:"/\\|?*]', "_", active_world_name)
+        safe_world_name_for_file = re.sub(r'[:"/\\|?*]', "_", active_world_name)
         backup_filename = f"{safe_world_name_for_file}_backup_{timestamp}.mcworld"
         backup_file_path = os.path.join(server_bck_dir, backup_filename)
 
@@ -805,7 +805,7 @@ class ServerBackupMixin(BedrockServerBaseMixin):
             active_world_name: str = self.get_world_name()  # type: ignore
             # Sanitize world name for matching backup file prefixes
             safe_world_name_prefix = (
-                re.sub(r'[<>:"/\\|?*]', "_", active_world_name) + "_backup_"
+                re.sub(r'[:"/\\|?*]', "_", active_world_name) + "_backup_"
             )
 
             relevant_world_backups = [
