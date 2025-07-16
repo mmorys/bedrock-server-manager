@@ -276,6 +276,7 @@ class Settings:
                 "host": "127.0.0.1",
                 "port": 11325,
                 "token_expires_weeks": 4,
+                "theme": "dark",
                 "threads": 4,
             },
             "custom": {},
