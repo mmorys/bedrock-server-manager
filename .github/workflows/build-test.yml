@@ -36,7 +36,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install build
-        pip install -e .
+        pip install -e .[dev]
 
     - name: Install and run linters
       run: |
@@ -44,43 +44,6 @@ jobs:
         flake8 src/bedrock_server_manager --count --select=E9,F63,F7,F82 --show-source --statistics --ignore=E501,W503,F541
         flake8 src/bedrock_server_manager --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=E501,W503,F541
 
-    - name: Get project base version and short SHA
-      id: version_sha
-      if: github.ref_name != 'main'
+    - name: Run Pytest
       run: |
-        BASE_VERSION=$(grep '^version = "' pyproject.toml | cut -d '"' -f 2)
-        SHORT_SHA=$(git rev-parse --short HEAD)
-        
-        FULL_DEV_VERSION="${BASE_VERSION}+${SHORT_SHA}"
-        
-        echo "Branch is not main. Creating dev version: $FULL_DEV_VERSION"
-        
-        echo "full_dev_version=${FULL_DEV_VERSION}" >> $GITHUB_OUTPUT
-        echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-
-    - name: Update pyproject.toml with dev version
-      if: steps.version_sha.outputs.full_dev_version != ''
-      run: |
-        sed -i "s/^version = \".*\"/version = \"${{ steps.version_sha.outputs.full_dev_version }}\"/" pyproject.toml
-        echo "pyproject.toml updated to development version:"
-        grep '^version = ' pyproject.toml
-
-    - name: Build package
-      run: python -m build
-
-    - name: Get final package version for artifact name
-      id: package_info
-      run: |
-        # This step runs unconditionally to get whatever version is currently in the file.
-        # On 'main', it's the original version. On other branches, it's the dev version.
-        FINAL_VERSION=$(grep '^version = "' pyproject.toml | cut -d '"' -f 2)
-        # Sanitize the version string for artifact names (replace '+' with '-')
-        ARTIFACT_VERSION_TAG=$(echo $FINAL_VERSION | sed 's/+/./g')
-        echo "version=${FINAL_VERSION}" >> $GITHUB_OUTPUT
-        echo "artifact_version_tag=${ARTIFACT_VERSION_TAG}" >> $GITHUB_OUTPUT
-
-    - name: Upload distribution packages as artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: bedrock-server-manager-${{ steps.package_info.outputs.artifact_version_tag }}
-        path: dist/
+        python -m pytest
