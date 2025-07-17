@@ -143,7 +143,6 @@ def test_delete_path_robustly_non_existent_path(temp_server_dir):
 from collections import namedtuple
 
 
-@pytest.mark.skip(reason="Test is failing and needs to be fixed later")
 @patch("bedrock_server_manager.core.system.base.PSUTIL_AVAILABLE", True)
 @patch("psutil.Process")
 def test_resource_monitor_get_stats(mock_process):
@@ -161,11 +160,17 @@ def test_resource_monitor_get_stats(mock_process):
     assert stats["cpu_percent"] == 0.0
 
     # Second call to calculate cpu
+    with patch("time.time", return_value=1):
+        stats = monitor.get_stats(mock_proc_instance)
+        assert stats["cpu_percent"] == 0.0
+
+    # Third call to calculate cpu
     mock_proc_instance.cpu_times.return_value = cpu_times(1.0, 1.0)
     with patch("time.time", return_value=2):
-        stats = monitor.get_stats(mock_proc_instance)
-        assert stats["cpu_percent"] > 0.0
-        assert stats["memory_mb"] == 100.0
+        with patch("psutil.cpu_count", return_value=1):
+            stats = monitor.get_stats(mock_proc_instance)
+            assert stats["cpu_percent"] > 0.0
+            assert stats["memory_mb"] == 100.0
 
 
 @patch("bedrock_server_manager.core.system.base.PSUTIL_AVAILABLE", False)
