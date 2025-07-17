@@ -527,21 +527,20 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                 f"Property value for '{property_key}' contains invalid control characters."
             )
 
-        if not os.path.isfile(self.server_properties_path):
-            raise AppFileNotFoundError(
-                self.server_properties_path, "Server properties file"
-            )
+        server_properties_path = self.get_server_properties_path()
+        if not os.path.isfile(server_properties_path):
+            raise AppFileNotFoundError(server_properties_path, "Server properties file")
 
         self.logger.debug(
-            f"Server '{self.server_name}': Setting property '{property_key}' to '{str_value}' in {self.server_properties_path}"
+            f"Server '{self.server_name}': Setting property '{property_key}' to '{str_value}' in {server_properties_path}"
         )
 
         try:
-            with open(self.server_properties_path, "r", encoding="utf-8") as f:
+            with open(server_properties_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
         except OSError as e:
             raise FileOperationError(
-                f"Failed to read '{self.server_properties_path}': {e}"
+                f"Failed to read '{server_properties_path}': {e}"
             ) from e
 
         output_lines = []
@@ -574,14 +573,14 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
             output_lines.append(new_property_line)
 
         try:
-            with open(self.server_properties_path, "w", encoding="utf-8") as f:
+            with open(server_properties_path, "w", encoding="utf-8") as f:
                 f.writelines(output_lines)
             self.logger.info(
                 f"Successfully set property '{property_key}' for '{self.server_name}'."
             )
         except OSError as e:
             raise FileOperationError(
-                f"Failed to write '{self.server_properties_path}': {e}"
+                f"Failed to write '{server_properties_path}': {e}"
             ) from e
 
     def get_server_properties(self) -> Dict[str, str]:
@@ -603,17 +602,16 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
             ConfigParseError: If an ``OSError`` occurs while trying to read the file
                 (e.g., permission issues), effectively making it unparseable.
         """
-        if not os.path.isfile(self.server_properties_path):
-            raise AppFileNotFoundError(
-                self.server_properties_path, "Server properties file"
-            )
+        server_properties_path = self.get_server_properties_path()
+        if not os.path.isfile(server_properties_path):
+            raise AppFileNotFoundError(server_properties_path, "Server properties file")
 
         self.logger.debug(
-            f"Server '{self.server_name}': Parsing {self.server_properties_path}"
+            f"Server '{self.server_name}': Parsing {server_properties_path}"
         )
         properties: Dict[str, str] = {}
         try:
-            with open(self.server_properties_path, "r", encoding="utf-8") as f:
+            with open(server_properties_path, "r", encoding="utf-8") as f:
                 for line_num, line_content in enumerate(f, 1):
                     line = line_content.strip()
                     # Ignore comments and empty lines.
@@ -624,11 +622,11 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                         properties[parts[0].strip()] = parts[1].strip()
                     else:
                         self.logger.warning(
-                            f"Skipping malformed line {line_num} in '{self.server_properties_path}': \"{line}\""
+                            f"Skipping malformed line {line_num} in '{server_properties_path}': \"{line}\""
                         )
         except OSError as e:
             raise ConfigParseError(
-                f"Failed to read '{self.server_properties_path}': {e}"
+                f"Failed to read '{server_properties_path}': {e}"
             ) from e
 
         return properties

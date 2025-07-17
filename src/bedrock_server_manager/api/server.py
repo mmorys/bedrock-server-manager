@@ -36,11 +36,10 @@ else:
 
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..core import BedrockServer
+from ..instances import get_server_instance, get_plugin_manager_instance
 from ..config import EXPATH
 from ..config import API_COMMAND_BLACKLIST
 from ..core.system import (
@@ -58,6 +57,8 @@ from ..error import (
 )
 
 logger = logging.getLogger(__name__)
+
+plugin_manager = get_plugin_manager_instance()
 
 
 @plugin_method("get_server_setting")
@@ -88,7 +89,7 @@ def get_server_setting(server_name: str, key: str) -> Dict[str, Any]:
 
     logger.debug(f"API: Reading server setting for '{server_name}': Key='{key}'")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         # Use the internal method to access any key
         value = server._manage_json_config(key, "read")
         return {"status": "success", "value": value}
@@ -137,7 +138,7 @@ def set_server_setting(server_name: str, key: str, value: Any) -> Dict[str, Any]
         f"API: Writing server setting for '{server_name}': Key='{key}', Value='{value}'"
     )
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         # Use the internal method to write to any key
         server._manage_json_config(key, "write", value)
         return {
@@ -185,7 +186,7 @@ def set_server_custom_value(server_name: str, key: str, value: Any) -> Dict[str,
 
     logger.info(f"API (Plugin): Writing custom value for '{server_name}': Key='{key}'")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         # This method is sandboxed to the 'custom' section
         server.set_custom_config_value(key, value)
         return {
@@ -229,7 +230,7 @@ def get_all_server_settings(server_name: str) -> Dict[str, Any]:
 
     logger.debug(f"API: Reading all settings for server '{server_name}'.")
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         # _load_server_config handles loading and migration
         all_settings = server._load_server_config()
         return {"status": "success", "data": all_settings}
@@ -301,7 +302,7 @@ def start_server(
     logger.info(f"API: Attempting to start server '{server_name}' in '{mode}' mode...")
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
 
         if server.is_running():
             logger.warning(
@@ -472,7 +473,7 @@ def stop_server(server_name: str) -> Dict[str, str]:
     logger.info(f"API: Attempting to stop server '{server_name}'...")
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
 
         if not server.is_running():
             logger.warning(
@@ -607,7 +608,7 @@ def restart_server(server_name: str, send_message: bool = True) -> Dict[str, str
         f"API: Initiating restart for server '{server_name}'. Send message: {send_message}"
     )
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         is_running = server.is_running()
 
         # If server is not running, just start it.
@@ -725,7 +726,7 @@ def send_command(server_name: str, command: str) -> Dict[str, str]:
                 )
                 raise BlockedCommandError(error_msg)
 
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.send_command(command_clean)
 
         logger.info(
@@ -808,7 +809,7 @@ def delete_server_data(
     )
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
 
         # Stop the server first if requested and it's running.
         if stop_if_running and server.is_running():

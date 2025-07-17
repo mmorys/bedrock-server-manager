@@ -29,12 +29,14 @@ import re
 from typing import Dict, List, Optional, Any
 
 # Plugin system imports to bridge API functionality.
-from .. import plugin_manager
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..core import BedrockServer
-from ..config import settings
+from ..instances import (
+    get_server_instance,
+    get_settings_instance,
+    get_plugin_manager_instance,
+)
 from . import player as player_api
 from .utils import (
     server_lifecycle_manager,
@@ -50,6 +52,8 @@ from ..error import (
 )
 
 logger = logging.getLogger(__name__)
+
+plugin_manager = get_plugin_manager_instance()
 
 
 # --- Allowlist ---
@@ -104,7 +108,7 @@ def add_players_to_allowlist_api(
     )
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         added_count = server.add_to_allowlist(new_players_data)
 
         result = {
@@ -162,7 +166,7 @@ def get_server_allowlist_api(server_name: str) -> Dict[str, Any]:
         raise MissingArgumentError("Server name cannot be empty.")
 
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         players = server.get_allowlist()
         return {"status": "success", "players": players}
     except BSMError as e:
@@ -227,7 +231,7 @@ def remove_players_from_allowlist(
                 "details": {"removed": [], "not_found": []},
             }
 
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         removed_players, not_found_players = [], []
 
         # Iterate and remove each player, tracking success and failure.
@@ -312,7 +316,7 @@ def configure_player_permission(
 
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.set_player_permission(xuid, permission, player_name)
 
         result = {
@@ -370,7 +374,7 @@ def get_server_permissions_api(server_name: str) -> Dict[str, Any]:
         return {"status": "error", "message": "Server name cannot be empty."}
 
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         player_name_map: Dict[str, str] = {}
 
         # Fetch global player data to create a XUID -> Name mapping.
@@ -427,7 +431,7 @@ def get_server_properties_api(server_name: str) -> Dict[str, Any]:
     if not server_name:
         return {"status": "error", "message": "Server name cannot be empty."}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         properties = server.get_server_properties()
         return {"status": "success", "properties": properties}
     except AppFileNotFoundError as e:
@@ -597,7 +601,7 @@ def modify_server_properties(
         with server_lifecycle_manager(
             server_name, stop_before=restart_after_modify, restart_on_success_only=True
         ):
-            server = BedrockServer(server_name)
+            server = get_server_instance(server_name)
             for prop_name, prop_value in properties_to_update.items():
                 server.set_server_property(prop_name, prop_value)
 
@@ -677,9 +681,9 @@ def install_new_server(
         if val_res.get("status") == "error":
             raise UserInputError(val_res.get("message"))
 
-        base_dir = settings.get("paths.servers")
+        base_dir = get_settings_instance().get("paths.servers")
         if not base_dir:
-            raise FileOperationError("BASE_DIR not configured in settings.")
+            raise FileOperationError("'paths.servers' not configured in settings.")
         if os.path.exists(os.path.join(base_dir, server_name)):
             raise UserInputError(
                 f"Directory for server '{server_name}' already exists."
@@ -688,7 +692,7 @@ def install_new_server(
         logger.info(
             f"API: Installing new server '{server_name}', target version '{target_version}'."
         )
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         server.install_or_update(target_version, server_zip_path=server_zip_path)
         result = {
             "status": "success",
@@ -765,7 +769,7 @@ def update_server(server_name: str, send_message: bool = True) -> Dict[str, Any]
 
     result = {}
     try:
-        server = BedrockServer(server_name)
+        server = get_server_instance(server_name)
         target_version = server.get_target_version()
 
         plugin_manager.trigger_event(
