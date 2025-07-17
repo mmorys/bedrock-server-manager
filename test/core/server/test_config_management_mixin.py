@@ -247,9 +247,7 @@ def test_set_player_permission_update_existing(config_management_fixture):
     server = config_management_fixture
     server.set_player_permission("12345", "member", "player1")
     server.set_player_permission("12345", "operator", "player1_updated")
-    permissions = server.get_formatted_permissions(
-        {"12345": "player1_updated"}
-    )
+    permissions = server.get_formatted_permissions({"12345": "player1_updated"})
     assert any(
         p["xuid"] == "12345" and p["permission_level"] == "operator"
         for p in permissions
@@ -327,9 +325,7 @@ def test_get_formatted_permissions_xuid_not_in_map(config_management_fixture):
     with open(permissions_path, "w") as f:
         json.dump(permissions_data, f)
     permissions = server.get_formatted_permissions({})
-    assert any(
-        p["xuid"] == "12345" and "Unknown" in p["name"] for p in permissions
-    )
+    assert any(p["xuid"] == "12345" and "Unknown" in p["name"] for p in permissions)
 
 
 def test_get_formatted_permissions(config_management_fixture):
