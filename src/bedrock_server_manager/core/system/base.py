@@ -461,7 +461,7 @@ class ResourceMonitor:
             return None
 
         # Ensure psutil is available before using psutil.Process in isinstance
-        if PSUTIL_AVAILABLE and not isinstance(process, psutil.Process):
+        if PSUTIL_AVAILABLE and not hasattr(process, "pid"):
             raise TypeError(
                 f"Input must be a valid psutil.Process object, got {type(process).__name__}."
             )
