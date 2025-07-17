@@ -11,14 +11,7 @@ from bedrock_server_manager.config.settings import Settings
 
 
 class TestBedrockServer(ServerConfigManagementMixin, BedrockServerBaseMixin):
-    def get_server_properties_path(self):
-        return os.path.join(self.server_dir, "server.properties")
-
-    def get_permissions_path(self):
-        return os.path.join(self.server_dir, "permissions.json")
-
-    def get_allowlist_path(self):
-        return os.path.join(self.server_dir, "allowlist.json")
+    pass
 
 
 @pytest.fixture
@@ -33,7 +26,7 @@ def config_management_fixture():
     os.makedirs(server.server_dir, exist_ok=True)
 
     # Create a default server.properties file for the tests
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
 
@@ -42,27 +35,9 @@ def config_management_fixture():
     shutil.rmtree(temp_dir)
 
 
-def test_get_server_properties_path(config_management_fixture):
-    server = config_management_fixture
-    expected_path = os.path.join(server.server_dir, "server.properties")
-    assert server.get_server_properties_path() == expected_path
-
-
-def test_get_permissions_path(config_management_fixture):
-    server = config_management_fixture
-    expected_path = os.path.join(server.server_dir, "permissions.json")
-    assert server.get_permissions_path() == expected_path
-
-
-def test_get_allowlist_path(config_management_fixture):
-    server = config_management_fixture
-    expected_path = os.path.join(server.server_dir, "allowlist.json")
-    assert server.get_allowlist_path() == expected_path
-
-
 def test_get_server_properties(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
         f.write("key2=value2\n")
@@ -73,7 +48,7 @@ def test_get_server_properties(config_management_fixture):
 
 def test_set_server_property(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
 
@@ -87,7 +62,7 @@ def test_set_server_property(config_management_fixture):
 
 def test_get_allowlist(config_management_fixture):
     server = config_management_fixture
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     allowlist_data = [{"name": "player1", "xuid": "12345", "ignoresPlayerLimit": False}]
     with open(allowlist_path, "w") as f:
         json.dump(allowlist_data, f)
@@ -101,7 +76,7 @@ def test_add_to_allowlist(config_management_fixture):
     allowlist_data = [{"name": "player1", "xuid": "12345"}]
     server.add_to_allowlist(allowlist_data)
 
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     with open(allowlist_path, "r") as f:
         data = json.load(f)
         assert data == [
@@ -117,7 +92,7 @@ def test_get_allowlist_missing_file(config_management_fixture):
 
 def test_get_allowlist_empty_file(config_management_fixture):
     server = config_management_fixture
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     with open(allowlist_path, "w") as f:
         f.write("")
 
@@ -127,7 +102,7 @@ def test_get_allowlist_empty_file(config_management_fixture):
 
 def test_get_allowlist_invalid_json(config_management_fixture):
     server = config_management_fixture
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     with open(allowlist_path, "w") as f:
         f.write("{invalid_json}")
 
@@ -137,7 +112,7 @@ def test_get_allowlist_invalid_json(config_management_fixture):
 
 def test_get_allowlist_json_object(config_management_fixture):
     server = config_management_fixture
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     with open(allowlist_path, "w") as f:
         json.dump({"key": "value"}, f)
 
@@ -200,7 +175,7 @@ def test_add_to_allowlist_multiple_players(config_management_fixture):
 
 def test_add_to_allowlist_unwritable_file(config_management_fixture):
     server = config_management_fixture
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     with open(allowlist_path, "w") as f:
         f.write("[]")
     os.chmod(allowlist_path, 0o444)  # Read-only
@@ -226,7 +201,7 @@ def test_remove_from_allowlist_unwritable_file(config_management_fixture):
     server = config_management_fixture
     players_to_add = [{"name": "player1", "xuid": "12345"}]
     server.add_to_allowlist(players_to_add)
-    allowlist_path = server.get_allowlist_path()
+    allowlist_path = server.allowlist_json_path
     os.chmod(allowlist_path, 0o444)  # Read-only
     with pytest.raises(Exception):
         server.remove_from_allowlist("player1")
@@ -285,7 +260,7 @@ def test_set_player_permission_non_existent_file(config_management_fixture):
 
 def test_set_player_permission_unwritable_file(config_management_fixture):
     server = config_management_fixture
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     with open(permissions_path, "w") as f:
         f.write("[]")
     os.chmod(permissions_path, 0o444)  # Read-only
@@ -302,7 +277,7 @@ def test_get_formatted_permissions_missing_file(config_management_fixture):
 
 def test_get_formatted_permissions_empty_file(config_management_fixture):
     server = config_management_fixture
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     with open(permissions_path, "w") as f:
         f.write("[]")
     permissions = server.get_formatted_permissions({})
@@ -311,7 +286,7 @@ def test_get_formatted_permissions_empty_file(config_management_fixture):
 
 def test_get_formatted_permissions_malformed_entries(config_management_fixture):
     server = config_management_fixture
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     with open(permissions_path, "w") as f:
         f.write('[{"xuid": "12345"}, {"permission": "operator"}]')
     permissions = server.get_formatted_permissions({})
@@ -320,7 +295,7 @@ def test_get_formatted_permissions_malformed_entries(config_management_fixture):
 
 def test_get_formatted_permissions_xuid_not_in_map(config_management_fixture):
     server = config_management_fixture
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     permissions_data = [{"permission": "operator", "xuid": "12345"}]
     with open(permissions_path, "w") as f:
         json.dump(permissions_data, f)
@@ -330,7 +305,7 @@ def test_get_formatted_permissions_xuid_not_in_map(config_management_fixture):
 
 def test_get_formatted_permissions(config_management_fixture):
     server = config_management_fixture
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     permissions_data = [{"permission": "operator", "xuid": "12345"}]
     with open(permissions_path, "w") as f:
         json.dump(permissions_data, f)
@@ -345,7 +320,7 @@ def test_set_player_permission(config_management_fixture):
     server = config_management_fixture
     server.set_player_permission("12345", "operator", "player1")
 
-    permissions_path = server.get_permissions_path()
+    permissions_path = server.permissions_json_path
     with open(permissions_path, "r") as f:
         data = json.load(f)
         assert data == [{"permission": "operator", "xuid": "12345", "name": "player1"}]
@@ -373,7 +348,7 @@ def test_set_server_property_invalid_value(config_management_fixture):
 
 def test_set_server_property_missing_file(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
     os.remove(properties_path)
@@ -383,7 +358,7 @@ def test_set_server_property_missing_file(config_management_fixture):
 
 def test_set_server_property_unwritable_file(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
     os.chmod(properties_path, 0o444)  # Read-only
@@ -394,7 +369,7 @@ def test_set_server_property_unwritable_file(config_management_fixture):
 
 def test_get_server_properties_missing_file(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     os.remove(properties_path)
     with pytest.raises(Exception):
         server.get_server_properties()
@@ -402,7 +377,7 @@ def test_get_server_properties_missing_file(config_management_fixture):
 
 def test_get_server_properties_empty_file(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("")
     properties = server.get_server_properties()
@@ -411,7 +386,7 @@ def test_get_server_properties_empty_file(config_management_fixture):
 
 def test_get_server_properties_malformed_lines(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     with open(properties_path, "w") as f:
         f.write("key1=value1\n")
         f.write("malformed_line\n")
@@ -434,7 +409,7 @@ def test_get_server_property_non_existent_with_default(config_management_fixture
 
 def test_get_server_property_missing_file(config_management_fixture):
     server = config_management_fixture
-    properties_path = server.get_server_properties_path()
+    properties_path = server.server_properties_path
     os.remove(properties_path)
     value = server.get_server_property("key1", default="default_value")
     assert value == "default_value"

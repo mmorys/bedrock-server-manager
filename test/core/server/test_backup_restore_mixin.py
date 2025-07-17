@@ -88,6 +88,8 @@ def test_list_backups(backup_restore_fixture):
     time.sleep(1)
     server.backup_all_data()
 
+    server.prune_server_backups("Bedrock level_backup_", "mcworld")
+
     backups = server.list_backups("world")
     assert len(backups) == 2
 

@@ -108,6 +108,10 @@ class BedrockServerBaseMixin:
             self.settings = settings_instance
         else:
             self.settings = get_settings_instance()
+
+        if self.settings is None:
+            raise ConfigurationError("Settings instance is not available.")
+
         self.logger.debug(
             f"BedrockServerBaseMixin for '{self.server_name}' initialized using settings from: {self.settings.config_path}"
         )
@@ -184,6 +188,21 @@ class BedrockServerBaseMixin:
         Typically ``<server_dir>/server_output.txt``.
         """
         return os.path.join(self.server_dir, "server_output.txt")
+
+    @cached_property
+    def server_properties_path(self) -> str:
+        """str: The absolute path to this server's ``server.properties`` file."""
+        return os.path.join(self.server_dir, "server.properties")
+
+    @cached_property
+    def allowlist_json_path(self) -> str:
+        """str: The absolute path to this server's ``allowlist.json`` file."""
+        return os.path.join(self.server_dir, "allowlist.json")
+
+    @cached_property
+    def permissions_json_path(self) -> str:
+        """str: The absolute path to this server's ``permissions.json`` file."""
+        return os.path.join(self.server_dir, "permissions.json")
 
     @cached_property
     def server_config_dir(self) -> str:
