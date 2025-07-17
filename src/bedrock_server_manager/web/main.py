@@ -186,5 +186,10 @@ app.include_router(routers.util_router)
 
 if __name__ == "__main__":
     import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
 
-    uvicorn.run(app, host="127.0.0.1", port=11325)
+    # To prevent uvicorn from taking over the logger, we need to disable it.
+    # More info: https://github.com/encode/uvicorn/issues/1285
+    LOGGING_CONFIG["loggers"]["uvicorn"]["propagate"] = True
+
+    uvicorn.run(app, host="127.0.0.1", port=11325, log_config=LOGGING_CONFIG)

@@ -69,7 +69,7 @@ def test_scan_log_for_players_no_player_entries(player_mixin_fixture):
 
 def test_scan_log_for_players_malformed_entries(player_mixin_fixture):
     server, _ = player_mixin_fixture
-    log_path = os.path.join(server.server_dir, "server.log")
+    log_path = os.path.join(server.server_dir, "server_output.txt")
     with open(log_path, "w") as f:
         f.write("Player connected: Player1, xuid: \n")  # malformed
         f.write("Player connected: , xuid: 123\n")  # malformed

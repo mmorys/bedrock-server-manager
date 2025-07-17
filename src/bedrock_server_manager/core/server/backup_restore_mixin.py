@@ -290,12 +290,12 @@ class ServerBackupMixin(BedrockServerBaseMixin):
 
         try:
             num_to_keep = int(backup_keep_count)
-            if num_to_keep < 0:  # Allowing 0 means delete all but 0 (i.e., delete all)
-                raise ValueError("Retention count cannot be negative.")
-        except (ValueError, TypeError) as e_val:
+            if num_to_keep < 0:
+                raise ValueError
+        except (ValueError, TypeError):
             raise UserInputError(
                 f"Invalid 'retention.backups' setting value: '{backup_keep_count}'. Must be a non-negative integer."
-            ) from e_val
+            )
 
         cleaned_ext = file_extension.lstrip(".").strip()
         if not cleaned_ext:  # Should have been caught by initial check, but defensive

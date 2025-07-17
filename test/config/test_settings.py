@@ -273,7 +273,7 @@ def test_settings_app_data_dir_override(tmp_path: Path, monkeypatch):
 def test_settings_default_paths_without_env_override(tmp_path: Path, monkeypatch):
     """Test default path determination when BSM_DATA_DIR is not set."""
     # Ensure the env var is not set for this test
-    monkeypatch.delenv(f"{package_name.upper()}_DATA_DIR", raising=False)
+    monkeypatch.delenv(f"{env_name}_DATA_DIR", raising=False)
 
     # We need to control where the home directory is perceived to be for consistent testing
     # We'll patch os.path.expanduser for this test

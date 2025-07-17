@@ -192,10 +192,17 @@ def run_web_server(
     logger.info(f"Listening on: http://{final_host_to_bind}:{port}")
 
     try:
+        from uvicorn.config import LOGGING_CONFIG
+
+        # To prevent uvicorn from taking over the logger, we need to disable it.
+        # More info: https://github.com/encode/uvicorn/issues/1285
+        LOGGING_CONFIG["loggers"]["uvicorn"]["propagate"] = True
+
         uvicorn.run(
             "bedrock_server_manager.web.main:app",  # Path to the FastAPI app instance as a string
             host=final_host_to_bind,
             port=port,
+            log_config=LOGGING_CONFIG,
             log_level=uvicorn_log_level.lower(),  # Ensure log level is lowercase
             reload=reload_enabled,
             workers=1,  # workers if not reload_enabled and workers > 1 else None,
