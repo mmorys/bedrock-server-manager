@@ -149,6 +149,8 @@ def manager_instance(mock_manager_settings, temp_manager_dirs, mocker):
             dummy_cfg_path / "fixture_default_cfg.json"
         )
 
+    # Reset the singleton instance before each test
+    BedrockServerManager._instance = None
     manager = BedrockServerManager()
     manager._expath = "/dummy/bsm_executable"  # Also ensure the instance attribute is set if used directly
     return manager
@@ -209,6 +211,7 @@ def test_manager_get_and_set_setting(manager_instance, mock_manager_settings):
 
 def test_manager_initialization_missing_critical_paths(mocker):
     """Test initialization fails if paths.servers or paths.content is missing."""
+    BedrockServerManager._instance = None
     settings_missing_servers = mocker.MagicMock(spec=Settings)
     type(settings_missing_servers).app_data_dir = mocker.PropertyMock(
         return_value="dummy_app_data"
@@ -233,6 +236,7 @@ def test_manager_initialization_missing_critical_paths(mocker):
     ):
         BedrockServerManager()
 
+    BedrockServerManager._instance = None
     settings_missing_content = mocker.MagicMock(spec=Settings)
     type(settings_missing_content).app_data_dir = mocker.PropertyMock(
         return_value="dummy_app_data"
@@ -284,6 +288,7 @@ def test_manager_system_capabilities_check(
     caplog,
 ):
     """Test _check_system_capabilities and _log_capability_warnings."""
+    BedrockServerManager._instance = None
     caplog.set_level(logging.WARNING)
     mocker.patch("platform.system", return_value=os_type)
     mock_manager_settings.config_path = "dummy/config.json"  # Added config_path
