@@ -11,7 +11,7 @@ By overriding the various event hook methods defined in this base class
 react to specific events triggered by the core application or other parts
 of the server manager.
 """
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 from logging import Logger  # Used for type hinting the logger instance.
 from pathlib import Path  # For type hinting Path objects
@@ -103,6 +103,7 @@ class PluginBase(ABC):
 
     # --- Plugin Lifecycle Hooks ---
 
+    @abstractmethod
     def on_load(self):
         """Called by the :class:`~bedrock_server_manager.plugins.plugin_manager.PluginManager`
         when the plugin is first loaded and initialized.
@@ -112,11 +113,9 @@ class PluginBase(ABC):
         registering listeners for custom events, loading its own configuration,
         or initializing internal state.
 
-        Plugins should override this method to implement their load-time logic.
-        The base implementation does nothing.
+        Plugins must override this method to implement their load-time logic.
         """
-        # self.logger.debug(f"Plugin '{self.name}' v{self.version}: on_load() called.")
-        pass
+        raise NotImplementedError
 
     def on_unload(self):
         """Called by the :class:`~bedrock_server_manager.plugins.plugin_manager.PluginManager`
