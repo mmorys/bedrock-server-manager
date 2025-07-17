@@ -22,7 +22,7 @@ import logging
 
 from . import templating
 from ..config import get_installed_version
-from .. import plugin_manager as global_api_plugin_manager
+from ..instances import get_plugin_manager_instance
 
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -34,9 +34,9 @@ version = get_installed_version()
 # Start with the main application's template directory
 all_template_dirs = [Path(TEMPLATES_DIR)]
 
-web_main_templating_logger = logging.getLogger(
-    "bsm_web_main_templating_setup"
-)  # Specific logger
+web_main_templating_logger = logging.getLogger("bsm_web_main_templating_setup")
+
+global_api_plugin_manager = get_plugin_manager_instance()
 
 if global_api_plugin_manager and hasattr(
     global_api_plugin_manager, "plugin_template_paths"
@@ -108,20 +108,6 @@ app.include_router(routers.plugin_router)
 # --- Dynamically include FastAPI routers from plugins ---
 
 import logging  # Use standard logging
-
-# Import the shared plugin_manager from the api module
-try:
-    from .. import plugin_manager as global_api_plugin_manager
-except ImportError as e_imp_pm_web:
-    # Fallback or error logging if it cannot be imported
-    # This should ideally not happen if the application structure is correct
-    # and api.__init__.py has done its job.
-    logging.getLogger("bsm_web_main_plugin_loader").critical(
-        f"CRITICAL: Could not import global_api_plugin_manager from bedrock_server_manager.api: {e_imp_pm_web}. "
-        "Plugin FastAPI extensions will be unavailable.",
-        exc_info=True,
-    )
-    global_api_plugin_manager = None
 
 
 web_main_plugin_logger = logging.getLogger(

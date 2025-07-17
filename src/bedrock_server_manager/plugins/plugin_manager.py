@@ -52,21 +52,36 @@ _custom_event_context = threading.local()
 
 
 class PluginManager:
-    """Manages the discovery, loading, configuration, and lifecycle of all plugins.
+    """Manages the discovery, loading, aconfiguration, and lifecycle of all plugins.
 
     This class is the core of the plugin system. It scans for plugins,
     manages their configuration in ``plugins.json``, loads enabled plugins,
     and dispatches various events to them.
     """
 
-    def __init__(self):
-        """Initializes the PluginManager.
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(PluginManager, cls).__new__(cls)
+            # Initialization logic moved to a separate method
+            # to avoid re-running it on every "call" to the singleton.
+            cls._instance._init_once()
+        return cls._instance
+
+    def _init_once(self):
+        """
+        Initializes the PluginManager. This method is called only once.
 
         Sets up plugin directories (user and default), determines the path for
         ``plugins.json``, initializes internal state for plugin configurations,
         loaded plugin instances, and custom event listeners. It also ensures
         that the configured plugin directories exist on the filesystem.
         """
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+        self._initialized = True
+
         self.settings = get_settings_instance()
         user_plugin_dir = Path(self.settings.get("paths.plugins"))
         default_plugin_dir = Path(__file__).parent / "default"
