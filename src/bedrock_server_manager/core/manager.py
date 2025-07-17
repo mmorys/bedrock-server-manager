@@ -104,9 +104,17 @@ class BedrockServerManager:
         _WEB_SERVICE_WINDOWS_DISPLAY_NAME (str): Display name for the Web UI Windows service.
     """
 
-    def __init__(self) -> None:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(BedrockServerManager, cls).__new__(cls)
+            cls._instance._init_once()
+        return cls._instance
+
+    def _init_once(self) -> None:
         """
-        Initializes the BedrockServerManager instance.
+        Initializes the BedrockServerManager instance. This method is called only once.
 
         This constructor sets up the manager by:
 
@@ -133,6 +141,10 @@ class BedrockServerManager:
                 constants cannot be accessed.
         """
         from ..instances import get_settings_instance
+
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+        self._initialized = True
 
         self.settings = get_settings_instance()
         logger.debug(
