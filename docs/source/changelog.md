@@ -5,6 +5,9 @@
 :width: 200px
 :align: center
 ```
+## 3.5.4
+1. FIxed custom cli/web plugins not being loaded correctly.
+
 ## 3.5.3
 1. Optimzed class initialization
 
