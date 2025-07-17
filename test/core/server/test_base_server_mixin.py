@@ -167,3 +167,57 @@ def test_permissions_json_path(base_server_mixin_fixture):
     )
     expected_path = os.path.join(server.server_dir, "permissions.json")
     assert server.permissions_json_path == expected_path
+
+
+def test_init_with_missing_manager_expath(base_server_mixin_fixture):
+    temp_dir, server_name, settings, _ = base_server_mixin_fixture
+    with patch(
+        "bedrock_server_manager.core.server.base_server_mixin.CONST_EXPATH", ""
+    ) as mock_const_expath:
+        server = BedrockServerBaseMixin(
+            server_name=server_name,
+            settings_instance=settings,
+            manager_expath=None,
+        )
+        assert server.manager_expath == ""
+
+
+def test_all_cached_properties(base_server_mixin_fixture):
+    temp_dir, server_name, settings, manager_expath = base_server_mixin_fixture
+    server = BedrockServerBaseMixin(
+        server_name=server_name,
+        settings_instance=settings,
+        manager_expath=manager_expath,
+    )
+
+    # bedrock_executable_name
+    if platform.system() == "Windows":
+        assert server.bedrock_executable_name == "bedrock_server.exe"
+    else:
+        assert server.bedrock_executable_name == "bedrock_server"
+
+    # bedrock_executable_path
+    expected_executable_path = os.path.join(
+        server.server_dir, server.bedrock_executable_name
+    )
+    assert server.bedrock_executable_path == expected_executable_path
+
+    # server_log_path
+    expected_log_path = os.path.join(server.server_dir, "server_output.txt")
+    assert server.server_log_path == expected_log_path
+
+    # server_properties_path
+    expected_properties_path = os.path.join(server.server_dir, "server.properties")
+    assert server.server_properties_path == expected_properties_path
+
+    # allowlist_json_path
+    expected_allowlist_path = os.path.join(server.server_dir, "allowlist.json")
+    assert server.allowlist_json_path == expected_allowlist_path
+
+    # permissions_json_path
+    expected_permissions_path = os.path.join(server.server_dir, "permissions.json")
+    assert server.permissions_json_path == expected_permissions_path
+
+    # server_config_dir
+    expected_config_dir = os.path.join(server.app_config_dir, server.server_name)
+    assert server.server_config_dir == expected_config_dir

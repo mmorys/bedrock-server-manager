@@ -40,6 +40,38 @@ def test_is_installed_false(installation_mixin_fixture):
     assert server.is_installed() is False
 
 
+from bedrock_server_manager.error import AppFileNotFoundError
+
+
 def test_is_installed_dir_exists_no_exe(installation_mixin_fixture):
     server, _ = installation_mixin_fixture
     assert server.is_installed() is False
+
+
+def test_validate_installation_no_dir(installation_mixin_fixture):
+    server, _ = installation_mixin_fixture
+    shutil.rmtree(server.server_dir)
+    with pytest.raises(AppFileNotFoundError):
+        server.validate_installation()
+
+
+def test_validate_installation_no_exe(installation_mixin_fixture):
+    server, _ = installation_mixin_fixture
+    with pytest.raises(AppFileNotFoundError):
+        server.validate_installation()
+
+
+def test_set_filesystem_permissions_not_installed(installation_mixin_fixture):
+    server, _ = installation_mixin_fixture
+    with pytest.raises(AppFileNotFoundError):
+        server.set_filesystem_permissions()
+
+
+from unittest.mock import patch
+
+
+def test_delete_all_data_missing_backup_dir(installation_mixin_fixture):
+    server, _ = installation_mixin_fixture
+    # No exception should be raised
+    with patch.object(server, "is_running", return_value=False, create=True):
+        server.delete_all_data()

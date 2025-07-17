@@ -46,6 +46,34 @@ def test_get_server_properties(config_management_fixture):
     assert properties == {"key1": "value1", "key2": "value2"}
 
 
+def test_get_server_properties_empty_file(config_management_fixture):
+    server = config_management_fixture
+    properties_path = server.server_properties_path
+    with open(properties_path, "w") as f:
+        f.write("")
+
+    properties = server.get_server_properties()
+    assert properties == {}
+
+
+def test_get_server_properties_malformed_line(config_management_fixture):
+    server = config_management_fixture
+    properties_path = server.server_properties_path
+    with open(properties_path, "w") as f:
+        f.write("key1=value1\n")
+        f.write("malformed\n")
+        f.write("key2=value2\n")
+
+    properties = server.get_server_properties()
+    assert properties == {"key1": "value1", "key2": "value2"}
+
+
+def test_get_server_property_missing_file(config_management_fixture):
+    server = config_management_fixture
+    os.remove(server.server_properties_path)
+    assert server.get_server_property("key1", "default") == "default"
+
+
 def test_set_server_property(config_management_fixture):
     server = config_management_fixture
     properties_path = server.server_properties_path

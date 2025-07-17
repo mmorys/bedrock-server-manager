@@ -106,7 +106,7 @@ class ServerPlayerMixin(BedrockServerBaseMixin):
                             match.group(2).strip(),
                         )
                         # Only add the player if they haven't been found in this scan yet.
-                        if xuid not in unique_xuids:
+                        if xuid and player_name and xuid not in unique_xuids:
                             players_data.append({"name": player_name, "xuid": xuid})
                             unique_xuids.add(xuid)
                             self.logger.debug(

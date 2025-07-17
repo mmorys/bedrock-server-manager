@@ -63,6 +63,33 @@ def test_get_status_unknown(state_mixin_fixture):
         assert server.get_status() == "UNKNOWN"
 
 
+def test_load_server_config_empty_file(state_mixin_fixture):
+    server, _ = state_mixin_fixture
+    with open(server._server_specific_json_config_file_path, "w") as f:
+        f.write("")
+    config = server._load_server_config()
+    assert config["server_info"]["status"] == "UNKNOWN"
+
+
+def test_load_server_config_corrupted_file(state_mixin_fixture):
+    server, _ = state_mixin_fixture
+    with open(server._server_specific_json_config_file_path, "w") as f:
+        f.write("{corrupted_json}")
+    config = server._load_server_config()
+    assert config["server_info"]["status"] == "UNKNOWN"
+
+
+def test_manage_json_config_invalid_key(state_mixin_fixture):
+    server, _ = state_mixin_fixture
+    assert server._manage_json_config("invalid.key", "read") is None
+
+
+def test_manage_json_config_invalid_operation(state_mixin_fixture):
+    server, _ = state_mixin_fixture
+    with pytest.raises(Exception):
+        server._manage_json_config("server_info.status", "invalid_op")
+
+
 def test_set_status_in_config(state_mixin_fixture):
     server, _ = state_mixin_fixture
     server._manage_json_config("server_info.status", "write", "STOPPED")

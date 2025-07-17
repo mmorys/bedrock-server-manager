@@ -69,6 +69,9 @@ def test_export_world_directory_to_mcworld(world_mixin_fixture):
         assert "db/test.ldb" in zip_ref.namelist()
 
 
+from bedrock_server_manager.error import ExtractError, AppFileNotFoundError
+
+
 def test_import_active_world_from_mcworld(world_mixin_fixture):
     server, temp_dir = world_mixin_fixture
     world_name = "world1"
@@ -84,3 +87,34 @@ def test_import_active_world_from_mcworld(world_mixin_fixture):
     assert os.path.exists(
         os.path.join(server.server_dir, "worlds", world_name, "test.txt")
     )
+
+
+def test_extract_mcworld_to_directory_invalid_zip(world_mixin_fixture):
+    server, temp_dir = world_mixin_fixture
+    invalid_zip_path = os.path.join(temp_dir, "invalid.mcworld")
+    with open(invalid_zip_path, "w") as f:
+        f.write("not a zip")
+    with pytest.raises(ExtractError):
+        server.extract_mcworld_to_directory(invalid_zip_path, "world1")
+
+
+def test_export_world_directory_to_mcworld_no_source(world_mixin_fixture):
+    server, temp_dir = world_mixin_fixture
+    with pytest.raises(AppFileNotFoundError):
+        server.export_world_directory_to_mcworld(
+            "non_existent_world", os.path.join(temp_dir, "export.mcworld")
+        )
+
+
+from unittest.mock import patch
+
+
+def test_delete_active_world_directory_not_exist(world_mixin_fixture):
+    server, _ = world_mixin_fixture
+    with patch.object(server, "get_world_name", return_value="non_existent_world"):
+        assert server.delete_active_world_directory() is True
+
+
+def test_has_world_icon_missing(world_mixin_fixture):
+    server, _ = world_mixin_fixture
+    assert server.has_world_icon() is False

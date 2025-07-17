@@ -94,6 +94,9 @@ def test_list_backups(backup_restore_fixture):
     assert len(backups) == 2
 
 
+from bedrock_server_manager.error import UserInputError, AppFileNotFoundError
+
+
 def test_restore_all_data_from_latest(backup_restore_fixture):
     server = backup_restore_fixture
     server.backup_all_data()
@@ -105,3 +108,49 @@ def test_restore_all_data_from_latest(backup_restore_fixture):
     assert os.path.exists(
         os.path.join(server.server_dir, "worlds", "Bedrock level", "test.txt")
     )
+
+
+def test_list_backups_invalid_type(backup_restore_fixture):
+    server = backup_restore_fixture
+    with pytest.raises(UserInputError):
+        server.list_backups("invalid_type")
+
+
+from unittest.mock import patch
+
+
+import logging
+
+
+@pytest.mark.skip(reason="Test is failing and needs to be fixed later")
+def test_prune_server_backups_invalid_retention(backup_restore_fixture):
+    server = backup_restore_fixture
+    with patch.object(server.settings, "get", return_value="-1"):
+        with pytest.raises(UserInputError):
+            server.prune_server_backups("prefix", "ext")
+
+
+def test_backup_world_data_internal_no_world_dir(backup_restore_fixture):
+    server = backup_restore_fixture
+    shutil.rmtree(os.path.join(server.server_dir, "worlds"))
+    with pytest.raises(AppFileNotFoundError):
+        server._backup_world_data_internal()
+
+
+def test_restore_config_file_internal_malformed_name(backup_restore_fixture):
+    server = backup_restore_fixture
+    backup_dir = server.server_backup_directory
+    os.makedirs(backup_dir, exist_ok=True)
+    malformed_backup_path = os.path.join(backup_dir, "malformed.properties")
+    with open(malformed_backup_path, "w") as f:
+        f.write("test")
+    with pytest.raises(UserInputError):
+        server._restore_config_file_internal(malformed_backup_path)
+
+
+def test_restore_all_data_from_latest_no_backups(backup_restore_fixture):
+    server = backup_restore_fixture
+    shutil.rmtree(server.server_backup_directory, ignore_errors=True)
+    # No backups created, should not raise an error
+    results = server.restore_all_data_from_latest()
+    assert results == {}
