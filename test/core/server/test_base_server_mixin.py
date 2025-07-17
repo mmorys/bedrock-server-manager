@@ -103,3 +103,67 @@ def test_get_pid_file_path(base_server_mixin_fixture):
     expected_filename = f"bedrock_{server_name}.pid"
     expected_path = os.path.join(server.server_config_dir, expected_filename)
     assert server.get_pid_file_path() == expected_path
+
+
+def test_init_no_server_name():
+    with pytest.raises(MissingArgumentError):
+        BedrockServerBaseMixin(server_name="", settings_instance=Settings())
+
+
+from unittest.mock import patch
+
+
+def test_init_no_settings():
+    with patch(
+        "bedrock_server_manager.core.server.base_server_mixin.get_settings_instance"
+    ) as mock_get_settings:
+        mock_get_settings.return_value = None
+        with pytest.raises(ConfigurationError):
+            BedrockServerBaseMixin(server_name="test_server", settings_instance=None)
+
+
+def test_init_no_base_dir():
+    settings = Settings()
+    settings.set("paths.servers", None)
+    with pytest.raises(ConfigurationError):
+        BedrockServerBaseMixin(server_name="test_server", settings_instance=settings)
+
+
+def test_init_no_app_config_dir():
+    settings = Settings()
+    settings._config_dir_path = None
+    with pytest.raises(ConfigurationError):
+        BedrockServerBaseMixin(server_name="test_server", settings_instance=settings)
+
+
+def test_server_properties_path(base_server_mixin_fixture):
+    _, server_name, settings, manager_expath = base_server_mixin_fixture
+    server = BedrockServerBaseMixin(
+        server_name=server_name,
+        settings_instance=settings,
+        manager_expath=manager_expath,
+    )
+    expected_path = os.path.join(server.server_dir, "server.properties")
+    assert server.server_properties_path == expected_path
+
+
+def test_allowlist_json_path(base_server_mixin_fixture):
+    _, server_name, settings, manager_expath = base_server_mixin_fixture
+    server = BedrockServerBaseMixin(
+        server_name=server_name,
+        settings_instance=settings,
+        manager_expath=manager_expath,
+    )
+    expected_path = os.path.join(server.server_dir, "allowlist.json")
+    assert server.allowlist_json_path == expected_path
+
+
+def test_permissions_json_path(base_server_mixin_fixture):
+    _, server_name, settings, manager_expath = base_server_mixin_fixture
+    server = BedrockServerBaseMixin(
+        server_name=server_name,
+        settings_instance=settings,
+        manager_expath=manager_expath,
+    )
+    expected_path = os.path.join(server.server_dir, "permissions.json")
+    assert server.permissions_json_path == expected_path

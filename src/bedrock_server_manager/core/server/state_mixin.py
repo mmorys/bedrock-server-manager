@@ -687,15 +687,6 @@ class ServerStateMixin(BedrockServerBaseMixin):
             f"Custom config for '{self.server_name}' set: Key='{key}', Value='{value}'."
         )
 
-    @property
-    def server_properties_path(self) -> str:
-        """str: The absolute path to this server's ``server.properties`` file.
-
-        This is constructed by joining :attr:`.BedrockServerBaseMixin.server_dir`
-        with "server.properties".
-        """
-        return os.path.join(self.server_dir, "server.properties")
-
     def get_world_name(self) -> str:
         """Reads the ``level-name`` property from the server's ``server.properties`` file.
 

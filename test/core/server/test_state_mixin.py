@@ -85,7 +85,7 @@ def test_get_and_set_target_version(state_mixin_fixture):
 
 def test_get_world_name_success(state_mixin_fixture):
     server, _ = state_mixin_fixture
-    with open(server.get_server_properties_path(), "w") as f:
+    with open(server.server_properties_path, "w") as f:
         f.write("level-name=MyWorld\n")
     assert server.get_world_name() == "MyWorld"
 
@@ -101,7 +101,7 @@ def test_get_world_name_no_properties(state_mixin_fixture):
 
 def test_get_world_name_no_level_name(state_mixin_fixture):
     server, _ = state_mixin_fixture
-    with open(server.get_server_properties_path(), "w") as f:
+    with open(server.server_properties_path, "w") as f:
         f.write("other-setting=value\n")
     with pytest.raises(ConfigParseError):
         server.get_world_name()

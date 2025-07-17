@@ -61,14 +61,6 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
         # Attributes from BedrockServerBaseMixin (e.g., self.server_dir, self.logger) are available.
 
     # --- ALLOWLIST METHODS ---
-    @property
-    def allowlist_json_path(self) -> str:
-        """str: The absolute path to this server's ``allowlist.json`` file.
-
-        Constructed using :attr:`~.BedrockServerBaseMixin.server_dir`.
-        """
-        return os.path.join(self.server_dir, "allowlist.json")
-
     def get_allowlist(self) -> List[Dict[str, Any]]:
         """Loads and returns the content of the server's ``allowlist.json`` file.
 
@@ -279,14 +271,6 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
             return False
 
     # --- PERMISSIONS.JSON METHODS ---
-    @property
-    def permissions_json_path(self) -> str:
-        """str: The absolute path to this server's ``permissions.json`` file.
-
-        Constructed using :attr:`~.BedrockServerBaseMixin.server_dir`.
-        """
-        return os.path.join(self.server_dir, "permissions.json")
-
     def set_player_permission(
         self, xuid: str, permission_level: str, player_name: Optional[str] = None
     ) -> None:
