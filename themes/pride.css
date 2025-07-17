@@ -1,0 +1,187 @@
+/*
+ * Theme: Animated Pride
+ * Description: An animated rainbow theme with semi-transparent white containers
+ * for a brighter look, using !important to ensure styles are applied.
+ */
+
+/* ==========================================================================
+   Rainbow Animations
+   ========================================================================== */
+
+@keyframes rainbow-background {
+    0% {
+        background-color: rgba(228, 3, 3, 0.75);
+    }
+
+    16% {
+        background-color: rgba(255, 140, 0, 0.75);
+    }
+
+    33% {
+        background-color: rgba(255, 237, 0, 0.7);
+    }
+
+    50% {
+        background-color: rgba(0, 128, 38, 0.75);
+    }
+
+    66% {
+        background-color: rgba(0, 77, 255, 0.75);
+    }
+
+    83% {
+        background-color: rgba(117, 7, 135, 0.75);
+    }
+
+    100% {
+        background-color: rgba(228, 3, 3, 0.75);
+    }
+}
+
+@keyframes rainbow-border {
+    0% {
+        border-color: #E40303;
+    }
+
+    16% {
+        border-color: #FF8C00;
+    }
+
+    33% {
+        border-color: #FFED00;
+    }
+
+    50% {
+        border-color: #008026;
+    }
+
+    66% {
+        border-color: #004DFF;
+    }
+
+    83% {
+        border-color: #750787;
+    }
+
+    100% {
+        border-color: #E40303;
+    }
+}
+
+/* ==========================================================================
+   Theme Variables (:root)
+   ========================================================================== */
+
+:root {
+    /* --- Core Settings --- */
+    --background-overlay-color: transparent;
+    /* --- White Containers & Dark Text --- */
+    --container-background-color: rgba(255, 255, 255, 0.45);
+    --server-card-background-color: rgba(255, 255, 255, 0.4);
+    --server-card-hover-background-color: rgba(255, 255, 255, 0.55);
+    --form-input-background-color: rgba(240, 240, 240, 0.5);
+    --sidebar-background-color: rgba(255, 255, 255, 0.45);
+    --text-color: #111; /* Dark text for readability on white */
+    --header-text-color: #000;
+    --form-label-text-color: #111;
+    --form-input-text-color: #000;
+    --server-card-info-text-color: #333;
+    --server-card-info-label-color: #000;
+    --sidebar-link-text-color: #111;
+    /* --- Animated Border & Splash --- */
+    --border-color: #E40303; /* Fallback */
+    --splash-text-color: var(--pride-blue);
+    /* --- Pride Colors --- */
+    --pride-red: #E40303;
+    --pride-orange: #FF8C00;
+    --pride-yellow: #FFED00;
+    --pride-green: #008026;
+    --pride-blue: #004DFF;
+    --pride-purple: #750787;
+    /* --- Buttons --- */
+    --button-background-color: #f0f0f0;
+    --button-border-color: #ccc;
+    --button-text-color: #111;
+    --button-hover-background-color: #e0e0e0;
+    --button-hover-border-color: #bbb;
+    --primary-button-background-color: var(--pride-blue);
+    --primary-button-border-color: #336fff;
+    --primary-button-text-color: #fff; /* Keep text white on colored buttons */
+
+    --danger-button-background-color: var(--pride-red);
+    --danger-button-border-color: #e83535;
+    --danger-button-text-color: #fff; /* Keep text white on colored buttons */
+    /* --- Messages & Forms --- */
+    --message-success-border-color: var(--pride-green);
+    --message-error-border-color: var(--pride-red);
+    --message-warning-border-color: var(--pride-orange);
+    --form-input-focus-border-color: var(--pride-blue);
+    --form-input-invalid-border-color: var(--pride-red);
+}
+
+/* ==========================================================================
+   Animation & Forced Overrides
+   ========================================================================== */
+
+/* 1. Animate the page background overlay */
+body::before {
+    animation: rainbow-background 18s infinite linear;
+}
+
+/* 2. Animate the borders of all major components */
+.container,
+.server-card,
+.sidebar-nav,
+.monitor-output,
+.content-section,
+.header,
+.footer {
+    animation: rainbow-border 10s infinite linear;
+}
+
+/* 3. Force layout components to have a white background and dark text */
+.container {
+    background-color: var(--container-background-color) !important;
+}
+
+.sidebar-nav, .sidebar-nav .nav-link {
+    background-color: var(--sidebar-background-color) !important;
+    color: var(--sidebar-link-text-color) !important;
+}
+
+.server-card {
+    background-color: var(--server-card-background-color) !important;
+    transition: background-color 0.2s ease-in-out;
+}
+
+    .server-card:hover {
+        background-color: var(--server-card-hover-background-color) !important;
+    }
+
+.form-input {
+    background-color: var(--form-input-background-color) !important;
+}
+
+/* Force dark text color on various elements */
+body, h1, h2, h3, h4, h5, p, a, label, .server-card-info, .server-card-info .info-label {
+    color: var(--text-color) !important;
+}
+
+/* Override link colors that might be set by default browser styles */
+a {
+    color: var(--pride-blue) !important;
+}
+
+    a:hover {
+        color: var(--pride-purple) !important;
+    }
+
+.sidebar-nav .nav-link:hover {
+    color: var(--pride-blue) !important;
+    background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Ensure header text is dark */
+.header h1 {
+    color: var(--header-text-color) !important;
+}

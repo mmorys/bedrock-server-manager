@@ -14,9 +14,6 @@ from . import error as errors
 # --- Version ---
 __version__ = get_installed_version()
 
-# --- Global Instances ---
-plugin_manager = PluginManager()
-
 __all__ = [
     # Core
     "BedrockServerManager",
@@ -26,7 +23,7 @@ __all__ = [
     "Settings",  # The class
     # Plugins
     "PluginBase",
-    "plugin_manager",  # The global instance
+    "PluginManager",
     # Errors
     "errors",
     # Version

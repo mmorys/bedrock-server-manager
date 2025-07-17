@@ -14,27 +14,24 @@ def get_settings_instance():
 
 
 def get_manager_instance():
-    global _manager
-    if _manager is None:
-        from bedrock_server_manager.core.manager import BedrockServerManager
+    from .core import BedrockServerManager
 
-        _manager = BedrockServerManager()
-    return _manager
+    return BedrockServerManager()
 
 
 def get_plugin_manager_instance():
-    global _plugin_manager
-    if _plugin_manager is None:
-        from .plugins.plugin_manager import PluginManager
+    """
+    Returns the singleton instance of the PluginManager.
+    """
+    from .plugins import PluginManager
 
-        _plugin_manager = PluginManager()
-    return _plugin_manager
+    return PluginManager()
 
 
 def get_server_instance(server_name: str):
     # global _servers
     if _servers.get(server_name) is None:
-        from bedrock_server_manager.core.bedrock_server import BedrockServer
+        from .core import BedrockServer
 
         _servers[server_name] = BedrockServer(server_name)
     return _servers.get(server_name)

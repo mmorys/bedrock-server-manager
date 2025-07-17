@@ -23,7 +23,13 @@ try:
     from .error import UserExitError
     from .logging import log_separator, setup_logging
     from .utils.general import startup_checks
-    from .instances import get_manager_instance, get_settings_instance
+    from .instances import (
+        get_manager_instance,
+        get_settings_instance,
+        get_plugin_manager_instance,
+    )
+
+    global_api_plugin_manager = get_plugin_manager_instance()
 except ImportError as e:
     # Use basic logging as a fallback if our custom logger isn't available.
     logging.basicConfig(level=logging.CRITICAL)
@@ -56,23 +62,6 @@ from .cli import (
     world,
     plugins,
 )
-
-# --- Import the shared PluginManager instance ---
-# This instance is created in bedrock_server_manager/__init__.py
-# and plugins are loaded by bedrock_server_manager/api/__init__.py when it's imported.
-# So, by the time __main__ fully runs, plugins should be loaded if api module was imported.
-# One of the CLI modules (e.g. cli.plugins) or api.utils might import api.__init__ early.
-try:
-    from . import plugin_manager as global_api_plugin_manager
-except ImportError as e_imp_pm:
-    # Fallback or error logging if bedrock_server_manager.api.plugin_manager cannot be imported
-    # This might happen if `api.__init__` itself has an issue or isn't processed yet.
-    # Using print for very early messages as logger might not be set up.
-    print(
-        f"WARNING [BSM __main__]: Could not import global_api_plugin_manager from bedrock_server_manager.api: {e_imp_pm}. Plugin CLI extensions might be unavailable.",
-        file=sys.stderr,
-    )
-    global_api_plugin_manager = None
 
 
 # --- Main Click Group Definition ---
