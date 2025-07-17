@@ -527,7 +527,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
                 f"Property value for '{property_key}' contains invalid control characters."
             )
 
-        server_properties_path = self.get_server_properties_path()
+        server_properties_path = self.server_properties_path
         if not os.path.isfile(server_properties_path):
             raise AppFileNotFoundError(server_properties_path, "Server properties file")
 
@@ -602,7 +602,7 @@ class ServerConfigManagementMixin(BedrockServerBaseMixin):
             ConfigParseError: If an ``OSError`` occurs while trying to read the file
                 (e.g., permission issues), effectively making it unparseable.
         """
-        server_properties_path = self.get_server_properties_path()
+        server_properties_path = self.server_properties_path
         if not os.path.isfile(server_properties_path):
             raise AppFileNotFoundError(server_properties_path, "Server properties file")
 
