@@ -5,7 +5,10 @@
 :width: 200px
 :align: center
 ```
-# 3.5.2
+## 3.5.3
+1. Optimzed class initialization
+
+## 3.5.2
 1. Fixed missing html for Content Upload Plugin.
 2. Hardcode uvicorn workers to 1 to avoid potential conflict with flile locking and theme loading issues.
 
