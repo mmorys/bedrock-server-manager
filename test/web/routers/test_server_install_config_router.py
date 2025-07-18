@@ -74,6 +74,221 @@ def test_install_server_api_route_success(
 
 
 @patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.install_new_server"
+)
+def test_install_server_api_route_user_input_error(mock_install, client):
+    """Test the install_server_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_install.side_effect = UserInputError("Invalid server version")
+    response = client.post(
+        "/api/server/install",
+        json={"server_name": "new-server", "server_version": "INVALID"},
+    )
+    assert response.status_code == 400
+    assert "Invalid server version" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.install_new_server"
+)
+def test_install_server_api_route_bsm_error(mock_install, client):
+    """Test the install_server_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_install.side_effect = BSMError("Failed to install server")
+    response = client.post(
+        "/api/server/install",
+        json={"server_name": "new-server", "server_version": "LATEST"},
+    )
+    assert response.status_code == 500
+    assert "Failed to install server" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.modify_server_properties"
+)
+def test_configure_properties_api_route_user_input_error(
+    mock_modify_properties, client
+):
+    """Test the configure_properties_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_modify_properties.side_effect = UserInputError("Invalid property")
+    response = client.post(
+        "/api/server/test-server/properties/set",
+        json={"properties": {"invalid-property": "test"}},
+    )
+    assert response.status_code == 400
+    assert "Invalid property" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.modify_server_properties"
+)
+def test_configure_properties_api_route_bsm_error(mock_modify_properties, client):
+    """Test the configure_properties_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_modify_properties.side_effect = BSMError("Failed to modify properties")
+    response = client.post(
+        "/api/server/test-server/properties/set",
+        json={"properties": {"level-name": "test"}},
+    )
+    assert response.status_code == 500
+    assert "Failed to modify properties" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.add_players_to_allowlist_api"
+)
+def test_add_to_allowlist_api_route_user_input_error(mock_add_to_allowlist, client):
+    """Test the add_to_allowlist_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_add_to_allowlist.side_effect = UserInputError("Invalid player name")
+    response = client.post(
+        "/api/server/test-server/allowlist/add",
+        json={"players": ["invalid name"], "ignoresPlayerLimit": False},
+    )
+    assert response.status_code == 400
+    assert "Invalid player name" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.add_players_to_allowlist_api"
+)
+def test_add_to_allowlist_api_route_bsm_error(mock_add_to_allowlist, client):
+    """Test the add_to_allowlist_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_add_to_allowlist.side_effect = BSMError("Failed to add to allowlist")
+    response = client.post(
+        "/api/server/test-server/allowlist/add",
+        json={"players": ["player1"], "ignoresPlayerLimit": False},
+    )
+    assert response.status_code == 500
+    assert "Failed to add to allowlist" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.remove_players_from_allowlist"
+)
+def test_remove_from_allowlist_api_route_user_input_error(
+    mock_remove_from_allowlist, client
+):
+    """Test the remove_from_allowlist_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_remove_from_allowlist.side_effect = UserInputError("Invalid player name")
+    response = client.request(
+        "DELETE",
+        "/api/server/test-server/allowlist/remove",
+        json={"players": ["invalid name"]},
+    )
+    assert response.status_code == 400
+    assert "Invalid player name" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.remove_players_from_allowlist"
+)
+def test_remove_from_allowlist_api_route_bsm_error(mock_remove_from_allowlist, client):
+    """Test the remove_from_allowlist_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_remove_from_allowlist.side_effect = BSMError("Failed to remove from allowlist")
+    response = client.request(
+        "DELETE",
+        "/api/server/test-server/allowlist/remove",
+        json={"players": ["player1"]},
+    )
+    assert response.status_code == 500
+    assert "Failed to remove from allowlist" in response.json()["detail"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.configure_player_permission"
+)
+def test_configure_permissions_api_route_user_input_error(
+    mock_configure_permission, client
+):
+    """Test the configure_permissions_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_configure_permission.side_effect = UserInputError("Invalid permission level")
+    response = client.put(
+        "/api/server/test-server/permissions/set",
+        json={
+            "permissions": [
+                {
+                    "xuid": "123",
+                    "name": "player1",
+                    "permission_level": "invalid",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 400
+    assert "Invalid permission level" in response.json()["errors"]["123"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.server_install_config.configure_player_permission"
+)
+def test_configure_permissions_api_route_bsm_error(mock_configure_permission, client):
+    """Test the configure_permissions_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_configure_permission.side_effect = BSMError("Failed to configure permission")
+    response = client.put(
+        "/api/server/test-server/permissions/set",
+        json={
+            "permissions": [
+                {
+                    "xuid": "123",
+                    "name": "player1",
+                    "permission_level": "operator",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 400
+    assert "Failed to configure permission" in response.json()["errors"]["123"]
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.system_api.set_autoupdate"
+)
+def test_configure_service_api_route_user_input_error(mock_set_autoupdate, client):
+    """Test the configure_service_api_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_set_autoupdate.side_effect = UserInputError("Invalid value")
+    response = client.post(
+        "/api/server/test-server/service/update",
+        json={"autoupdate": "invalid"},
+    )
+    assert response.status_code == 422
+
+
+@patch(
+    "bedrock_server_manager.web.routers.server_install_config.system_api.set_autoupdate"
+)
+def test_configure_service_api_route_bsm_error(mock_set_autoupdate, client):
+    """Test the configure_service_api_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_set_autoupdate.side_effect = BSMError("Failed to set autoupdate")
+    response = client.post(
+        "/api/server/test-server/service/update",
+        json={"autoupdate": True},
+    )
+    assert response.status_code == 500
+    assert "Failed to set autoupdate" in response.json()["detail"]
+
+
+@patch(
     "bedrock_server_manager.web.routers.server_install_config.server_install_config.get_server_permissions_api"
 )
 def test_get_server_permissions_api_route(mock_get_permissions, client):
