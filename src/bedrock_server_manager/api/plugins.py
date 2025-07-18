@@ -27,8 +27,6 @@ from ..error import UserInputError
 
 logger = logging.getLogger(__name__)
 
-plugin_manager = get_plugin_manager_instance()
-
 
 @plugin_method("get_plugin_statuses")
 def get_plugin_statuses() -> Dict[str, Any]:
@@ -50,6 +48,7 @@ def get_plugin_statuses() -> Dict[str, Any]:
     """
     logger.debug("API: Attempting to get plugin statuses.")
     try:
+        plugin_manager = get_plugin_manager_instance()
         plugin_manager._synchronize_config_with_disk()
         # The config contains dicts like: {"enabled": bool, "description": str, "version": str}
         statuses = plugin_manager.plugin_config
@@ -93,6 +92,7 @@ def set_plugin_status(plugin_name: str, enabled: bool) -> Dict[str, Any]:
 
     logger.info(f"API: Setting status for plugin '{plugin_name}' to {enabled}.")
     try:
+        plugin_manager = get_plugin_manager_instance()
         # Ensure the plugin manager's config is up-to-date with disk.
         # This will also ensure plugin_name exists if it's a valid plugin.
         plugin_manager._synchronize_config_with_disk()
@@ -156,6 +156,7 @@ def reload_plugins() -> Dict[str, Any]:
     """
     logger.info("API: Attempting to reload all plugins.")
     try:
+        plugin_manager = get_plugin_manager_instance()
         plugin_manager.reload()  # Call the reload method on the global instance
         logger.info("API: Plugins reloaded successfully.")
         return {
@@ -170,7 +171,6 @@ def reload_plugins() -> Dict[str, Any]:
         }
 
 
-@plugin_method("trigger_external_plugin_event_api")
 def trigger_external_plugin_event_api(
     event_name: str, payload: Dict[str, Any] = None
 ) -> Dict[str, Any]:
@@ -208,6 +208,7 @@ def trigger_external_plugin_event_api(
         f"API: Attempting to trigger custom plugin event '{event_name}' externally."
     )
     try:
+        plugin_manager = get_plugin_manager_instance()
         actual_payload = payload if payload is not None else {}
         # "external_api_trigger" identifies the source of this event.
         plugin_manager.trigger_custom_plugin_event(
