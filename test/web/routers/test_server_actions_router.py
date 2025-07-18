@@ -92,6 +92,32 @@ def test_send_command_route_server_not_running(mock_send_command, client):
     assert "Server is not running" in response.json()["detail"]
 
 
+@patch("bedrock_server_manager.web.routers.server_actions.server_api.send_command")
+def test_send_command_route_user_input_error(mock_send_command, client):
+    """Test the send_command_route with a UserInputError."""
+    from bedrock_server_manager.error import UserInputError
+
+    mock_send_command.side_effect = UserInputError("Invalid command")
+    response = client.post(
+        "/api/server/test-server/send_command", json={"command": "invalid"}
+    )
+    assert response.status_code == 400
+    assert "Invalid command" in response.json()["detail"]
+
+
+@patch("bedrock_server_manager.web.routers.server_actions.server_api.send_command")
+def test_send_command_route_bsm_error(mock_send_command, client):
+    """Test the send_command_route with a BSMError."""
+    from bedrock_server_manager.error import BSMError
+
+    mock_send_command.side_effect = BSMError("Failed to send command")
+    response = client.post(
+        "/api/server/test-server/send_command", json={"command": "list"}
+    )
+    assert response.status_code == 500
+    assert "Failed to send command" in response.json()["detail"]
+
+
 def test_update_server_route(client):
     """Test the update_server_route with a successful response."""
     response = client.post("/api/server/test-server/update")

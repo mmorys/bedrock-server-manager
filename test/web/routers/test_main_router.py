@@ -84,3 +84,31 @@ def test_monitor_server_route(client):
     response = client.get("/server/test-server/monitor")
     assert response.status_code == 200
     assert "Server Monitor" in response.text
+
+
+@patch("bedrock_server_manager.web.dependencies.validate_server_exists")
+async def test_task_scheduler_route_user_input_error(mock_validate, client):
+    """Test the task_scheduler_route with a UserInputError."""
+    from fastapi import HTTPException
+
+    async def mock_validation():
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    app.dependency_overrides[validate_server_exists] = mock_validation
+    response = client.get("/server/test-server/scheduler")
+    assert response.status_code == 404
+    assert "Server not found" in response.json()["detail"]
+
+
+@patch("bedrock_server_manager.web.dependencies.validate_server_exists")
+async def test_monitor_server_route_user_input_error(mock_validate, client):
+    """Test the monitor_server_route with a UserInputError."""
+    from fastapi import HTTPException
+
+    async def mock_validation():
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    app.dependency_overrides[validate_server_exists] = mock_validation
+    response = client.get("/server/test-server/monitor")
+    assert response.status_code == 404
+    assert "Server not found" in response.json()["detail"]
