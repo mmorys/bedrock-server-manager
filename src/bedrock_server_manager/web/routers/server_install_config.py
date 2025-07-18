@@ -391,7 +391,8 @@ async def configure_properties_page(
         f"User '{identity}' accessed configure properties for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        request, "configure_properties.html",
+        request,
+        "configure_properties.html",
         {
             "request": request,
             "current_user": current_user,
@@ -431,7 +432,8 @@ async def configure_allowlist_page(
         f"User '{identity}' accessed configure allowlist for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        request, "configure_allowlist.html",
+        request,
+        "configure_allowlist.html",
         {
             "request": request,
             "current_user": current_user,
@@ -471,7 +473,8 @@ async def configure_permissions_page(
         f"User '{identity}' accessed configure permissions for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        request, "configure_permissions.html",
+        request,
+        "configure_permissions.html",
         {
             "request": request,
             "current_user": current_user,

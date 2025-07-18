@@ -84,7 +84,9 @@ async def manage_settings_page_route(
     identity = current_user.get("username", "Unknown")
     logger.info(f"User '{identity}' accessed global settings page.")
     return templates.TemplateResponse(
-        request, "manage_settings.html", {"request": request, "current_user": current_user}
+        request,
+        "manage_settings.html",
+        {"request": request, "current_user": current_user},
     )
 
 
