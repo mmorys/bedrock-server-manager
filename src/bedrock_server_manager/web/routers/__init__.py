@@ -7,7 +7,6 @@ from .backup_restore import router as backup_restore_router
 from .content import router as content_router
 from .main import router as main_router
 from .plugin import router as plugin_router
-from .schedule_tasks import router as schedule_tasks_router
 from .server_actions import router as server_actions_router
 from .server_install_config import router as server_install_config_router
 from .settings import router as settings_router

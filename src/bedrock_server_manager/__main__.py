@@ -56,7 +56,6 @@ from .cli import (
     server_permissions,
     server_properties,
     system,
-    task_scheduler,
     utils,
     web,
     world,
@@ -176,7 +175,6 @@ def _add_commands_to_cli():
     cli.add_command(player.player)
     cli.add_command(server_permissions.permissions)
     cli.add_command(server_properties.properties)
-    cli.add_command(task_scheduler.schedule)
     cli.add_command(server_actions.server)
     cli.add_command(system.system)
     cli.add_command(web.web)

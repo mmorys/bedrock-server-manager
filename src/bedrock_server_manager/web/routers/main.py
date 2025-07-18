@@ -14,7 +14,7 @@ import platform
 import logging
 from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, Request, Depends, HTTPException, Path
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from ..templating import templates
@@ -100,54 +100,6 @@ async def index(
             "plugin_html_pages": plugin_html_pages,
         },
     )
-
-
-# --- Route: Redirect to OS-Specific Scheduler Page ---
-@router.get(
-    "/server/{server_name}/scheduler", name="task_scheduler", include_in_schema=False
-)
-async def task_scheduler_route(
-    server_name: str,
-    request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """
-    Redirects to the OS-specific task scheduler page for a given server.
-
-    Detects the current operating system and redirects the user to either the
-    Linux cron job page or the Windows Scheduled Tasks page. If the OS is not
-    supported, it redirects back to the main dashboard with an error message.
-
-    Args:
-        server_name (str): The name of the server for which to access the scheduler.
-                           This is a path parameter.
-        request (Request): The incoming FastAPI request object.
-        current_user (Dict[str, Any]): The authenticated user object, injected by
-                                       `get_current_user`.
-
-    Returns:
-        RedirectResponse: Redirects to the appropriate scheduler page
-                          (`/schedule-tasks/{server_name}/linux` or
-                          `/schedule-tasks/{server_name}/windows`) or to the
-                          index page with an error message if the OS is unsupported.
-    """
-    current_os = platform.system()
-    username = current_user.get("username", "Unknown")
-    logger.info(
-        f"User '{username}' accessed scheduler route for server '{server_name}'. OS detected: {current_os}."
-    )
-
-    if current_os == "Linux":
-
-        return RedirectResponse(url=f"/schedule-tasks/{server_name}/linux")
-    elif current_os == "Windows":
-        return RedirectResponse(url=f"/schedule-tasks/{server_name}/windows")
-    else:
-
-        redirect_url = request.url_for("index").include_query_params(
-            message="Task scheduling is not supported on this operating system."
-        )
-        return RedirectResponse(url=redirect_url)
 
 
 @router.get(
