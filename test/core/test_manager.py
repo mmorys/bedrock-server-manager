@@ -720,6 +720,7 @@ def linux_manager(manager_instance, mocker):
 # For now, we'll mock specific subprocess calls or os functions as needed by the manager's methods.
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_build_web_service_start_command(linux_manager, mocker):
     """Test _build_web_service_start_command constructs command correctly."""
     mocker.patch("os.path.isfile", return_value=True)  # Mock that _expath is a file
@@ -728,6 +729,7 @@ def test_build_web_service_start_command(linux_manager, mocker):
     assert linux_manager._build_web_service_start_command() == expected_command
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_build_web_service_start_command_with_spaces(linux_manager, mocker):
     """Test _build_web_service_start_command quotes executable with spaces."""
     spaced_expath = "/path with spaces/bsm_exec"
@@ -738,6 +740,7 @@ def test_build_web_service_start_command_with_spaces(linux_manager, mocker):
     assert linux_manager._build_web_service_start_command() == expected_command
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_build_web_service_start_command_expath_not_file(linux_manager, mocker):
     """Test _build_web_service_start_command raises if expath is not a file."""
     linux_manager._expath = "/not/a/file/bsm"
@@ -748,6 +751,7 @@ def test_build_web_service_start_command_expath_not_file(linux_manager, mocker):
         linux_manager._build_web_service_start_command()
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_create_web_service_file_linux(linux_manager, mocker, temp_manager_dirs):
     """Test create_web_service_file on Linux."""
     mock_create_systemd = mocker.patch(
@@ -777,6 +781,7 @@ def test_create_web_service_file_linux(linux_manager, mocker, temp_manager_dirs)
     )
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_create_web_service_file_linux_working_dir_creation_fails(
     linux_manager, mocker
 ):
@@ -793,6 +798,7 @@ def test_create_web_service_file_linux_working_dir_creation_fails(
         linux_manager.create_web_service_file()
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_check_web_service_exists_linux(linux_manager, mocker):
     """Test check_web_service_exists on Linux."""
     mock_check_exists = mocker.patch(
@@ -803,6 +809,7 @@ def test_check_web_service_exists_linux(linux_manager, mocker):
     mock_check_exists.assert_called_once_with(linux_manager._WEB_SERVICE_SYSTEMD_NAME)
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_enable_web_service_linux(linux_manager, mocker):
     """Test enable_web_service on Linux."""
     mock_enable_systemd = mocker.patch(
@@ -812,6 +819,7 @@ def test_enable_web_service_linux(linux_manager, mocker):
     mock_enable_systemd.assert_called_once_with(linux_manager._WEB_SERVICE_SYSTEMD_NAME)
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_disable_web_service_linux(linux_manager, mocker):
     """Test disable_web_service on Linux."""
     mock_disable_systemd = mocker.patch(
@@ -823,6 +831,7 @@ def test_disable_web_service_linux(linux_manager, mocker):
     )
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_remove_web_service_file_linux_exists(linux_manager, mocker):
     """Test remove_web_service_file on Linux when file exists."""
     mock_get_path = mocker.patch(
@@ -843,6 +852,7 @@ def test_remove_web_service_file_linux_exists(linux_manager, mocker):
     )
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_remove_web_service_file_linux_not_exists(linux_manager, mocker):
     """Test remove_web_service_file on Linux when file does not exist."""
     mock_get_path = mocker.patch(
@@ -858,6 +868,7 @@ def test_remove_web_service_file_linux_not_exists(linux_manager, mocker):
     mock_subprocess_run.assert_not_called()  # daemon-reload should not be called if file wasn't removed
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_is_web_service_active_linux(linux_manager, mocker):
     """Test is_web_service_active on Linux."""
     mock_run = mocker.patch("subprocess.run")
@@ -886,6 +897,7 @@ def test_is_web_service_active_linux(linux_manager, mocker):
     assert linux_manager.is_web_service_active() is False
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_is_web_service_enabled_linux(linux_manager, mocker):
     """Test is_web_service_enabled on Linux."""
     mock_run = mocker.patch("subprocess.run")
@@ -914,6 +926,7 @@ def test_is_web_service_enabled_linux(linux_manager, mocker):
     assert linux_manager.is_web_service_enabled() is False
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_web_service_linux_systemctl_not_found(linux_manager, mocker, caplog):
     """Test Linux web service methods when systemctl is not found."""
     caplog.set_level(logging.WARNING)
@@ -949,6 +962,7 @@ def test_web_service_linux_systemctl_not_found(linux_manager, mocker, caplog):
     mock_subprocess_run.assert_not_called()  # No daemon-reload if systemctl missing
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux specific service tests")
 def test_web_service_linux_operation_on_non_linux(manager_instance, mocker):
     """Test Linux-specific web service operations fail on non-Linux OS."""
     mocker.patch("platform.system", return_value="Windows")
@@ -999,7 +1013,7 @@ def windows_manager(manager_instance, mocker):
     return manager_instance
 
 
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_create_web_service_file_windows(windows_manager, mocker):
     """Test create_web_service_file on Windows."""
     mock_create_svc = mocker.patch(
@@ -1025,7 +1039,7 @@ def test_create_web_service_file_windows(windows_manager, mocker):
     )
 
 
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_check_web_service_exists_windows(windows_manager, mocker):
     """Test check_web_service_exists on Windows."""
     mock_check_exists = mocker.patch(
@@ -1038,7 +1052,7 @@ def test_check_web_service_exists_windows(windows_manager, mocker):
     )
 
 
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_enable_web_service_windows(windows_manager, mocker):
     """Test enable_web_service on Windows."""
     mock_enable_svc = mocker.patch(
@@ -1050,7 +1064,7 @@ def test_enable_web_service_windows(windows_manager, mocker):
     )
 
 
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_disable_web_service_windows(windows_manager, mocker):
     """Test disable_web_service on Windows."""
     mock_disable_svc = mocker.patch(
@@ -1062,7 +1076,7 @@ def test_disable_web_service_windows(windows_manager, mocker):
     )
 
 
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_remove_web_service_file_windows(windows_manager, mocker):
     """Test remove_web_service_file on Windows."""
     mock_delete_svc = mocker.patch(
@@ -1082,7 +1096,7 @@ def test_remove_web_service_file_windows(windows_manager, mocker):
         ("Service does not exist", False),  # Simulating error output or non-match
     ],
 )
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_is_web_service_active_windows(
     windows_manager, mocker, sc_query_output, expected_active_state
 ):
@@ -1119,7 +1133,7 @@ def test_is_web_service_active_windows(
         ("Service does not exist", False),
     ],
 )
-@skip_if_not_windows
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_is_web_service_enabled_windows(
     windows_manager, mocker, sc_qc_output, expected_enabled_state
 ):
@@ -1145,6 +1159,7 @@ def test_is_web_service_enabled_windows(
         )
 
 
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_web_service_windows_sc_exe_not_found(windows_manager, mocker, caplog):
     """Test Windows web service methods when sc.exe is not found."""
     caplog.set_level(logging.WARNING)
@@ -1166,7 +1181,7 @@ def test_web_service_windows_sc_exe_not_found(windows_manager, mocker, caplog):
     )
 
 
-@skip_if_not_windows  # This test implicitly requires Windows to correctly mock system_windows_utils calls
+@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
 def test_web_service_windows_operation_on_non_windows(manager_instance, mocker):
     """Test Windows-specific web service operations fail on non-Windows OS."""
     # This test is now a bit redundant if individual Windows tests are skipped on non-Windows.

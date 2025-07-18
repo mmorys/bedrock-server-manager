@@ -9,7 +9,7 @@ from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBa
 from bedrock_server_manager.config.settings import Settings
 
 
-class TestBedrockServer(ServerAddonMixin, BedrockServerBaseMixin):
+class SetupBedrockServer(ServerAddonMixin, BedrockServerBaseMixin):
     def get_world_name(self):
         return "Bedrock level"
 
@@ -21,7 +21,7 @@ def addon_mixin_fixture():
     settings = Settings()
     settings.set("paths.servers", os.path.join(temp_dir, "servers"))
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_dir, exist_ok=True)
     os.makedirs(
         os.path.join(server.server_dir, "development_resource_packs"), exist_ok=True

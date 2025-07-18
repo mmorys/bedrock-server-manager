@@ -22,7 +22,7 @@ from bedrock_server_manager.core.server.installation_mixin import (
 from bedrock_server_manager.core.server.process_mixin import ServerProcessMixin
 
 
-class TestBedrockServer(
+class SetupBedrockServer(
     ServerInstallUpdateMixin,
     ServerInstallationMixin,
     ServerStateMixin,
@@ -66,7 +66,7 @@ def install_update_fixture():
     settings.set("paths.downloads", os.path.join(temp_dir, "downloads"))
     settings._config_dir_path = os.path.join(temp_dir, "config")
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_dir, exist_ok=True)
 
     yield server

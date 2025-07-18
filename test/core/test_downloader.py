@@ -657,7 +657,7 @@ def test_lookup_api_missing_download_type(
 
     with pytest.raises(
         DownloadError,
-        match="The API did not provide a download URL for your system \(serverBedrockLinux\).",
+        match=r"The API did not provide a download URL for your system \(serverBedrockLinux\).",
     ):
         downloader.get_version_for_target_spec()
 

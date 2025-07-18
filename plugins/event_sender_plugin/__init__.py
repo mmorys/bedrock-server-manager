@@ -43,7 +43,7 @@ class EventSenderPlugin(PluginBase):
             # Template name will be relative to one of the template folders.
             # If this plugin's "templates" folder is registered, Jinja2 will find it.
             return templates_env.TemplateResponse(
-                "event_sender_page.html", {"request": request}
+                request, "event_sender_page.html", {"request": request}
             )
 
     def on_unload(self):

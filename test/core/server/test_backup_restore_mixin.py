@@ -12,7 +12,7 @@ from bedrock_server_manager.core.server.config_management_mixin import (
 from bedrock_server_manager.config.settings import Settings
 
 
-class TestBedrockServer(
+class SetupBedrockServer(
     ServerBackupMixin, ServerConfigManagementMixin, BedrockServerBaseMixin
 ):
     def get_server_properties_path(self):
@@ -52,7 +52,7 @@ def backup_restore_fixture():
     settings.set("paths.backups", os.path.join(temp_dir, "backups"))
     settings._config_dir_path = os.path.join(temp_dir, "config")
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_dir, exist_ok=True)
     os.makedirs(
         os.path.join(server.server_dir, "worlds", "Bedrock level"), exist_ok=True
