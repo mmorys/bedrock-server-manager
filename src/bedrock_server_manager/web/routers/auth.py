@@ -91,7 +91,9 @@ async def login_page(
     if user:
         return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
 
-    return templates.TemplateResponse(request, "login.html", {"request": request, "form": {}})
+    return templates.TemplateResponse(
+        request, "login.html", {"request": request, "form": {}}
+    )
 
 
 # --- API Login Route ---

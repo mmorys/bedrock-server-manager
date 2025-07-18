@@ -1013,7 +1013,9 @@ def windows_manager(manager_instance, mocker):
     return manager_instance
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_create_web_service_file_windows(windows_manager, mocker):
     """Test create_web_service_file on Windows."""
     mock_create_svc = mocker.patch(
@@ -1039,7 +1041,9 @@ def test_create_web_service_file_windows(windows_manager, mocker):
     )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_check_web_service_exists_windows(windows_manager, mocker):
     """Test check_web_service_exists on Windows."""
     mock_check_exists = mocker.patch(
@@ -1052,7 +1056,9 @@ def test_check_web_service_exists_windows(windows_manager, mocker):
     )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_enable_web_service_windows(windows_manager, mocker):
     """Test enable_web_service on Windows."""
     mock_enable_svc = mocker.patch(
@@ -1064,7 +1070,9 @@ def test_enable_web_service_windows(windows_manager, mocker):
     )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_disable_web_service_windows(windows_manager, mocker):
     """Test disable_web_service on Windows."""
     mock_disable_svc = mocker.patch(
@@ -1076,7 +1084,9 @@ def test_disable_web_service_windows(windows_manager, mocker):
     )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_remove_web_service_file_windows(windows_manager, mocker):
     """Test remove_web_service_file on Windows."""
     mock_delete_svc = mocker.patch(
@@ -1096,7 +1106,9 @@ def test_remove_web_service_file_windows(windows_manager, mocker):
         ("Service does not exist", False),  # Simulating error output or non-match
     ],
 )
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_is_web_service_active_windows(
     windows_manager, mocker, sc_query_output, expected_active_state
 ):
@@ -1133,7 +1145,9 @@ def test_is_web_service_active_windows(
         ("Service does not exist", False),
     ],
 )
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_is_web_service_enabled_windows(
     windows_manager, mocker, sc_qc_output, expected_enabled_state
 ):
@@ -1159,7 +1173,9 @@ def test_is_web_service_enabled_windows(
         )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_web_service_windows_sc_exe_not_found(windows_manager, mocker, caplog):
     """Test Windows web service methods when sc.exe is not found."""
     caplog.set_level(logging.WARNING)
@@ -1181,7 +1197,9 @@ def test_web_service_windows_sc_exe_not_found(windows_manager, mocker, caplog):
     )
 
 
-@pytest.mark.skipif(platform.system() != "Windows", reason="Windows specific service tests")
+@pytest.mark.skipif(
+    platform.system() != "Windows", reason="Windows specific service tests"
+)
 def test_web_service_windows_operation_on_non_windows(manager_instance, mocker):
     """Test Windows-specific web service operations fail on non-Windows OS."""
     # This test is now a bit redundant if individual Windows tests are skipped on non-Windows.

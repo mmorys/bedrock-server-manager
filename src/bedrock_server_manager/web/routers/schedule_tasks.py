@@ -197,7 +197,8 @@ async def schedule_tasks_linux_page_route(
         )
 
     return templates.TemplateResponse(
-        request, "schedule_tasks.html",
+        request,
+        "schedule_tasks.html",
         {
             "request": request,
             "current_user": current_user,
@@ -287,7 +288,8 @@ async def schedule_tasks_windows_page_route(
         )
 
     return templates.TemplateResponse(
-        request, "schedule_tasks_windows.html",
+        request,
+        "schedule_tasks_windows.html",
         {
             "request": request,
             "current_user": current_user,
