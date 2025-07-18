@@ -11,7 +11,7 @@ from bedrock_server_manager.core.server.config_management_mixin import (
 from bedrock_server_manager.config.settings import Settings
 
 
-class TestBedrockServer(
+class SetupBedrockServer(
     ServerStateMixin, ServerConfigManagementMixin, BedrockServerBaseMixin
 ):
     @property
@@ -33,7 +33,7 @@ def state_mixin_fixture():
     settings.set("paths.servers", os.path.join(temp_dir, "servers"))
     settings._config_dir_path = os.path.join(temp_dir, "config")
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_config_dir, exist_ok=True)
     os.makedirs(server.server_dir, exist_ok=True)
 

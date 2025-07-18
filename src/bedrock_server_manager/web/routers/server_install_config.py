@@ -191,7 +191,7 @@ async def install_server_page(
     identity = current_user.get("username", "Unknown")
     logger.info(f"User '{identity}' accessed new server install page.")
     return templates.TemplateResponse(
-        "install.html", {"request": request, "current_user": current_user}
+        request, "install.html", {"request": request, "current_user": current_user}
     )
 
 
@@ -391,7 +391,7 @@ async def configure_properties_page(
         f"User '{identity}' accessed configure properties for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        "configure_properties.html",
+        request, "configure_properties.html",
         {
             "request": request,
             "current_user": current_user,
@@ -431,7 +431,7 @@ async def configure_allowlist_page(
         f"User '{identity}' accessed configure allowlist for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        "configure_allowlist.html",
+        request, "configure_allowlist.html",
         {
             "request": request,
             "current_user": current_user,
@@ -471,7 +471,7 @@ async def configure_permissions_page(
         f"User '{identity}' accessed configure permissions for server '{server_name}'. New install: {new_install}"
     )
     return templates.TemplateResponse(
-        "configure_permissions.html",
+        request, "configure_permissions.html",
         {
             "request": request,
             "current_user": current_user,
@@ -524,7 +524,7 @@ async def configure_service_page(
         "autostart_enabled": False,
         "autoupdate_enabled": False,
     }
-    return templates.TemplateResponse("configure_service.html", template_data)
+    return templates.TemplateResponse(request, "configure_service.html", template_data)
 
 
 # --- API Route: /api/server/{server_name}/properties/set ---

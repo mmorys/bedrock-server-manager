@@ -7,7 +7,7 @@ from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBa
 from bedrock_server_manager.config.settings import Settings
 
 
-class TestBedrockServer(ServerPlayerMixin, BedrockServerBaseMixin):
+class SetupBedrockServer(ServerPlayerMixin, BedrockServerBaseMixin):
     def run_command(self, command):
         pass
 
@@ -19,7 +19,7 @@ def player_mixin_fixture():
     settings = Settings()
     settings.set("paths.servers", os.path.join(temp_dir, "servers"))
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_dir, exist_ok=True)
 
     yield server, temp_dir

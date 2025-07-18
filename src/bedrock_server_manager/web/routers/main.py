@@ -92,7 +92,7 @@ async def index(
         logger.error(f"Error getting plugin HTML pages: {e}", exc_info=True)
 
     return templates.TemplateResponse(
-        "index.html",
+        request, "index.html",
         {
             "request": request,
             "current_user": current_user,
@@ -180,6 +180,6 @@ async def monitor_server_route(
     username = current_user.get("username")
     logger.info(f"User '{username}' accessed monitor page for server '{server_name}'.")
     return templates.TemplateResponse(
-        "monitor.html",
+        request, "monitor.html",
         {"request": request, "server_name": server_name, "current_user": current_user},
     )

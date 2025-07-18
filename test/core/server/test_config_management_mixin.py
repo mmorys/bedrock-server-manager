@@ -10,7 +10,7 @@ from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBa
 from bedrock_server_manager.config.settings import Settings
 
 
-class TestBedrockServer(ServerConfigManagementMixin, BedrockServerBaseMixin):
+class SetupBedrockServer(ServerConfigManagementMixin, BedrockServerBaseMixin):
     pass
 
 
@@ -22,7 +22,7 @@ def config_management_fixture():
     settings.set("paths.servers", os.path.join(temp_dir, "servers"))
     settings._config_dir_path = os.path.join(temp_dir, "config")
 
-    server = TestBedrockServer(server_name=server_name, settings_instance=settings)
+    server = SetupBedrockServer(server_name=server_name, settings_instance=settings)
     os.makedirs(server.server_dir, exist_ok=True)
 
     # Create a default server.properties file for the tests

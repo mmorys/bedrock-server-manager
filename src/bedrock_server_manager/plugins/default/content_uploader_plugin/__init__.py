@@ -94,7 +94,7 @@ class ContentUploaderPlugin(PluginBase):
 
             templates_env = get_templates()
             return templates_env.TemplateResponse(
-                "upload_page.html", {"request": request}
+                request, "upload_page.html", {"request": request}
             )
 
         @self.router.post("/api/content/upload", name="handle_file_upload")

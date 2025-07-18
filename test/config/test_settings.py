@@ -439,7 +439,7 @@ def test_config_file_permission_error_on_write(
     # (This part was already passing, but good to ensure it still does)
     with pytest.raises(
         ConfigurationError,
-        match="Failed to write configuration: Permission denied for testing \(settings_instance\)",
+        match=r"Failed to write configuration: Permission denied for testing \(settings_instance\)",
     ):
         settings_instance.set(
             "web.port", 9998
@@ -448,7 +448,7 @@ def test_config_file_permission_error_on_write(
     # The Settings constructor calls load(), which calls _write_config() if file not found.
     with pytest.raises(
         ConfigurationError,
-        match="Failed to write configuration: Permission denied for testing \(new Settings\(\)\)",
+        match=r"Failed to write configuration: Permission denied for testing \(new Settings\(\)\)",
     ):
         Settings()
 
