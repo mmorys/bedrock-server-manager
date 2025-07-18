@@ -95,7 +95,6 @@ from . import routers
 
 app.include_router(routers.main_router)
 app.include_router(routers.auth_router)
-app.include_router(routers.schedule_tasks_router)
 app.include_router(routers.server_actions_router)
 app.include_router(routers.server_install_config_router)
 app.include_router(routers.backup_restore_router)

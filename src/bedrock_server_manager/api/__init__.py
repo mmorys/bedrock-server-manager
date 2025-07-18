@@ -11,7 +11,6 @@ from . import server
 from . import server_install_config
 from . import settings
 from . import system
-from . import task_scheduler
 from . import utils
 from . import web
 from . import world
@@ -28,7 +27,6 @@ __all__ = [
     "server_install_config",
     "settings",
     "system",
-    "task_scheduler",
     "utils",
     "web",
     "world",
