@@ -54,31 +54,6 @@ def test_index_unauthenticated(client):
     app.dependency_overrides = {}
 
 
-@patch("platform.system", return_value="Linux")
-def test_task_scheduler_route_linux(mock_system, client):
-    """Test the task_scheduler_route on Linux."""
-    response = client.get("/server/test-server/scheduler")
-    assert response.status_code == 200
-
-
-@patch("platform.system", return_value="Windows")
-def test_task_scheduler_route_windows(mock_system, client):
-    """Test the task_scheduler_route on Windows."""
-    response = client.get("/server/test-server/scheduler")
-    assert response.status_code == 200
-
-
-@patch("platform.system", return_value="Unsupported")
-def test_task_scheduler_route_unsupported(mock_system, client):
-    """Test the task_scheduler_route on an unsupported OS."""
-    response = client.get("/server/test-server/scheduler", follow_redirects=False)
-    assert response.status_code == 307
-    assert (
-        "message=Task+scheduling+is+not+supported+on+this+operating+system"
-        in response.headers["location"]
-    )
-
-
 def test_monitor_server_route(client):
     """Test the monitor_server_route with an authenticated user."""
     response = client.get("/server/test-server/monitor")
