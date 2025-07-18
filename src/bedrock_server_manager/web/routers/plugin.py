@@ -326,6 +326,16 @@ async def set_plugin_status_api_route(
                 detail=detail,  # Defaulting to 500
             )
 
+    except HTTPException as e:
+        if e.status_code == 404:
+            raise
+        logger.error(
+            f"API Set Plugin '{plugin_name}': HTTPException: {e.detail}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred while trying to {action} the plugin.",
+        )
     except UserInputError as e:  # Raised by API if plugin_name is empty or not found
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except BSMError as e:
