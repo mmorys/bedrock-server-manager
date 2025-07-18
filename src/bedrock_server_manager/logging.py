@@ -97,6 +97,7 @@ def setup_logging(
                 logging.Formatter("%(levelname)s: %(message)s")
             )
             logger.addHandler(console_handler)
+            logger.setLevel(cli_log_level)
             logger.warning(
                 f"File logging disabled due to directory error for '{log_dir}'."
             )
