@@ -1,6 +1,6 @@
 # .github/workflows/build-test.yml
 
-name: Bedrock Server Manager - Build and Test
+name: Build Lint Test
 
 on:
   push:
