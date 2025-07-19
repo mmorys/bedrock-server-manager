@@ -249,30 +249,26 @@ def set_props(server_name: str, no_restart: bool, properties: tuple[str, ...]):
 
     Calls API: :func:`~bedrock_server_manager.api.server_install_config.modify_server_properties`.
     """
-    try:
-        if not properties:
-            click.secho(
-                f"No properties specified; starting interactive editor for '{server_name}'...",
-                fg="yellow",
-            )
-            interactive_properties_workflow(server_name)
-            return
-
-        props_to_update: Dict[str, str] = {}
-        for p in properties:
-            if "=" not in p:
-                click.secho(f"Error: Invalid format '{p}'. Use 'key=value'.", fg="red")
-                raise click.Abort()
-            key, value = p.split("=", 1)
-            props_to_update[key.strip()] = value.strip()
-
-        click.echo(
-            f"Updating {len(props_to_update)} propert(y/ies) for '{server_name}'..."
+    if not properties:
+        click.secho(
+            f"No properties specified; starting interactive editor for '{server_name}'...",
+            fg="yellow",
         )
-        response = config_api.modify_server_properties(
-            server_name, props_to_update, restart_after_modify=not no_restart
-        )
-        _handle_api_response(response, "Properties updated successfully.")
+        interactive_properties_workflow(server_name)
+        return
 
-    except (click.Abort, KeyboardInterrupt, BSMError):
-        click.secho("\nOperation cancelled.", fg="yellow")
+    props_to_update: Dict[str, str] = {}
+    for p in properties:
+        if "=" not in p:
+            click.secho(f"Error: Invalid format '{p}'. Use 'key=value'.", fg="red")
+            raise click.Abort()
+        key, value = p.split("=", 1)
+        props_to_update[key.strip()] = value.strip()
+
+    click.echo(
+        f"Updating {len(props_to_update)} propert(y/ies) for '{server_name}'..."
+    )
+    response = config_api.modify_server_properties(
+        server_name, props_to_update, restart_after_modify=not no_restart
+    )
+    _handle_api_response(response, "Properties updated successfully.")
