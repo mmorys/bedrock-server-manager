@@ -11,7 +11,11 @@ from bedrock_server_manager.cli import utils
 
 class TestUtils(unittest.TestCase):
     def test_handle_api_response_success(self):
-        response = {"status": "success", "message": "Test success", "data": {"key": "value"}}
+        response = {
+            "status": "success",
+            "message": "Test success",
+            "data": {"key": "value"},
+        }
         result = utils.handle_api_response(response, "Default success")
         self.assertEqual(result, {"key": "value"})
 
@@ -89,7 +93,9 @@ class TestUtils(unittest.TestCase):
         result = utils.get_server_name_interactively()
         self.assertEqual(result, "new-server")
 
-    @patch("bedrock_server_manager.api.server_install_config.validate_server_property_value")
+    @patch(
+        "bedrock_server_manager.api.server_install_config.validate_server_property_value"
+    )
     def test_property_validator_success(self, mock_validate):
         mock_validate.return_value = {"status": "success"}
         validator = utils.PropertyValidator("level-name")
@@ -97,23 +103,28 @@ class TestUtils(unittest.TestCase):
         document.text = "MyWorld"
         validator.validate(document)
 
-    @patch("bedrock_server_manager.api.server_install_config.validate_server_property_value")
+    @patch(
+        "bedrock_server_manager.api.server_install_config.validate_server_property_value"
+    )
     def test_property_validator_error(self, mock_validate):
-        mock_validate.return_value = {"status": "error", "message": "Invalid level name"}
+        mock_validate.return_value = {
+            "status": "error",
+            "message": "Invalid level name",
+        }
         validator = utils.PropertyValidator("level-name")
         document = MagicMock()
         document.text = "Invalid World!"
         with self.assertRaises(ValidationError):
             validator.validate(document)
 
-    @patch('click.echo')
+    @patch("click.echo")
     def test_print_server_table(self, mock_echo):
         servers = [
             {"name": "server1", "status": "RUNNING", "version": "1.19.0"},
             {"name": "server2", "status": "STOPPED", "version": "1.18.2"},
         ]
         utils._print_server_table(servers)
-        
+
         # Build a string of all calls to mock_echo
         output = "".join(str(call_args) for call_args in mock_echo.call_args_list)
 

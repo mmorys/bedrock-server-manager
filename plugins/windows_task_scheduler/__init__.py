@@ -46,10 +46,10 @@ class WindowsTaskSchedulerPlugin(PluginBase):
         self.logger.info("Windows Task Scheduler Plugin Loaded")
 
     def get_cli_commands(self):
-        return([schedule])
+        return [schedule]
 
     def get_fastapi_routers(self):
-        return([router])
+        return [router]
 
     def get_template_paths(self) -> list[Path]:
         """Returns the path to this plugin's templates directory."""
@@ -82,6 +82,7 @@ class WindowsTaskSchedulerPlugin(PluginBase):
                 "handler": task_scheduler_menu,
             }
         ]
+
 
 class TimeValidator(Validator):
     def validate(self, document):
@@ -314,7 +315,6 @@ def task_scheduler_menu(ctx: click.Context):
         return
     server_name = get_server_name_interactively()
     ctx.invoke(schedule, server_name=server_name)
-    
 
 
 @schedule.command("list")
@@ -821,7 +821,11 @@ router = APIRouter(
 )
 
 
-@router.get("/schedule-tasks/{server_name}", response_class=HTMLResponse, tags=["plugin-ui"],)
+@router.get(
+    "/schedule-tasks/{server_name}",
+    response_class=HTMLResponse,
+    tags=["plugin-ui"],
+)
 async def schedule_tasks_windows_page_route(
     request: Request,
     server_name: str,
@@ -845,7 +849,9 @@ async def schedule_tasks_windows_page_route(
 
 
 @router.get("/tasks/{server_name}", dependencies=[Depends(get_current_user)])
-def get_server_tasks_api(server_name: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def get_server_tasks_api(
+    server_name: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
     scheduler = WindowsTaskScheduler()
     task_names = scheduler.get_server_task_names(
         server_name, get_settings_instance().config_dir
@@ -854,7 +860,9 @@ def get_server_tasks_api(server_name: str, current_user: Dict[str, Any] = Depend
 
 
 @router.post("/tasks", dependencies=[Depends(get_current_user)])
-def create_task_api(task: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)):
+def create_task_api(
+    task: Dict[str, Any], current_user: Dict[str, Any] = Depends(get_current_user)
+):
     scheduler = WindowsTaskScheduler()
     task_name = create_task_name(task["server_name"], task["command"])
     xml_path = scheduler.create_task_xml(
@@ -870,7 +878,11 @@ def create_task_api(task: Dict[str, Any], current_user: Dict[str, Any] = Depends
 
 
 @router.delete("/tasks/{task_name}")
-def delete_task_api(task_name: str, task_file_path: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+def delete_task_api(
+    task_name: str,
+    task_file_path: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     scheduler = WindowsTaskScheduler()
     scheduler.delete_task(task_name)
     if os.path.exists(task_file_path):

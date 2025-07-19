@@ -3,6 +3,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 from bedrock_server_manager.cli import addon
 
+
 class TestAddon(unittest.TestCase):
     @patch("bedrock_server_manager.cli.addon.addon_api.import_addon")
     def test_install_addon_with_file(self, mock_import_addon):
@@ -12,7 +13,8 @@ class TestAddon(unittest.TestCase):
                 f.write("test")
 
             result = runner.invoke(
-                addon.install_addon, ["--server", "test-server", "--file", "test.mcpack"]
+                addon.install_addon,
+                ["--server", "test-server", "--file", "test.mcpack"],
             )
 
             self.assertEqual(result.exit_code, 0)
@@ -24,7 +26,9 @@ class TestAddon(unittest.TestCase):
     def test_install_addon_interactive(
         self, mock_import_addon, mock_select, mock_list_addons
     ):
-        mock_list_addons.return_value = {"files": ["/path/to/addon1.mcpack", "/path/to/addon2.mcaddon"]}
+        mock_list_addons.return_value = {
+            "files": ["/path/to/addon1.mcpack", "/path/to/addon2.mcaddon"]
+        }
         mock_select.return_value.ask.return_value = "addon1.mcpack"
         runner = CliRunner()
         result = runner.invoke(addon.install_addon, ["--server", "test-server"])
