@@ -147,49 +147,43 @@ def set_perm(server_name: str, player_name: Optional[str], level: Optional[str])
         - :func:`~bedrock_server_manager.api.player.get_all_known_players_api` (for XUID lookup)
         - :func:`~bedrock_server_manager.api.server_install_config.configure_player_permission`
     """
-    try:
-        if not player_name or not level:
-            click.secho(
-                f"Player or level not specified; starting interactive editor for '{server_name}'...",
-                fg="yellow",
-            )
-            interactive_permissions_workflow(server_name)
-            return
-
-        # Direct, non-interactive logic
-        click.echo(f"Finding player '{player_name}' in global database...")
-        all_players_resp = player_api.get_all_known_players_api()
-        player_data = next(
-            (
-                p
-                for p in all_players_resp.get("players", [])
-                if p.get("name", "").lower() == player_name.lower()
-            ),
-            None,
+    if not player_name or not level:
+        click.secho(
+            f"Player or level not specified; starting interactive editor for '{server_name}'...",
+            fg="yellow",
         )
+        interactive_permissions_workflow(server_name)
+        return
 
-        if not player_data or not player_data.get("xuid"):
-            click.secho(
-                f"Error: Player '{player_name}' not found in the global player database.",
-                fg="red",
-            )
-            click.secho(
-                "Run 'bsm player add' or 'bsm player scan' to add them first.",
-                fg="cyan",
-            )
-            raise click.Abort()
+    # Direct, non-interactive logic
+    click.echo(f"Finding player '{player_name}' in global database...")
+    all_players_resp = player_api.get_all_known_players_api()
+    player_data = next(
+        (
+            p
+            for p in all_players_resp.get("players", [])
+            if p.get("name", "").lower() == player_name.lower()
+        ),
+        None,
+    )
 
-        xuid = player_data["xuid"]
-        click.echo(
-            f"Setting permission for {player_name} (XUID: {xuid}) to '{level}'..."
+    if not player_data or not player_data.get("xuid"):
+        click.secho(
+            f"Error: Player '{player_name}' not found in the global player database.",
+            fg="red",
         )
-        response = config_api.configure_player_permission(
-            server_name, xuid, player_name, level
+        click.secho(
+            "Run 'bsm player add' or 'bsm player scan' to add them first.",
+            fg="cyan",
         )
-        _handle_api_response(response, "Permission updated successfully.")
+        raise click.Abort()
 
-    except (click.Abort, KeyboardInterrupt, BSMError):
-        click.secho("\nOperation cancelled.", fg="yellow")
+    xuid = player_data["xuid"]
+    click.echo(f"Setting permission for {player_name} (XUID: {xuid}) to '{level}'...")
+    response = config_api.configure_player_permission(
+        server_name, xuid, player_name, level
+    )
+    _handle_api_response(response, "Permission updated successfully.")
 
 
 @permissions.command("list")
