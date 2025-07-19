@@ -265,9 +265,7 @@ def set_props(server_name: str, no_restart: bool, properties: tuple[str, ...]):
         key, value = p.split("=", 1)
         props_to_update[key.strip()] = value.strip()
 
-    click.echo(
-        f"Updating {len(props_to_update)} propert(y/ies) for '{server_name}'..."
-    )
+    click.echo(f"Updating {len(props_to_update)} propert(y/ies) for '{server_name}'...")
     response = config_api.modify_server_properties(
         server_name, props_to_update, restart_after_modify=not no_restart
     )

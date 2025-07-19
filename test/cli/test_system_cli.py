@@ -88,9 +88,7 @@ def test_configure_service_interactive(mock_interactive_workflow, runner, mock_b
 
 
 @patch("bedrock_server_manager.cli.system._perform_service_configuration")
-def test_configure_service_non_interactive(
-    mock_perform_config, runner, mock_bsm
-):
+def test_configure_service_non_interactive(mock_perform_config, runner, mock_bsm):
     result = runner.invoke(
         configure_service,
         [
@@ -131,7 +129,9 @@ def test_enable_service(mock_enable_api, runner, mock_bsm, mock_ctx):
     cli = click.Group("cli")
     cli.add_command(system)
     result = runner.invoke(
-        cli, ["system", "enable-service", "--server", "test-server"], obj={"bsm": mock_bsm}
+        cli,
+        ["system", "enable-service", "--server", "test-server"],
+        obj={"bsm": mock_bsm},
     )
     assert result.exit_code == 0
     assert "Service enabled successfully" in result.output
@@ -205,7 +205,9 @@ def test_monitor_usage_server_not_found(mock_sleep, mock_get_info, runner, mock_
         KeyboardInterrupt,
     ]
 
-    result = runner.invoke(monitor_usage, ["--server", "test-server"], obj={"bsm": mock_bsm})
+    result = runner.invoke(
+        monitor_usage, ["--server", "test-server"], obj={"bsm": mock_bsm}
+    )
 
     assert result.exit_code == 0
     assert "Server process not found" in result.output
