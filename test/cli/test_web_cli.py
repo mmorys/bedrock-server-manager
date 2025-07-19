@@ -67,9 +67,7 @@ def test_stop_web_server(mock_stop_api, runner):
 
 
 @patch("bedrock_server_manager.cli.web.interactive_web_service_workflow")
-def test_configure_web_service_interactive(
-    mock_interactive_workflow, runner, mock_bsm
-):
+def test_configure_web_service_interactive(mock_interactive_workflow, runner, mock_bsm):
     result = runner.invoke(configure_web_service, obj={"bsm": mock_bsm})
 
     assert result.exit_code == 0
@@ -77,9 +75,7 @@ def test_configure_web_service_interactive(
 
 
 @patch("bedrock_server_manager.cli.web._perform_web_service_configuration")
-def test_configure_web_service_non_interactive(
-    mock_perform_config, runner, mock_bsm
-):
+def test_configure_web_service_non_interactive(mock_perform_config, runner, mock_bsm):
     result = runner.invoke(
         configure_web_service,
         ["--setup-service", "--enable-autostart"],

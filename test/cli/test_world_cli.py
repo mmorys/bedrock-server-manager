@@ -25,9 +25,7 @@ def mock_bsm():
 
 @patch("bedrock_server_manager.api.world.import_world")
 @patch("questionary.confirm")
-def test_install_world_non_interactive(
-    mock_confirm, mock_import_api, runner, mock_bsm
-):
+def test_install_world_non_interactive(mock_confirm, mock_import_api, runner, mock_bsm):
     with runner.isolated_filesystem():
         with open("world.mcworld", "w") as f:
             f.write("dummy world")
