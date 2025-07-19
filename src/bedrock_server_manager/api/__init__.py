@@ -1,5 +1,4 @@
 # bedrock_server_manager/api/__init__.py
-from bedrock_server_manager.plugins import plugin_manager
 from . import addon
 from . import application
 from . import backup_restore
@@ -39,6 +38,3 @@ plugin_manager = get_plugin_manager_instance()
 
 # Now that all APIs are registered, we can safely load the plugins.
 plugin_manager.load_plugins()
-
-# Trigger the startup event, respecting the process guard.
-plugin_manager.trigger_guarded_event("on_manager_startup")

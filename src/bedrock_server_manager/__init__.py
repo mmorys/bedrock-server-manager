@@ -1,6 +1,4 @@
 # bedrock_server_manager/__init__.py
-import logging
-
 # Core classes
 from .core import BedrockServerManager, BedrockServer, BedrockDownloader
 
@@ -29,8 +27,3 @@ __all__ = [
     # Version
     "__version__",
 ]
-
-logger = logging.getLogger(__name__)
-
-# --- Initialize API bridge and load plugins ---
-from . import api as _api_module_for_init
