@@ -18,7 +18,7 @@ import click
 # This block handles critical import failures gracefully.
 try:
     from . import __version__
-    from .api import utils as api_utils
+    from . import api
     from .config import app_name_title
     from .error import UserExitError
     from .logging import log_separator, setup_logging
@@ -91,6 +91,7 @@ def cli(ctx: click.Context):
             file_log_level=get_settings_instance().get("logging.file_level"),
             cli_log_level=get_settings_instance().get("logging.cli_level"),
             force_reconfigure=True,
+            plugin_dir=get_settings_instance().get("paths.plugins"),
         )
         log_separator(logger, app_name=app_name_title, app_version=__version__)
         logger.info(f"Starting {app_name_title} v{__version__} (CLI context)...")
@@ -100,7 +101,9 @@ def cli(ctx: click.Context):
 
         # api_utils.update_server_statuses() might trigger api.__init__ if not already done.
         # This ensures plugin_manager.load_plugins() has been called.
-        api_utils.update_server_statuses()
+        global_api_plugin_manager.trigger_guarded_event("on_manager_startup")
+        api.utils.update_server_statuses()
+
 
     except Exception as setup_e:
         logging.getLogger("bsm_critical_setup").critical(
