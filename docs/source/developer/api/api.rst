@@ -69,9 +69,3 @@ These APIs provide a safe, consistent, and stable way to manage servers and the 
    misc
    info
    utils
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Task Scheduler
-
-   task_scheduler

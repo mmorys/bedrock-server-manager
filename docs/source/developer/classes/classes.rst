@@ -35,18 +35,3 @@ These are the backend core classes used in the Bedrock Server Manager, used by t
    :caption: Resource Monitor Class
 
    resource_monitor
-
-Platform Dependent Classes Documentation
-----------------------------------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Linux Task Scheduler Class
-
-   linux_scheduler
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Windows Task Scheduler Class
-
-   windows_scheduler
