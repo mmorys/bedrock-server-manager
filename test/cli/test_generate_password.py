@@ -4,6 +4,7 @@ import pytest
 from click.testing import CliRunner
 from bedrock_server_manager.cli import generate_password
 
+
 class TestGeneratePassword(unittest.TestCase):
     def test_generate_password_success(self):
         runner = CliRunner()
