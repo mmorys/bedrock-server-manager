@@ -38,7 +38,6 @@
         <a href="#configure-section" class="nav-link" data-target="configure-section">Configure</a>
         <a href="#content-section" class="nav-link" data-target="content-section">Content</a>
         <a href="#backup-restore-section" class="nav-link" data-target="backup-restore-section">Backup/Restore</a>
-        <a href="#tasks-section" class="nav-link" data-target="tasks-section">Scheduled Tasks</a>
         <a href="{{ request.url_for('manage_plugins_page') if request else '/plugins/' }}" class="nav-link">Manage Plugins</a>
         <a href="{{ request.url_for('manage_settings_page') if request else '/settings' }}" class="nav-link">Settings</a>
 
@@ -170,19 +169,6 @@
                 </div>
             </div>
         </section> {# --- End Backup/Restore Section --- #}
-
-
-        {# Scheduled Tasks Section - Link to scheduler page #}
-        <section id="tasks-section" class="content-section">
-            <h2>Scheduled Tasks</h2>
-            <p>Configure automated tasks like backups, restarts, or updates for the selected server.</p>
-            <div class="section-actions server-dependent-actions">
-                <h4>Schedule Tasks for <span id="selected-server-task" style="font-style: italic;">(No server selected)</span></h4>
-                <div class="button-group">
-                    <a href="#" id="task-scheduler-menu" class="action-link task-nav-link" disabled>Go to Task Scheduler</a>
-                </div>
-            </div>
-        </section> {# --- End Tasks Section --- #}
 
     </main> {# --- End Main Content Area --- #}
 
