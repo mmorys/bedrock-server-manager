@@ -176,9 +176,10 @@ def add(server_name: str, players: Tuple[str], ignore_limit: bool):
             f"Successfully added {added_count} new player(s) to the allowlist.",
         )
 
-    except (click.Abort, KeyboardInterrupt, BSMError):
+    except (click.Abort, KeyboardInterrupt, BSMError) as e:
         # Catch BSMError here as well to provide a consistent cancel message if it aborts.
-        click.secho("\nOperation cancelled.", fg="yellow")
+        click.secho(f"\nAn error occurred: {e}", fg="red")
+        raise click.Abort()
 
 
 @allowlist.command("remove")
@@ -207,7 +208,7 @@ def remove(server_name: str, players: Tuple[str]):
     click.echo(
         f"Removing {len(player_list)} player(s) from '{server_name}' allowlist..."
     )
-    response = config_api.remove_players_from_allowlist_api(
+    response = config_api.remove_players_from_allowlist(
         server_name, player_list
     )  # API was `remove_players_from_allowlist`
 
