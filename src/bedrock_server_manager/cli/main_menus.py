@@ -305,12 +305,6 @@ def manage_server_menu(ctx: click.Context, server_name: str):
 
     system_map["Monitor Resource Usage"] = (get_cmd("system", "monitor"), {})
 
-    if bsm.can_schedule_tasks:
-        system_map["Schedule Tasks (cron/schtasks)"] = cli.get_command(ctx, "schedule")
-
-    if bsm.get_os_type() == "Linux":
-        system_map["Attach to Console"] = (cli.get_command(ctx, "attach-console"), {})
-
     # ---- Combine all maps for easy lookup ----
     full_menu_map = {
         **control_map,
