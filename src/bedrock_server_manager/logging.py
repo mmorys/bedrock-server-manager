@@ -20,6 +20,37 @@ DEFAULT_LOG_KEEP: int = 3  # Default number of backup logs to keep
 _logging_configured = False
 
 
+class AppAndPluginFilter(logging.Filter):
+    """
+    A logging filter that allows records from 'bedrock_server_manager'
+    or from a specified plugin directory.
+    """
+
+    def __init__(self, plugin_dir: Optional[str] = None):
+        super().__init__()
+        self.plugin_dir = os.path.abspath(plugin_dir) if plugin_dir else None
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """
+        Determines if a log record should be processed.
+
+        Args:
+            record: The log record to check.
+
+        Returns:
+            True if the record's name starts with 'bedrock_server_manager'
+            or if the record's pathname is within the plugin directory,
+            False otherwise.
+        """
+        if record.name.startswith("bedrock_server_manager") or record.name.startswith(
+            "plugin."
+        ):
+            return True
+        if self.plugin_dir and record.pathname.startswith(self.plugin_dir):
+            return True
+        return False
+
+
 def setup_logging(
     log_dir: str = DEFAULT_LOG_DIR,
     log_filename: str = "bedrock_server_manager.log",
@@ -29,6 +60,7 @@ def setup_logging(
     when: str = "midnight",
     interval: int = 1,
     force_reconfigure: bool = False,
+    plugin_dir: Optional[str] = None,
 ) -> logging.Logger:
     """
     Sets up or re-configures the root logger with file and console handlers.
@@ -47,38 +79,40 @@ def setup_logging(
         interval: The interval number based on 'when'.
         force_reconfigure: If True, remove existing handlers and re-apply
                            configuration. Defaults to False.
-
+        plugin_dir: The absolute path to the plugins directory.
     Returns:
         The configured logger instance.
     """
     global _logging_configured
-    logger = logging.getLogger()
-    logger.setLevel(min(file_log_level, cli_log_level))
+
+    # Configure root logger first
+    root_logger = logging.getLogger()
+    root_logger.setLevel(min(file_log_level, cli_log_level))
 
     # If already configured and not forcing a reconfigure, do nothing.
     if _logging_configured and not force_reconfigure:
-        logger.debug("Logging already configured. Skipping setup.")
-        return logger
+        root_logger.debug("Logging already configured. Skipping setup.")
+        return root_logger
 
     # --- Remove existing handlers if re-configuring ---
     if force_reconfigure:
-        logger.debug("Force reconfigure requested. Removing existing handlers.")
+        root_logger.debug("Force reconfigure requested. Removing existing handlers.")
         # Create a list of handlers to remove to avoid modifying the list while iterating
         handlers_to_remove = [
             h
-            for h in logger.handlers
+            for h in root_logger.handlers
             if isinstance(
                 h, (logging.StreamHandler, logging.handlers.TimedRotatingFileHandler)
             )
         ]
         for handler in handlers_to_remove:
-            logger.debug(f"Removing handler: {handler}")
+            root_logger.debug(f"Removing handler: {handler}")
             # Ensure handler stream is closed before removing
             try:
                 handler.close()
             except Exception as e:
-                logger.debug(f"Error closing handler {handler}: {e}")
-            logger.removeHandler(handler)
+                root_logger.debug(f"Error closing handler {handler}: {e}")
+            root_logger.removeHandler(handler)
 
     # Ensure log directory exists
     try:
@@ -90,20 +124,21 @@ def setup_logging(
             file=sys.stderr,
         )
         # Attempt a minimal console-only setup
-        if not logger.hasHandlers():
+        if not root_logger.hasHandlers():
             console_handler = logging.StreamHandler(sys.stdout)
             console_handler.setLevel(cli_log_level)
             console_handler.setFormatter(
                 logging.Formatter("%(levelname)s: %(message)s")
             )
-            logger.addHandler(console_handler)
-            logger.setLevel(cli_log_level)
-            logger.warning(
+            root_logger.addHandler(console_handler)
+            root_logger.setLevel(cli_log_level)
+            root_logger.warning(
                 f"File logging disabled due to directory error for '{log_dir}'."
             )
-        return logger
+        return root_logger
 
     log_path = os.path.join(log_dir, log_filename)
+    app_and_plugin_filter = AppAndPluginFilter(plugin_dir)
 
     try:
         # --- Define Log Formats ---
@@ -122,16 +157,18 @@ def setup_logging(
         )
         file_handler.setLevel(file_log_level)
         file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        file_handler.addFilter(app_and_plugin_filter)
+        root_logger.addHandler(file_handler)
 
         # --- Console Handler ---
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(cli_log_level)
         console_handler.setFormatter(console_formatter)
-        logger.addHandler(console_handler)
+        console_handler.addFilter(app_and_plugin_filter)
+        root_logger.addHandler(console_handler)
 
         _logging_configured = True
-        logger.info(
+        root_logger.info(
             f"Logging has been {'re' if force_reconfigure else ''}configured. "
             f"CLI Level: '{logging.getLevelName(cli_log_level)}', "
             f"File Level: '{logging.getLevelName(file_log_level)}'"
@@ -139,12 +176,14 @@ def setup_logging(
 
     except Exception as e:
         print(f"CRITICAL: Failed to configure log handlers: {e}", file=sys.stderr)
-        if not logger.hasHandlers():
+        if not root_logger.hasHandlers():
             # Fallback to a very basic console logger if everything failed
             logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-            logger.warning("Using basic fallback logging due to configuration error.")
+            root_logger.warning(
+                "Using basic fallback logging due to configuration error."
+            )
 
-    return logger
+    return root_logger
 
 
 def log_separator(
