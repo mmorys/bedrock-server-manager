@@ -6,7 +6,39 @@
 :align: center
 ```
 
-# 3.5.5
+```{important}
+**A Note on the Future of BSM: Preparing for Version 3.6.0**
+
+As part of the ongoing effort to modernize the Bedrock Server Manager codebase for better performance, stability, and maintainability, the upcoming version **3.6.0** will introduce major architectural changes. I want to be transparent about these developments so you can plan accordingly, as these changes will change the way you interact with the application.
+
+The core goal of 3.6.0 is to unify the server management experience across all platforms (Windows, Linux, etc.) by moving away from platform-specific implementations like named pipes and separate system services.
+
+Key changes to expect in **BSM 3.6.0** include:
+
+*   **Unified Process Management:** All Bedrock servers will be managed within a single, multi-threaded BSM process. This replaces the current model of launching a separate process for each server, which will significantly improve performance, resource usage, and allow for more reliable features like health checks and automatic crash recovery.
+
+*   **Mandatory Web Server:** The web server will become the central, always-running component of BSM. The Command Line Interface (CLI) will be refactored to communicate directly with the web server's API for all operations. This change is essential for the new unified process model.
+
+*   **Simplified Services:** Individual server services (`systemd` on Linux, Windows Services) will be deprecated. Instead, the main BSM web server service will be responsible for automatically starting all designated servers on boot.
+
+*   **Database Migration:** To consolidate the various `.json` configuration files and prevent potential file-locking issues, BSM will migrate to a dedicated database (a simple, file-based one by default). This will also pave the way for future enhancements like multi-user accounts and permissions. (May not be included in 3.6.0)
+
+*   **Deprecation of CLI Plugins:** A side effect of the new architecture is that custom CLI plugins, introduced in v3.5.0, will likely be removed. Since the CLI will now be a client for the web API, this plugin type will no longer be compatible.
+
+I understand that frequent breaking changes can be frustrating. Many of the recent updates have involved significant refactoring to evolve BSM from its simple script origins into the robust management tool it's become. This upcoming 3.6.0 release represents the final major step in this architectural overhaul. These changes will create a more stable and feature-rich foundation for the future of Bedrock Server Manager.
+```
+
+## 3.5.6
+1. Fixed allowlist remove command
+2. Filter logs to only show BSM and Plugin logs
+3. Minor backend changes
+4. Added various tests for the CLI and Web API
+5. BREAKING CHANGE: Task shceduler functionality has been removed from the CLI and Web API. 
+    ```{note}
+    The current task scheduler functionality will be reintroduced in a future as optiaonal plugins.
+    ```
+
+## 3.5.5
 1. Hot fix for server properties path
 
 ## 3.5.4
