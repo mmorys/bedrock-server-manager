@@ -35,6 +35,7 @@ from ...error import (
     ServerNotRunningError,
     BlockedCommandError,
 )
+from .. import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -48,57 +49,6 @@ class CommandPayload(BaseModel):
     command: str = Field(
         ..., min_length=1, description="The command to send to the server."
     )
-
-
-# --- Helper for background task logging ---
-def log_background_task_result(
-    task_name: str, server_name: str, result: Dict[str, Any]
-):
-    """Logs the outcome of a background server operation.
-
-    Args:
-        task_name (str): The name of the background task (e.g., "start_server").
-        server_name (str): The name of the server the task was performed on.
-        result (Dict[str, Any]): The result dictionary returned by the API function
-            called by the background task. Expected to have a "status" key.
-    """
-    if result.get("status") == "success":
-        logger.info(
-            f"Background task '{task_name}' for server '{server_name}': Succeeded. {result.get('message')}"
-        )
-    else:
-        logger.error(
-            f"Background task '{task_name}' for server '{server_name}': Failed. {result.get('message')}"
-        )
-
-
-def server_start_task(server_name: str):
-    """Background task to start a server.
-
-    Calls :func:`bedrock_server_manager.api.server.start_server` in detached mode
-    and logs the result using :func:`.log_background_task_result`.
-    Catches and logs exceptions during the task execution.
-
-    Args:
-        server_name (str): The name of the server to start.
-    """
-    logger.info(f"Background task initiated: Starting server '{server_name}'.")
-    try:
-        result = server_api.start_server(server_name, mode="detached")
-        log_background_task_result("start_server", server_name, result)
-    except UserInputError as e_thread:
-        logger.warning(
-            f"Background task 'start_server' for '{server_name}': Input error. {e_thread}"
-        )
-    except BSMError as e_thread:
-        logger.error(
-            f"Background task 'start_server' for '{server_name}': Application error. {e_thread}"
-        )
-    except Exception as e_thread:
-        logger.error(
-            f"Background task 'start_server' for '{server_name}': Unexpected error. {e_thread}",
-            exc_info=True,
-        )
 
 
 # --- API Route: Start Server ---
@@ -131,53 +81,23 @@ async def start_server_route(
 
     Returns:
         ActionResponse: Confirmation that the start operation has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Start operation for server 'MyServer' initiated in background.",
-            "details": null
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Start server request for '{server_name}' by user '{identity}'.")
-
-    background_tasks.add_task(server_start_task, server_name)
-
-    return ActionResponse(
-        message=f"Start operation for server '{server_name}' initiated in background."
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        server_api.start_server,
+        server_name,
+        mode="detached",
     )
 
-
-def server_stop_task(server_name: str):
-    """Background task to stop a server.
-
-    Calls :func:`bedrock_server_manager.api.server.stop_server`
-    and logs the result using :func:`.log_background_task_result`.
-    Catches and logs exceptions during the task execution.
-
-    Args:
-        server_name (str): The name of the server to stop.
-    """
-    logger.info(f"Background task initiated: Stopping server '{server_name}'.")
-    try:
-        result = server_api.stop_server(server_name)
-        log_background_task_result("stop_server", server_name, result)
-    except UserInputError as e_thread:
-        logger.warning(
-            f"Background task 'stop_server' for '{server_name}': Input error. {e_thread}"
-        )
-    except BSMError as e_thread:
-        logger.error(
-            f"Background task 'stop_server' for '{server_name}': Application error. {e_thread}"
-        )
-    except Exception as e_thread:
-        logger.error(
-            f"Background task 'stop_server' for '{server_name}': Unexpected error. {e_thread}",
-            exc_info=True,
-        )
+    return ActionResponse(
+        status="pending",
+        message=f"Start operation for server '{server_name}' initiated in background.",
+        task_id=task_id,
+    )
 
 
 @router.post(
@@ -205,53 +125,22 @@ async def stop_server_route(
 
     Returns:
         ActionResponse: Confirmation that the stop operation has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Stop operation for server 'MyServer' initiated in background.",
-            "details": null
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Stop server request for '{server_name}' by user '{identity}'.")
-
-    background_tasks.add_task(server_stop_task, server_name)
-
-    return ActionResponse(
-        message=f"Stop operation for server '{server_name}' initiated in background."
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        server_api.stop_server,
+        server_name,
     )
 
-
-def server_restart_task(server_name: str):
-    """Background task to restart a server.
-
-    Calls :func:`bedrock_server_manager.api.server.restart_server`
-    and logs the result using :func:`.log_background_task_result`.
-    Catches and logs exceptions during the task execution.
-
-    Args:
-        server_name (str): The name of the server to restart.
-    """
-    logger.info(f"Background task initiated: Restarting server '{server_name}'.")
-    try:
-        result = server_api.restart_server(server_name)
-        log_background_task_result("restart_server", server_name, result)
-    except UserInputError as e_thread:
-        logger.warning(
-            f"Background task 'restart_server' for '{server_name}': Input error. {e_thread}"
-        )
-    except BSMError as e_thread:
-        logger.error(
-            f"Background task 'restart_server' for '{server_name}': Application error. {e_thread}"
-        )
-    except Exception as e_thread:
-        logger.error(
-            f"Background task 'restart_server' for '{server_name}': Unexpected error. {e_thread}",
-            exc_info=True,
-        )
+    return ActionResponse(
+        status="pending",
+        message=f"Stop operation for server '{server_name}' initiated in background.",
+        task_id=task_id,
+    )
 
 
 @router.post(
@@ -282,25 +171,23 @@ async def restart_server_route(
 
     Returns:
         ActionResponse: Confirmation that the restart operation has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Restart operation for server 'MyServer' initiated in background.",
-            "details": null
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"API: Restart server request for '{server_name}' by user '{identity}'."
     )
-
-    background_tasks.add_task(server_restart_task, server_name)
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        server_api.restart_server,
+        server_name,
+    )
 
     return ActionResponse(
-        message=f"Restart operation for server '{server_name}' initiated in background."
+        status="pending",
+        message=f"Restart operation for server '{server_name}' initiated in background.",
+        task_id=task_id,
     )
 
 
@@ -362,14 +249,12 @@ async def send_command_route(
     )
 
     if not payload.command or not payload.command.strip():
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Request must contain a non-empty 'command'.",
         )
 
     try:
-
         command_result = server_api.send_command(server_name, payload.command.strip())
 
         if command_result.get("status") == "success":
@@ -424,35 +309,6 @@ async def send_command_route(
         )
 
 
-def server_update_task(server_name: str):
-    """Background task to update a server.
-
-    Calls :func:`bedrock_server_manager.api.server_install_config.update_server`
-    and logs the result using :func:`.log_background_task_result`.
-    Catches and logs exceptions during the task execution.
-
-    Args:
-        server_name (str): The name of the server to update.
-    """
-    logger.info(f"Background task initiated: Updating server '{server_name}'.")
-    try:
-        result = server_install_config.update_server(server_name)
-        log_background_task_result("update_server", server_name, result)
-    except UserInputError as e_thread:
-        logger.warning(
-            f"Background task 'update_server' for '{server_name}': Input error. {e_thread}"
-        )
-    except BSMError as e_thread:
-        logger.error(
-            f"Background task 'update_server' for '{server_name}': Application error. {e_thread}"
-        )
-    except Exception as e_thread:
-        logger.error(
-            f"Background task 'update_server' for '{server_name}': Unexpected error. {e_thread}",
-            exc_info=True,
-        )
-
-
 @router.post(
     "/api/server/{server_name}/update",
     response_model=ActionResponse,
@@ -478,53 +334,22 @@ async def update_server_route(
 
     Returns:
         ActionResponse: Confirmation that the update operation has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Update operation for server 'MyServer' initiated in background.",
-            "details": null
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: Update server request for '{server_name}' by user '{identity}'.")
-
-    background_tasks.add_task(server_update_task, server_name)
-
-    return ActionResponse(
-        message=f"Update operation for server '{server_name}' initiated in background."
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        server_install_config.update_server,
+        server_name,
     )
 
-
-def server_delete_task(server_name: str):
-    """Background task to delete a server's data.
-
-    Calls :func:`bedrock_server_manager.api.server.delete_server_data`
-    and logs the result using :func:`.log_background_task_result`.
-    Catches and logs exceptions during the task execution.
-
-    Args:
-        server_name (str): The name of the server whose data is to be deleted.
-    """
-    logger.info(f"Background task initiated: Deleting server data for '{server_name}'.")
-    try:
-        result = server_api.delete_server_data(server_name)
-        log_background_task_result("delete_server_data", server_name, result)
-    except UserInputError as e_thread:
-        logger.warning(
-            f"Background task 'delete_server_data' for '{server_name}': Input error. {e_thread}"
-        )
-    except BSMError as e_thread:
-        logger.error(
-            f"Background task 'delete_server_data' for '{server_name}': Application error. {e_thread}"
-        )
-    except Exception as e_thread:
-        logger.error(
-            f"Background task 'delete_server_data' for '{server_name}': Unexpected error. {e_thread}",
-            exc_info=True,
-        )
+    return ActionResponse(
+        status="pending",
+        message=f"Update operation for server '{server_name}' initiated in background.",
+        task_id=task_id,
+    )
 
 
 @router.delete(
@@ -552,23 +377,21 @@ async def delete_server_route(
 
     Returns:
         ActionResponse: Confirmation that the delete operation has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Delete operation for server 'MyServer' initiated in background.",
-            "details": null
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.warning(
         f"API: DELETE server data request for '{server_name}' by user '{identity}'. This is a destructive operation."
     )
-
-    background_tasks.add_task(server_delete_task, server_name)
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        server_api.delete_server_data,
+        server_name,
+    )
 
     return ActionResponse(
-        message=f"Delete operation for server '{server_name}' initiated in background."
+        status="pending",
+        message=f"Delete operation for server '{server_name}' initiated in background.",
+        task_id=task_id,
     )

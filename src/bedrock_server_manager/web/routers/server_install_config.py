@@ -46,12 +46,11 @@ from ...api import (
 )
 from ...error import BSMError, UserInputError, AppFileNotFoundError
 from ...instances import get_settings_instance
+from .. import tasks
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-installation_tasks = {}
 
 
 # --- Pydantic Models ---
@@ -211,53 +210,6 @@ async def install_server_page(
     )
 
 
-def run_installation(
-    task_id: str, server_name: str, server_version: str, server_zip_path: Optional[str]
-):
-    """Runs the installation in the background and updates the task status."""
-    try:
-        installation_tasks[task_id] = {
-            "status": "in_progress",
-            "message": "Starting installation...",
-        }
-
-        install_result = server_install_config.install_new_server(
-            server_name,
-            server_version,
-            server_zip_path=server_zip_path,
-        )
-
-        if install_result.get("status") == "success":
-            logger.info(f"Server '{server_name}' installed successfully.")
-            next_url = f"/server/{server_name}/configure_properties?new_install=true"
-            installation_tasks[task_id] = {
-                "status": "success",
-                "message": install_result.get(
-                    "message", "Server installed successfully."
-                ),
-                "next_step_url": next_url,
-                "server_name": server_name,
-            }
-        else:
-            logger.error(
-                f"Server installation failed for '{server_name}': {install_result.get('message')}"
-            )
-            installation_tasks[task_id] = {
-                "status": "error",
-                "message": install_result.get("message", "Server installation failed."),
-            }
-
-    except Exception as e:
-        logger.error(
-            f"An unexpected error occurred during installation for task {task_id}: {e}",
-            exc_info=True,
-        )
-        installation_tasks[task_id] = {
-            "status": "error",
-            "message": "An unexpected error occurred during installation.",
-        }
-
-
 # --- API Route: /api/server/install ---
 @router.post(
     "/api/server/install",
@@ -347,13 +299,14 @@ async def install_server_api_route(
                 os.path.join(custom_dir, payload.server_zip_path)
             )
 
-        task_id = str(uuid.uuid4())
+        task_id = tasks.create_task()
         background_tasks.add_task(
-            run_installation,
+            tasks.run_task,
             task_id,
+            server_install_config.install_new_server,
             payload.server_name,
             payload.server_version,
-            server_zip_path,
+            server_zip_path=server_zip_path,
         )
 
         return InstallServerResponse(
@@ -384,20 +337,6 @@ async def install_server_api_route(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during server installation.",
         )
-
-
-# --- API Route: /api/server/install/status/{task_id} ---
-@router.get("/api/server/install/status/{task_id}", tags=["Server Installation API"])
-async def get_install_status(
-    task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
-):
-    """
-    Retrieves the status of a background server installation task.
-    """
-    task = installation_tasks.get(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
 
 
 # --- HTML Route: /server/{server_name}/configure_properties ---
@@ -948,7 +887,6 @@ async def remove_allowlist_players_api_route(
         if result.get("status") == "success":
             return result
         else:
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=result.get(
