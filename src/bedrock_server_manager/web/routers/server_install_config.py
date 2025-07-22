@@ -17,8 +17,18 @@ import logging
 import platform
 import os
 from typing import Dict, Any, List, Optional
+import uuid
 
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Body, Path
+from fastapi import (
+    APIRouter,
+    Request,
+    Depends,
+    HTTPException,
+    status,
+    Body,
+    Path,
+    BackgroundTasks,
+)
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -40,6 +50,8 @@ from ...instances import get_settings_instance
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+installation_tasks = {}
 
 
 # --- Pydantic Models ---
@@ -67,7 +79,8 @@ class InstallServerResponse(BaseModel):
     """Response model for server installation requests."""
 
     status: str = Field(
-        ..., description="Status of the installation ('success', 'confirm_needed')."
+        ...,
+        description="Status of the installation ('success', 'confirm_needed', 'pending').",
     )
     message: str = Field(..., description="Descriptive message about the operation.")
     next_step_url: Optional[str] = Field(
@@ -76,6 +89,9 @@ class InstallServerResponse(BaseModel):
     server_name: Optional[str] = Field(
         default=None,
         description="Name of the server, especially if confirmation is needed.",
+    )
+    task_id: Optional[str] = Field(
+        default=None, description="ID of the background installation task."
     )
 
 
@@ -195,6 +211,53 @@ async def install_server_page(
     )
 
 
+def run_installation(
+    task_id: str, server_name: str, server_version: str, server_zip_path: Optional[str]
+):
+    """Runs the installation in the background and updates the task status."""
+    try:
+        installation_tasks[task_id] = {
+            "status": "in_progress",
+            "message": "Starting installation...",
+        }
+
+        install_result = server_install_config.install_new_server(
+            server_name,
+            server_version,
+            server_zip_path=server_zip_path,
+        )
+
+        if install_result.get("status") == "success":
+            logger.info(f"Server '{server_name}' installed successfully.")
+            next_url = f"/server/{server_name}/configure_properties?new_install=true"
+            installation_tasks[task_id] = {
+                "status": "success",
+                "message": install_result.get(
+                    "message", "Server installed successfully."
+                ),
+                "next_step_url": next_url,
+                "server_name": server_name,
+            }
+        else:
+            logger.error(
+                f"Server installation failed for '{server_name}': {install_result.get('message')}"
+            )
+            installation_tasks[task_id] = {
+                "status": "error",
+                "message": install_result.get("message", "Server installation failed."),
+            }
+
+    except Exception as e:
+        logger.error(
+            f"An unexpected error occurred during installation for task {task_id}: {e}",
+            exc_info=True,
+        )
+        installation_tasks[task_id] = {
+            "status": "error",
+            "message": "An unexpected error occurred during installation.",
+        }
+
+
 # --- API Route: /api/server/install ---
 @router.post(
     "/api/server/install",
@@ -203,6 +266,7 @@ async def install_server_page(
 )
 async def install_server_api_route(
     payload: InstallServerPayload,
+    background_tasks: BackgroundTasks,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -210,7 +274,7 @@ async def install_server_api_route(
 
     Validates the server name format, checks for existing servers (if not overwriting),
     deletes existing data if overwrite is true, and then calls
-    :func:`~bedrock_server_manager.api.server_install_config.install_new_server`.
+    :func:`~bedrock_server_manager.api.server_install_config.install_new_server` in a background thread.
 
     Args:
         payload (InstallServerPayload): Server name, version, and overwrite flag.
@@ -218,42 +282,13 @@ async def install_server_api_route(
 
     Returns:
         InstallServerResponse:
-            - ``status``: "success", "confirm_needed", or "error"
+            - ``status``: "pending", "confirm_needed", or "error"
             - ``message``: Descriptive message about the operation.
-            - ``next_step_url``: (Optional) URL for the next configuration step on success.
+            - ``task_id``: (Optional) ID for polling installation status.
             - ``server_name``: (Optional) Name of the server, if confirmation is needed.
 
     Raises:
         HTTPException: For validation errors or internal server errors during installation.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "server_name": "NewSurvival",
-            "server_version": "LATEST",
-            "overwrite": false
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server 'NewSurvival' installed successfully.",
-            "next_step_url": "/server/NewSurvival/configure_properties?new_install=true",
-            "server_name": "NewSurvival"
-        }
-
-    Example Response (Confirmation Needed):
-    .. code-block:: json
-
-        {
-            "status": "confirm_needed",
-            "message": "Server 'NewSurvival' already exists. Overwrite?",
-            "next_step_url": null,
-            "server_name": "NewSurvival"
-        }
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -312,31 +347,21 @@ async def install_server_api_route(
                 os.path.join(custom_dir, payload.server_zip_path)
             )
 
-        install_result = server_install_config.install_new_server(
+        task_id = str(uuid.uuid4())
+        background_tasks.add_task(
+            run_installation,
+            task_id,
             payload.server_name,
             payload.server_version,
-            server_zip_path=server_zip_path,
+            server_zip_path,
         )
 
-        if install_result.get("status") == "success":
-            logger.info(f"Server '{payload.server_name}' installed successfully.")
-            next_url = (
-                f"/server/{payload.server_name}/configure_properties?new_install=true"
-            )
-            return InstallServerResponse(
-                status="success",
-                message=install_result.get("message", "Server installed successfully."),
-                next_step_url=next_url,
-                server_name=payload.server_name,
-            )
-        else:
-            logger.error(
-                f"Server installation failed for '{payload.server_name}': {install_result.get('message')}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=install_result.get("message", "Server installation failed."),
-            )
+        return InstallServerResponse(
+            status="pending",
+            message="Server installation has started.",
+            task_id=task_id,
+            server_name=payload.server_name,
+        )
 
     except UserInputError as e:
         logger.warning(
@@ -359,6 +384,20 @@ async def install_server_api_route(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during server installation.",
         )
+
+
+# --- API Route: /api/server/install/status/{task_id} ---
+@router.get("/api/server/install/status/{task_id}", tags=["Server Installation API"])
+async def get_install_status(
+    task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Retrieves the status of a background server installation task.
+    """
+    task = installation_tasks.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 
 # --- HTML Route: /server/{server_name}/configure_properties ---

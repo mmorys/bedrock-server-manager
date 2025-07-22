@@ -185,9 +185,9 @@ async function triggerInstallServer(buttonElement) {
             const finalApiResponse = await sendServerActionRequest(null, apiUrl, 'POST', overwriteRequestBody, buttonElement);
             console.log(`${functionName}: Overwrite install API response received:`, finalApiResponse);
 
-            if (finalApiResponse && finalApiResponse.status === 'success') {
+            if (finalApiResponse && finalApiResponse.status === 'pending') {
                 // Overwrite successful -> Navigate
-                _handleInstallSuccessNavigation(finalApiResponse);
+                pollInstallStatus(finalApiResponse.task_id);
             } else {
                 console.error(`${functionName}: Overwrite install failed. Final API response:`, finalApiResponse);
                 // Error message shown by sendServerActionRequest
@@ -198,16 +198,52 @@ async function triggerInstallServer(buttonElement) {
             showStatusMessage("Installation cancelled (overwrite not confirmed).", "info");
             if (buttonElement) buttonElement.disabled = false; // Re-enable button if confirmation cancelled
         }
-    } else if (initialApiResponse.status === 'success') {
+    } else if (initialApiResponse.status === 'pending') {
         // --- Direct Success (New Install) ---
         console.log(`${functionName}: New server install successful.`);
-        _handleInstallSuccessNavigation(initialApiResponse);
+        pollInstallStatus(initialApiResponse.task_id);
     } else {
         // --- Other Errors from Initial Call ---
         console.error(`${functionName}: Initial install attempt failed. Status: ${initialApiResponse.status}, Message: ${initialApiResponse.message}`);
         // Error message shown by sendServerActionRequest
     }
     console.log(`${functionName}: Execution finished.`);
+}
+
+/**
+ * Polls the server for the status of an installation task.
+ * @param {string} taskId - The ID of the installation task.
+ */
+function pollInstallStatus(taskId) {
+    const functionName = 'pollInstallStatus';
+    console.log(`${functionName}: Polling for task ${taskId}`);
+    showStatusMessage('Installation in progress...', 'info');
+
+    const intervalId = setInterval(async () => {
+        const apiUrl = `/api/server/install/status/${taskId}`;
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+            clearInterval(intervalId);
+            showStatusMessage(`Error checking installation status: ${response.statusText}`, 'error');
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            clearInterval(intervalId);
+            _handleInstallSuccessNavigation(data);
+        } else if (data.status === 'error') {
+            clearInterval(intervalId);
+            showStatusMessage(`Installation failed: ${data.message}`, 'error');
+        } else {
+            // still in progress, update message if available
+            if (data.message) {
+                showStatusMessage(`Installation in progress: ${data.message}`, 'info');
+            }
+        }
+    }, 2000);
 }
 
 /**
