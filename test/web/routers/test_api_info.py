@@ -81,7 +81,7 @@ def test_get_server_config_status_api_route_failure(mock_get_status, client):
 )
 def test_get_server_version_api_route_success(mock_get_version, client):
     """Test the get_server_version_api_route with a successful version."""
-    mock_get_version.return_value = {"status": "success", "version": "1.2.3"}
+    mock_get_version.return_value = {"status": "success", "installed_version": "1.2.3"}
     response = client.get("/api/server/test-server/version")
     assert response.status_code == 200
     assert response.json()["data"]["version"] == "1.2.3"

@@ -48,6 +48,8 @@ def test_get_custom_zips(mock_listdir, mock_isdir, mock_get_settings, client):
     assert response.json()["custom_zips"] == ["zip1.zip", "zip2.zip"]
 
 
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.run_task")
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.create_task")
 @patch(
     "bedrock_server_manager.web.routers.server_install_config.server_install_config.install_new_server"
 )
@@ -58,11 +60,17 @@ def test_get_custom_zips(mock_listdir, mock_isdir, mock_get_settings, client):
     "bedrock_server_manager.web.routers.server_install_config.utils_api.validate_server_name_format"
 )
 def test_install_server_api_route_success(
-    mock_validate_name, mock_validate_exist, mock_install, client
+    mock_validate_name,
+    mock_validate_exist,
+    mock_install,
+    mock_create_task,
+    mock_run_task,
+    client,
 ):
     """Test the install_server_api_route with a successful installation."""
     mock_validate_name.return_value = {"status": "success"}
     mock_validate_exist.return_value = {"status": "error"}
+    mock_create_task.return_value = "test_task_id"
     mock_install.return_value = {"status": "success"}
 
     response = client.post(
@@ -70,39 +78,50 @@ def test_install_server_api_route_success(
         json={"server_name": "new-server", "server_version": "LATEST"},
     )
     assert response.status_code == 200
-    assert response.json()["status"] == "success"
+    assert response.json()["status"] == "pending"
+    assert response.json()["task_id"] == "test_task_id"
 
 
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.run_task")
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.create_task")
 @patch(
     "bedrock_server_manager.web.routers.server_install_config.server_install_config.install_new_server"
 )
-def test_install_server_api_route_user_input_error(mock_install, client):
+def test_install_server_api_route_user_input_error(
+    mock_install, mock_create_task, mock_run_task, client
+):
     """Test the install_server_api_route with a UserInputError."""
     from bedrock_server_manager.error import UserInputError
 
-    mock_install.side_effect = UserInputError("Invalid server version")
-    response = client.post(
-        "/api/server/install",
-        json={"server_name": "new-server", "server_version": "INVALID"},
-    )
-    assert response.status_code == 400
-    assert "Invalid server version" in response.json()["detail"]
+    mock_create_task.return_value = "test_task_id"
+    mock_run_task.side_effect = UserInputError("Invalid server version")
+
+    with pytest.raises(UserInputError):
+        client.post(
+            "/api/server/install",
+            json={"server_name": "new-server", "server_version": "INVALID"},
+        )
 
 
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.run_task")
+@patch("bedrock_server_manager.web.routers.server_install_config.tasks.create_task")
 @patch(
     "bedrock_server_manager.web.routers.server_install_config.server_install_config.install_new_server"
 )
-def test_install_server_api_route_bsm_error(mock_install, client):
+def test_install_server_api_route_bsm_error(
+    mock_install, mock_create_task, mock_run_task, client
+):
     """Test the install_server_api_route with a BSMError."""
     from bedrock_server_manager.error import BSMError
 
-    mock_install.side_effect = BSMError("Failed to install server")
-    response = client.post(
-        "/api/server/install",
-        json={"server_name": "new-server", "server_version": "LATEST"},
-    )
-    assert response.status_code == 500
-    assert "Failed to install server" in response.json()["detail"]
+    mock_create_task.return_value = "test_task_id"
+    mock_run_task.side_effect = BSMError("Failed to install server")
+
+    with pytest.raises(BSMError):
+        client.post(
+            "/api/server/install",
+            json={"server_name": "new-server", "server_version": "LATEST"},
+        )
 
 
 @patch(
