@@ -104,7 +104,6 @@ def cli(ctx: click.Context):
         global_api_plugin_manager.trigger_guarded_event("on_manager_startup")
         api.utils.update_server_statuses()
 
-
     except Exception as setup_e:
         logging.getLogger("bsm_critical_setup").critical(
             f"An unrecoverable error occurred during CLI application startup: {setup_e}",

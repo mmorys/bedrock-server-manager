@@ -40,6 +40,7 @@ from ..dependencies import validate_server_exists
 from ...api import backup_restore as backup_restore_api
 from ...instances import get_settings_instance
 from ...error import BSMError, UserInputError
+from .. import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ class BackupRestoreResponse(BaseApiResponse):
     )
     backups: Optional[List[Any]] = Field(
         default=None, description="Optional list of backup files or related data."
+    )
+    task_id: Optional[str] = Field(
+        default=None, description="ID of the background task."
     )
 
 
@@ -399,52 +403,6 @@ async def handle_restore_select_backup_type_api(
         )
 
 
-# --- API Background Task Helper ---
-def log_background_task_error(task_name: str, server_name: str, exc: Exception):
-    """Logs an error that occurs in a background task related to backup/restore.
-
-    Args:
-        task_name (str): The name of the background task (e.g., "prune_backups").
-        server_name (str): The name of the server the task was performed on.
-        exc (Exception): The exception that occurred.
-    """
-    logger.error(
-        f"Background task '{task_name}' for server '{server_name}': Unexpected error. {exc}",
-        exc_info=True,
-    )
-
-
-def prune_backups_task(server_name: str):
-    """
-    Background task to prune old backups for a given server.
-
-    Calls :func:`~bedrock_server_manager.api.backup_restore.prune_old_backups`.
-    Logs the outcome.
-
-    Args:
-        server_name (str): The name of the server whose backups are to be pruned.
-    """
-    logger.info(
-        f"Background task initiated: Pruning backups for server '{server_name}'."
-    )
-    try:
-        result = backup_restore_api.prune_old_backups(server_name)
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'prune_backups' for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'prune_backups' for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.warning(
-            f"Background task 'prune_backups' for '{server_name}': Application error. {e}"
-        )
-    except Exception as e:
-        log_background_task_error("prune_backups", server_name, e)
-
-
 @router.post(
     "/api/server/{server_name}/backups/prune",
     response_model=BackupRestoreResponse,
@@ -452,7 +410,7 @@ def prune_backups_task(server_name: str):
     tags=["Backup & Restore API"],
 )
 async def prune_backups_api_route(
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -465,35 +423,32 @@ async def prune_backups_api_route(
     - Requires authentication.
 
     Args:
-        tasks (BackgroundTasks): FastAPI background tasks utility.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
         server_name (str): The name of the server. Validated by dependency.
         current_user (Dict[str, Any]): Authenticated user object.
 
     Returns:
         BackupRestoreResponse:
-            - ``status``: "success" (as it's a background task initiation)
+            - ``status``: "pending"
             - ``message``: Confirmation that pruning has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Backup pruning for server 'MyServer' initiated in background.",
-            "details": null,
-            "redirect_url": null,
-            "backups": null
-        }
+            - ``task_id``: ID of the background task.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
         f"API: Request to prune backups for server '{server_name}' by user '{identity}'."
     )
-    tasks.add_task(prune_backups_task, server_name)
+    task_id = tasks.create_task()
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        backup_restore_api.prune_old_backups,
+        server_name,
+    )
 
     return BackupRestoreResponse(
-        status="success",
+        status="pending",
         message=f"Backup pruning for server '{server_name}' initiated in background.",
+        task_id=task_id,
     )
 
 
@@ -635,62 +590,6 @@ async def list_server_backups_api_route(
         )
 
 
-def backup_action_task(
-    server_name: str, backup_type: str, file_to_backup: Optional[str]
-):
-    """
-    Background task to perform a backup action (world, config, or all).
-
-    Calls the appropriate backup function from
-    :mod:`~bedrock_server_manager.api.backup_restore` based on `backup_type`.
-    Logs the outcome.
-
-    Args:
-        server_name (str): The name of the server.
-        backup_type (str): Type of backup ("world", "config", "all").
-        file_to_backup (Optional[str]): Specific file for "config" backup type.
-    """
-    logger.info(
-        f"Background task initiated: Backup action '{backup_type}' for server '{server_name}'."
-    )
-    try:
-        result: Dict[str, Any] = {}
-        if backup_type == "world":
-            result = backup_restore_api.backup_world(server_name)
-        elif backup_type == "config":
-            if not file_to_backup:
-                logger.error(
-                    f"Background task 'backup_action' for '{server_name}': 'file_to_backup' is missing for config type."
-                )
-                return
-            result = backup_restore_api.backup_config_file(
-                server_name, file_to_backup.strip()
-            )
-        elif backup_type == "all":
-            result = backup_restore_api.backup_all(server_name)
-        else:
-            logger.error(
-                f"Background task 'backup_action' for '{server_name}': Invalid backup type '{backup_type}'."
-            )
-            return
-
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'backup_action' ({backup_type}) for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'backup_action' ({backup_type}) for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.error(
-            f"Background task 'backup_action' ({backup_type}) for '{server_name}': BSMError. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(f"backup_action ({backup_type})", server_name, e)
-
-
 @router.post(
     "/api/server/{server_name}/backup/action",
     response_model=BackupRestoreResponse,
@@ -698,7 +597,7 @@ def backup_action_task(
     tags=["Backup & Restore API"],
 )
 async def backup_action_api_route(
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     payload: BackupActionPayload = Body(...),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -733,108 +632,29 @@ async def backup_action_api_route(
             detail="Missing or invalid 'file_to_backup' for config backup type.",
         )
 
-    tasks.add_task(
-        backup_action_task,
-        server_name,
-        payload.backup_type.lower(),
-        payload.file_to_backup,
+    task_id = tasks.create_task()
+    target_func = None
+    args = [server_name]
+    if payload.backup_type.lower() == "world":
+        target_func = backup_restore_api.backup_world
+    elif payload.backup_type.lower() == "config":
+        target_func = backup_restore_api.backup_config_file
+        args.append(payload.file_to_backup.strip())
+    elif payload.backup_type.lower() == "all":
+        target_func = backup_restore_api.backup_all
+
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        target_func,
+        *args,
     )
 
     return BackupRestoreResponse(
-        status="success",
+        status="pending",
         message=f"Backup action '{payload.backup_type}' for server '{server_name}' initiated in background.",
+        task_id=task_id,
     )
-
-
-def restore_action_task(
-    server_name: str, restore_type: str, relative_backup_file: Optional[str]
-):
-    """
-    Background task to perform a restore action.
-
-    Calls the appropriate restore function from
-    :mod:`~bedrock_server_manager.api.backup_restore` based on `restore_type`.
-    Handles path construction and validation for specific file restores.
-    Logs the outcome.
-
-    Args:
-        server_name (str): The name of the server.
-        restore_type (str): Type of restore ("all", "world", "properties", "allowlist", "permissions").
-        relative_backup_file (Optional[str]): Basename of the backup file if not restoring "all".
-    """
-    logger.info(
-        f"Background task initiated: Restore action '{restore_type}' for server '{server_name}'."
-    )
-    try:
-        result: Dict[str, Any] = {}
-
-        if restore_type == "all":
-            result = backup_restore_api.restore_all(server_name)
-        else:
-            if not relative_backup_file:
-                logger.error(
-                    f"Background task 'restore_action' for '{server_name}': 'backup_file' is missing for '{restore_type}'."
-                )
-                return
-
-            backup_base_dir = get_settings_instance().get("paths.backups")
-            if not backup_base_dir:
-                logger.error(
-                    "Background task 'restore_action': BACKUP_DIR not configured."
-                )
-                return
-
-            server_backup_dir = os.path.join(backup_base_dir, server_name)
-            full_backup_path = os.path.normpath(
-                os.path.join(server_backup_dir, relative_backup_file)
-            )
-
-            if not os.path.abspath(full_backup_path).startswith(
-                os.path.abspath(server_backup_dir) + os.sep
-            ):
-                logger.error(
-                    f"Background task 'restore_action' for '{server_name}': Security violation - Invalid backup path '{relative_backup_file}'."
-                )
-                return
-
-            if not os.path.isfile(full_backup_path):
-                logger.error(
-                    f"Background task 'restore_action' for '{server_name}': Backup file not found: {full_backup_path}"
-                )
-                return
-
-            if restore_type == "world":
-                result = backup_restore_api.restore_world(server_name, full_backup_path)
-            elif restore_type in [
-                "properties",
-                "allowlist",
-                "permissions",
-            ]:
-                result = backup_restore_api.restore_config_file(
-                    server_name, full_backup_path
-                )
-            else:
-                logger.error(
-                    f"Background task 'restore_action' for '{server_name}': Invalid restore type '{restore_type}'."
-                )
-                return
-
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'restore_action' ({restore_type}) for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'restore_action' ({restore_type}) for '{server_name}': Failed. {result.get('message')}"
-            )
-
-    except BSMError as e:
-        logger.error(
-            f"Background task 'restore_action' ({restore_type}) for '{server_name}': BSMError. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(f"restore_action ({restore_type})", server_name, e)
 
 
 @router.post(
@@ -845,7 +665,7 @@ def restore_action_task(
 )
 async def restore_action_api_route(
     payload: RestoreActionPayload,
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -890,11 +710,55 @@ async def restore_action_api_route(
             detail="Invalid 'backup_file' path.",
         )
 
-    tasks.add_task(
-        restore_action_task, server_name, restore_type_lower, payload.backup_file
+    task_id = tasks.create_task()
+    target_func = None
+    args = [server_name]
+
+    if restore_type_lower == "all":
+        target_func = backup_restore_api.restore_all
+    else:
+        backup_base_dir = get_settings_instance().get("paths.backups")
+        if not backup_base_dir:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="BACKUP_DIR not configured.",
+            )
+
+        server_backup_dir = os.path.join(backup_base_dir, server_name)
+        full_backup_path = os.path.normpath(
+            os.path.join(server_backup_dir, payload.backup_file)
+        )
+
+        if not os.path.abspath(full_backup_path).startswith(
+            os.path.abspath(server_backup_dir) + os.sep
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Security violation - Invalid backup path '{payload.backup_file}'.",
+            )
+
+        if not os.path.isfile(full_backup_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Backup file not found: {full_backup_path}",
+            )
+
+        if restore_type_lower == "world":
+            target_func = backup_restore_api.restore_world
+            args.append(full_backup_path)
+        elif restore_type_lower in ["properties", "allowlist", "permissions"]:
+            target_func = backup_restore_api.restore_config_file
+            args.append(full_backup_path)
+
+    background_tasks.add_task(
+        tasks.run_task,
+        task_id,
+        target_func,
+        *args,
     )
 
     return BackupRestoreResponse(
-        status="success",
+        status="pending",
         message=f"Restore action '{payload.restore_type}' for server '{server_name}' initiated in background.",
+        task_id=task_id,
     )

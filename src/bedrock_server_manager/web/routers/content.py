@@ -30,6 +30,7 @@ from ...api import (
 )
 from ...instances import get_settings_instance
 from ...error import BSMError, UserInputError
+from .. import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -293,39 +294,6 @@ async def list_addons_api_route(
         )
 
 
-# --- Background Task Helpers ---
-def log_background_task_error(task_name: str, server_name: str, exc: Exception):
-    logger.error(
-        f"Background task '{task_name}' for server '{server_name}': Unexpected error. {exc}",
-        exc_info=True,
-    )
-
-
-def install_world_task(server_name: str, world_file_path: str):
-    logger.info(
-        f"Background task initiated: Installing world '{os.path.basename(world_file_path)}' to server '{server_name}'."
-    )
-    try:
-        result = world_api.import_world(server_name, world_file_path)
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'install_world' for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'install_world' for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.error(
-            f"Background task 'install_world' for '{server_name}': Application error. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(
-            f"install_world ({os.path.basename(world_file_path)})", server_name, e
-        )
-
-
 @router.post(
     "/api/server/{server_name}/world/install",
     response_model=ActionResponse,
@@ -334,7 +302,7 @@ def install_world_task(server_name: str, world_file_path: str):
 )
 async def install_world_api_route(
     payload: FileNamePayload,
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -346,30 +314,15 @@ async def install_world_api_route(
 
     Args:
         payload (FileNamePayload): Contains the `filename` of the .mcworld file.
-        tasks (BackgroundTasks): FastAPI background tasks utility.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
         server_name (str): The name of the server. Validated by dependency.
         current_user (Dict[str, Any]): Authenticated user object.
 
     Returns:
         ActionResponse:
-            - ``status``: "success"
+            - ``status``: "pending"
             - ``message``: Confirmation that the world installation has been initiated.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "filename": "MyAwesomeWorld.mcworld"
-        }
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "World install from 'MyAwesomeWorld.mcworld' for server 'MyServer' initiated in background.",
-            "details": null
-        }
+            - ``task_id``: ID of the background task.
     """
     identity = current_user.get("username", "Unknown")
     selected_filename = payload.filename
@@ -378,7 +331,6 @@ async def install_world_api_route(
     )
 
     try:
-
         if not utils_api.validate_server_exist(server_name):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -412,10 +364,19 @@ async def install_world_api_route(
                 detail=f"World file '{selected_filename}' not found for import.",
             )
 
-        tasks.add_task(install_world_task, server_name, full_world_file_path)
+        task_id = tasks.create_task()
+        background_tasks.add_task(
+            tasks.run_task,
+            task_id,
+            world_api.import_world,
+            server_name,
+            full_world_file_path,
+        )
 
         return ActionResponse(
-            message=f"World install from '{selected_filename}' for server '{server_name}' initiated in background."
+            status="pending",
+            message=f"World install from '{selected_filename}' for server '{server_name}' initiated in background.",
+            task_id=task_id,
         )
     except HTTPException:
         raise
@@ -438,29 +399,6 @@ async def install_world_api_route(
         )
 
 
-def export_world_task(server_name: str):
-    logger.info(
-        f"Background task initiated: Exporting world from server '{server_name}'."
-    )
-    try:
-        result = world_api.export_world(server_name)
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'export_world' for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'export_world' for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.error(
-            f"Background task 'export_world' for '{server_name}': Application error. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(f"export_world", server_name, e)
-
-
 @router.post(
     "/api/server/{server_name}/world/export",
     response_model=ActionResponse,
@@ -468,7 +406,7 @@ def export_world_task(server_name: str):
     tags=["Content API"],
 )
 async def export_world_api_route(
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -479,23 +417,15 @@ async def export_world_api_route(
     The server will be stopped before export and restarted after.
 
     Args:
-        tasks (BackgroundTasks): FastAPI background tasks utility.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
         server_name (str): The name of the server. Validated by dependency.
         current_user (Dict[str, Any]): Authenticated user object.
 
     Returns:
         ActionResponse:
-            - ``status``: "success"
+            - ``status``: "pending"
             - ``message``: Confirmation that the world export has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "World export for server 'MyServer' initiated in background.",
-            "details": null
-        }
+            - ``task_id``: ID of the background task.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(
@@ -503,17 +433,24 @@ async def export_world_api_route(
     )
 
     try:
-
         if not utils_api.validate_server_exist(server_name):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Server '{server_name}' not found.",
             )
 
-        tasks.add_task(export_world_task, server_name)
+        task_id = tasks.create_task()
+        background_tasks.add_task(
+            tasks.run_task,
+            task_id,
+            world_api.export_world,
+            server_name,
+        )
 
         return ActionResponse(
-            message=f"World export for server '{server_name}' initiated in background."
+            status="pending",
+            message=f"World export for server '{server_name}' initiated in background.",
+            task_id=task_id,
         )
     except HTTPException:  # Re-raise HTTPExceptions directly
         raise
@@ -529,29 +466,6 @@ async def export_world_api_route(
         )
 
 
-def reset_world_task(server_name: str):
-    logger.info(
-        f"Background task initiated: Resetting world for server '{server_name}'."
-    )
-    try:
-        result = world_api.reset_world(server_name)
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'reset_world' for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'reset_world' for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.warning(
-            f"Background task 'reset_world' for '{server_name}': Application error. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(f"reset_world", server_name, e)
-
-
 @router.delete(
     "/api/server/{server_name}/world/reset",
     response_model=ActionResponse,
@@ -559,7 +473,7 @@ def reset_world_task(server_name: str):
     tags=["Content API"],
 )
 async def reset_world_api_route(
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -571,23 +485,15 @@ async def reset_world_api_route(
     will trigger the generation of a new world based on server properties.
 
     Args:
-        tasks (BackgroundTasks): FastAPI background tasks utility.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
         server_name (str): The name of the server. Validated by dependency.
         current_user (Dict[str, Any]): Authenticated user object.
 
     Returns:
         ActionResponse:
-            - ``status``: "success"
+            - ``status``: "pending"
             - ``message``: Confirmation that the world reset has been initiated.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "World reset for server 'MyServer' initiated in background.",
-            "details": null
-        }
+            - ``task_id``: ID of the background task.
     """
     identity = current_user.get("username", "Unknown")
     logger.info(f"API: World reset requested for '{server_name}' by user '{identity}'.")
@@ -600,10 +506,18 @@ async def reset_world_api_route(
                 detail=f"Server '{server_name}' not found.",
             )
 
-        tasks.add_task(reset_world_task, server_name)
+        task_id = tasks.create_task()
+        background_tasks.add_task(
+            tasks.run_task,
+            task_id,
+            world_api.reset_world,
+            server_name,
+        )
 
         return ActionResponse(
-            message=f"World reset for server '{server_name}' initiated in background."
+            status="pending",
+            message=f"World reset for server '{server_name}' initiated in background.",
+            task_id=task_id,
         )
     except HTTPException:  # Re-raise HTTPExceptions directly
         raise
@@ -619,31 +533,6 @@ async def reset_world_api_route(
         )
 
 
-def install_addon_task(server_name: str, addon_file_path: str):
-    logger.info(
-        f"Background task initiated: Installing addon '{os.path.basename(addon_file_path)}' to server '{server_name}'."
-    )
-    try:
-        result = addon_api.import_addon(server_name, addon_file_path)
-        if result.get("status") == "success":
-            logger.info(
-                f"Background task 'install_addon' for '{server_name}': Succeeded. {result.get('message')}"
-            )
-        else:
-            logger.error(
-                f"Background task 'install_addon' for '{server_name}': Failed. {result.get('message')}"
-            )
-    except BSMError as e:
-        logger.error(
-            f"Background task 'install_addon' for '{server_name}': Application error. {e}",
-            exc_info=True,
-        )
-    except Exception as e:
-        log_background_task_error(
-            f"install_addon ({os.path.basename(addon_file_path)})", server_name, e
-        )
-
-
 @router.post(
     "/api/server/{server_name}/addon/install",
     response_model=ActionResponse,
@@ -652,7 +541,7 @@ def install_addon_task(server_name: str, addon_file_path: str):
 )
 async def install_addon_api_route(
     payload: FileNamePayload,
-    tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,
     server_name: str = Depends(validate_server_exists),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -664,30 +553,15 @@ async def install_addon_api_route(
 
     Args:
         payload (FileNamePayload): Contains the `filename` of the addon file.
-        tasks (BackgroundTasks): FastAPI background tasks utility.
+        background_tasks (BackgroundTasks): FastAPI background tasks utility.
         server_name (str): The name of the server. Validated by dependency.
         current_user (Dict[str, Any]): Authenticated user object.
 
     Returns:
         ActionResponse:
-            - ``status``: "success"
+            - ``status``: "pending"
             - ``message``: Confirmation that the addon installation has been initiated.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "filename": "CoolFurniture.mcaddon"
-        }
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Addon install from 'CoolFurniture.mcaddon' for server 'MyServer' initiated in background.",
-            "details": null
-        }
+            - ``task_id``: ID of the background task.
     """
     identity = current_user.get("username", "Unknown")
     selected_filename = payload.filename
@@ -696,7 +570,6 @@ async def install_addon_api_route(
     )
 
     try:
-
         if not utils_api.validate_server_exist(server_name):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -730,10 +603,19 @@ async def install_addon_api_route(
                 detail=f"Addon file '{selected_filename}' not found for import.",
             )
 
-        tasks.add_task(install_addon_task, server_name, full_addon_file_path)
+        task_id = tasks.create_task()
+        background_tasks.add_task(
+            tasks.run_task,
+            task_id,
+            addon_api.import_addon,
+            server_name,
+            full_addon_file_path,
+        )
 
         return ActionResponse(
-            message=f"Addon install from '{selected_filename}' for server '{server_name}' initiated in background."
+            status="pending",
+            message=f"Addon install from '{selected_filename}' for server '{server_name}' initiated in background.",
+            task_id=task_id,
         )
     except HTTPException:  # Re-raise HTTPExceptions directly
         raise

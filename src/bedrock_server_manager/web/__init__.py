@@ -1,5 +1,6 @@
 # bedrock_server_manager/web/__init__.py
 from .app import run_web_server
+from .tasks import create_task, update_task, get_task, run_task
 from .templating import get_templates
 from .auth_utils import (
     pwd_context,
@@ -15,6 +16,11 @@ from .dependencies import validate_server_exists
 
 __all__ = [
     "run_web_server",
+    # Tasks
+    "create_task",
+    "update_task",
+    "get_task",
+    "run_task",
     # Templating
     "get_templates",
     # Auth utils

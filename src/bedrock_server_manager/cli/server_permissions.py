@@ -56,47 +56,51 @@ def interactive_permissions_workflow(server_name: str):
                      (e.g., by pressing Ctrl+C).
     """
     click.secho("\n--- Interactive Permission Configuration ---", bold=True)
-    player_response = player_api.get_all_known_players_api()
-    all_players = player_response.get("players", [])
+    while True:
+        player_response = player_api.get_all_known_players_api()
+        all_players = player_response.get("players", [])
 
-    if not all_players:
-        click.secho(
-            "No players found in the global player database (players.json).",
-            fg="yellow",
+        if not all_players:
+            click.secho(
+                "No players found in the global player database (players.json).",
+                fg="yellow",
+            )
+            click.secho(
+                "Run 'bsm player scan' or 'bsm player add' to populate it first.",
+                fg="cyan",
+            )
+            return
+
+        # Create a user-friendly mapping for the selection prompt
+        player_map = {f"{p['name']} (XUID: {p['xuid']})": p for p in all_players}
+        choices = sorted(list(player_map.keys())) + ["Cancel"]
+
+        player_choice_str = questionary.select(
+            "Select a player to configure permissions for:", choices=choices
+        ).ask()
+
+        if not player_choice_str or player_choice_str == "Cancel":
+            click.secho("Exiting permissions workflow.", fg="yellow")
+            break
+
+        selected_player = player_map[player_choice_str]
+        permission = questionary.select(
+            f"Select permission level for {selected_player['name']}:",
+            choices=["member", "operator", "visitor"],
+            default="member",
+        ).ask()
+
+        if permission is None:  # User pressed Ctrl+C
+            raise click.Abort()
+
+        perm_response = config_api.configure_player_permission(
+            server_name, selected_player["xuid"], selected_player["name"], permission
         )
-        click.secho(
-            "Run 'bsm player scan' or 'bsm player add' to populate it first.", fg="cyan"
+        _handle_api_response(
+            perm_response,
+            f"Permission for {selected_player['name']} set to '{permission}'.",
         )
-        return
-
-    # Create a user-friendly mapping for the selection prompt
-    player_map = {f"{p['name']} (XUID: {p['xuid']})": p for p in all_players}
-    choices = sorted(list(player_map.keys())) + ["Cancel"]
-
-    player_choice_str = questionary.select(
-        "Select a player to configure permissions for:", choices=choices
-    ).ask()
-
-    if not player_choice_str or player_choice_str == "Cancel":
-        raise click.Abort()
-
-    selected_player = player_map[player_choice_str]
-    permission = questionary.select(
-        f"Select permission level for {selected_player['name']}:",
-        choices=["member", "operator", "visitor"],
-        default="member",
-    ).ask()
-
-    if permission is None:  # User pressed Ctrl+C
-        raise click.Abort()
-
-    perm_response = config_api.configure_player_permission(
-        server_name, selected_player["xuid"], selected_player["name"], permission
-    )
-    _handle_api_response(
-        perm_response,
-        f"Permission for {selected_player['name']} set to '{permission}'.",
-    )
+        click.echo("-" * 20)  # Separator for the next loop
 
 
 @click.group()

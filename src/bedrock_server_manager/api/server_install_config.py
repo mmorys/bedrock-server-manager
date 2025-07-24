@@ -538,7 +538,7 @@ def validate_server_property_value(property_name: str, value: str) -> Dict[str, 
 def modify_server_properties(
     server_name: str,
     properties_to_update: Dict[str, str],
-    restart_after_modify: bool = True,
+    restart_after_modify: bool = False,
 ) -> Dict[str, str]:
     """Modifies one or more properties in `server.properties`.
 

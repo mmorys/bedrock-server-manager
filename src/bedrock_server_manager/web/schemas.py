@@ -6,6 +6,7 @@ class ActionResponse(BaseModel):
     status: str = "success"
     message: str
     details: Optional[Any] = None
+    task_id: Optional[str] = None
 
 
 class BaseApiResponse(BaseModel):

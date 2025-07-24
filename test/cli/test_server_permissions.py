@@ -112,6 +112,7 @@ def test_interactive_permissions_workflow(runner):
         mock_select.return_value.ask.side_effect = [
             "TestPlayer (XUID: 12345)",
             "operator",
+            "Cancel",
         ]
         mock_set_perm.return_value = {"status": "success"}
 

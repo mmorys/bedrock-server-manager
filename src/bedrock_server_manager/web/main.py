@@ -102,6 +102,7 @@ app.include_router(routers.content_router)
 app.include_router(routers.settings_router)
 app.include_router(routers.api_info_router)
 app.include_router(routers.plugin_router)
+app.include_router(routers.tasks_router)
 
 
 # --- Dynamically include FastAPI routers from plugins ---
