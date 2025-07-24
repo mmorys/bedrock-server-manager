@@ -43,6 +43,7 @@ Source Code: `Github <https://github.com/DMedina559/bedrock-server-manager>`_
    :caption: CLI Commands
 
    cli/commands
+   cli/api_client_commands
 
 .. toctree::
    :maxdepth: 2

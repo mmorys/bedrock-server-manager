@@ -28,6 +28,26 @@ Key changes to expect in **BSM 3.6.0** include:
 I understand that frequent breaking changes can be frustrating. Many of the recent updates have involved significant refactoring to evolve BSM from its simple script origins into the robust management tool it's become. This upcoming 3.6.0 release represents the final major step in this architectural overhaul. These changes will create a more stable and feature-rich foundation for the future of Bedrock Server Manager.
 ```
 
+## 3.5.7
+```{tip}
+Experience the new CLI before the 3.6.0 now:
+
+`pip install bedrock-server-manager[cli]`
+
+Use the `bsm-api-client` command to interact with the web server
+
+View all commands at: [BSM API Commands](https://bedrock-server-manager.readthedocs.io/en/latest/cli/api_client_commands.html)
+
+```
+
+1. Added generic task manager for FastAPI background task
+    - Background task now retun a task ID you can use to monitor various task such as server installs, backups and more.
+    - Added `/api/tasks/status/{task_id}` for status tracking
+    - If your FASTAPI plugin uses background task, consider migrating to the `bedrock_server_manager.web.tasks` functions for a consistent user experience
+2. Fixed server version api endpoint
+3. Improved CLI permissions menu experience
+4. No longer restart server after properties change
+
 ## 3.5.6
 1. Fixed allowlist remove command
 2. Filter logs to only show BSM and Plugin logs
