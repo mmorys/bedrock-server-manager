@@ -35,9 +35,11 @@ from fastapi.responses import (
 )
 from pydantic import BaseModel, Field
 
-from ..templating import templates
+from ..templating import get_templates
 from ..auth_utils import get_current_user
 from ..dependencies import validate_server_exists
+from ..auth_utils import get_admin_user, get_moderator_user
+from ..schemas import User
 from ...api import (
     server_install_config,
     server as server_api,
@@ -159,18 +161,20 @@ class ServiceUpdatePayload(BaseModel):
     "/api/downloads/list",
     tags=["Server Installation API"],
 )
-async def get_custom_zips(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_custom_zips(
+    request: Request, current_user: User = Depends(get_moderator_user)
+):
     """
     Retrieves a list of available custom server ZIP files.
     """
+    app_context = request.app.state.app_context
     try:
-        download_dir = get_settings_instance().get("paths.downloads")
+        download_dir = app_context.settings.get("paths.downloads")
         custom_dir = os.path.join(download_dir, "custom")
         if not os.path.isdir(custom_dir):
             return {"status": "success", "custom_zips": []}
 
         custom_zips = [f for f in os.listdir(custom_dir) if f.endswith(".zip")]
-        print(f"Custom zips found: {custom_zips}")
         return {"status": "success", "custom_zips": custom_zips}
     except Exception as e:
         logger.error(f"Failed to get custom zips: {e}", exc_info=True)
@@ -188,7 +192,7 @@ async def get_custom_zips(current_user: Dict[str, Any] = Depends(get_current_use
     include_in_schema=False,
 )
 async def install_server_page(
-    request: Request, current_user: Dict[str, Any] = Depends(get_current_user)
+    request: Request, current_user: User = Depends(get_admin_user)
 ):
     """
     Serves the HTML page for installing a new Bedrock server.
@@ -198,14 +202,14 @@ async def install_server_page(
 
     Args:
         request (Request): The FastAPI request object.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         HTMLResponse: Renders the ``install.html`` template.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(f"User '{identity}' accessed new server install page.")
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         request, "install.html", {"request": request, "current_user": current_user}
     )
 
@@ -217,9 +221,10 @@ async def install_server_page(
     tags=["Server Installation API"],
 )
 async def install_server_api_route(
+    request: Request,
     payload: InstallServerPayload,
     background_tasks: BackgroundTasks,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """
     Handles the installation of a new Bedrock server instance.
@@ -230,7 +235,7 @@ async def install_server_api_route(
 
     Args:
         payload (InstallServerPayload): Server name, version, and overwrite flag.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         InstallServerResponse:
@@ -242,11 +247,11 @@ async def install_server_api_route(
     Raises:
         HTTPException: For validation errors or internal server errors during installation.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: New server install request from user '{identity}' for server '{payload.server_name}'."
     )
-
+    app_context = request.app.state.app_context
     validation_result = utils_api.validate_server_name_format(payload.server_name)
     if validation_result.get("status") == "error":
         raise HTTPException(
@@ -255,7 +260,9 @@ async def install_server_api_route(
         )
 
     try:
-        server_exists_result = utils_api.validate_server_exist(payload.server_name)
+        server_exists_result = utils_api.validate_server_exist(
+            payload.server_name, app_context=app_context
+        )
         server_exists = server_exists_result.get("status") == "success"
 
         if not payload.overwrite and server_exists:
@@ -273,7 +280,9 @@ async def install_server_api_route(
             logger.info(
                 f"Overwrite flag set for existing server '{payload.server_name}'. Deleting first."
             )
-            delete_result = server_api.delete_server_data(payload.server_name)
+            delete_result = server_api.delete_server_data(
+                server_name=payload.server_name, app_context=app_context
+            )
             if delete_result.get("status") == "error":
                 logger.error(
                     f"Failed to delete existing server '{payload.server_name}': {delete_result['message']}"
@@ -293,7 +302,7 @@ async def install_server_api_route(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="server_zip_path is required for CUSTOM version.",
                 )
-            download_dir = get_settings_instance().get("paths.downloads")
+            download_dir = app_context.settings.get("paths.downloads")
             custom_dir = os.path.join(download_dir, "custom")
             server_zip_path = os.path.abspath(
                 os.path.join(custom_dir, payload.server_zip_path)
@@ -304,9 +313,10 @@ async def install_server_api_route(
             tasks.run_task,
             task_id,
             server_install_config.install_new_server,
-            payload.server_name,
-            payload.server_version,
+            server_name=payload.server_name,
+            target_version=payload.server_version,
             server_zip_path=server_zip_path,
+            app_context=app_context,
         )
 
         return InstallServerResponse(
@@ -350,7 +360,7 @@ async def configure_properties_page(
     request: Request,
     new_install: bool = False,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Serves the HTML page for configuring a server's ``server.properties`` file.
@@ -359,16 +369,16 @@ async def configure_properties_page(
         request (Request): The FastAPI request object.
         new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         HTMLResponse: Renders the ``configure_properties.html`` template.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"User '{identity}' accessed configure properties for server '{server_name}'. New install: {new_install}"
     )
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         request,
         "configure_properties.html",
         {
@@ -391,7 +401,7 @@ async def configure_allowlist_page(
     request: Request,
     new_install: bool = False,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Serves the HTML page for configuring a server's ``allowlist.json`` file.
@@ -400,16 +410,16 @@ async def configure_allowlist_page(
         request (Request): The FastAPI request object.
         new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         HTMLResponse: Renders the ``configure_allowlist.html`` template.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"User '{identity}' accessed configure allowlist for server '{server_name}'. New install: {new_install}"
     )
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         request,
         "configure_allowlist.html",
         {
@@ -432,7 +442,7 @@ async def configure_permissions_page(
     request: Request,
     new_install: bool = False,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Serves the HTML page for configuring player permissions (``permissions.json``).
@@ -441,16 +451,16 @@ async def configure_permissions_page(
         request (Request): The FastAPI request object.
         new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         HTMLResponse: Renders the ``configure_permissions.html`` template.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"User '{identity}' accessed configure permissions for server '{server_name}'. New install: {new_install}"
     )
-    return templates.TemplateResponse(
+    return get_templates().TemplateResponse(
         request,
         "configure_permissions.html",
         {
@@ -473,7 +483,7 @@ async def configure_service_page(
     request: Request,
     new_install: bool = False,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """Serves the HTML page for configuring server-specific service settings (autoupdate/autostart).
 
@@ -485,12 +495,12 @@ async def configure_service_page(
         request (Request): The FastAPI request object.
         new_install (bool): Query parameter indicating if this is part of a new server setup flow.
         server_name (str): Name of the server (validated by dependency).
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         HTMLResponse: Renders the ``configure_service.html`` template.
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"User '{identity}' accessed configure service page for server '{server_name}'. New install: {new_install}"
     )
@@ -505,7 +515,9 @@ async def configure_service_page(
         "autostart_enabled": False,
         "autoupdate_enabled": False,
     }
-    return templates.TemplateResponse(request, "configure_service.html", template_data)
+    return get_templates().TemplateResponse(
+        request, "configure_service.html", template_data
+    )
 
 
 # --- API Route: /api/server/{server_name}/properties/set ---
@@ -515,9 +527,10 @@ async def configure_service_page(
     tags=["Server Configuration API"],
 )
 async def configure_properties_api_route(
+    request: Request,
     payload: PropertiesPayload,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_moderator_user),
 ):
     """
     Modifies properties in the server.properties file for a specific server.
@@ -562,11 +575,11 @@ async def configure_properties_api_route(
             "message": "Server properties updated successfully. Server MyServer may have been restarted if it was running."
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Configure properties request for '{server_name}' by user '{identity}'."
     )
-
+    app_context = request.app.state.app_context
     properties_data = payload.properties
     if not isinstance(properties_data, dict):
         raise HTTPException(
@@ -576,7 +589,9 @@ async def configure_properties_api_route(
 
     try:
         result = server_install_config.modify_server_properties(
-            server_name, properties_data
+            server_name=server_name,
+            properties_to_update=properties_data,
+            app_context=app_context,
         )
         if result.get("status") == "success":
             return result
@@ -616,8 +631,9 @@ async def configure_properties_api_route(
     "/api/server/{server_name}/properties/get", tags=["Server Configuration API"]
 )
 async def get_server_properties_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Retrieves the server.properties for a specific server as a dictionary.
@@ -630,7 +646,7 @@ async def get_server_properties_api_route(
 
     Args:
         server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         dict: A dictionary from the underlying API call:
@@ -650,12 +666,14 @@ async def get_server_properties_api_route(
             }
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Get properties request for '{server_name}' by user '{identity}'."
     )
-
-    result = server_install_config.get_server_properties_api(server_name)
+    app_context = request.app.state.app_context
+    result = server_install_config.get_server_properties_api(
+        server_name=server_name, app_context=app_context
+    )
 
     if result.get("status") == "success":
         return result
@@ -677,9 +695,10 @@ async def get_server_properties_api_route(
     tags=["Server Configuration API"],
 )
 async def add_to_allowlist_api_route(
+    request: Request,
     payload: AllowlistAddPayload,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Adds one or more players to the server's allowlist.
@@ -694,7 +713,7 @@ async def add_to_allowlist_api_route(
         payload (AllowlistAddPayload): Contains ``players`` (list of gamertags)
                                      and ``ignoresPlayerLimit`` (bool).
         server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         dict: A dictionary from the underlying API call:
@@ -721,11 +740,11 @@ async def add_to_allowlist_api_route(
             "added_count": 2
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Add to allowlist request for '{server_name}' by user '{identity}'. Players: {payload.players}"
     )
-
+    app_context = request.app.state.app_context
     new_players_data = [
         {"name": player_name, "ignoresPlayerLimit": payload.ignoresPlayerLimit}
         for player_name in payload.players
@@ -733,7 +752,9 @@ async def add_to_allowlist_api_route(
 
     try:
         result = server_install_config.add_players_to_allowlist_api(
-            server_name, new_players_data
+            server_name=server_name,
+            new_players_data=new_players_data,
+            app_context=app_context,
         )
         if result.get("status") == "success":
             return result
@@ -764,8 +785,9 @@ async def add_to_allowlist_api_route(
     "/api/server/{server_name}/allowlist/get", tags=["Server Configuration API"]
 )
 async def get_allowlist_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Retrieves the allowlist for a specific server.
@@ -778,7 +800,7 @@ async def get_allowlist_api_route(
 
     Args:
         server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         dict: A dictionary from the underlying API call:
@@ -805,10 +827,12 @@ async def get_allowlist_api_route(
             ]
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(f"API: Get allowlist request for '{server_name}' by user '{identity}'.")
-
-    result = server_install_config.get_server_allowlist_api(server_name)
+    app_context = request.app.state.app_context
+    result = server_install_config.get_server_allowlist_api(
+        server_name=server_name, app_context=app_context
+    )
 
     if result.get("status") == "success":
         return result
@@ -830,9 +854,10 @@ async def get_allowlist_api_route(
     tags=["Server Configuration API"],
 )
 async def remove_allowlist_players_api_route(
+    request: Request,
     payload: AllowlistRemovePayload,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_moderator_user),
 ):
     """
     Removes one or more players from the server's allowlist by name.
@@ -875,14 +900,16 @@ async def remove_allowlist_players_api_route(
             }
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Remove from allowlist request for '{server_name}' by user '{identity}'. Players: {payload.players}"
     )
-
+    app_context = request.app.state.app_context
     try:
         result = server_install_config.remove_players_from_allowlist(
-            server_name, payload.players
+            server_name=server_name,
+            player_names=payload.players,
+            app_context=app_context,
         )
         if result.get("status") == "success":
             return result
@@ -921,9 +948,10 @@ async def remove_allowlist_players_api_route(
     tags=["Server Configuration API"],
 )
 async def configure_permissions_api_route(
+    request: Request,
     payload: PermissionsSetPayload,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Sets permission levels for multiple players on a specific server.
@@ -939,7 +967,7 @@ async def configure_permissions_api_route(
     Args:
         payload (PermissionsSetPayload): List of player permission entries.
         server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         JSONResponse:
@@ -979,11 +1007,11 @@ async def configure_permissions_api_route(
             }
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Configure permissions request for '{server_name}' by user '{identity}'."
     )
-
+    app_context = request.app.state.app_context
     permission_entries = payload.permissions
     errors: Dict[str, str] = {}  # Store errors by XUID
     success_count = 0
@@ -992,7 +1020,11 @@ async def configure_permissions_api_route(
         try:
             # Pass item.name to the underlying function
             result = server_install_config.configure_player_permission(
-                server_name, item.xuid, item.name, item.permission_level
+                server_name=server_name,
+                xuid=item.xuid,
+                player_name=item.name,
+                permission=item.permission_level,
+                app_context=app_context,
             )
             if result.get("status") == "success":
                 success_count += 1
@@ -1066,8 +1098,9 @@ async def configure_permissions_api_route(
     "/api/server/{server_name}/permissions/get", tags=["Server Configuration API"]
 )
 async def get_server_permissions_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Retrieves processed and formatted permissions data for a specific server.
@@ -1082,7 +1115,7 @@ async def get_server_permissions_api_route(
 
     Args:
         server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         dict: A dictionary from the underlying API call:
@@ -1111,12 +1144,14 @@ async def get_server_permissions_api_route(
             }
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Get permissions request for '{server_name}' by user '{identity}'."
     )
-
-    result = server_install_config.get_server_permissions_api(server_name)
+    app_context = request.app.state.app_context
+    result = server_install_config.get_server_permissions_api(
+        server_name=server_name, app_context=app_context
+    )
 
     if result.get("status") == "success":
         return result
@@ -1138,17 +1173,18 @@ async def get_server_permissions_api_route(
     tags=["Server Configuration API"],
 )
 async def configure_service_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
     payload: ServiceUpdatePayload = Body(...),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """
     Updates server-specific service settings like autoupdate and autostart.
 
     Calls :func:`~bedrock_server_manager.api.system.set_autoupdate` for the
     autoupdate flag and
-    :func:`~bedrock_server_manager.api.system.create_server_service` for the
-    autostart flag (which implicitly handles service creation/enable/disable).
+    :func:`~bedrock_server_manager.api.system.set_autostart` for the
+    autostart flag.
 
     - **server_name**: Path parameter, validated by `validate_server_exists`.
     - **Request body**: Expects a :class:`.ServiceUpdatePayload`.
@@ -1158,7 +1194,7 @@ async def configure_service_api_route(
     Args:
         server_name (str): The name of the server. Validated by dependency.
         payload (ServiceUpdatePayload): Contains ``autoupdate`` and/or ``autostart`` booleans.
-        current_user (Dict[str, Any]): Authenticated user object.
+        current_user (User): Authenticated user object.
 
     Returns:
         dict: A dictionary confirming success or detailing an error:
@@ -1184,11 +1220,11 @@ async def configure_service_api_route(
             "message": "Service configuration applied successfully."
         }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Configure service request for '{server_name}' by user '{identity}'. Payload: {payload.model_dump_json(exclude_none=True)}"
     )
-
+    app_context = request.app.state.app_context
     current_os = platform.system()
 
     if payload.autoupdate is None and payload.autostart is None:
@@ -1204,7 +1240,9 @@ async def configure_service_api_route(
         # Handle autoupdate first
         if payload.autoupdate is not None:
             result_autoupdate = system_api.set_autoupdate(
-                server_name, str(payload.autoupdate).lower()
+                server_name=server_name,
+                autoupdate_value=str(payload.autoupdate).lower(),
+                app_context=app_context,
             )
             if result_autoupdate.get("status") == "success":
                 messages.append("Autoupdate setting applied successfully.")
@@ -1216,31 +1254,17 @@ async def configure_service_api_route(
 
         # Handle autostart
         if payload.autostart is not None:
-            if current_os in ["Linux", "Windows"]:
-                result_autostart = system_api.create_server_service(
-                    server_name, payload.autostart
-                )
-                if result_autostart.get("status") == "success":
-                    messages.append("Autostart setting applied successfully.")
-                else:
-                    error_message = result_autostart.get("message", "").lower()
-                    if (
-                        "permissions" in error_message
-                        or "administrator" in error_message
-                    ):
-                        warning_msg = f"Could not set autostart due to a permissions error (requires admin rights)."
-                        warnings.append(warning_msg)
-                        logger.warning(
-                            f"API: Skipping autostart for '{server_name}': {warning_msg}"
-                        )
-                    else:
-                        # For other errors, raise to be caught below
-                        raise BSMError(
-                            f"Failed to set autostart: {result_autostart.get('message')}"
-                        )
+            result_autostart = system_api.set_autostart(
+                server_name=server_name,
+                autostart_value=str(payload.autostart).lower(),
+                app_context=app_context,
+            )
+            if result_autostart.get("status") == "success":
+                messages.append("autostart setting applied successfully.")
             else:
-                warnings.append(
-                    f"Autostart configuration ignored: unsupported OS ({current_os})."
+                # Raise to be caught by the generic error handlers below
+                raise BSMError(
+                    f"Failed to set autostart: {result_autostart.get('message')}"
                 )
 
         # Combine messages and warnings for the final response

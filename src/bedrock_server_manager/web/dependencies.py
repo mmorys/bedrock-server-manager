@@ -11,17 +11,19 @@ See Also:
 """
 import logging
 from fastapi import HTTPException, status, Path
-
+from sqlalchemy.orm import Session
+from ..db.database import db_session_manager
+from ..db.models import User
 from ..api import utils as utils_api
-from ..error import (
-    InvalidServerNameError,
-)
+from ..error import InvalidServerNameError
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 
 
 async def validate_server_exists(
-    server_name: str = Path(..., title="The name of the server", min_length=1)
+    request: Request,
+    server_name: str = Path(..., title="The name of the server", min_length=1),
 ) -> str:
     """
     FastAPI dependency to validate if a server identified by `server_name` exists.
@@ -45,8 +47,15 @@ async def validate_server_exists(
             has an invalid format.
     """
     logger.debug(f"Dependency: Validating existence of server '{server_name}'.")
+    app_context = request.app.state.app_context
     try:
-        validation_result = utils_api.validate_server_exist(server_name)
+        name_validation_result = utils_api.validate_server_name_format(server_name)
+        if name_validation_result.get("status") != "success":
+            raise InvalidServerNameError(name_validation_result.get("message"))
+
+        validation_result = utils_api.validate_server_exist(
+            server_name=server_name, app_context=app_context
+        )
         if validation_result.get("status") != "success":
             logger.warning(
                 f"Dependency: Server '{server_name}' not found or invalid. Message: {validation_result.get('message')}"
@@ -66,3 +75,11 @@ async def validate_server_exists(
             f"Dependency: Invalid server name format for '{server_name}': {e}"
         )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+async def needs_setup():
+    """
+    FastAPI dependency that checks if the application needs to be set up.
+    """
+    with db_session_manager() as db:
+        return db.query(User).first() is None

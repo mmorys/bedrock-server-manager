@@ -1,9 +1,17 @@
 # bedrock_server_manager/__init__.py
 # Core classes
-from .core import BedrockServerManager, BedrockServer, BedrockDownloader
+from .core import (
+    BedrockServerManager,
+    BedrockServer,
+    BedrockDownloader,
+    BedrockProcessManager,
+)
 
 # Configuration
 from .config import Settings, get_installed_version
+
+# App Context
+from .context import AppContext
 
 # Plugin system essentials
 from .plugins import PluginBase, PluginManager
@@ -17,8 +25,11 @@ __all__ = [
     "BedrockServerManager",
     "BedrockServer",
     "BedrockDownloader",
+    "BedrockProcessManager",
     # Config
-    "Settings",  # The class
+    "Settings",
+    # App Context
+    "AppContext",
     # Plugins
     "PluginBase",
     "PluginManager",
