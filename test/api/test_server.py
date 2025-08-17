@@ -74,12 +74,17 @@ class TestServerSettings:
 
 
 class TestServerLifecycle:
-    def test_start_server(self, app_context):
+    @patch("bedrock_server_manager.core.bedrock_server.BedrockServer.start")
+    @patch(
+        "bedrock_server_manager.core.bedrock_process_manager.BedrockProcessManager.add_server"
+    )
+    def test_start_server(self, mock_add_server, mock_start, app_context):
         server = app_context.get_server("test_server")
-        with patch.object(server.process_manager, "start_server") as mock_start:
+        with patch.object(server, "is_running", return_value=False):
             result = start_server("test_server", app_context=app_context)
             assert result["status"] == "success"
-            mock_start.assert_called_once_with(server.server_name)
+            mock_start.assert_called_once()
+            mock_add_server.assert_called_once_with(server)
 
     def test_start_server_already_running(self, app_context):
         server = app_context.get_server("test_server")
@@ -88,13 +93,17 @@ class TestServerLifecycle:
             assert result["status"] == "error"
             assert "already running" in result["message"]
 
-    def test_stop_server(self, app_context):
+    @patch("bedrock_server_manager.core.bedrock_server.BedrockServer.stop")
+    @patch(
+        "bedrock_server_manager.core.bedrock_process_manager.BedrockProcessManager.remove_server"
+    )
+    def test_stop_server(self, mock_remove_server, mock_stop, app_context):
         server = app_context.get_server("test_server")
-        with patch.object(server.process_manager, "stop_server") as mock_stop:
-            with patch.object(server, "is_running", return_value=True):
-                result = stop_server("test_server", app_context=app_context)
-                assert result["status"] == "success"
-                mock_stop.assert_called_once_with(server.server_name)
+        with patch.object(server, "is_running", return_value=True):
+            result = stop_server("test_server", app_context=app_context)
+            assert result["status"] == "success"
+            mock_stop.assert_called_once()
+            mock_remove_server.assert_called_once_with(server.server_name)
 
     def test_stop_server_already_stopped(self, app_context):
         server = app_context.get_server("test_server")
@@ -120,15 +129,13 @@ class TestServerLifecycle:
 
 
 class TestSendCommand:
-    def test_send_command(self, app_context):
+    @patch("bedrock_server_manager.core.bedrock_server.BedrockServer.send_command")
+    def test_send_command(self, mock_send, app_context):
         server = app_context.get_server("test_server")
-        with patch.object(server.process_manager, "send_command") as mock_send:
-            with patch.object(server, "is_running", return_value=True):
-                result = send_command(
-                    "test_server", "say hello", app_context=app_context
-                )
-                assert result["status"] == "success"
-                mock_send.assert_called_once_with(server.server_name, "say hello")
+        with patch.object(server, "is_running", return_value=True):
+            result = send_command("test_server", "say hello", app_context=app_context)
+            assert result["status"] == "success"
+            mock_send.assert_called_once_with("say hello")
 
     def test_send_blocked_command(self, app_context):
         with patch("bedrock_server_manager.api.server.API_COMMAND_BLACKLIST", ["stop"]):

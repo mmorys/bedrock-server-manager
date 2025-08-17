@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 import pytest
 from bedrock_server_manager.web.dependencies import validate_server_exists
 
@@ -30,20 +30,21 @@ def test_restart_server_route(authenticated_client, real_bedrock_server):
     assert "initiated in background" in response.json()["message"]
 
 
-@patch("bedrock_server_manager.core.system.base.is_server_running")
+@patch("bedrock_server_manager.web.routers.server_actions.server_api.send_command")
 def test_send_command_route_success(
-    mock_is_server_running, authenticated_client, app_context, real_bedrock_server
+    mock_send_command, authenticated_client, real_bedrock_server
 ):
     """Test the send_command_route with a successful response."""
-    mock_is_server_running.return_value = True
-    app_context.bedrock_process_manager.start_server(real_bedrock_server.server_name)
+    mock_send_command.return_value = {"status": "success"}
     response = authenticated_client.post(
         f"/api/server/{real_bedrock_server.server_name}/send_command",
         json={"command": "list"},
     )
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-    app_context.bedrock_process_manager.stop_server(real_bedrock_server.server_name)
+    mock_send_command.assert_called_once_with(
+        server_name=real_bedrock_server.server_name, command="list", app_context=ANY
+    )
 
 
 @patch("bedrock_server_manager.web.routers.server_actions.server_api.send_command")

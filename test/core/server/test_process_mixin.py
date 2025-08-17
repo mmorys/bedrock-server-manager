@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 
 from bedrock_server_manager.core.server.process_mixin import ServerProcessMixin
 from bedrock_server_manager.core.server.base_server_mixin import BedrockServerBaseMixin
@@ -7,6 +7,8 @@ from bedrock_server_manager.error import (
     ServerStartError,
     ServerNotRunningError,
     MissingArgumentError,
+    SendCommandError,
+    ServerStopError,
 )
 
 
@@ -36,10 +38,16 @@ def test_is_not_running(app_context):
 
 def test_send_command(app_context):
     server = app_context.get_server("test_server")
+    mock_process = MagicMock()
+    mock_process.poll.return_value = None
+    mock_process.stdin.write = MagicMock()
+    mock_process.stdin.flush = MagicMock()
+    server._process = mock_process
+
     with patch.object(server, "is_running", return_value=True):
-        with patch.object(server.process_manager, "send_command") as mock_send:
-            server.send_command("say hello")
-            mock_send.assert_called_once_with(server.server_name, "say hello")
+        server.send_command("say hello")
+        mock_process.stdin.write.assert_called_once_with(b"say hello\n")
+        mock_process.stdin.flush.assert_called_once()
 
 
 def test_send_command_not_running(app_context):
@@ -49,16 +57,31 @@ def test_send_command_not_running(app_context):
             server.send_command("say hello")
 
 
-def test_start(app_context):
+@patch("subprocess.Popen")
+@patch(
+    "bedrock_server_manager.core.server.process_mixin.system_process.write_pid_to_file"
+)
+@patch("builtins.open", new_callable=mock_open)
+def test_start(mock_file_open, mock_write_pid, mock_popen, app_context):
     """Tests the start method."""
     server = app_context.get_server("test_server")
-    with patch.object(server, "is_running", return_value=False):
-        with patch.object(server.process_manager, "start_server") as mock_start:
-            with patch.object(server, "set_status_in_config") as mock_set_status:
-                server.start()
-                mock_start.assert_called_once_with(server.server_name)
-                mock_set_status.assert_any_call("STARTING")
-                mock_set_status.assert_any_call("RUNNING")
+    mock_process = MagicMock()
+    mock_popen.return_value = mock_process
+
+    with (
+        patch.object(server, "is_running", return_value=False),
+        patch.object(server, "set_status_in_config") as mock_set_status,
+    ):
+
+        server.start()
+
+        mock_popen.assert_called_once()
+        mock_write_pid.assert_called_once_with(
+            server.get_pid_file_path(), mock_process.pid
+        )
+        assert server._process is mock_process
+        mock_set_status.assert_any_call("STARTING")
+        mock_set_status.assert_any_call("RUNNING")
 
 
 def test_start_already_running(app_context):
@@ -68,12 +91,22 @@ def test_start_already_running(app_context):
             server.start()
 
 
-def test_stop(app_context):
+@patch(
+    "bedrock_server_manager.core.server.process_mixin.system_process.remove_pid_file_if_exists"
+)
+def test_stop(mock_remove_pid, app_context):
     server = app_context.get_server("test_server")
+    mock_process = MagicMock()
+    mock_process.poll.return_value = None
+    server._process = mock_process
+
     with patch.object(server, "is_running", return_value=True):
-        with patch.object(server.process_manager, "stop_server") as mock_stop:
-            server.stop()
-            mock_stop.assert_called_once_with(server.server_name)
+        server.stop()
+
+        mock_process.stdin.write.assert_called_once_with(b"stop\n")
+        mock_process.wait.assert_called_once()
+        mock_remove_pid.assert_called_once_with(server.get_pid_file_path())
+        assert server._process is None
 
 
 @patch("bedrock_server_manager.core.system.process.get_verified_bedrock_process")

@@ -1,156 +1,118 @@
-import os
 import time
 import pytest
 from unittest.mock import MagicMock, patch
 
 from bedrock_server_manager.core.bedrock_process_manager import BedrockProcessManager
-from bedrock_server_manager.error import ServerNotRunningError, ServerStartError
+from bedrock_server_manager.error import ServerStartError
 
 
 @pytest.fixture
 def manager(app_context):
-    """Fixture to get a BedrockProcessManager instance and cleanup servers."""
-    manager = BedrockProcessManager(app_context=app_context)
-    yield manager
-    # Cleanup: stop any running servers after the test
-    for server_name in list(manager.servers.keys()):
-        try:
-            manager.stop_server(server_name)
-        except ServerNotRunningError:
-            continue
+    """Fixture to get a BedrockProcessManager instance."""
+    with patch("threading.Thread"):
+        manager = BedrockProcessManager(app_context=app_context)
+        yield manager
 
 
-def test_start_server_success(manager):
+def test_add_and_remove_server(manager):
     # Arrange
     server = manager.app_context.get_server("test_server")
-    server_name = server.server_name
-
     # Act
-    manager.start_server(server_name)
-
+    manager.add_server(server)
     # Assert
-    assert server_name in manager.servers
-    process = manager.servers[server_name]
-    assert process.poll() is None  # Check if the process is running
-
-    # Verify PID file is created
-    pid_file_path = server.get_pid_file_path()
-    assert os.path.exists(pid_file_path)
-    with open(pid_file_path, "r") as f:
-        pid = int(f.read())
-        assert pid == process.pid
-
-
-def test_start_server_already_running(manager):
-    # Arrange
-    server_name = "test_server"
-    manager.start_server(server_name)  # Start the server once
-
-    # Assert
-    with pytest.raises(ServerStartError):
-        manager.start_server(server_name)  # Try to start it again
-
-
-def test_stop_server_success(manager):
-    # Arrange
-    server_name = "test_server"
-    manager.start_server(server_name)
-    assert server_name in manager.servers
-
+    assert "test_server" in manager.servers
+    assert manager.servers["test_server"] is server
     # Act
-    manager.stop_server(server_name)
-
+    manager.remove_server("test_server")
     # Assert
-    assert server_name not in manager.servers
-    assert manager.intentionally_stopped[server_name] is True
+    assert "test_server" not in manager.servers
 
 
-def test_stop_server_not_running(manager):
+def test_monitor_restarts_crashed_server(manager):
     # Arrange
-    server_name = "test_server"
+    server = manager.app_context.get_server("test_server")
+    server.intentionally_stopped = False
+    manager.add_server(server)
 
-    # Assert
-    with pytest.raises(ServerNotRunningError):
-        manager.stop_server(server_name)
+    with (
+        patch.object(server, "is_running", return_value=False),
+        patch.object(server, "start") as mock_start,
+    ):
+
+        # This is a simplified version of the monitor loop for testing
+        # We need to temporarily remove the while loop for testing
+        original_monitor = manager._monitor_servers
+
+        def single_pass_monitor():
+            with patch("time.sleep"):  # Don't sleep in test
+                for server_name, server_obj in list(manager.servers.items()):
+                    if not server_obj.is_running():
+                        if not server_obj.intentionally_stopped:
+                            server_obj.failure_count += 1
+                            manager._try_restart_server(server_obj)
+                        else:
+                            manager.remove_server(server_name)
+
+        manager._monitor_servers = single_pass_monitor
+        manager._monitor_servers()
+
+        mock_start.assert_called_once()
+        assert server.failure_count == 1
+
+        manager._monitor_servers = original_monitor
 
 
-def test_send_command_success(manager):
+def test_monitor_does_not_restart_intentional_stop(manager):
     # Arrange
-    server_name = "test_server"
-    command = "say Hello"
-    manager.start_server(server_name)
+    server = manager.app_context.get_server("test_server")
+    server.intentionally_stopped = True
+    manager.add_server(server)
 
-    # Act
-    manager.send_command(server_name, command)
+    with (
+        patch.object(server, "is_running", return_value=False),
+        patch.object(server, "start") as mock_start,
+    ):
 
-    # Assert - For now, we just check that it doesn't raise an error.
-    # A more advanced test could involve checking server output.
-    pass
+        original_monitor = manager._monitor_servers
+
+        def single_pass_monitor():
+            with patch("time.sleep"):
+                for server_name, server_obj in list(manager.servers.items()):
+                    if not server_obj.is_running():
+                        if not server_obj.intentionally_stopped:
+                            server_obj.failure_count += 1
+                            manager._try_restart_server(server_obj)
+                        else:
+                            manager.remove_server(server_name)
+
+        manager._monitor_servers = single_pass_monitor
+        manager._monitor_servers()
+
+        mock_start.assert_not_called()
+        assert "test_server" not in manager.servers
+
+        manager._monitor_servers = original_monitor
 
 
-def test_send_command_server_not_running(manager):
+def test_monitor_respects_max_retries(manager):
     # Arrange
-    server_name = "test_server"
-    command = "say Hello"
+    server = manager.app_context.get_server("test_server")
+    server.intentionally_stopped = False
+    server.failure_count = 3  # The server has already failed 3 times
+    manager.add_server(server)
+    manager.settings.set("SERVER_MAX_RESTART_RETRIES", 3)
 
-    # Assert
-    with pytest.raises(ServerNotRunningError):
-        manager.send_command(server_name, command)
+    with (
+        patch.object(server, "is_running", return_value=False),
+        patch.object(server, "start") as mock_start,
+        patch.object(manager, "write_error_status") as mock_write_error,
+    ):
 
-
-def test_get_server_process(manager):
-    # Arrange
-    server_name = "test_server"
-    manager.start_server(server_name)
-    expected_process = manager.servers[server_name]
-
-    # Act
-    process = manager.get_server_process(server_name)
-
-    # Assert
-    assert process is expected_process
-
-
-def test_get_server_process_not_found(manager):
-    # Arrange
-    server_name = "test_server"
-
-    # Act
-    process = manager.get_server_process(server_name)
-
-    # Assert
-    assert process is None
-
-
-def test_server_restart_failsafe(manager):
-    # Arrange
-    server_name = "test_server"
-    manager.failure_counts[server_name] = 3
-    manager.app_context.settings.set("server.max_restarts", 3)
-
-    with patch.object(manager, "start_server") as mock_start_server:
-        # Act
-        manager._try_restart_server(server_name)
+        # Simulate the monitor loop finding a crash
+        server.failure_count += 1  # This increments to 4
+        manager._try_restart_server(server)
 
         # Assert
-        mock_start_server.assert_not_called()
-
-
-def test_start_server_already_running_with_pid_file(manager):
-    # Arrange
-    server = manager.app_context.get_server("test_server")
-    server_name = server.server_name
-    pid_file_path = server.get_pid_file_path()
-
-    # Create a dummy PID file to simulate a stale process
-    with open(pid_file_path, "w") as f:
-        f.write("12345")
-
-    # Act & Assert
-    with pytest.raises(
-        ServerStartError, match=f"Server '{server_name}' has a stale PID file."
-    ):
-        manager.start_server(server_name)
-
-    # Cleanup
-    os.remove(pid_file_path)
+        mock_start.assert_not_called()  # Should not be called because 4 > 3
+        mock_write_error.assert_called_once_with("test_server")
+        assert "test_server" not in manager.servers

@@ -24,7 +24,7 @@ import os
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..instances import get_server_instance
+from ..instances import get_app_context, get_server_instance
 from ..config import API_COMMAND_BLACKLIST
 from ..plugins.event_trigger import trigger_plugin_event
 from ..core.system import (
@@ -262,6 +262,7 @@ def start_server(
         if app_context:
             server = app_context.get_server(server_name)
         else:
+            app_context = get_app_context()
             server = get_server_instance(server_name)
 
         if server.is_running():
@@ -274,6 +275,7 @@ def start_server(
             }
 
         server.start()
+        app_context.bedrock_process_manager.add_server(server)
         logger.info(f"API: Start for server '{server_name}' completed.")
         return {
             "status": "success",
@@ -331,6 +333,7 @@ def stop_server(
         if app_context:
             server = app_context.get_server(server_name)
         else:
+            app_context = get_app_context()
             server = get_server_instance(server_name)
 
         if not server.is_running():
@@ -344,6 +347,7 @@ def stop_server(
             }
 
         server.stop()
+        app_context.bedrock_process_manager.remove_server(server.server_name)
         logger.info(f"API: Server '{server_name}' stopped successfully.")
         return {
             "status": "success",
