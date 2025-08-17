@@ -14,7 +14,7 @@ from ..utils.migration import (
     migrate_json_configs_to_db,
     migrate_json_settings_to_db,
     migrate_services_to_db,
-    migrate_global_theme_to_admin_user
+    migrate_global_theme_to_admin_user,
 )
 
 

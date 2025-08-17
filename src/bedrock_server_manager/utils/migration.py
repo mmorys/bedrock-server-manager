@@ -442,6 +442,7 @@ from ..db.models import Setting
 def migrate_global_theme_to_admin_user(app_context: Optional[AppContext] = None):
     """Migrates the global theme setting to the first admin user's preferences."""
     from ..instances import get_settings_instance
+
     settings = app_context.settings if app_context else get_settings_instance()
 
     logger.info("Checking for global theme setting to migrate to admin user...")
@@ -475,16 +476,22 @@ from ..config.settings import deep_merge
 
 def migrate_json_settings_to_db(app_context: AppContext):
     """Migrates settings from a file-based bedrock_server_manager.json to the database."""
-    config_path = os.path.join(app_context.settings.config_dir, "bedrock_server_manager.json")
-    
+    config_path = os.path.join(
+        app_context.settings.config_dir, "bedrock_server_manager.json"
+    )
+
     if not os.path.exists(config_path):
-        logger.debug("bedrock_server_manager.json not found, no settings migration needed.")
+        logger.debug(
+            "bedrock_server_manager.json not found, no settings migration needed."
+        )
         return
 
-    logger.info("Found old bedrock_server_manager.json, migrating settings to database...")
+    logger.info(
+        "Found old bedrock_server_manager.json, migrating settings to database..."
+    )
 
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.error(f"Failed to read or parse old config file at {config_path}: {e}")
@@ -507,7 +514,7 @@ def migrate_json_settings_to_db(app_context: AppContext):
                     setting = Setting(key=key, value=value)
                     db.add(setting)
             db.commit()
-        
+
         app_context.settings.reload()
 
         backup_path = f"{config_path}.bak"
@@ -518,4 +525,7 @@ def migrate_json_settings_to_db(app_context: AppContext):
         logger.info(f"Old config file has been backed up to {backup_path}.")
 
     except Exception as e:
-        logger.error(f"An error occurred during settings migration from JSON to DB: {e}", exc_info=True)
+        logger.error(
+            f"An error occurred during settings migration from JSON to DB: {e}",
+            exc_info=True,
+        )
