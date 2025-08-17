@@ -125,9 +125,7 @@ class BedrockServer(
         documentation for each individual mixin for a comprehensive list of its capabilities.
     """
 
-    def __init__(
-        self, server_name: str, settings_instance: Settings = None, app_context=None
-    ) -> None:
+    def __init__(self, server_name: str, settings_instance: Settings = None) -> None:
         """Initializes a BedrockServer instance.
 
         This constructor is responsible for setting up a :class:`~.BedrockServer`
@@ -151,7 +149,6 @@ class BedrockServer(
         super().__init__(
             server_name=server_name,
             settings_instance=settings_instance,
-            app_context=app_context,
         )
         self.logger.info(
             f"BedrockServer instance '{self.server_name}' fully initialized and ready for operations."

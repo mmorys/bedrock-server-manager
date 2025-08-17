@@ -84,16 +84,15 @@ class AppContext:
 
     def get_server(self, server_name: str) -> "BedrockServer":
         """
-        Retrieves or creates a BedrockServer instance.
-
+        Retrieve or create a BedrockServer instance.
         Args:
-            server_name (str): The name of the server.
-
-        Returns:
-            BedrockServer: The BedrockServer instance.
+            server_name: The name of the server to get.
+        Returns: The BedrockServer instance.
         """
         from .core.bedrock_server import BedrockServer
 
         if server_name not in self._servers:
-            self._servers[server_name] = BedrockServer(server_name, app_context=self)
+            self._servers[server_name] = BedrockServer(
+                server_name, settings_instance=self.settings
+            )
         return self._servers[server_name]
