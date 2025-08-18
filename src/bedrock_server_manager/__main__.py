@@ -16,7 +16,6 @@ import click
 try:
     from . import __version__
     from .config import app_name_title
-    from .db import database
     from .logging import log_separator, setup_logging
     from .utils.general import startup_checks
     from .context import AppContext
@@ -73,17 +72,16 @@ def create_cli_app():
             set_app_context(app_context)
 
             # --- Event Handling and Shutdown ---
-            def shutdown_cli_app():
+            def shutdown_cli_app(app_context: AppContext):
                 """A cleanup function to be run on exit."""
                 # Use a generic logger, as the full logger may not be configured
                 # for all commands (e.g., setup, migrate).
                 shutdown_logger = logging.getLogger("bsm_shutdown")
                 shutdown_logger.info("Running CLI app shutdown hooks...")
-                if database.engine:
-                    database.engine.dispose()
+                app_context.db.close()
                 shutdown_logger.info("CLI app shutdown hooks complete.")
 
-            atexit.register(shutdown_cli_app)
+            atexit.register(shutdown_cli_app, app_context)
 
             # Load the full application context only if the command is not 'setup' or 'migrate'
             if ctx.invoked_subcommand in ["setup", "migrate"]:

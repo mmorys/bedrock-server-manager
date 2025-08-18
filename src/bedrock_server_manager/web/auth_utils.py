@@ -27,7 +27,6 @@ from starlette.authentication import AuthCredentials, AuthenticationBackend, Sim
 
 from ..error import MissingArgumentError
 from .schemas import User
-from ..db.database import db_session_manager
 from ..db.models import User as UserModel
 from ..context import AppContext
 from ..config import Settings
@@ -58,9 +57,9 @@ cookie_scheme = APIKeyCookie(name="access_token_cookie", auto_error=False)
 
 # --- Token Creation ---
 def create_access_token(
+    app_context: AppContext,
     data: dict,
     expires_delta: Optional[datetime.timedelta] = None,
-    app_context: Optional[AppContext] = None,
 ) -> str:
     """Creates a JSON Web Token (JWT) for access.
 
@@ -78,12 +77,7 @@ def create_access_token(
     """
     to_encode = data.copy()
 
-    if app_context:
-        settings = app_context.settings
-    else:
-        from ..instances import get_settings_instance
-
-        settings = get_settings_instance()
+    settings = app_context.settings
 
     JWT_SECRET_KEY = get_jwt_secret_key(settings)
 
@@ -170,12 +164,8 @@ async def get_current_user_optional(
                 theme=user.theme,
             )
 
-        db = getattr(getattr(request, "state", None), "db", None)
-        if db:
+        with app_context.db.session_manager() as db:
             return get_user_from_db(db)
-        else:
-            with db_session_manager() as db:
-                return get_user_from_db(db)
 
     except JWTError:
         return None
@@ -237,7 +227,7 @@ from ..config import bcm_config
 
 class CustomAuthBackend(AuthenticationBackend):
     async def authenticate(self, conn):
-        if bcm_config.needs_setup():
+        if bcm_config.needs_setup(conn.app.state.app_context):
             return AuthCredentials(["unauthenticated"]), SimpleUser("guest")
 
         user = await get_current_user_optional(conn)
@@ -247,7 +237,9 @@ class CustomAuthBackend(AuthenticationBackend):
         return AuthCredentials(["authenticated"]), SimpleUser(user.username)
 
 
-def authenticate_user(username_form: str, password_form: str) -> Optional[str]:
+def authenticate_user(
+    app_context: AppContext, username_form: str, password_form: str
+) -> Optional[str]:
     """
     Authenticates a user against the database.
 
@@ -262,7 +254,7 @@ def authenticate_user(username_form: str, password_form: str) -> Optional[str]:
         Optional[str]: The username if authentication is successful,
         otherwise ``None``.
     """
-    with db_session_manager() as db:
+    with app_context.db.session_manager() as db:
         user = db.query(UserModel).filter(UserModel.username == username_form).first()
         if not user:
             return None

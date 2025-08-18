@@ -7,10 +7,6 @@ from unittest.mock import MagicMock
 from bedrock_server_manager.core.bedrock_server import BedrockServer
 from bedrock_server_manager.core.manager import BedrockServerManager
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from typing import Generator
-from bedrock_server_manager.db.database import Base, get_db
 from bedrock_server_manager.web.dependencies import validate_server_exists
 from bedrock_server_manager.web.auth_utils import (
     create_access_token,
@@ -147,29 +143,13 @@ def mock_db_session_manager(mocker):
     return _mock_db_session_manager
 
 
-@pytest.fixture(autouse=True)
-def db_session(tmp_path):
+@pytest.fixture
+def db_session(app_context):
     """
-    Fixture to set up and tear down the database for each test.
-    This ensures that each test runs in a clean, isolated environment.
+    Fixture to get a database session from the app_context.
     """
-    from bedrock_server_manager.db import database
-
-    # Setup: initialize the database with a test-specific URL
-    db_path = tmp_path / "test.db"
-    database.initialize_database(f"sqlite:///{db_path}")
-    database._ensure_tables_created()
-
-    db = database.SessionLocal()
-
-    yield db
-
-    db.close()
-
-    # Teardown: reset the database module's state
-    database.engine = None
-    database.SessionLocal = None
-    database._TABLES_CREATED = False
+    with app_context.db.session_manager() as session:
+        yield session
 
 
 @pytest.fixture
@@ -185,24 +165,22 @@ def real_manager(app_context):
     return app_context.manager
 
 
-@pytest.fixture
-def app_context(
-    isolated_settings, tmp_path, db_session, mock_db_session_manager, monkeypatch
-):
+@pytest.fixture(autouse=True)
+def app_context(isolated_settings, tmp_path, monkeypatch):
     """Fixture for a real AppContext instance."""
     from bedrock_server_manager.context import AppContext
     from bedrock_server_manager.config.settings import Settings
     from bedrock_server_manager.core.manager import BedrockServerManager
     from bedrock_server_manager.instances import set_app_context
     from bedrock_server_manager.plugins.plugin_manager import PluginManager
+    from bedrock_server_manager.db.database import Database
     import os
     import platform
 
-    # Point the settings to use the test database
-    monkeypatch.setattr(
-        "bedrock_server_manager.config.settings.db_session_manager",
-        mock_db_session_manager(db_session),
-    )
+    # Setup: initialize the database with a test-specific URL
+    db_path = tmp_path / "test.db"
+    db = Database(f"sqlite:///{db_path}")
+    db.initialize()
 
     # Create dummy plugin
     plugins_dir = tmp_path / "plugins"
@@ -218,7 +196,7 @@ def app_context(
             "        pass\n"
         )
 
-    settings = Settings()
+    settings = Settings(db=db)
     settings.load()
     settings.set("paths.plugins", str(plugins_dir))
 
@@ -252,7 +230,7 @@ def app_context(
         )
     os.chmod(executable_path, 0o755)
 
-    context = AppContext(settings=settings, manager=manager)
+    context = AppContext(settings=settings, manager=manager, db=db)
     context.load()
     set_app_context(context)
 
@@ -260,7 +238,7 @@ def app_context(
     context.plugin_manager.plugin_dirs = [plugins_dir]
     context.plugin_manager.load_plugins()
 
-    return context
+    yield context
 
 
 TEST_USER = "testuser"
@@ -280,7 +258,7 @@ def app(app_context):
 def mock_dependencies(monkeypatch, app):
     """Mock dependencies for tests."""
 
-    def mock_needs_setup():
+    def mock_needs_setup(app_context):
         return False
 
     monkeypatch.setattr(
@@ -292,9 +270,13 @@ def mock_dependencies(monkeypatch, app):
 
 
 @pytest.fixture
-def client(app, db_session):
+def client(app):
     """Create a test client for the app, with mocked dependencies."""
-    app.dependency_overrides[get_db] = lambda: db_session
+
+    def get_db_override():
+        with app.state.app_context.db.session_manager() as session:
+            yield session
+
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
@@ -314,13 +296,15 @@ def authenticated_user(db_session):
 
 
 @pytest.fixture
-def authenticated_client(client, authenticated_user, app):
+def authenticated_client(client, authenticated_user, app, app_context):
     async def mock_get_current_user():
         return authenticated_user
 
     app.dependency_overrides[get_current_user_optional] = mock_get_current_user
     access_token = create_access_token(
-        data={"sub": authenticated_user.username}, expires_delta=timedelta(minutes=15)
+        app_context,
+        data={"sub": authenticated_user.username},
+        expires_delta=timedelta(minutes=15),
     )
     client.headers["Authorization"] = f"Bearer {access_token}"
     yield client

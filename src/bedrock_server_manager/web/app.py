@@ -12,7 +12,6 @@ from fastapi.responses import RedirectResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
 from ..context import AppContext
-from ..db import database
 from . import templating
 from ..config import get_installed_version
 from . import routers
@@ -36,10 +35,10 @@ def create_web_app(app_context: AppContext) -> FastAPI:
         yield
         # Shutdown logic goes here
         logger.info("Running web app shutdown hooks...")
+        app_context = app.state.app_context
         api.utils.stop_all_servers(app_context=app_context)
         app_context.plugin_manager.unload_plugins()
-        if database.engine:
-            database.engine.dispose()
+        app_context.db.close()
         logger.info("Web app shutdown hooks complete.")
 
     from ..config import SCRIPT_DIR
@@ -91,9 +90,10 @@ def create_web_app(app_context: AppContext) -> FastAPI:
     @app.middleware("http")
     async def setup_check_middleware(request: Request, call_next):
         if (
-            bcm_config.needs_setup()
+            bcm_config.needs_setup(request.app.state.app_context)
             and not request.url.path.startswith("/setup")
             and not request.url.path.startswith("/static")
+            and not request.url.path.startswith("/favicon.ico")
         ):
             return RedirectResponse(url="/setup")
 

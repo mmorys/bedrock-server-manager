@@ -91,23 +91,23 @@ def test_serve_world_icon_api_default(
     assert response.text == "fake default icon"
 
 
-@patch("bedrock_server_manager.web.routers.util.get_server_instance")
 @patch("bedrock_server_manager.web.routers.util.os.path.isfile")
 def test_serve_world_icon_api_not_found(
-    mock_isfile, mock_get_server, authenticated_client
+    mock_isfile, authenticated_client, app_context, mocker
 ):
     """Test the serve_world_icon_api route with no icon found."""
-    mock_get_server.return_value.world_icon_filesystem_path = "/fake/path"
-    mock_get_server.return_value.has_world_icon.return_value = False
+    mock_server = MagicMock()
+    mock_server.world_icon_filesystem_path = "/fake/path"
+    mock_server.has_world_icon.return_value = False
+    mocker.patch.object(app_context, "get_server", return_value=mock_server)
     mock_isfile.return_value = False
 
     response = authenticated_client.get("/api/server/test-server/world/icon")
     assert response.status_code == 404
 
 
-@patch("bedrock_server_manager.config.bcm_config.needs_setup", return_value=False)
 @patch("bedrock_server_manager.web.routers.util.os.path.exists")
-def test_get_root_favicon_not_found(mock_exists, mock_needs_setup, client: TestClient):
+def test_get_root_favicon_not_found(mock_exists, client: TestClient):
     """Test the get_root_favicon route with no favicon found."""
     mock_exists.return_value = False
 
