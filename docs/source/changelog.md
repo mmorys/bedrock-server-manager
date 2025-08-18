@@ -25,8 +25,9 @@ Stop servers before updating!
 *   BREAKING CHANGE: Removed CLI Plugin support
 *   Requires the BSM app to always be running (A System Service for the web server is recommended `bedrock-server-manager web service configure`)
 
-*   Its recommended to run the `migration old-config` command after updating to 3.6.0 to ensure smooth migration
-    * After running this command you should also run the `setup` command to ensure basic migration was successful
+*   Its recommended to run the `bedrock-server-manager migrate old-config` command after updating to 3.6.0 to ensure smooth migration
+    * If you plan on using an external database, you should run the `bedrock-server-manager setup` command first before running the `bedrock-server-manager migrate old-config` command
+    * After running this command you should also run the `bedrock-server-manager setup` command to ensure basic migration was successful
 
 ### **Core Architectural Changes**
 
@@ -50,11 +51,19 @@ Stop servers before updating!
         *   This includes the global config, server configs, and plugin configs, player configs
     *   All environment variables are now stored in the database
         *   Web server environment variables are now stored in the database and are auto migrated to the database
-        *   App Data Directory is now stored in a seperate json file in the users `%APPDATA%` directory (`.congig/bedrock-server-manager` on linux, `AppData/local/bedrock-server-manager` on Windows)
+        *   App Data Directory is now stored in a seperate json file in the users `%APPDATA%` directory (`~/.config/bedrock-server-manager` on linux, `~/AppData/local/bedrock-server-manager` on Windows)
             *   Database URL is also stored in this file
 *   Added `migrate` command
     * `migrate databse` command to migrate the database to new versions as needed (for future updates)
-    * `migrate old-config` command to migrate from the old JSON config to the new database
+    * `migrate old-config` command to migrate from the old JSON config (<V3.5) to the new database
+        * This command will migrate the following:
+            * `bedrock_server_manager.json` (global config)
+            * `<server_name>_config.json` (server configs)
+            * `players.json` (global player)
+            * `plugins.json` (plugins)`
+            * `BEDROCK_SERVER_MANAGER_DATA_DIR` (app data directory)
+            * `BEDROCK_SERVER_MANAGER_USERNAME`, `BEDROCK_SERVER_MANAGER_PASSWORD`, `BEDROCK_SERVER_MANAGER_TOKEN` (web auth environment variables)
+            * Bedrock Server System Services
 *   Added `setup` command to setup App config
     *   Sets up the App Data Directory and database URL, Web Host and Port, system service
 
@@ -62,6 +71,7 @@ Stop servers before updating!
 
 *   Revamped server start methods
     *   Now uses a generic process open instead of complex platform specific named pipe methods
+        * This vastly improves cross platform compatibility 
     *   System Services for individual servers will no longer work, is now handled by the `autostart_plugin` during BSM startup
 *   Added crash restarts
     *   Bedrock servers will now restart if they crashed
@@ -103,7 +113,15 @@ Stop servers before updating!
 *   Various backend changes such as:
     *   Object based authentication
     *   Changes routers to use the new `get_current_user`, `get_admin_user`, `get_moderator_user` dependencies
-    *   Most API modules have been refactored to use the new AppContext object
+    * Added `AppContext` object
+        * This object holds the current app state such as:
+            * Settings instance
+            * Database instance
+            * BedrockServerManager instance
+            * BedrockServer instances
+            * BedrockProcessManager instance
+            * PluginManager instance
+        *   Most API modules have been refactored to use the new AppContext object
 
 ## 3.5.7
 ```{tip}
