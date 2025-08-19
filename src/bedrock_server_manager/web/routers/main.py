@@ -39,19 +39,6 @@ async def index(
 ):
     """
     Renders the main dashboard page (index).
-
-    This page typically displays a list of manageable Bedrock servers.
-    Authentication is required; if the user is not authenticated, they are
-    redirected to the login page.
-
-    Args:
-        request (Request): The incoming FastAPI request object.
-        current_user (Optional[User]): The authenticated user object.
-        plugin_manager (PluginManager): The plugin manager instance.
-
-    Returns:
-        HTMLResponse: Renders the `index.html` template.
-        RedirectResponse: If the user is not authenticated, redirects to `/auth/login`.
     """
     if not current_user:
         return RedirectResponse(url="/auth/login", status_code=302)
@@ -95,17 +82,6 @@ async def monitor_server_route(
 
     This page is intended to display real-time information or logs for the
     specified Bedrock server. Authentication is required.
-
-    Args:
-        request (Request): The incoming FastAPI request object.
-        server_name (str): The name of the server to monitor, validated by
-                           `validate_server_exists`. Injected by FastAPI.
-        current_user (User): The authenticated user object, injected by
-                                       `get_current_user`.
-
-    Returns:
-        HTMLResponse: Renders the `monitor.html` template, passing the server name
-                      and current user information to the template.
     """
     username = current_user.username
     logger.info(f"User '{username}' accessed monitor page for server '{server_name}'.")

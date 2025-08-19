@@ -113,17 +113,6 @@ async def backup_menu_page(
 ):
     """
     Displays the backup menu page for a specific server.
-
-    Allows users to choose various backup actions like backing up the world,
-    configuration files, or all server data.
-
-    Args:
-        request (Request): The FastAPI request object.
-        server_name (str): The name of the server for which to display backup options.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``backup_menu.html`` template.
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed backup menu for server '{server_name}'.")
@@ -147,14 +136,6 @@ async def backup_config_select_page(
 ):
     """
     Displays the page for selecting specific configuration files to back up.
-
-    Args:
-        request (Request): The FastAPI request object.
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``backup_config_options.html`` template.
     """
     identity = current_user.username
     logger.info(
@@ -181,17 +162,6 @@ async def restore_menu_page(
 ):
     """
     Displays the restore menu page for a specific server.
-
-    Allows users to choose various restore actions, such as restoring the entire
-    server, the world, or specific configuration files from available backups.
-
-    Args:
-        request (Request): The FastAPI request object.
-        server_name (str): The name of the server for which to display restore options.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``restore_menu.html`` template.
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed restore menu for server '{server_name}'.")
@@ -216,19 +186,6 @@ async def show_select_backup_file_page(
 ):
     """
     Displays the page for selecting a specific backup file for restoration.
-
-    Based on the `restore_type` (e.g., "world", "properties"), this page lists
-    the relevant available backup files for the specified server.
-
-    Args:
-        request (Request): The FastAPI request object.
-        restore_type (str): The type of content to restore (e.g., "world", "properties", "allowlist", "permissions").
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``restore_select_backup.html`` template with a list of relevant backups.
-        RedirectResponse: If `restore_type` is invalid or no backups are found.
     """
     identity = current_user.username
     logger.info(
@@ -328,45 +285,6 @@ async def handle_restore_select_backup_type_api(
 ):
     """
     Handles the API request for selecting a restore type and redirects to file selection.
-
-    This endpoint is typically called when a user chooses what type of content
-    they want to restore (e.g., "world", "properties"). It validates the type
-    and then provides a redirect URL to the page where specific backup files
-    of that type can be chosen.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects :class:`.RestoreTypePayload` with `restore_type`.
-    - Requires authentication.
-
-    Args:
-        request (Request): The FastAPI request object (used to construct redirect URL).
-        payload (RestoreTypePayload): Specifies the `restore_type`.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        BackupRestoreResponse:
-            - ``status``: "success"
-            - ``message``: Confirmation message.
-            - ``redirect_url``: URL to the backup file selection page for the given `restore_type`.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "restore_type": "world"
-        }
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Proceed to select world backup.",
-            "details": null,
-            "redirect_url": "/server/MyServer/restore/world/select_file",
-            "backups": null
-        }
     """
     identity = current_user.username
     restore_type = payload.restore_type.lower()
@@ -423,20 +341,6 @@ async def prune_backups_api_route(
     Initiates a background task to prune old backups for a specific server.
 
     This action adheres to the retention policies defined in the application settings.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - Requires authentication.
-
-    Args:
-        background_tasks (BackgroundTasks): FastAPI background tasks utility.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        BackupRestoreResponse:
-            - ``status``: "pending"
-            - ``message``: Confirmation that pruning has been initiated.
-            - ``task_id``: ID of the background task.
     """
     identity = current_user.username
     logger.info(
@@ -472,57 +376,6 @@ async def list_server_backups_api_route(
 ):
     """
     Lists available backup files for a specific server and backup type.
-
-    Calls :func:`~bedrock_server_manager.api.backup_restore.list_backup_files`.
-    Returns a list of backup file basenames for specific types, or a dictionary
-    of lists if `backup_type` is "all".
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **backup_type**: Path parameter, specifying the type of backups to list
-      (e.g., "world", "properties", "allowlist", "permissions", "all").
-    - Requires authentication.
-
-    Args:
-        backup_type (str): The type of backups to list.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        BackupRestoreResponse:
-            - ``status``: "success" or "error"
-            - ``message``: Confirmation or error message.
-            - ``backups``: If `backup_type` is specific, a list of backup file basenames.
-            - ``details``: If `backup_type` is "all", a dictionary where keys are backup
-              types (e.g., "world_backups") and values are lists of basenames.
-
-    Example Response (Specific Type):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Backups listed successfully.",
-            "details": null,
-            "redirect_url": null,
-            "backups": ["world_backup_20230101_120000.mcworld", "world_backup_20230102_120000.mcworld"]
-        }
-
-    Example Response (All Types):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "All backup types listed successfully.",
-            "details": {
-                "all_backups": {
-                    "world_backups": ["world_backup_20230101_120000.mcworld"],
-                    "properties_backups": ["server.properties_backup_20230101_100000.properties"],
-                    "allowlist_backups": ["allowlist.json_backup_20230101_100000.json"],
-                    "permissions_backups": ["permissions.json_backup_20230101_100000.json"]
-                }
-            },
-            "redirect_url": null,
-            "backups": null
-        }
     """
     identity = current_user.username
     logger.info(
@@ -616,10 +469,6 @@ async def backup_action_api_route(
 
     Valid backup types are "world", "config" (requires `file_to_backup` in payload),
     and "all".
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects a :class:`.BackupActionPayload`.
-    - Requires authentication.
     """
     identity = current_user.username
     logger.info(
@@ -685,10 +534,6 @@ async def restore_action_api_route(
     Valid restore types include "all", "world", "properties", "allowlist",
     and "permissions". If not restoring "all", a `backup_file` (basename)
     must be provided in the payload.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects a :class:`.RestoreActionPayload`.
-    - Requires authentication.
     """
     identity = current_user.username
     logger.info(

@@ -195,16 +195,6 @@ async def install_server_page(
 ):
     """
     Serves the HTML page for installing a new Bedrock server.
-
-    This page provides a form for users to specify the name and version
-    for a new server instance.
-
-    Args:
-        request (Request): The FastAPI request object.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``install.html`` template.
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed new server install page.")
@@ -229,22 +219,7 @@ async def install_server_api_route(
     Handles the installation of a new Bedrock server instance.
 
     Validates the server name format, checks for existing servers (if not overwriting),
-    deletes existing data if overwrite is true, and then calls
-    :func:`~bedrock_server_manager.api.server_install_config.install_new_server` in a background thread.
-
-    Args:
-        payload (InstallServerPayload): Server name, version, and overwrite flag.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        InstallServerResponse:
-            - ``status``: "pending", "confirm_needed", or "error"
-            - ``message``: Descriptive message about the operation.
-            - ``task_id``: (Optional) ID for polling installation status.
-            - ``server_name``: (Optional) Name of the server, if confirmation is needed.
-
-    Raises:
-        HTTPException: For validation errors or internal server errors during installation.
+    deletes existing data if overwrite is true, and then calls a background thread.
     """
     identity = current_user.username
     logger.info(
@@ -363,15 +338,6 @@ async def configure_properties_page(
 ):
     """
     Serves the HTML page for configuring a server's ``server.properties`` file.
-
-    Args:
-        request (Request): The FastAPI request object.
-        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``configure_properties.html`` template.
     """
     identity = current_user.username
     logger.info(
@@ -404,15 +370,6 @@ async def configure_allowlist_page(
 ):
     """
     Serves the HTML page for configuring a server's ``allowlist.json`` file.
-
-    Args:
-        request (Request): The FastAPI request object.
-        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``configure_allowlist.html`` template.
     """
     identity = current_user.username
     logger.info(
@@ -445,15 +402,6 @@ async def configure_permissions_page(
 ):
     """
     Serves the HTML page for configuring player permissions (``permissions.json``).
-
-    Args:
-        request (Request): The FastAPI request object.
-        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``configure_permissions.html`` template.
     """
     identity = current_user.username
     logger.info(
@@ -485,19 +433,6 @@ async def configure_service_page(
     current_user: User = Depends(get_admin_user),
 ):
     """Serves the HTML page for configuring server-specific service settings (autoupdate/autostart).
-
-    Passes OS type to the template for conditional rendering.
-    Initial service status flags (exists, autostart, autoupdate) are placeholders
-    and typically updated by client-side JavaScript calls to other API endpoints.
-
-    Args:
-        request (Request): The FastAPI request object.
-        new_install (bool): Query parameter indicating if this is part of a new server setup flow.
-        server_name (str): Name of the server (validated by dependency).
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``configure_service.html`` template.
     """
     identity = current_user.username
     logger.info(
@@ -533,46 +468,6 @@ async def configure_properties_api_route(
 ):
     """
     Modifies properties in the server.properties file for a specific server.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.modify_server_properties`.
-    The server may be restarted if changes are made (default behavior of the API call).
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects a :class:`.PropertiesPayload`.
-    - Requires authentication.
-    - Returns the result from the API call, typically ``{"status": "success", ...}`` or an error.
-
-    Args:
-        payload (PropertiesPayload): Dictionary of properties to set.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call, usually including
-              ``{"status": "success", "message": "Properties updated..."}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-
-    Raises:
-        HTTPException: For invalid input, file errors, or if the server is not found.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "properties": {
-                "level-name": "MyNewWorld",
-                "gamemode": "survival",
-                "difficulty": "hard"
-            }
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server properties updated successfully. Server MyServer may have been restarted if it was running."
-        }
     """
     identity = current_user.username
     logger.info(
@@ -636,34 +531,6 @@ async def get_server_properties_api_route(
 ):
     """
     Retrieves the server.properties for a specific server as a dictionary.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.get_server_properties_api`.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - Requires authentication.
-    - Returns a dictionary containing the properties on success.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call:
-              ``{"status": "success", "properties": Dict[str, str]}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "properties": {
-                "level-name": "MyNewWorld",
-                "gamemode": "survival",
-                "difficulty": "hard",
-                "max-players": "10"
-            }
-        }
     """
     identity = current_user.username
     logger.info(
@@ -701,43 +568,6 @@ async def add_to_allowlist_api_route(
 ):
     """
     Adds one or more players to the server's allowlist.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.add_players_to_allowlist_api`.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects an :class:`.AllowlistAddPayload`.
-    - Requires authentication.
-
-    Args:
-        payload (AllowlistAddPayload): Contains ``players`` (list of gamertags)
-                                     and ``ignoresPlayerLimit`` (bool).
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call:
-              ``{"status": "success", "message": "Successfully added <n> players...", "added_count": <n>}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-
-    Raises:
-        HTTPException: For invalid input or errors during the operation.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "players": ["PlayerX", "PlayerY"],
-            "ignoresPlayerLimit": false
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Successfully added 2 new players to the allowlist.",
-            "added_count": 2
-        }
     """
     identity = current_user.username
     logger.info(
@@ -790,41 +620,6 @@ async def get_allowlist_api_route(
 ):
     """
     Retrieves the allowlist for a specific server.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.get_server_allowlist_api`.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - Requires authentication.
-    - Returns a list of player objects on the allowlist.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call:
-              ``{"status": "success", "players": List[AllowlistPlayerDict]}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-              Each ``AllowlistPlayerDict`` contains "name", "xuid", "ignoresPlayerLimit".
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "players": [
-                {
-                    "ignoresPlayerLimit": false,
-                    "name": "PlayerX",
-                    "xuid": "1234567890123456"
-                },
-                {
-                    "ignoresPlayerLimit": true,
-                    "name": "AdminPlayer",
-                    "xuid": "0987654321098765"
-                }
-            ]
-        }
     """
     identity = current_user.username
     logger.info(f"API: Get allowlist request for '{server_name}' by user '{identity}'.")
@@ -860,44 +655,6 @@ async def remove_allowlist_players_api_route(
 ):
     """
     Removes one or more players from the server's allowlist by name.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.remove_players_from_allowlist`.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects an :class:`.AllowlistRemovePayload`.
-    - Requires authentication.
-
-    Args:
-        payload (AllowlistRemovePayload): Contains ``players`` (list of gamertags to remove).
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call:
-              ``{"status": "success", "message": "...", "details": {"removed": [], "not_found": []}}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-
-    Raises:
-        HTTPException: For invalid input or errors during the operation.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "players": ["PlayerY", "NonExistentPlayer"]
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Allowlist update process completed.",
-            "details": {
-                "removed": ["PlayerY"],
-                "not_found": ["NonExistentPlayer"]
-            }
-        }
     """
     identity = current_user.username
     logger.info(
@@ -954,57 +711,6 @@ async def configure_permissions_api_route(
 ):
     """
     Sets permission levels for multiple players on a specific server.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.configure_player_permission`
-    iteratively for each player in the payload.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects a :class:`.PermissionsSetPayload`.
-    - Requires authentication.
-    - Returns a summary of successes and errors.
-
-    Args:
-        payload (PermissionsSetPayload): List of player permission entries.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        JSONResponse:
-            If all successful: ``{"status": "success", "message": "Permissions updated for <n> player(s)."}``
-            If errors: ``{"status": "error", "message": "One or more errors...", "errors": Dict[str, str]}``
-            The status code of the JSONResponse will vary based on the nature of errors (400, 404, 500).
-
-    Raises:
-        HTTPException: Indirectly via JSONResponse for various error conditions.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "permissions": [
-                {"xuid": "123", "name": "AdminUser", "permission_level": "operator"},
-                {"xuid": "456", "name": "PlayerUser", "permission_level": "member"}
-            ]
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Permissions updated for 2 player(s)."
-        }
-
-    Example Response (Partial Error):
-    .. code-block:: json
-
-        {
-            "status": "error",
-            "message": "One or more errors occurred while setting permissions.",
-            "errors": {
-                "789": "Player XUID '789' not found in known players database for name enrichment."
-            }
-        }
     """
     identity = current_user.username
     logger.info(
@@ -1103,45 +809,6 @@ async def get_server_permissions_api_route(
 ):
     """
     Retrieves processed and formatted permissions data for a specific server.
-
-    Calls :func:`~bedrock_server_manager.api.server_install_config.get_server_permissions_api`
-    which reads ``permissions.json`` and enriches entries with player names.
-    The list of permissions is sorted by player name.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - Requires authentication.
-    - Returns a dictionary containing the formatted permissions list on success.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        dict: A dictionary from the underlying API call:
-              ``{"status": "success", "data": {"permissions": List[PlayerPermissionItemDict]}}`` or
-              ``{"status": "error", "message": "<error detail>"}``.
-              Each ``PlayerPermissionItemDict`` contains "xuid", "name", and "permission_level".
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "data": {
-                "permissions": [
-                    {
-                        "xuid": "1234567890123456",
-                        "name": "AdminUser",
-                        "permission_level": "operator"
-                    },
-                    {
-                        "xuid": "9876543210987654",
-                        "name": "PlayerUser",
-                        "permission_level": "member"
-                    }
-                ]
-            }
-        }
     """
     identity = current_user.username
     logger.info(
@@ -1179,45 +846,6 @@ async def configure_service_api_route(
 ):
     """
     Updates server-specific service settings like autoupdate and autostart.
-
-    Calls :func:`~bedrock_server_manager.api.system.set_autoupdate` for the
-    autoupdate flag and
-    :func:`~bedrock_server_manager.api.system.set_autostart` for the
-    autostart flag.
-
-    - **server_name**: Path parameter, validated by `validate_server_exists`.
-    - **Request body**: Expects a :class:`.ServiceUpdatePayload`.
-    - Requires authentication.
-    - At least one of `autoupdate` or `autostart` must be provided in the payload.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        payload (ServiceUpdatePayload): Contains ``autoupdate`` and/or ``autostart`` booleans.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        dict: A dictionary confirming success or detailing an error:
-              ``{"status": "success", "message": "Service configuration applied successfully."}`` or
-              ``{"status": "error", "message": "<error_detail>"}`` (via HTTPException).
-
-    Raises:
-        HTTPException: For invalid input, or if underlying service/autoupdate operations fail.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "autoupdate": true,
-            "autostart": false
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Service configuration applied successfully."
-        }
     """
     identity = current_user.username
     logger.info(

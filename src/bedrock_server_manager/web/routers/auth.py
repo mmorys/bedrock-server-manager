@@ -72,20 +72,6 @@ async def login_page(
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Serves the HTML login page.
-
-    If a user is already authenticated (determined by the
-    :func:`~.auth_utils.get_current_user_optional` dependency),
-    they are redirected to the main application page ("/").
-    Otherwise, it renders and returns the ``login.html`` template.
-
-    Args:
-        request (Request): The FastAPI request object.
-        user (Optional[User]): The authenticated user object, if any.
-                                         Injected by `get_current_user_optional`.
-
-    Returns:
-        HTMLResponse: Renders the ``login.html`` template if the user is not authenticated.
-        RedirectResponse: Redirects to "/" if the user is already authenticated.
     """
     if user:
         return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
@@ -105,33 +91,6 @@ async def api_login_for_access_token(
 ):
     """
     Handles API user login, creates a JWT, and sets it as an HTTP-only cookie.
-
-    This endpoint is typically called by a form submission from the ``/auth/login``
-    page or by an API client seeking an access token. It authenticates credentials
-    using :func:`~.auth_utils.authenticate_user` and, if successful, creates
-    an access token using :func:`~.auth_utils.create_access_token`.
-    The token is then set as an ``access_token_cookie``.
-
-    Args:
-        response (:class:`fastapi.FastAPIResponse`): FastAPI response object, used to set cookies.
-        username (str): Username submitted via form data.
-        password (str): Password submitted via form data.
-
-    Returns:
-        Token: A :class:`.Token` object containing the access token, token type,
-               and a success message. The token is also set as an HTTP-only cookie.
-
-    Raises:
-        fastapi.HTTPException: With status code 401 if authentication fails.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-            "token_type": "bearer",
-            "message": "Successfully authenticated."
-        }
     """
     logger.info(f"API login attempt for '{username}'")
     app_context = request.app.state.app_context
@@ -176,22 +135,6 @@ async def logout(
 ):
     """
     Logs the current user out by clearing the JWT authentication cookie.
-
-    This endpoint requires an authenticated user (verified by the
-    :func:`~.auth_utils.get_current_user` dependency). It clears the
-    ``access_token_cookie`` and then redirects the user to the login page
-    with a logout success message.
-
-    Args:
-        response (:class:`fastapi.FastAPIResponse`): FastAPI response object. While available,
-            cookie deletion is performed on the new `RedirectResponse` object.
-        current_user (User): The authenticated user object, injected by dependency.
-            Ensures only authenticated users can logout.
-
-    Returns:
-        :class:`fastapi.responses.RedirectResponse`: Redirects to the login page
-            (``/auth/login``) with a success message in the query parameters.
-            The ``access_token_cookie`` is cleared.
     """
     username = current_user.username
     logger.info(f"User '{username}' logging out. Clearing JWT cookie.")

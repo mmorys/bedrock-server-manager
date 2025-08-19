@@ -63,15 +63,6 @@ async def install_world_page(
     Serves the HTML page for selecting a world file to install on a server.
 
     Lists available .mcworld files from the application's content directory.
-
-    Args:
-        request (Request): The FastAPI request object.
-        server_name (str): The name of the server for which to install the world.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``select_world.html`` template, providing it
-                      with a list of available world files and the server name.
     """
     identity = current_user.username
     logger.info(
@@ -128,15 +119,6 @@ async def install_addon_page(
     Serves the HTML page for selecting an addon file to install on a server.
 
     Lists available .mcaddon or .mcpack files from the application's content directory.
-
-    Args:
-        request (Request): The FastAPI request object.
-        server_name (str): The name of the server for which to install the addon. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``select_addon.html`` template, providing it
-                      with a list of available addon files and the server name.
     """
     identity = current_user.username
     logger.info(
@@ -189,27 +171,6 @@ async def list_worlds_api_route(
 ):
     """
     Retrieves a list of available .mcworld template files.
-
-    These files are sourced from the application's global content directory.
-    Calls :func:`~bedrock_server_manager.api.application.list_available_worlds_api`.
-
-    Args:
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ContentListResponse:
-            - ``status``: "success" or "error"
-            - ``files``: List of world file basenames (e.g., ``["MyWorldTemplate.mcworld"]``).
-            - ``message``: (Optional) Confirmation or error message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Successfully listed available worlds.",
-            "files": ["Skyblock.mcworld", "CityLiving.mcworld"]
-        }
     """
     identity = current_user.username
     logger.info(f"API: List available worlds request by user '{identity}'.")
@@ -248,27 +209,6 @@ async def list_addons_api_route(
 ):
     """
     Retrieves a list of available .mcaddon or .mcpack template files.
-
-    These files are sourced from the application's global content directory.
-    Calls :func:`~bedrock_server_manager.api.application.list_available_addons_api`.
-
-    Args:
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ContentListResponse:
-            - ``status``: "success" or "error"
-            - ``files``: List of addon file basenames (e.g., ``["Furniture.mcaddon"]``).
-            - ``message``: (Optional) Confirmation or error message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Successfully listed available addons.",
-            "files": ["ModernFurniture.mcaddon", "LuckyBlocks.mcpack"]
-        }
     """
     identity = current_user.username
     logger.info(f"API: List available addons request by user '{identity}'.")
@@ -315,18 +255,6 @@ async def install_world_api_route(
 
     The selected world file must exist in the application's content/worlds directory.
     The server will be stopped before import and restarted after if the operation is successful.
-
-    Args:
-        payload (FileNamePayload): Contains the `filename` of the .mcworld file.
-        background_tasks (BackgroundTasks): FastAPI background tasks utility.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ActionResponse:
-            - ``status``: "pending"
-            - ``message``: Confirmation that the world installation has been initiated.
-            - ``task_id``: ID of the background task.
     """
     identity = current_user.username
     selected_filename = payload.filename
@@ -423,17 +351,6 @@ async def export_world_api_route(
 
     The exported file will be saved in the application's content/worlds directory.
     The server will be stopped before export and restarted after.
-
-    Args:
-        background_tasks (BackgroundTasks): FastAPI background tasks utility.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ActionResponse:
-            - ``status``: "pending"
-            - ``message``: Confirmation that the world export has been initiated.
-            - ``task_id``: ID of the background task.
     """
     identity = current_user.username
     logger.info(
@@ -495,17 +412,6 @@ async def reset_world_api_route(
     This is a destructive operation: the current active world directory is deleted.
     The server will be stopped before the reset and restarted afterwards, which
     will trigger the generation of a new world based on server properties.
-
-    Args:
-        background_tasks (BackgroundTasks): FastAPI background tasks utility.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ActionResponse:
-            - ``status``: "pending"
-            - ``message``: Confirmation that the world reset has been initiated.
-            - ``task_id``: ID of the background task.
     """
     identity = current_user.username
     logger.info(f"API: World reset requested for '{server_name}' by user '{identity}'.")
@@ -566,18 +472,6 @@ async def install_addon_api_route(
 
     The selected addon file must exist in the application's content/addons directory.
     The server will be stopped before installation and restarted after if the operation is successful.
-
-    Args:
-        payload (FileNamePayload): Contains the `filename` of the addon file.
-        background_tasks (BackgroundTasks): FastAPI background tasks utility.
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        ActionResponse:
-            - ``status``: "pending"
-            - ``message``: Confirmation that the addon installation has been initiated.
-            - ``task_id``: ID of the background task.
     """
     identity = current_user.username
     selected_filename = payload.filename

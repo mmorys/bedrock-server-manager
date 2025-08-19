@@ -85,17 +85,6 @@ async def manage_plugins_page_route(
 ):
     """
     Serves the HTML page for managing installed plugins.
-
-    This page typically allows users to view discovered plugins,
-    their statuses (enabled/disabled), versions, and descriptions,
-    and provides controls to enable/disable or reload plugins.
-
-    Args:
-        request (Request): The FastAPI request object.
-        current_user (User): Authenticated user object.
-
-    Returns:
-        HTMLResponse: Renders the ``manage_plugins.html`` template.
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed plugin management page.")
@@ -114,23 +103,6 @@ async def get_plugins_status_api_route(
 ):
     """
     Retrieves the statuses and metadata of all discovered plugins.
-
-    Calls :func:`~bedrock_server_manager.api.plugins.get_plugin_statuses`
-    to get the current configuration and state of all plugins.
-    The response includes whether each plugin is enabled, its description,
-    and version.
-
-    Args:
-        current_user (User): Authenticated user object.
-        plugin_manager (PluginManager): The plugin manager instance.
-
-    Returns:
-        PluginApiResponse:
-            - ``status``: "success" or "error"
-            - ``data``: A dictionary where keys are plugin names and values are
-              dictionaries containing "enabled" (bool), "description" (str),
-              and "version" (str) for each plugin.
-            - ``message``: (Optional) Message, especially on error.
     """
     identity = current_user.username
     logger.info(f"API: Get plugin statuses request by '{identity}'.")
@@ -164,16 +136,6 @@ async def trigger_event_api_route(
 ):
     """
     Allows an external source to trigger a custom plugin event within the system.
-
-    Calls :func:`~bedrock_server_manager.api.plugins.trigger_external_plugin_event_api`.
-
-    Args:
-        payload (TriggerEventPayload): The event name and optional payload.
-        current_user (User): Authenticated user object.
-        plugin_manager (PluginManager): The plugin manager instance.
-
-    Returns:
-        PluginApiResponse: Standard API response.
     """
     identity = current_user.username
     logger.info(
@@ -231,17 +193,6 @@ async def set_plugin_status_api_route(
 ):
     """
     Sets the enabled or disabled status for a specific plugin.
-
-    Calls :func:`~bedrock_server_manager.api.plugins.set_plugin_status`.
-
-    Args:
-        plugin_name (str): The name of the plugin to enable/disable.
-        payload (PluginStatusSetPayload): Contains the `enabled` status.
-        current_user (User): Authenticated user object.
-        plugin_manager (PluginManager): The plugin manager instance.
-
-    Returns:
-        PluginApiResponse: Standard API response.
     """
     identity = current_user.username
     action = "enable" if payload.enabled else "disable"
@@ -293,15 +244,6 @@ async def reload_plugins_api_route(
 ):
     """
     Triggers a full reload of the plugin system.
-
-    Calls :func:`~bedrock_server_manager.api.plugins.reload_plugins`.
-
-    Args:
-        current_user (User): Authenticated user object.
-        plugin_manager (PluginManager): The plugin manager instance.
-
-    Returns:
-        PluginApiResponse: Standard API response.
     """
     identity = current_user.username
     logger.info(f"API: Reload plugins request by '{identity}'.")

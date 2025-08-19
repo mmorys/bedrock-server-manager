@@ -28,7 +28,7 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
-@router.get("/account", response_class=HTMLResponse)
+@router.get("/account", response_class=HTMLResponse, include_in_schema=False,)
 async def account_page(request: Request, user: UserSchema = Depends(get_current_user)):
     return get_templates().TemplateResponse(
         "account.html", {"request": request, "current_user": user}

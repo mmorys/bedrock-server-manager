@@ -73,13 +73,6 @@ async def manage_settings_page_route(
 ):
     """
     Serves the HTML page for managing global application settings.
-
-    This page allows authenticated users to view and modify settings
-    stored in the main application configuration file.
-
-    Args:
-        request (:class:`fastapi.Request`): FastAPI request object.
-        current_user (User): Authenticated user (from dependency).
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed global settings page.")
@@ -97,48 +90,6 @@ async def get_all_settings_api_route(
 ):
     """
     Retrieves all global application settings.
-
-    Calls :func:`~bedrock_server_manager.api.settings.get_all_global_settings`
-    to fetch the entire current application configuration.
-
-    - Requires authentication.
-    - Returns a :class:`.SettingsResponse` containing all settings data.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Global settings retrieved successfully.",
-            "settings": {
-                "config_version": "1.0",
-                "paths": {
-                    "servers": "<app_data_dir>/servers",
-                    "content": "<app_data_dir>/content",
-                    "downloads": "<app_data_dir>/.downloads",
-                    "backups": "<app_data_dir>/backups",
-                    "plugins": "<app_data_dir>/plugins",
-                    "logs": "<app_data_dir>/.logs"
-                },
-                "retention": {
-                    "backups": 3,
-                    "downloads": 3,
-                    "logs": 3
-                },
-                "logging": {
-                    "file_level": "INFO",
-                    "cli_level": "WARN"
-                },
-                "web": {
-                    "host": "127.0.0.1",
-                    "port": 11325,
-                    "token_expires_weeks": 4,
-                    "threads": 4
-                },
-                "custom": {}
-            },
-            "setting": null
-        }
     """
     identity = current_user.username
     logger.info(f"API: Get global settings request by '{identity}'.")
@@ -174,35 +125,6 @@ async def set_setting_api_route(
 ):
     """
     Sets a specific global application setting.
-
-    Calls :func:`~bedrock_server_manager.api.settings.set_global_setting`
-    to update a setting by its dot-notation key and new value.
-    Changes are persisted to the configuration file.
-
-    - **Request body**: Expects a :class:`.SettingItem` with the `key` and `value`.
-    - Requires authentication.
-    - Returns a :class:`.SettingsResponse` indicating success or failure.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "key": "retention.backups",
-            "value": 5
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Setting 'retention.backups' updated successfully. Changes will apply after the next reload or restart.",
-            "settings": null,
-            "setting": {
-                "key": "retention.backups",
-                "value": 5
-            }
-        }
     """
     identity = current_user.username
     logger.info(
@@ -265,9 +187,6 @@ async def get_themes_api_route(
     Retrieves a list of available themes.
 
     Scans the built-in and custom theme directories for CSS files.
-
-    - Requires authentication.
-    - Returns a dictionary of theme names to their paths.
     """
     identity = current_user.username
     logger.info(f"API: Get themes request by '{identity}'.")
@@ -310,23 +229,6 @@ async def reload_settings_api_route(
 ):
     """
     Forces a reload of global application settings and logging configuration.
-
-    Calls :func:`~bedrock_server_manager.api.settings.reload_global_settings`.
-    This is useful if the configuration file has been manually edited and the
-    application needs to reflect these changes without a full restart.
-
-    - Requires authentication.
-    - Returns a :class:`.SettingsResponse` indicating the outcome.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Global settings and logging configuration reloaded successfully.",
-            "settings": null,
-            "setting": null
-        }
     """
     identity = current_user.username
     logger.info(f"API: Reload global settings request by '{identity}'.")
