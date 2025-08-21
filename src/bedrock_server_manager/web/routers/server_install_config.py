@@ -432,8 +432,7 @@ async def configure_service_page(
     server_name: str = Depends(validate_server_exists),
     current_user: User = Depends(get_admin_user),
 ):
-    """Serves the HTML page for configuring server-specific service settings (autoupdate/autostart).
-    """
+    """Serves the HTML page for configuring server-specific service settings (autoupdate/autostart)."""
     identity = current_user.username
     logger.info(
         f"User '{identity}' accessed configure service page for server '{server_name}'. New install: {new_install}"

@@ -57,6 +57,7 @@ class AppContext:
         """
         if self._db is None:
             from .db.database import Database
+
             self._db = Database()
         return self._db
 

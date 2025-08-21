@@ -159,8 +159,7 @@ async def serve_world_icon_api(
 
 @router.get("/favicon.ico", include_in_schema=False)
 async def get_root_favicon():
-    """Serves the `favicon.ico` file from the static directory.
-    """
+    """Serves the `favicon.ico` file from the static directory."""
     favicon_path = os.path.join(STATIC_DIR, "image", "icon", "favicon.ico")
     if not os.path.exists(favicon_path):
         # If the file genuinely doesn't exist, return a 404
@@ -184,7 +183,7 @@ async def catch_all_api_route(
 ):
     """Redirects any unmatched authenticated API path to the main dashboard ('/').
 
-    This route acts as a catch-all for any GET requests that haven't been matched 
+    This route acts as a catch-all for any GET requests that haven't been matched
     by other more specific routes. It logs the attempt
     and redirects the authenticated user to the root of the web application.
     """

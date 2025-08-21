@@ -1089,9 +1089,7 @@ def test_full_server_setup_extract_fails(downloader_instance, mocker):
 def test_downloader_getters_initial_state(app_context, temp_server_dir):
     """Test getter methods return None or initial values before operations."""
     # Create a downloader instance without calling any processing methods yet
-    downloader = BedrockDownloader(
-        app_context.settings, str(temp_server_dir), "LATEST"
-    )
+    downloader = BedrockDownloader(app_context.settings, str(temp_server_dir), "LATEST")
 
     assert downloader.get_actual_version() is None
     assert downloader.get_zip_file_path() is None

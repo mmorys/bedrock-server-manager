@@ -71,8 +71,7 @@ async def login_page(
     request: Request,
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Serves the HTML login page.
-    """
+    """Serves the HTML login page."""
     if user:
         return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
 
