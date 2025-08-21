@@ -6,7 +6,7 @@
 :align: center
 ```
 
-## 3.6.0 (WIP)
+## 3.6.0
 
 ```{tip}
 With version 3.6.0, the web server is now a required component and acts as the central management point for all Bedrock servers. This change simplifies process management and improves stability.
