@@ -216,7 +216,13 @@ A key requirement is that contributions affecting shared logic must work consist
 
 ## Testing
 
-Currently all testing is done manually, feel free to contribute pytest wherever possible
+Pytest are used as the testing system for Bedrock Server Manager, with both unit tests and integration tests.
+
+Test are automatically run on every commit and pull request via GitHub Actions. To run tests locally, you can use the following command:
+
+```bash
+pytest
+```
 
 ## Submitting Your Contribution (Pull Requests)
 
