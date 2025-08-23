@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bedrock-server-manager"
-version = "3.6.0rc1"
+version = "3.6.0"
 authors = [
   { name="DMedina559", email="dmedina559-github@outlook.com" },
 ]
@@ -41,7 +41,7 @@ dependencies = [
     "alembic >=1.16,<1.17",
 ]
 
-keywords = ["minecraft", "bedrock", "server", "manager", "bsm", "admin", "dashboard", "web", "cli", "web", "fastapi"]
+keywords = ["minecraft", "bedrock", "server", "manager", "bsm", "admin", "dashboard", "web", "fastapi"]
 
 [project.urls]
 Repository = "https://github.com/dmedina559/bedrock-server-manager.git"
