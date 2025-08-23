@@ -35,6 +35,7 @@ class BedrockProcessManager:
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.settings = self.app_context.settings
+        self._shutdown_event = threading.Event()
         self.monitoring_thread = threading.Thread(
             target=self._monitor_servers, daemon=True
         )
@@ -54,6 +55,13 @@ class BedrockProcessManager:
             self.logger.info(f"Removing server '{server_name}' from process manager.")
             del self.servers[server_name]
 
+    def shutdown(self):
+        """Signals the monitoring thread to shut down."""
+        self.logger.info("Shutdown signal received. Stopping server monitoring.")
+        self._shutdown_event.set()
+        # Optional: wait for the thread to finish
+        self.monitoring_thread.join(timeout=5)
+
     def _monitor_servers(self):
         """Monitors server processes and restarts them if they crash."""
         try:
@@ -66,8 +74,10 @@ class BedrockProcessManager:
         self.logger.info(
             f"Server monitoring thread started with a {monitoring_interval} second interval."
         )
-        while True:
-            time.sleep(monitoring_interval)
+        while not self._shutdown_event.is_set():
+            if self._shutdown_event.wait(timeout=monitoring_interval):
+                break  # Exit if event is set
+
             for server_name, server in list(self.servers.items()):
                 if not server.is_running():
                     if not server.intentionally_stopped:
