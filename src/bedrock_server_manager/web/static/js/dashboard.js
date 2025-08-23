@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`${functionName}: Initializing all dashboard interactivity.`);
 
     // --- Constants and Elements ---
-    const POLLING_INTERVAL_MS = 3000;
+    const POLLING_INTERVAL_MS = 60000;
     const serverSelect = document.getElementById('server-select');
     const globalActionButtons = document.querySelectorAll('.server-selection-section .action-buttons-group button');
     const serverDependentSections = document.querySelectorAll('.server-dependent-actions');
