@@ -35,11 +35,10 @@ import os
 import json
 import zipfile
 from pathlib import Path
-from typing import Tuple, Optional, Set
+from typing import Tuple, Optional, Set, TYPE_CHECKING
 
 # Local application imports.
 from .system import base as system_base
-from ..instances import get_settings_instance
 from ..error import (
     DownloadError,
     ExtractError,
@@ -51,6 +50,9 @@ from ..error import (
     UserInputError,
     SystemError,
 )
+
+if TYPE_CHECKING:
+    from ..config.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +205,7 @@ class BedrockDownloader:
 
     def __init__(
         self,
+        settings_obj: "Settings",
         server_dir: str,
         target_version: str = "LATEST",
         server_zip_path: Optional[str] = None,
@@ -225,6 +228,10 @@ class BedrockDownloader:
             ConfigurationError: If the `paths.downloads` setting is missing or
                 empty in the provided `settings_obj`.
         """
+        if not settings_obj:
+            raise MissingArgumentError(
+                "Settings object cannot be empty for BedrockDownloader."
+            )
         if not server_dir:
             raise MissingArgumentError(
                 "Server directory cannot be empty for BedrockDownloader."
@@ -234,7 +241,7 @@ class BedrockDownloader:
                 "Target version cannot be empty for BedrockDownloader."
             )
 
-        self.settings = get_settings_instance()
+        self.settings: "Settings" = settings_obj
         self.server_dir: str = os.path.abspath(server_dir)
         self.input_target_version: str = target_version.strip()
         self.logger = logging.getLogger(__name__)

@@ -30,7 +30,9 @@ except ImportError:
 from ..plugins import plugin_method
 
 # Local application imports.
-from ..instances import get_manager_instance, get_plugin_manager_instance
+from ..instances import (
+    get_manager_instance,
+)
 from ..core.system import process as system_process_utils
 from ..error import (
     BSMError,
@@ -39,17 +41,21 @@ from ..error import (
     SystemError,
     UserInputError,
 )
+from ..context import AppContext
 
 logger = logging.getLogger(__name__)
 
-plugin_manager = get_plugin_manager_instance()
+
+from ..plugins.event_trigger import trigger_plugin_event
 
 
+@trigger_plugin_event(before="before_web_server_start", after="after_web_server_start")
 def start_web_server_api(
     host: Optional[Union[str, List[str]]] = None,
     debug: bool = False,
     mode: str = "direct",
     threads: Optional[int] = None,
+    app_context: Optional[AppContext] = None,
 ) -> Dict[str, Any]:
     """Starts the application's web server.
 
@@ -90,18 +96,19 @@ def start_web_server_api(
     """
     mode = mode.lower()
 
-    plugin_manager.trigger_guarded_event("before_web_server_start", mode=mode)
-
-    result = {}
     try:
         if mode not in ["direct", "detached"]:
             raise UserInputError("Invalid mode. Must be 'direct' or 'detached'.")
 
         logger.info(f"API: Attempting to start web server in '{mode}' mode...")
+        if app_context:
+            manager = app_context.manager
+        else:
+            manager = get_manager_instance(None)
         # --- Direct (Blocking) Mode ---
         if mode == "direct":
-            get_manager_instance().start_web_ui_direct(host, debug, threads)
-            result = {
+            manager.start_web_ui_direct(app_context, host, debug, threads)
+            return {
                 "status": "success",
                 "message": "Web server (direct mode) shut down.",
             }
@@ -114,9 +121,9 @@ def start_web_server_api(
                 )
 
             logger.info("API: Starting web server in detached mode...")
-            pid_file_path = get_manager_instance().get_web_ui_pid_path()
-            expected_exe = get_manager_instance().get_web_ui_executable_path()
-            expected_arg = get_manager_instance().get_web_ui_expected_start_arg()
+            pid_file_path = manager.get_web_ui_pid_path()
+            expected_exe = manager.get_web_ui_executable_path()
+            expected_arg = manager.get_web_ui_expected_start_arg()
 
             # Check for an existing, valid PID file.
             existing_pid = None
@@ -160,7 +167,7 @@ def start_web_server_api(
             new_pid = system_process_utils.launch_detached_process(
                 command, pid_file_path
             )
-            result = {
+            return {
                 "status": "success",
                 "pid": new_pid,
                 "message": f"Web server started (PID: {new_pid}).",
@@ -168,17 +175,16 @@ def start_web_server_api(
 
     except BSMError as e:
         logger.error(f"API: Handled error starting web server: {e}", exc_info=True)
-        result = {"status": "error", "message": str(e)}
+        return {"status": "error", "message": str(e)}
     except Exception as e:
         logger.error(f"API: Unexpected error starting web server: {e}", exc_info=True)
-        result = {"status": "error", "message": f"Unexpected error: {str(e)}"}
-    finally:
-        plugin_manager.trigger_guarded_event("after_web_server_start", result=result)
+        return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
-    return result
+    return {}
 
 
-def stop_web_server_api() -> Dict[str, str]:
+@trigger_plugin_event(before="before_web_server_stop", after="after_web_server_stop")
+def stop_web_server_api(app_context: AppContext) -> Dict[str, str]:
     """Stops the detached web server process.
 
     This function reads the PID from the web server's PID file (path obtained
@@ -205,17 +211,15 @@ def stop_web_server_api() -> Dict[str, str]:
             :class:`~.error.ServerStopError` (termination failure),
             :class:`~.error.ConfigurationError` (if web UI paths not configured in BSM).
     """
-    plugin_manager.trigger_guarded_event("before_web_server_stop")
-
-    result = {}
     try:
         logger.info("API: Attempting to stop detached web server...")
         if not PSUTIL_AVAILABLE:
             raise SystemError("'psutil' not installed. Cannot manage processes.")
 
-        pid_file_path = get_manager_instance().get_web_ui_pid_path()
-        expected_exe = get_manager_instance().get_web_ui_executable_path()
-        expected_arg = get_manager_instance().get_web_ui_expected_start_arg()
+        manager = app_context.manager
+        pid_file_path = manager.get_web_ui_pid_path()
+        expected_exe = manager.get_web_ui_executable_path()
+        expected_arg = manager.get_web_ui_expected_start_arg()
 
         # Read the PID from the file.
         pid = system_process_utils.read_pid_from_file(pid_file_path)
@@ -238,32 +242,27 @@ def stop_web_server_api() -> Dict[str, str]:
         system_process_utils.verify_process_identity(pid, expected_exe)
         system_process_utils.terminate_process_by_pid(pid)
         system_process_utils.remove_pid_file_if_exists(pid_file_path)
-        result = {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
+        return {"status": "success", "message": f"Web server (PID: {pid}) stopped."}
 
     except (FileOperationError, ServerProcessError) as e:
         # Clean up the PID file if there's a file error or process mismatch.
-        system_process_utils.remove_pid_file_if_exists(
-            get_manager_instance().get_web_ui_pid_path()
-        )
+        manager = app_context.manager
+        system_process_utils.remove_pid_file_if_exists(manager.get_web_ui_pid_path())
         error_type = (
             "PID file error"
             if isinstance(e, FileOperationError)
             else "Process verification failed"
         )
-        result = {"status": "error", "message": f"{error_type}: {e}. PID file removed."}
+        return {"status": "error", "message": f"{error_type}: {e}. PID file removed."}
     except BSMError as e:
-        result = {"status": "error", "message": f"Error stopping web server: {e}"}
+        return {"status": "error", "message": f"Error stopping web server: {e}"}
     except Exception as e:
         logger.error(f"API: Unexpected error stopping web server: {e}", exc_info=True)
-        result = {"status": "error", "message": f"Unexpected error: {str(e)}"}
-    finally:
-        plugin_manager.trigger_guarded_event("after_web_server_stop", result=result)
-
-    return result
+        return {"status": "error", "message": f"Unexpected error: {str(e)}"}
 
 
 @plugin_method("get_web_server_status")
-def get_web_server_status_api() -> Dict[str, Any]:
+def get_web_server_status_api(app_context: AppContext) -> Dict[str, Any]:
     """Checks the status of the web server process.
 
     This function verifies the web server's status by checking for a valid
@@ -297,9 +296,10 @@ def get_web_server_status_api() -> Dict[str, Any]:
         }
     pid = None
     try:
-        pid_file_path = get_manager_instance().get_web_ui_pid_path()
-        expected_exe = get_manager_instance().get_web_ui_executable_path()
-        expected_arg = get_manager_instance().get_web_ui_expected_start_arg()
+        manager = app_context.manager
+        pid_file_path = manager.get_web_ui_pid_path()
+        expected_exe = manager.get_web_ui_executable_path()
+        expected_arg = manager.get_web_ui_expected_start_arg()
 
         try:
             pid = system_process_utils.read_pid_from_file(pid_file_path)
@@ -361,7 +361,16 @@ def get_web_server_status_api() -> Dict[str, Any]:
         }
 
 
-def create_web_ui_service(autostart: bool = False) -> Dict[str, str]:
+@trigger_plugin_event(
+    before="before_web_service_change", after="after_web_service_change"
+)
+def create_web_ui_service(
+    app_context: AppContext,
+    autostart: bool = False,
+    system: bool = False,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> Dict[str, str]:
     """Creates (or updates) a system service for the Web UI.
 
     On Linux, this creates a systemd user service. On Windows, this creates a
@@ -378,6 +387,12 @@ def create_web_ui_service(autostart: bool = False) -> Dict[str, str]:
         autostart (bool, optional): If ``True``, the service will be enabled
             to start automatically on system boot/login. If ``False``, it will be
             created but left disabled. Defaults to ``False``.
+        system (bool, optional): If ``True``, creates a system-wide service on
+            Linux. This option is ignored on other operating systems. Defaults to ``False``.
+        username (Optional[str], optional): The username to run the service as on
+            Windows. This option is ignored on other operating systems. Defaults to ``None``.
+        password (Optional[str], optional): The password for the user on Windows.
+            This option is ignored on other operating systems. Defaults to ``None``.
 
     Returns:
         Dict[str, str]: A dictionary with the operation result.
@@ -389,54 +404,49 @@ def create_web_ui_service(autostart: bool = False) -> Dict[str, str]:
             such as :class:`~.error.SystemError`, :class:`~.error.PermissionsError`,
             :class:`~.error.CommandNotFoundError`, or :class:`~.error.FileOperationError`.
     """
-
-    plugin_manager.trigger_event(
-        "before_web_service_change", action="create", autostart=autostart
-    )
-
-    result = {}
     try:
-
-        if not get_manager_instance().can_manage_services:
+        manager = app_context.manager
+        if not manager.can_manage_services:
             return {
                 "status": "error",
                 "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
             }
 
-        get_manager_instance().create_web_service_file()
+        manager.create_web_service_file(
+            system=system, username=username, password=password
+        )
 
         if autostart:
-            get_manager_instance().enable_web_service()
+            manager.enable_web_service(system=system)
             action_done = "created and enabled"
         else:
-            get_manager_instance().disable_web_service()
+            manager.disable_web_service()
             action_done = "created and disabled"
 
-        result = {
+        return {
             "status": "success",
             "message": f"Web UI system service {action_done} successfully.",
         }
 
     except BSMError as e:
         logger.error(f"API: Failed to create Web UI system service: {e}", exc_info=True)
-        result = {"status": "error", "message": f"Failed to create Web UI service: {e}"}
+        return {"status": "error", "message": f"Failed to create Web UI service: {e}"}
     except Exception as e:
         logger.error(
             f"API: Unexpected error creating Web UI system service: {e}", exc_info=True
         )
-        result = {
+        return {
             "status": "error",
             "message": f"Unexpected error creating Web UI service: {e}",
         }
-    finally:
-        plugin_manager.trigger_event(
-            "after_web_service_change", action="create", result=result
-        )
-
-    return result
 
 
-def enable_web_ui_service() -> Dict[str, str]:
+@trigger_plugin_event(
+    before="before_web_service_change", after="after_web_service_change"
+)
+def enable_web_ui_service(
+    app_context: AppContext, system: bool = False
+) -> Dict[str, str]:
     """Enables the Web UI system service for autostart.
 
     On Linux, this enables the systemd user service. On Windows, this sets the
@@ -444,6 +454,10 @@ def enable_web_ui_service() -> Dict[str, str]:
     privileges). It calls
     :meth:`~bedrock_server_manager.core.manager.BedrockServerManager.enable_web_service`.
     Triggers ``before_web_service_change`` and ``after_web_service_change`` plugin events.
+
+    Args:
+        system (bool, optional): If ``True``, enables a system-wide service on
+            Linux. This option is ignored on other operating systems. Defaults to ``False``.
 
     Returns:
         Dict[str, str]: A dictionary with the operation result.
@@ -457,39 +471,37 @@ def enable_web_ui_service() -> Dict[str, str]:
             :meth:`~bedrock_server_manager.core.manager.BedrockServerManager.enable_web_service`
             call (e.g., :class:`~.error.SystemError`, :class:`~.error.PermissionsError`).
     """
-    plugin_manager.trigger_event("before_web_service_change", action="enable")
-    result = {}
     try:
-
-        if not get_manager_instance().can_manage_services:
+        manager = app_context.manager
+        if not manager.can_manage_services:
             return {
                 "status": "error",
                 "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
             }
-        get_manager_instance().enable_web_service()
-        result = {
+        manager.enable_web_service(system=system)
+        return {
             "status": "success",
             "message": "Web UI service enabled successfully.",
         }
     except BSMError as e:
         logger.error(f"API: Failed to enable Web UI system service: {e}", exc_info=True)
-        result = {"status": "error", "message": f"Failed to enable Web UI service: {e}"}
+        return {"status": "error", "message": f"Failed to enable Web UI service: {e}"}
     except Exception as e:
         logger.error(
             f"API: Unexpected error enabling Web UI system service: {e}", exc_info=True
         )
-        result = {
+        return {
             "status": "error",
             "message": f"Unexpected error enabling Web UI service: {e}",
         }
-    finally:
-        plugin_manager.trigger_event(
-            "after_web_service_change", action="enable", result=result
-        )
-    return result
 
 
-def disable_web_ui_service() -> Dict[str, str]:
+@trigger_plugin_event(
+    before="before_web_service_change", after="after_web_service_change"
+)
+def disable_web_ui_service(
+    app_context: AppContext, system: bool = False
+) -> Dict[str, str]:
     """Disables the Web UI system service from autostarting.
 
     On Linux, this disables the systemd user service. On Windows, this sets the
@@ -497,6 +509,10 @@ def disable_web_ui_service() -> Dict[str, str]:
     Administrator privileges). It calls
     :meth:`~bedrock_server_manager.core.manager.BedrockServerManager.disable_web_service`.
     Triggers ``before_web_service_change`` and ``after_web_service_change`` plugin events.
+
+    Args:
+        system (bool, optional): If ``True``, disables a system-wide service on
+            Linux. This option is ignored on other operating systems. Defaults to ``False``.
 
     Returns:
         Dict[str, str]: A dictionary with the operation result.
@@ -510,17 +526,15 @@ def disable_web_ui_service() -> Dict[str, str]:
             :meth:`~bedrock_server_manager.core.manager.BedrockServerManager.disable_web_service`
             call (e.g., :class:`~.error.SystemError`, :class:`~.error.PermissionsError`).
     """
-    plugin_manager.trigger_event("before_web_service_change", action="disable")
-    result = {}
     try:
-
-        if not get_manager_instance().can_manage_services:
+        manager = app_context.manager
+        if not manager.can_manage_services:
             return {
                 "status": "error",
                 "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
             }
-        get_manager_instance().disable_web_service()
-        result = {
+        manager.disable_web_service(system=system)
+        return {
             "status": "success",
             "message": "Web UI service disabled successfully.",
         }
@@ -528,7 +542,7 @@ def disable_web_ui_service() -> Dict[str, str]:
         logger.error(
             f"API: Failed to disable Web UI system service: {e}", exc_info=True
         )
-        result = {
+        return {
             "status": "error",
             "message": f"Failed to disable Web UI service: {e}",
         }
@@ -536,18 +550,18 @@ def disable_web_ui_service() -> Dict[str, str]:
         logger.error(
             f"API: Unexpected error disabling Web UI system service: {e}", exc_info=True
         )
-        result = {
+        return {
             "status": "error",
             "message": f"Unexpected error disabling Web UI service: {e}",
         }
-    finally:
-        plugin_manager.trigger_event(
-            "after_web_service_change", action="disable", result=result
-        )
-    return result
 
 
-def remove_web_ui_service() -> Dict[str, str]:
+@trigger_plugin_event(
+    before="before_web_service_change", after="after_web_service_change"
+)
+def remove_web_ui_service(
+    app_context: AppContext, system: bool = False
+) -> Dict[str, str]:
     """Removes the Web UI system service.
 
     The service should ideally be stopped and disabled before removal.
@@ -559,6 +573,10 @@ def remove_web_ui_service() -> Dict[str, str]:
         from the system.
 
     Triggers ``before_web_service_change`` and ``after_web_service_change`` plugin events.
+
+    Args:
+        system (bool, optional): If ``True``, removes a system-wide service on
+            Linux. This option is ignored on other operating systems. Defaults to ``False``.
 
     Returns:
         Dict[str, str]: A dictionary with the operation result.
@@ -574,48 +592,43 @@ def remove_web_ui_service() -> Dict[str, str]:
             call (e.g., :class:`~.error.SystemError`, :class:`~.error.PermissionsError`,
             :class:`~.error.FileOperationError`).
     """
-    plugin_manager.trigger_event("before_web_service_change", action="remove")
-    result = {}
     try:
-
-        if not get_manager_instance().can_manage_services:
+        manager = app_context.manager
+        if not manager.can_manage_services:
             return {
                 "status": "error",
                 "message": "System service management tool (systemctl/sc.exe) not found. Cannot manage Web UI service.",
             }
 
-        removed = get_manager_instance().remove_web_service_file()
+        removed = manager.remove_web_service_file(system=system)
         if removed:
-            result = {
+            return {
                 "status": "success",
                 "message": "Web UI service removed successfully.",
             }
         else:
 
-            result = {
+            return {
                 "status": "error",
                 "message": "Web UI service removal failed or file not found.",
             }
 
     except BSMError as e:
         logger.error(f"API: Failed to remove Web UI system service: {e}", exc_info=True)
-        result = {"status": "error", "message": f"Failed to remove Web UI service: {e}"}
+        return {"status": "error", "message": f"Failed to remove Web UI service: {e}"}
     except Exception as e:
         logger.error(
             f"API: Unexpected error removing Web UI system service: {e}", exc_info=True
         )
-        result = {
+        return {
             "status": "error",
             "message": f"Unexpected error removing Web UI service: {e}",
         }
-    finally:
-        plugin_manager.trigger_event(
-            "after_web_service_change", action="remove", result=result
-        )
-    return result
 
 
-def get_web_ui_service_status() -> Dict[str, Any]:
+def get_web_ui_service_status(
+    app_context: AppContext, system: bool = False
+) -> Dict[str, Any]:
     """Gets the current status of the Web UI system service.
 
     This function calls several methods on the
@@ -623,6 +636,10 @@ def get_web_ui_service_status() -> Dict[str, Any]:
     :meth:`~.check_web_service_exists`,
     :meth:`~.is_web_service_active`, and
     :meth:`~.is_web_service_enabled`.
+
+    Args:
+        system (bool, optional): If ``True``, checks a system-wide service on
+            Linux. This option is ignored on other operating systems. Defaults to ``False``.
 
     Returns:
         Dict[str, Any]: A dictionary with the operation result.
@@ -639,21 +656,20 @@ def get_web_ui_service_status() -> Dict[str, Any]:
         "is_enabled": False,
     }
     try:
-        if not get_manager_instance().can_manage_services:
+        manager = app_context.manager
+        if not manager.can_manage_services:
             return {
                 "status": "success",
                 "message": "System service management tool (systemctl/sc.exe) not found. Cannot determine Web UI service status.",
                 **response_data,
             }
 
-        response_data["service_exists"] = (
-            get_manager_instance().check_web_service_exists()
+        response_data["service_exists"] = manager.check_web_service_exists(
+            system=system
         )
         if response_data["service_exists"]:
-            response_data["is_active"] = get_manager_instance().is_web_service_active()
-            response_data["is_enabled"] = (
-                get_manager_instance().is_web_service_enabled()
-            )
+            response_data["is_active"] = manager.is_web_service_active(system=system)
+            response_data["is_enabled"] = manager.is_web_service_enabled(system=system)
 
         return {"status": "success", **response_data}
 

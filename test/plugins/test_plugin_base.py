@@ -67,28 +67,42 @@ class TestConcretePlugin:
 
         # A selection of hooks to test for existence and callability
         hooks = [
-            ("on_load", ()),
-            ("on_unload", ()),
-            ("before_server_start", ("server1", "detached")),
-            ("after_server_start", ("server1", {"status": "success"})),
-            ("before_command_send", ("server1", "say hello")),
-            ("after_command_send", ("server1", "say hello", {"status": "success"})),
+            ("on_load", {}),
+            ("on_unload", {}),
             (
-                "before_backup",
-                ("server1", "world"),
+                "before_server_start",
+                {"server_name": "server1", "target_version": "1.0.0"},
             ),
             (
+                "after_server_start",
+                {"server_name": "server1", "result": {"status": "success"}},
+            ),
+            ("before_command_send", {"server_name": "server1", "command": "say hello"}),
+            (
+                "after_command_send",
+                {
+                    "server_name": "server1",
+                    "command": "say hello",
+                    "result": {"status": "success"},
+                },
+            ),
+            ("before_backup", {"server_name": "server1", "backup_type": "world"}),
+            (
                 "after_backup",
-                ("server1", "world", {"status": "success"}),
+                {
+                    "server_name": "server1",
+                    "backup_type": "world",
+                    "result": {"status": "success"},
+                },
             ),
         ]
 
-        for hook_name, args in hooks:
+        for hook_name, kwargs in hooks:
             assert hasattr(plugin, hook_name)
             method = getattr(plugin, hook_name)
             assert callable(method)
             try:
-                method(*args)
+                method(**kwargs)
             except Exception as e:
                 pytest.fail(f"Hook '{hook_name}' raised an exception: {e}")
 
@@ -96,8 +110,6 @@ class TestConcretePlugin:
         """Tests that the extension hooks return empty lists by default."""
         plugin = self.ConcretePlugin("my_plugin", mock_api, mock_logger)
 
-        assert plugin.get_cli_commands() == []
         assert plugin.get_fastapi_routers() == []
         assert plugin.get_template_paths() == []
         assert plugin.get_static_mounts() == []
-        assert plugin.get_cli_menu_items() == []

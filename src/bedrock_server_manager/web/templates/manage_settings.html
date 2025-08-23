@@ -8,6 +8,8 @@
 {% endblock %}
 
 {% block content %}
+<div id="setup-banner-container"></div>
+
     {# --- Page Header --- #}
     {# Use standard h2 for section titles #}
 <h2>Manage Global Settings</h2>
@@ -24,6 +26,7 @@
 </div>
 
     {# --- Settings Configuration Section (Initially hidden, populated by JS) --- #}
+{% if current_user.role == 'admin' %}
 <section id="settings-form-section" class="properties-config-section" style="display: none;">
     {# Header inside the section to contain the reload button #}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -37,16 +40,8 @@
         {# The dynamically generated fieldsets and form groups will be injected here #}
     </div>
 
-    {# --- Theme Selection --- #}
-    <div style="margin-top: 20px;">
-        <h3>Theme</h3>
-        <div class="form-group">
-            <label for="theme-select">Select Theme:</label>
-            <select id="theme-select" name="theme">
-            </select>
-        </div>
-    </div>
 </section>
+{% endif %}
 
     {# The page-actions div should be outside the section, at the end of the content block #}
 <div class="page-actions">
@@ -54,9 +49,31 @@
         « Back to Dashboard
     </a>
 </div>
+
 {% endblock %}
 
 {% block body_scripts %}
 {# This script is loaded after utils.js (which is in base.html) #}
 <script src="{{ request.url_for('static', path='js/manage_settings.js') }}" defer></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('in_setup')) {
+            const bannerContainer = document.getElementById('setup-banner-container');
+            if (bannerContainer) {
+                bannerContainer.innerHTML = `
+                <div class="setup-banner">
+                    <h3>Step 1: Global Settings</h3>
+                    <p>
+                        Modify the global settings for your Bedrock Server Manager instance. Reload the settings after making changes to apply them.\n
+                        <strong>Note:</strong> Some settings may require a server restart to take effect.
+                    </p>
+                    <a href="/plugins?in_setup=true" class="action-button">Continue to Plugin Setup</a>
+                </div>
+            `;
+            }
+        }
+    });
+</script>
 {% endblock %}

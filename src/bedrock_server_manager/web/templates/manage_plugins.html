@@ -10,6 +10,8 @@
 
 {% block content %}
 <div class="content-container">
+    <div id="setup-banner-container"></div>
+
     <header class="page-header">
         <h2>Manage Plugins</h2>
         <p>Enable or disable plugins for the Bedrock Server Manager. Reload Plugins for chages to apply.</p>
@@ -22,9 +24,11 @@
     <section class="list-section">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3>Available Plugins</h3>
+            {% if current_user.role == 'admin' %}
             <button id="reload-plugins-btn" class="action-button">
                 <i class="fas fa-sync-alt"></i> Reload Plugins {# Assuming Font Awesome is available #}
             </button>
+            {% endif %}
         </div>
         <ul id="plugin-list" class="item-list">
             <li id="plugin-loader" class="list-item-status" role="status">
@@ -43,10 +47,12 @@
                 <small class="plugin-version" style="margin-left: 8px; color: #bbb;"></small>
             </div>
             <div class="plugin-controls">
+                {% if current_user.role == 'admin' %}
                 <label class="toggle-switch-container">
                     <input type="checkbox" class="toggle-input plugin-toggle-switch" data-plugin-name="">
                     <span class="toggle-switch"></span>
                 </label>
+                {% endif %}
             </div>
         </li>
     </template>
@@ -73,4 +79,24 @@
 {% endblock %}
 
 {% block body_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('in_setup')) {
+            const bannerContainer = document.getElementById('setup-banner-container');
+            if (bannerContainer) {
+                bannerContainer.innerHTML = `
+                <div class="setup-banner">
+                    <h3>Step 2: Plugin Management</h3>
+                    <p>
+                        Here you can manage plugins. Reload plugins to apply any changes.\n
+                        <strong>Note:</strong> Any plugins that add new FastAPI routes (such as the content_uploader_plugin) will require a server restart to take effect.
+                    </p>
+                    <a href="/install?in_setup=true" class="action-button">Continue to Server Installation</a>
+                </div>
+            `;
+            }
+        }
+    });
+</script>
 {% endblock %}

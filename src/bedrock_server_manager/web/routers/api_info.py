@@ -16,13 +16,12 @@ import logging
 import os
 from typing import Dict, Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
 
-from ..schemas import BaseApiResponse
-from ..auth_utils import get_current_user
+from ..schemas import BaseApiResponse, User
+from ..auth_utils import get_current_user, get_admin_user, get_moderator_user
 from ..dependencies import validate_server_exists
-from ...instances import get_settings_instance
 from ...api import (
     application as app_api,
     utils as utils_api,
@@ -41,10 +40,6 @@ router = APIRouter()
 # --- Pydantic Models ---
 class GeneralApiResponse(BaseApiResponse):
     """A general-purpose API response model.
-
-    Used by various informational endpoints to provide a consistent
-    response structure, including a status, an optional message, and
-    various optional data fields depending on the specific endpoint.
     """
 
     # status: str -> Inherited
@@ -91,67 +86,26 @@ class AddPlayersPayload(BaseModel):
     tags=["Server Info API"],
 )
 async def get_server_running_status_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Checks if a specific server's process is currently running.
-
-    Calls :func:`~bedrock_server_manager.api.info.get_server_running_status`
-    to determine the live process state.
-
-    Args:
-        server_name (str): The name of the server to check. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success"
-            - ``data``: {"running": True/False}
-            - ``message``: (Optional) Confirmation message.
-
-    Example Response (Server Running):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server 'MyServer' process is running.",
-            "data": {
-                "running": true
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
-
-    Example Response (Server Not Running):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server 'MyServer' process is not running.",
-            "data": {
-                "running": false
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request for running status for server '{server_name}' by user '{identity}'."
     )
+    app_context = request.app.state.app_context
     try:
-        result = info_api.get_server_running_status(server_name)
+        result = info_api.get_server_running_status(
+            server_name=server_name, app_context=app_context
+        )
         if result.get("status") == "success":
             return GeneralApiResponse(
                 status="success",
-                data={"running": result.get("running")},
+                data={"running": result.get("is_running")},
                 message=result.get("message"),
             )
         else:
@@ -184,48 +138,22 @@ async def get_server_running_status_api_route(
     tags=["Server Info API"],
 )
 async def get_server_config_status_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retrieves the last known status from a server's configuration file.
-
-    This status (e.g., "RUNNING", "STOPPED") reflects the state recorded in
-    the server's JSON config and may not be the live process status.
-    Calls :func:`~bedrock_server_manager.api.info.get_server_config_status`.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success"
-            - ``data``: {"config_status": "RUNNING" | "STOPPED" | "UNKNOWN"}
-            - ``message``: (Optional) Confirmation message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Configuration status for 'MyServer' is 'RUNNING'.",
-            "data": {
-                "config_status": "RUNNING"
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request for config status for server '{server_name}' by user '{identity}'."
     )
+    app_context = request.app.state.app_context
     try:
-        result = info_api.get_server_config_status(server_name)
+        result = info_api.get_server_config_status(
+            server_name=server_name, app_context=app_context
+        )
         if result.get("status") == "success":
             return GeneralApiResponse(
                 status="success",
@@ -264,49 +192,22 @@ async def get_server_config_status_api_route(
     tags=["Server Info API"],
 )
 async def get_server_version_api_route(
+    request: Request,
     server_name: str = Depends(validate_server_exists),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retrieves the installed version of a specific server.
-
-    The version is read from the server's JSON configuration file via
-    :func:`~bedrock_server_manager.api.info.get_server_installed_version`.
-    Returns "UNKNOWN" if not found.
-
-    Args:
-        server_name (str): The name of the server. Validated by dependency.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success"
-            - ``data``: {"version": "1.20.50.01"} or {"version": "UNKNOWN"}
-            - ``message``: (Optional) Confirmation message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Installed version for 'MyServer' is '1.20.50.01'.",
-            "data": {
-                "version": "1.20.50.01"
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request for installed version for server '{server_name}' by user '{identity}'."
     )
+    app_context = request.app.state.app_context
     try:
-        result = info_api.get_server_installed_version(server_name)
-        print(f"Result: {result}")
+        result = info_api.get_server_installed_version(
+            server_name=server_name, app_context=app_context
+        )
         if result.get("status") == "success":
             return GeneralApiResponse(
                 status="success",
@@ -348,79 +249,43 @@ async def get_server_version_api_route(
     tags=["Server Info API"],
 )
 async def validate_server_api_route(
-    server_name: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    request: Request, server_name: str, current_user: User = Depends(get_current_user)
 ):
     """
     Validates if a server installation exists and is minimally correct.
-
-    Calls :func:`~bedrock_server_manager.api.utils.validate_server_exist`.
-    This checks for the server directory and executable.
-
-    Args:
-        server_name (str): The name of the server to validate.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``message``: Detailed message about validation outcome.
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server 'MyServer' exists and is valid.",
-            "data": null,
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
-
-    Example Response (Error):
-    .. code-block:: json
-
-        {
-            "status": "error",
-            "message": "Server 'NonExistentServer' is not installed or the installation is invalid.",
-            "data": null,
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request to validate server '{server_name}' by user '{identity}'."
     )
+    app_context = request.app.state.app_context
     try:
-        result = utils_api.validate_server_exist(server_name)
+        result = utils_api.validate_server_exist(
+            server_name=server_name, app_context=app_context
+        )
         if result.get("status") == "success":
             return GeneralApiResponse(status="success", message=result.get("message"))
         else:
+            # This case handles when the underlying API returns an error status
+            # without raising an exception itself.
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=result.get("message")
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=result.get(
+                    "message", f"Server '{server_name}' not found or is invalid."
+                ),
             )
     except UserInputError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except BSMError as e:
-        logger.error(
-            f"API Validate Server '{server_name}': BSMError: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
-            f"API Validate Server '{server_name}': Unexpected error: {e}", exc_info=True
+            f"API Validate Server '{server_name}': Unexpected error in route: {e}",
+            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected error validating server.",
+            detail="An unexpected error occurred while validating the server.",
         )
 
 
@@ -430,72 +295,18 @@ async def validate_server_api_route(
     tags=["Server Info API"],
 )
 async def server_process_info_api_route(
-    server_name: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    request: Request, server_name: str, current_user: User = Depends(get_current_user)
 ):
     """
     Retrieves resource usage information for a running server process.
-
-    Calls :func:`~bedrock_server_manager.api.system.get_bedrock_process_info`.
-    Returns details like PID, CPU usage, memory, and uptime if the server
-    process is found and running. Returns `null` for `process_info` if not running.
-
-    - **server_name**: Path parameter indicating the server to query.
-      It's implicitly validated by the underlying API call which will error
-      if the server config/directory doesn't exist for PID lookup.
-    - Requires authentication.
-
-    Args:
-        server_name (str): The name of the server.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success"
-            - ``data``: {"process_info": ProcessInfoDict} or {"process_info": null}
-            - ``message``: (Optional) Confirmation or status message.
-              ProcessInfoDict contains "pid", "cpu_percent", "memory_mb", "uptime".
-
-    Example Response (Process Found):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Process information retrieved for MyServer.",
-            "data": {
-                "process_info": {
-                    "pid": 12345,
-                    "cpu_percent": 10.5,
-                    "memory_mb": 256.5,
-                    "uptime": "2 days, 4:30:15"
-                }
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
-
-    Example Response (Process Not Found):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Server process 'MyServer' not found or is inaccessible.",
-            "data": {
-                "process_info": null
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.debug(f"API: Process info request for '{server_name}' by user '{identity}'.")
+    app_context = request.app.state.app_context
     try:
-        result = system_api.get_bedrock_process_info(server_name)
+        result = system_api.get_bedrock_process_info(
+            server_name=server_name, app_context=app_context
+        )
 
         if result.get("status") == "success":
             return GeneralApiResponse(
@@ -532,49 +343,16 @@ async def server_process_info_api_route(
     "/api/players/scan", response_model=GeneralApiResponse, tags=["Global Players API"]
 )
 async def scan_players_api_route(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    request: Request, current_user: User = Depends(get_moderator_user)
 ):
     """
     Scans all server logs to discover and update the central player database.
-
-    Calls :func:`~bedrock_server_manager.api.player.scan_and_update_player_db_api`.
-    This is a global action not tied to a specific server.
-
-    Args:
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``message``: Summary of the scan operation.
-            - ``data``: (On success) Contains detailed scan results, including counts
-              of entries found, unique players, saved players, and any scan errors.
-              The structure of `data` would be the `details` field from the
-              `scan_and_update_player_db_api` response.
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Player DB update complete. Entries found: 10. Unique: 5. Saved: 2.",
-            "data": {
-                "total_entries_in_logs": 10,
-                "unique_players_submitted_for_saving": 5,
-                "actually_saved_or_updated_in_db": 2,
-                "scan_errors": []
-            },
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(f"API: Request to scan logs for players by user '{identity}'.")
+    app_context = request.app.state.app_context
     try:
-        result = player_api.scan_and_update_player_db_api()
+        result = player_api.scan_and_update_player_db_api(app_context=app_context)
         if result.get("status") == "success":
             return GeneralApiResponse(
                 status="success",
@@ -603,56 +381,16 @@ async def scan_players_api_route(
     "/api/players/get", response_model=GeneralApiResponse, tags=["Global Players API"]
 )
 async def get_all_players_api_route(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    request: Request, current_user: User = Depends(get_moderator_user)
 ):
     """
     Retrieves the list of all known players from the central player database.
-
-    Calls :func:`~bedrock_server_manager.api.player.get_all_known_players_api`.
-    The player data is read from the application's main `players.json` file.
-
-        - Requires authentication.
-        - Returns a list of player objects (in the `players` field of the response),
-          each typically containing "name" and "xuid".
-        - If `players.json` is not found or empty, "players" will be an empty list.
-
-    Args:
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``players``: List of player dictionaries (e.g., `[{"name": "Player1", "xuid": "123"}, ...]`)
-            - ``message``: (Optional) Confirmation or status message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Retrieved 2 known players.",
-            "data": null,
-            "servers": null,
-            "info": null,
-            "players": [
-                {
-                    "name": "PlayerOne",
-                    "xuid": "1234567890123456"
-                },
-                {
-                    "name": "PlayerTwo",
-                    "xuid": "9876543210987654"
-                }
-            ],
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(f"API: Request to retrieve all players by user '{identity}'.")
-
+    app_context = request.app.state.app_context
     try:
-        result_dict = player_api.get_all_known_players_api()
+        result_dict = player_api.get_all_known_players_api(app_context=app_context)
 
         if result_dict.get("status") == "success":
             logger.debug(
@@ -701,59 +439,20 @@ async def get_all_players_api_route(
     tags=["Global Actions API"],
 )
 async def prune_downloads_api_route(
+    request: Request,
     payload: PruneDownloadsPayload,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     """
     Prunes old downloaded server archives from a specified cache subdirectory.
-
-    Calls :func:`~bedrock_server_manager.api.misc.prune_download_cache`.
-    The target directory is relative to the main download cache path.
-
-    - **Request body**: Expects a :class:`.PruneDownloadsPayload` specifying the
-      `directory` (e.g., "stable", "preview") and an optional `keep` count.
-    - Requires authentication.
-
-    Args:
-        payload (PruneDownloadsPayload): Specifies directory and keep count.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success", "error", or "skipped"
-            - ``message``: Outcome of the prune operation.
-            - ``files_deleted``: (Optional) Number of files deleted.
-            - ``files_kept``: (Optional) Number of files kept.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "directory": "stable",
-            "keep": 2
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "Download cache pruned successfully for 'stable'.",
-            "data": null,
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": 5,
-            "files_kept": 2
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request to prune downloads by user '{identity}'. Payload: {payload.model_dump_json(exclude_none=True)}"
     )
-
+    app_context = request.app.state.app_context
     try:
-        download_cache_base_dir = get_settings_instance().get("paths.downloads")
+        download_cache_base_dir = app_context.settings.get("paths.downloads")
         if not download_cache_base_dir:
             raise BSMError("DOWNLOAD_DIR setting is missing or empty in configuration.")
 
@@ -781,7 +480,9 @@ async def prune_downloads_api_route(
                 detail="Target cache directory not found.",
             )
 
-        result = misc_api.prune_download_cache(full_download_dir_path, payload.keep)
+        result = misc_api.prune_download_cache(
+            full_download_dir_path, payload.keep, app_context=app_context
+        )
 
         if result.get("status") == "success":
             return GeneralApiResponse(
@@ -819,55 +520,16 @@ async def prune_downloads_api_route(
 
 @router.get("/api/servers", response_model=GeneralApiResponse, tags=["Global Info API"])
 async def get_servers_list_api_route(
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    request: Request, current_user: User = Depends(get_current_user)
 ):
     """
     Retrieves a list of all detected server instances with their status and version.
-
-    Calls :func:`~bedrock_server_manager.api.application.get_all_servers_data`.
-    This provides a summary for each managed server.
-
-    Args:
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``servers``: List of server data dictionaries. Each dict contains
-              "name", "status", "version", etc.
-            - ``message``: (Optional) Message, especially if errors occurred during scan.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": null,
-            "data": null,
-            "servers": [
-                {
-                    "name": "MyServer1",
-                    "status": "RUNNING",
-                    "version": "1.20.50.01",
-                    "description": "Main survival server"
-                },
-                {
-                    "name": "CreativeBuild",
-                    "status": "STOPPED",
-                    "version": "1.20.50.01",
-                    "description": "Creative mode server"
-                }
-            ],
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.debug(f"API: Request for all servers list by user '{identity}'.")
+    app_context = request.app.state.app_context
     try:
-        result = app_api.get_all_servers_data()
+        result = app_api.get_all_servers_data(app_context=app_context)
         if result.get("status") == "success":
             return GeneralApiResponse(status="success", servers=result.get("servers"))
         else:
@@ -884,44 +546,14 @@ async def get_servers_list_api_route(
 
 
 @router.get("/api/info", response_model=GeneralApiResponse, tags=["Global Info API"])
-async def get_system_info_api_route():
+async def get_system_info_api_route(request: Request):
     """
     Retrieves general system and application information.
-
-    Calls :func:`~bedrock_server_manager.api.utils.get_system_and_app_info`.
-    This includes OS type, application version, and key directory paths.
-    This endpoint does not require authentication.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``info``: Dictionary containing system and app info.
-            - ``message``: (Optional) Message.
-
-    Example Response:
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": null,
-            "data": null,
-            "servers": null,
-            "info": {
-                "application_name": "Bedrock Server Manager",
-                "version": "1.0.0",
-                "os_type": "Linux",
-                "base_directory": "/opt/bsm/servers",
-                "content_directory": "/opt/bsm/content",
-                "config_directory": "/opt/bsm/config"
-            },
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
     logger.debug("API: Request for system and app info.")
+    app_context = request.app.state.app_context
     try:
-        result = utils_api.get_system_and_app_info()
+        result = utils_api.get_system_and_app_info(app_context=app_context)
         if result.get("status") == "success":
             return GeneralApiResponse(status="success", info=result.get("data"))
         else:
@@ -942,57 +574,23 @@ async def get_system_info_api_route():
     "/api/players/add", response_model=GeneralApiResponse, tags=["Global Players API"]
 )
 async def add_players_api_route(
-    payload: AddPlayersPayload, current_user: Dict[str, Any] = Depends(get_current_user)
+    request: Request,
+    payload: AddPlayersPayload,
+    current_user: User = Depends(get_moderator_user),
 ):
     """
     Manually adds or updates player entries in the central player database.
-
-    Calls :func:`~bedrock_server_manager.api.player.add_players_manually_api`.
-    Each player string in the payload should be in "gamertag:xuid" format.
-
-    - **Request body**: Expects an :class:`.AddPlayersPayload` containing a list
-      of player strings.
-    - Requires authentication.
-
-    Args:
-        payload (AddPlayersPayload): List of player strings to add.
-        current_user (Dict[str, Any]): Authenticated user object.
-
-    Returns:
-        GeneralApiResponse:
-            - ``status``: "success" or "error"
-            - ``message``: Outcome of the add operation.
-            - ``data``: (On success) Contains "count" of players processed.
-
-    Example Request Body:
-    .. code-block:: json
-
-        {
-            "players": ["PlayerThree:1122334455667788", "PlayerFour:2233445566778899"]
-        }
-
-    Example Response (Success):
-    .. code-block:: json
-
-        {
-            "status": "success",
-            "message": "2 player entries processed and saved/updated.",
-            "data": {"count": 2},
-            "servers": null,
-            "info": null,
-            "players": null,
-            "files_deleted": null,
-            "files_kept": null
-        }
     """
-    identity = current_user.get("username", "Unknown")
+    identity = current_user.username
     logger.info(
         f"API: Request to add players by user '{identity}'. Payload: {payload.players}"
     )
-
+    app_context = request.app.state.app_context
     try:
 
-        result = player_api.add_players_manually_api(player_strings=payload.players)
+        result = player_api.add_players_manually_api(
+            player_strings=payload.players, app_context=app_context
+        )
 
         if result.get("status") == "success":
             return GeneralApiResponse(

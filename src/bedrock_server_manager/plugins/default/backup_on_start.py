@@ -3,6 +3,7 @@
 Plugin to automatically back up a server before it starts.
 """
 from bedrock_server_manager import PluginBase
+from typing import Any
 
 
 class AutoBackupOnStart(PluginBase):
@@ -12,7 +13,7 @@ class AutoBackupOnStart(PluginBase):
     backup exists before the server goes online.
     """
 
-    version = "1.0.0"
+    version = "1.1.0"
 
     def on_load(self):
         """Logs a message when the plugin is loaded."""
@@ -20,10 +21,11 @@ class AutoBackupOnStart(PluginBase):
             "Plugin loaded. Will perform a full backup before any server starts."
         )
 
-    def before_server_start(self, server_name: str, mode: str):
+    def before_server_start(self, **kwargs: Any):
         """
         Triggers a full backup of the server before it starts.
         """
+        server_name = kwargs.get("server_name")
         self.logger.info(f"Performing pre-start backup for server '{server_name}'...")
 
         try:
