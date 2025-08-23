@@ -34,7 +34,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from ..schemas import BaseApiResponse, User
-from ..templating import templates
+from ..templating import get_templates
 from ..auth_utils import get_current_user, get_moderator_user
 from ..dependencies import validate_server_exists
 from ...api import backup_restore as backup_restore_api
@@ -116,8 +116,7 @@ async def backup_menu_page(
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed backup menu for server '{server_name}'.")
-    return templates.TemplateResponse(
-        request,
+    return get_templates().TemplateResponse(
         "backup_menu.html",
         {"request": request, "current_user": current_user, "server_name": server_name},
     )
@@ -142,8 +141,7 @@ async def backup_config_select_page(
         f"User '{identity}' accessed config backup selection page for server '{server_name}'."
     )
 
-    return templates.TemplateResponse(
-        request,
+    return get_templates().TemplateResponse(
         "backup_config_options.html",
         {"request": request, "current_user": current_user, "server_name": server_name},
     )
@@ -165,8 +163,7 @@ async def restore_menu_page(
     """
     identity = current_user.username
     logger.info(f"User '{identity}' accessed restore menu for server '{server_name}'.")
-    return templates.TemplateResponse(
-        request,
+    return get_templates().TemplateResponse(
         "restore_menu.html",
         {"request": request, "current_user": current_user, "server_name": server_name},
     )
@@ -231,8 +228,7 @@ async def show_select_backup_file_page(
                 }
                 for p in full_paths
             ]
-            return templates.TemplateResponse(
-                request,
+            return get_templates().TemplateResponse(
                 "restore_select_backup.html",
                 {
                     "request": request,

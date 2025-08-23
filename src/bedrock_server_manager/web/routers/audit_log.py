@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 
 from ...db.models import AuditLog
-from ..templating import templates
+from ..templating import get_templates
 from ..auth_utils import get_admin_user
 from ..schemas import User as UserSchema
 
@@ -39,8 +39,7 @@ async def audit_log_page(
     """
     with request.app.state.app_context.db.session_manager() as db:
         logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
-    return templates.TemplateResponse(
-        request,
+    return get_templates().TemplateResponse(
         "audit_log.html",
         {"request": request, "logs": logs, "current_user": current_user},
     )
