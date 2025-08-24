@@ -33,7 +33,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Depends
 
 
-def get_templates(app_context: AppContext = Depends(get_app_context)) -> "Jinja2Templates":
+def get_templates(
+    app_context: AppContext = Depends(get_app_context),
+) -> "Jinja2Templates":
     """
     FastAPI dependency to get the Jinja2Templates instance from the application context.
     """
@@ -41,8 +43,8 @@ def get_templates(app_context: AppContext = Depends(get_app_context)) -> "Jinja2
 
 
 async def validate_server_exists(
-    request: Request,
     server_name: str = Path(..., title="The name of the server", min_length=1),
+    app_context: AppContext = Depends(get_app_context),
 ) -> str:
     """
     FastAPI dependency to validate if a server identified by `server_name` exists.
@@ -66,7 +68,6 @@ async def validate_server_exists(
             has an invalid format.
     """
     logger.debug(f"Dependency: Validating existence of server '{server_name}'.")
-    app_context = request.app.state.app_context
     try:
         name_validation_result = utils_api.validate_server_name_format(server_name)
         if name_validation_result.get("status") != "success":
