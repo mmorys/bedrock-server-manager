@@ -88,6 +88,7 @@ This section contains solutions for common problems, often related to major upda
 *   **CLI Commands Don't Work After v3.6.0 Update**: In v3.6.0, most CLI commands were moved to the `bsm-api-client` package. The core `bedrock-server-manager` package no longer handles most command-line actions directly.
     *   Install the new CLI with: `pip install bedrock-server-manager[cli]`
     *   Use the new command: `bsm-api-client <command>`
+*   **Slow Web UI (3.6+)**: Using the default database has been observed to cause slow loadding times for the web server on some systems, if you experience this issue, consider using an external database such as `MySQL` or `PostgreSQL`.
 
 ## Platform Information
 

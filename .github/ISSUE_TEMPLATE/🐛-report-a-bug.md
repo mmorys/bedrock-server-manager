@@ -12,6 +12,7 @@ assignees: ''
 *   Please search [existing issues](https://github.com/DMedina559/bedrock-server-manager/issues) to ensure this bug hasn't already been reported.
     *   If a similar bug was already reported, please add your additional information or confirm you're experiencing the same issue in that existing thread.
 *   If you are using a version prior to the latest release, please try updating first to see if the issue persists.
+*   Read the [troubleshooting docs](https://bedrock-server-manager.readthedocs.io/en/latest/general/troubleshooting.html) to see if a workaround or fix has been documented
 ---
 
 ## <sup>(REQUIRED)</sup> **Describe the Bug**:

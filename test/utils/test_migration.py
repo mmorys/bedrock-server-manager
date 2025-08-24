@@ -139,6 +139,7 @@ class TestMigrateEnvAuthToDb:
         mock_db_session.add.assert_called_once()
         mock_db_session.commit.assert_called_once()
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_migrate_env_auth_to_db_no_env_vars(self, app_context):
         migrate_env_auth_to_db(app_context)
         assert app_context.db.session_manager.call_count == 0

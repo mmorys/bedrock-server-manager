@@ -65,3 +65,64 @@ pip install git+https://github.com/DMedina559/bedrock-server-manager.git@main
 # Or install from a specific feature branch
 pip install git+https://github.com/DMedina559/bedrock-server-manager.git@name-of-the-branch
 ```
+
+---
+
+## 4. Database Configuration
+
+Bedrock Server Manager uses SQLAlchemy to connect to a database. By default, it uses a SQLite database, but you can configure it to use other databases like MySQL, MariaDB, or PostgreSQL.
+
+To use a different database, you need to:
+1.  Install the necessary database driver.
+2.  Set the `db_url` in your configuration file to the correct database connection string.
+
+### Installing Database Drivers
+
+You can install the required drivers as optional dependencies with `pip`.
+
+*   **For MySQL:**
+    ```bash
+    pip install "bedrock-server-manager[mysql]"
+    ```
+    This will install both `mysqlclient` and `PyMySQL`.
+
+*   **For MariaDB:**
+    ```bash
+    pip install "bedrock-server-manager[mariadb]"
+    ```
+    This will install both `mariadb` and `PyMySQL`.
+
+*   **For PostgreSQL:**
+    ```bash
+    pip install "bedrock-server-manager[postgresql]"
+    ```
+    This will install `psycopg`.
+
+### Database Connection URLs
+
+Here are some examples of connection URLs for different databases.
+
+*   **MySQL (using `mysqlclient`):**
+    ```
+    mysql://user:password@host/dbname
+    ```
+
+*   **MySQL (using `PyMySQL`):**
+    ```
+    mysql+pymysql://user:password@host/dbname
+    ```
+
+*   **MariaDB (using `mariadb`):**
+    ```
+    mariadb://user:password@host/dbname
+    ```
+
+*   **MariaDB (using `PyMySQL`):**
+    ```
+    mariadb+pymysql://user:password@host/dbname
+    ```
+
+*   **PostgreSQL (using `psycopg`):**
+    ```
+    postgresql+psycopg://user:password@host/dbname
+    ```

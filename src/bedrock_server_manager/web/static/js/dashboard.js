@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`${functionName}: Initializing all dashboard interactivity.`);
 
     // --- Constants and Elements ---
-    const POLLING_INTERVAL_MS = 3000;
+    const POLLING_INTERVAL_MS = 60000;
     const serverSelect = document.getElementById('server-select');
     const globalActionButtons = document.querySelectorAll('.server-selection-section .action-buttons-group button');
     const serverDependentSections = document.querySelectorAll('.server-dependent-actions');
@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <h3>${server.name}</h3>
             <p><span class="info-label">Status:</span> <span class="status-text status-${status.toLowerCase()}">${status.toUpperCase()}</span></p>
             <p><span class="info-label">Version:</span> <span class="version-text">${version}</span></p>
+            <p><span class="info-label">Players:</span> <span class="player-count-text">${server.player_count}</span></p>
         </div>
         <div class="server-card-actions"></div>`;
         return card;
@@ -131,12 +132,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const serverName = card.dataset.serverName;
                 if (newServerMap.has(serverName)) {
                     const serverData = newServerMap.get(serverName);
-                    const statusEl = card.querySelector('.status-text');
-                    const versionEl = card.querySelector('.version-text');
-                    const newStatus = serverData.status || 'UNKNOWN';
-                    statusEl.textContent = newStatus.toUpperCase();
-                    statusEl.className = `status-text status-${newStatus.toLowerCase()}`;
-                    versionEl.textContent = serverData.version || 'N/A';
+                    const safeServerName = encodeURIComponent(serverData.name);
+                    const status = serverData.status || 'UNKNOWN';
+                    const version = serverData.version || 'N/A';
+                    card.innerHTML = `
+                    <div class="server-card-thumbnail">
+                        <img src="/api/server/${safeServerName}/world/icon" alt="${serverData.name} World Icon" class="world-icon-img">
+                    </div>
+                    <div class="server-card-info">
+                        <h3>${serverData.name}</h3>
+                        <p><span class="info-label">Status:</span> <span class="status-text status-${status.toLowerCase()}">${status.toUpperCase()}</span></p>
+                        <p><span class="info-label">Version:</span> <span class="version-text">${version}</span></p>
+                        <p><span class="info-label">Players:</span> <span class="player-count-text">${serverData.player_count}</span></p>
+                    </div>
+                    <div class="server-card-actions"></div>`;
                 } else {
                     card.remove();
                 }

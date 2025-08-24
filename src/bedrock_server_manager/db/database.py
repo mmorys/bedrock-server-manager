@@ -4,7 +4,7 @@ import warnings
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 from ..config.const import package_name
 from ..config import bcm_config

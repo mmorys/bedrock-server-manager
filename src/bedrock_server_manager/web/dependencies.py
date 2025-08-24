@@ -17,12 +17,34 @@ from ..api import utils as utils_api
 from ..error import InvalidServerNameError
 from fastapi import Request
 
+from ..context import AppContext
+
 logger = logging.getLogger(__name__)
 
 
+def get_app_context(request: Request) -> "AppContext":
+    """
+    FastAPI dependency to get the application context from the request state.
+    """
+    return request.app.state.app_context
+
+
+from fastapi.templating import Jinja2Templates
+from fastapi import Depends
+
+
+def get_templates(
+    app_context: AppContext = Depends(get_app_context),
+) -> "Jinja2Templates":
+    """
+    FastAPI dependency to get the Jinja2Templates instance from the application context.
+    """
+    return app_context.templates
+
+
 async def validate_server_exists(
-    request: Request,
     server_name: str = Path(..., title="The name of the server", min_length=1),
+    app_context: AppContext = Depends(get_app_context),
 ) -> str:
     """
     FastAPI dependency to validate if a server identified by `server_name` exists.
@@ -46,7 +68,6 @@ async def validate_server_exists(
             has an invalid format.
     """
     logger.debug(f"Dependency: Validating existence of server '{server_name}'.")
-    app_context = request.app.state.app_context
     try:
         name_validation_result = utils_api.validate_server_name_format(server_name)
         if name_validation_result.get("status") != "success":
