@@ -6,6 +6,25 @@
 :align: center
 ```
 
+## 3.6.1
+
+### New Features:
+
+1. Add `mcstatus`
+    - Used to check online players count 
+    - `player_count` is returned with `get_all_servers_data`
+2. Added `TaskManager` class in web.tasks
+    - Used for routers that used FastAPI's BackgroundTask
+    - Durring shutdown all running background tasks will be brought to the main thread where they'll finish running or graceful shutdown
+
+### Backend Changes:
+
+3. Added shutdown flag to `BedrockProcessManager`
+    - Raises `RuntimeError` if trying to register a server durring shutdown
+5. Refactored/Removed web.templates into `AppContext`
+6. Added `get_app_context` and `get_templates` to web.dependencies
+7. Added `self.player_count` attribute to `BedrockServer` 
+
 ## 3.6.0
 
 ```{tip}
