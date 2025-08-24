@@ -93,8 +93,9 @@ async def manage_plugins_page_route(
     identity = current_user.username
     logger.info(f"User '{identity}' accessed plugin management page.")
     return templates.TemplateResponse(
+        request,
         "manage_plugins.html",
-        {"request": request, "current_user": current_user},
+        {"current_user": current_user},
     )
 
 

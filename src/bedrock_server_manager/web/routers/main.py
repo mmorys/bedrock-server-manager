@@ -58,9 +58,9 @@ async def index(
         plugin_html_pages = []
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "current_user": current_user,
             "plugin_html_pages": plugin_html_pages,
         },
@@ -88,6 +88,7 @@ async def monitor_server_route(
     username = current_user.username
     logger.info(f"User '{username}' accessed monitor page for server '{server_name}'.")
     return templates.TemplateResponse(
+        request,
         "monitor.html",
-        {"request": request, "server_name": server_name, "current_user": current_user},
+        {"server_name": server_name, "current_user": current_user},
     )

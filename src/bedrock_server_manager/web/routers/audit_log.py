@@ -44,6 +44,7 @@ async def audit_log_page(
     with app_context.db.session_manager() as db:
         logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
     return templates.TemplateResponse(
+        request,
         "audit_log.html",
-        {"request": request, "logs": logs, "current_user": current_user},
+        {"logs": logs, "current_user": current_user},
     )

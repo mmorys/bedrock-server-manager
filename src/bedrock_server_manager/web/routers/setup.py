@@ -42,7 +42,7 @@ async def setup_page(
             # If a user already exists, redirect to home page, as setup is complete
             return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
     return templates.TemplateResponse(
-        "setup.html", {"request": request, "current_user": current_user}
+        request, "setup.html", {"current_user": current_user}
     )
 
 

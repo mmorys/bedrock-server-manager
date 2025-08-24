@@ -42,7 +42,7 @@ async def account_page(
     templates: Jinja2Templates = Depends(get_templates),
 ):
     return templates.TemplateResponse(
-        "account.html", {"request": request, "current_user": user}
+        request, "account.html", {"current_user": user}
     )
 
 

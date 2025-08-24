@@ -91,8 +91,9 @@ async def registration_page(
             )
 
     return templates.TemplateResponse(
+        request,
         "register.html",
-        {"request": request, "token": token, "current_user": current_user},
+        {"token": token, "current_user": current_user},
     )
 
 
