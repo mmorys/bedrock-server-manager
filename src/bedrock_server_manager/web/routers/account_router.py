@@ -41,9 +41,7 @@ async def account_page(
     user: UserSchema = Depends(get_current_user),
     templates: Jinja2Templates = Depends(get_templates),
 ):
-    return templates.TemplateResponse(
-        request, "account.html", {"current_user": user}
-    )
+    return templates.TemplateResponse(request, "account.html", {"current_user": user})
 
 
 @router.get("/api/account", response_model=UserSchema)
