@@ -1,10 +1,5 @@
 import click
-import os
-from alembic.config import Config
-from alembic import command
-from importlib.resources import files
 
-from ..config.const import env_name
 from ..context import AppContext
 from ..utils.migration import (
     migrate_env_vars_to_config_file,
@@ -20,28 +15,13 @@ from ..utils.migration import (
 
 @click.group()
 def migrate():
-    """Database and settings migration tools."""
+    """Migration tools."""
     pass
 
 
-@migrate.command()
+@migrate.command("old-config")
 @click.pass_context
-def database(ctx: click.Context):
-    """Upgrades the database to the latest version."""
-    try:
-        click.echo("Upgrading database...")
-        alembic_ini_path = files("bedrock_server_manager").joinpath("db/alembic.ini")
-        alembic_cfg = Config(str(alembic_ini_path))
-        command.upgrade(alembic_cfg, "head")
-        click.echo("Database upgrade complete.")
-    except Exception as e:
-        click.echo(f"An error occurred during the database upgrade: {e}")
-        raise click.Abort()
-
-
-@migrate.command()
-@click.pass_context
-def old_config(ctx: click.Context):
+def migrate_old_config(ctx: click.Context):
     """Migrates settings from environment variables and old formats to the database."""
     app_context: AppContext = ctx.obj["app_context"]
     try:
