@@ -43,7 +43,7 @@ def web():
 @click.option(
     "-H",
     "--host",
-    "hosts",
+    "host",
     type=str,
     help="Host address to bind to.",
 )

@@ -51,7 +51,7 @@ from ..plugins.event_trigger import trigger_plugin_event
 
 @trigger_plugin_event(before="before_web_server_start", after="after_web_server_start")
 def start_web_server_api(
-    host: Optional[str] = None,
+    host: str = None,
     port: Optional[int] = None,
     debug: bool = False,
     mode: str = "direct",
