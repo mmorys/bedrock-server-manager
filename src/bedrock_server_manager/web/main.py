@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 def run_web_server(
     app_context: "AppContext",
-    host: Optional[Union[str, List[str]]] = None,
+    host: Optional[str] = None,
+    port: Optional[int] = None,
     debug: bool = False,
     threads: Optional[int] = None,
 ) -> None:
@@ -42,12 +43,11 @@ def run_web_server(
     Extensive logging is performed throughout the configuration and startup sequence.
 
     Args:
-        host (Optional[Union[str, List[str]]]): Specifies the host address(es)
+        host (Optional[str]): Specifies the host address
             for Uvicorn to bind to. This can be a single IP address/hostname as a
             string, or a list of addresses/hostnames. If provided via CLI, these
             values take precedence over the ``web.host`` setting in the application
-            configuration. If multiple hosts are given (either via CLI or settings),
-            Uvicorn will typically bind to the first one in the list.
+            configuration.
             Defaults to ``None``, in which case the host is determined by the
             ``web.host`` setting (defaulting to "127.0.0.1").
         debug (bool): If ``True``, Uvicorn is run in development mode. This typically
@@ -74,20 +74,27 @@ def run_web_server(
     """
     settings = app_context.settings
 
-    port_setting_key = "web.port"
-    port_val = settings.get(port_setting_key, 11325)
-    try:
-        port = int(port_val)
-        if not (0 < port < 65536):
-            raise ValueError("Port out of range")
-    except (ValueError, TypeError):
-        logger.error(
-            f"Invalid port number configured: {port_val}. Using default 11325."
-        )
-        port = 11325
-    logger.info(f"FastAPI server configured to run on port: {port}")
+    # Determine port to use
+    final_port = 11325  # Default fallback
+    if port is not None:
+        logger.info(f"Using port provided via command-line: {port}")
+        final_port = port
+    else:
+        logger.info("No port via command-line, using settings.")
+        port_setting_key = "web.port"
+        port_val = settings.get(port_setting_key, 11325)
+        try:
+            settings_port = int(port_val)
+            if not (0 < settings_port < 65536):
+                raise ValueError("Port out of range")
+            final_port = settings_port
+        except (ValueError, TypeError):
+            logger.error(
+                f"Invalid port number configured: {port_val}. Using default {final_port}."
+            )
+    logger.info(f"FastAPI server configured to run on port: {final_port}")
 
-    hosts_to_use_cli: Optional[List[str]] = None
+    hosts_to_use_cli: Optional[str] = None
     if host:
         logger.info(f"Using host(s) provided via command-line: {host}")
         if isinstance(host, str):
@@ -98,25 +105,21 @@ def run_web_server(
     final_host_to_bind = "127.0.0.1"
 
     if hosts_to_use_cli:
-        final_host_to_bind = hosts_to_use_cli[0]
-        if len(hosts_to_use_cli) > 1:
-            logger.warning(
-                f"Multiple hosts via CLI {hosts_to_use_cli}, Uvicorn binds to first: {final_host_to_bind}"
-            )
+        final_host_to_bind = hosts_to_use_cli
+        logger.info(f"Host from command-line: {final_host_to_bind}")
     else:
+        # Fallback to settings if no command-line host is given.
         logger.info("No host via command-line, using settings.")
         settings_host = settings.get("web.host")
-        if isinstance(settings_host, list) and settings_host:
-            final_host_to_bind = settings_host[0]
-            if len(settings_host) > 1:
-                logger.warning(
-                    f"Multiple hosts in settings {settings_host}, Uvicorn binds to first: {final_host_to_bind}"
-                )
-        elif isinstance(settings_host, str) and settings_host:
+
+        if isinstance(settings_host, str) and settings_host:
+            # Use the host from settings if it's a valid string.
             final_host_to_bind = settings_host
         else:
+            # Log a warning if the setting is invalid and use the default.
             logger.warning(
-                f"Host setting 'web.host' invalid ('{settings_host}'). Defaulting to {final_host_to_bind}."
+                f"Host setting 'web.host' is invalid ('{settings_host}'). "
+                f"Defaulting to {final_host_to_bind}."
             )
 
     try:
@@ -170,7 +173,7 @@ def run_web_server(
         "DEBUG (Uvicorn with reload)" if reload_enabled else "PRODUCTION (Uvicorn)"
     )
     logger.info(f"Starting FastAPI web server in {server_mode} mode...")
-    logger.info(f"Listening on: http://{final_host_to_bind}:{port}")
+    logger.info(f"Listening on: http://{final_host_to_bind}:{final_port}")
 
     try:
         from uvicorn.config import LOGGING_CONFIG
@@ -185,7 +188,7 @@ def run_web_server(
         uvicorn.run(
             app,
             host=final_host_to_bind,
-            port=port,
+            port=final_port,
             log_config=LOGGING_CONFIG,
             log_level=uvicorn_log_level.lower(),  # Ensure log level is lowercase
             reload=reload_enabled,

@@ -39,6 +39,7 @@ def test_start_web_server_direct(mock_start_api, runner, mock_ctx):
     assert "Server will run in this terminal" in result.output
     mock_start_api.assert_called_once_with(
         host=None,
+        port=None,
         debug=False,
         mode="direct",
         app_context=mock_ctx.obj["app_context"],
@@ -54,6 +55,7 @@ def test_start_web_server_detached(mock_start_api, runner, mock_ctx):
     assert "Web server start initiated in detached mode" in result.output
     mock_start_api.assert_called_once_with(
         host=None,
+        port=None,
         debug=False,
         mode="detached",
         app_context=mock_ctx.obj["app_context"],
