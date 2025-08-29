@@ -97,10 +97,9 @@ def run_web_server(
     hosts_to_use_cli: Optional[str] = None
     if host:
         logger.info(f"Using host(s) provided via command-line: {host}")
-        if isinstance(host, str):
-            hosts_to_use_cli = [host]
-        elif isinstance(host, list):
-            hosts_to_use_cli = host
+        if not isinstance(host, str):
+            raise ValueError("Host must be a string, representing an IP or hostname.")
+        hosts_to_use_cli = host
 
     final_host_to_bind = "127.0.0.1"
 
