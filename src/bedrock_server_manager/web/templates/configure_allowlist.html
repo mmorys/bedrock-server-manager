@@ -77,3 +77,7 @@
     {% endif %}
 </div>
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/allowlist.js') }}" defer></script>
+{% endblock %}

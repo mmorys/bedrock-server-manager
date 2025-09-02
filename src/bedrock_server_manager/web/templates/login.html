@@ -50,3 +50,7 @@
 
 </div> {# --- End .login-wrapper --- #}
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/auth.js') }}" defer></script>
+{% endblock %}

@@ -36,3 +36,7 @@
     </div>
 </section>
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/backup_restore.js') }}" defer></script>
+{% endblock %}

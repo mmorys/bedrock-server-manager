@@ -59,6 +59,4 @@
 {% block body_scripts %}
 {# This script is loaded after utils.js (which is in base.html) #}
 <script src="{{ request.url_for('static', path='js/manage_settings.js') }}" defer></script>
-
-{# The logic for the setup banner has been moved to manage_settings.js #}
 {% endblock %}

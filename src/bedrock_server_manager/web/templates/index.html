@@ -205,4 +205,5 @@
 
 {# --- Body Scripts Block --- #}
 {% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/dashboard.js') }}" defer></script>
 {% endblock %}

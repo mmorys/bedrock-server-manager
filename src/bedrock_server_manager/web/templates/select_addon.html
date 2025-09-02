@@ -22,7 +22,7 @@
     {# Server-side flash messages (handled by base.html) #}
 
     {# Section containing the addon selection list #}
-<section class="select-addon-section list-section">
+<section id="content-management-page" class="select-addon-section list-section" data-server-name="{{ server_name | e }}">
     {# Use list-section class #}
 
     {# Check if addon_files list (passed from route) is not empty #}
@@ -81,4 +81,8 @@
 
 </section> {# --- End .select-addon-section --- #}
 
+{% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/content_management.js') }}" defer></script>
 {% endblock %}

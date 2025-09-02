@@ -59,3 +59,7 @@
     </main>
 </div>
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/account.js') }}" defer></script>
+{% endblock %}

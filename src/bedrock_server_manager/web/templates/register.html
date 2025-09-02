@@ -22,3 +22,7 @@
     </form>
 </div>
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/register.js') }}" defer></script>
+{% endblock %}

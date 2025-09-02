@@ -33,3 +33,7 @@
     </section> {# --- End .monitor-section --- #}
 
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/monitor_usage.js') }}" defer></script>
+{% endblock %}

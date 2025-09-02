@@ -22,7 +22,7 @@
     {# Server-side flash messages (handled by base.html) #}
 
     {# Section containing the restore options #}
-<section class="restore-menu-section">
+<section id="backup-restore-page" class="restore-menu-section" data-server-name="{{ server_name | e }}">
     <p>Choose a restore action:</p>
 
     {# Group for restore action buttons/forms #}
@@ -58,4 +58,8 @@
 
 </section> {# --- End .restore-menu-section --- #}
 
+{% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/backup_restore.js') }}" defer></script>
 {% endblock %}

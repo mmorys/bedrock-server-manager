@@ -114,3 +114,7 @@
 </div>
 
 {% endblock %}
+
+{% block body_scripts %}
+<script src="{{ request.url_for('static', path='js/content_management.js') }}" defer></script>
+{% endblock %}
