@@ -94,6 +94,12 @@ async def api_login_for_access_token(
     """
     Handles API user login, creates a JWT, and sets it as an HTTP-only cookie.
     """
+    if not form_data.username or not form_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username and password cannot be empty.",
+        )
+
     logger.info(f"API login attempt for '{form_data.username}'")
     authenticated_username = authenticate_user(
         app_context, form_data.username, form_data.password
