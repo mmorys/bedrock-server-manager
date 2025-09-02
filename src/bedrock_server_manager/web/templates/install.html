@@ -23,7 +23,11 @@
 
     {# Server-side flash messages handled by base.html #}
 
-<section class="install-config-section">
+{% block head_scripts %}
+<script src="{{ request.url_for('static', path='js/install_config.js') }}" defer></script>
+{% endblock %}
+
+<section id="install-config-page" class="install-config-section">
     {# No <form>
         tag needed if using JS onclick, otherwise wrap form groups #}
 

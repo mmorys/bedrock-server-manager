@@ -24,6 +24,24 @@ export function initializeManagePluginsPage() {
     return;
   }
 
+  // Check for 'in_setup' parameter and display banner if present
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('in_setup')) {
+    const bannerContainer = document.getElementById('setup-banner-container');
+    if (bannerContainer) {
+      bannerContainer.innerHTML = `
+        <div class="setup-banner">
+            <h3>Step 2: Plugin Management</h3>
+            <p>
+                Here you can manage plugins. Reload plugins to apply any changes.<br>
+                <strong>Note:</strong> Any plugins that add new FastAPI routes (such as the content_uploader_plugin) will require a server restart to take effect.
+            </p>
+            <a href="/install?in_setup=true" class="action-button">Continue to Server Installation</a>
+        </div>
+      `;
+    }
+  }
+
   reloadPluginsBtn.addEventListener('click', handleReloadClick);
 
   async function handleReloadClick() {

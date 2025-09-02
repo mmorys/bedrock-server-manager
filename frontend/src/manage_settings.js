@@ -17,6 +17,24 @@ export function initializeManageSettingsPage() {
     return;
   }
 
+  // Check for 'in_setup' parameter and display banner if present
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('in_setup')) {
+    const bannerContainer = document.getElementById('setup-banner-container');
+    if (bannerContainer) {
+      bannerContainer.innerHTML = `
+        <div class="setup-banner">
+            <h3>Step 1: Global Settings</h3>
+            <p>
+                Modify the global settings for your Bedrock Server Manager instance. Reload the settings after making changes to apply them.<br>
+                <strong>Note:</strong> Some settings may require a server restart to take effect.
+            </p>
+            <a href="/plugins?in_setup=true" class="action-button">Continue to Plugin Setup</a>
+        </div>
+      `;
+    }
+  }
+
   const showLoader = (isLoading) => {
     loader.style.display = isLoading ? 'block' : 'none';
     settingsFormSection.style.display = isLoading ? 'none' : 'block';
