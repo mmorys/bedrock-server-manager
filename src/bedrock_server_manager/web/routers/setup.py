@@ -54,7 +54,7 @@ class CreateFirstUserRequest(BaseModel):
     password: str
 
 
-@router.post("", include_in_schema=False)
+@router.post("/create-first-user", include_in_schema=False)
 async def create_first_user(
     data: CreateFirstUserRequest,
     app_context: AppContext = Depends(get_app_context),
