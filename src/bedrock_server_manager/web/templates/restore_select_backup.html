@@ -23,6 +23,7 @@
     {# Server-side flash messages (handled by base.html) #}
 
     {# Section containing the backup selection list #}
+<section id="backup-restore-page" data-server-name="{{ server_name | e }}">
 <section class="restore-select-section list-section">
     {# Use list-section for potential common styling #}
 
@@ -80,5 +81,5 @@
     </div>
 
 </section> {# --- End .restore-select-section --- #}
-
+</section>
 {% endblock %}
