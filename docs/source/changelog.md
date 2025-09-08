@@ -5,6 +5,22 @@
 :width: 200px
 :align: center
 ```
+## 3.6.3
+
+### New Features:
+1. Added `reset-password` command to reset a users password
+2. Added `database upgrade` command to upgrade the database to the latest version
+    - Removed `migrate database` command 
+3. Added `--port` to `web start` command to override the port from config
+4. Docker image now available on GitHub Container Registry (GHCR)
+    - Image: `ghcr.io/dmedina559/bedrock-server-manager:latest`
+    - Docs: [Docker Setup](./extras/docker.md)
+
+### Backend Changes:
+5. Add `reload` to `AppContext` and some related classes
+6. Refactored WebUI js to npm build system
+7. Added `build.sh` and `build.bat` scripts to build frontend and python packages
+
 
 ## 3.6.2
 
