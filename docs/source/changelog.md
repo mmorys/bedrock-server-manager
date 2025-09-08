@@ -12,9 +12,9 @@
 2. Added `database upgrade` command to upgrade the database to the latest version
     - Removed `migrate database` command 
 3. Added `--port` to `web start` command to override the port from config
-4. Docker image now available on GitHub Container Registry (GHCR)
-    - Image: `ghcr.io/dmedina559/bedrock-server-manager:latest`
-    - Docs: [Docker Setup](./extras/docker.md)
+4. Docker image now available on GitHub Container Registry (GHCR) and Docker Hub
+    - Image: `ghcr.io/dmedina559/bedrock-server-manager:latest`, `dmedina559/bedrock-server-manager:latest`
+    - Docs: [Docker Guide](./extras/docker.md)
 
 ### Backend Changes:
 5. Add `reload` to `AppContext` and some related classes
