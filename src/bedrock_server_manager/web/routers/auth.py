@@ -30,6 +30,7 @@ from fastapi import (
     Response as FastAPIResponse,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from fastapi.templating import Jinja2Templates
 
@@ -87,18 +88,25 @@ async def login_page(
 @router.post("/token", response_model=Token)
 async def api_login_for_access_token(
     response: FastAPIResponse,
-    username: str = Form(...),
-    password: str = Form(...),
+    form_data: OAuth2PasswordRequestForm = Depends(),
     app_context: AppContext = Depends(get_app_context),
 ):
     """
     Handles API user login, creates a JWT, and sets it as an HTTP-only cookie.
     """
-    logger.info(f"API login attempt for '{username}'")
-    authenticated_username = authenticate_user(app_context, username, password)
+    if not form_data.username or not form_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username and password cannot be empty.",
+        )
+
+    logger.info(f"API login attempt for '{form_data.username}'")
+    authenticated_username = authenticate_user(
+        app_context, form_data.username, form_data.password
+    )
 
     if not authenticated_username:
-        logger.warning(f"Invalid API login attempt for '{username}'.")
+        logger.warning(f"Invalid API login attempt for '{form_data.username}'.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -119,7 +127,9 @@ async def api_login_for_access_token(
         samesite=cookie_samesite,
         path="/",
     )
-    logger.info(f"API login successful for '{username}'. JWT created and cookie set.")
+    logger.info(
+        f"API login successful for '{form_data.username}'. JWT created and cookie set."
+    )
     return {
         "access_token": access_token,
         "token_type": "bearer",

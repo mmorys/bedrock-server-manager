@@ -51,7 +51,8 @@ from ..plugins.event_trigger import trigger_plugin_event
 
 @trigger_plugin_event(before="before_web_server_start", after="after_web_server_start")
 def start_web_server_api(
-    host: Optional[Union[str, List[str]]] = None,
+    host: str = None,
+    port: Optional[int] = None,
     debug: bool = False,
     mode: str = "direct",
     threads: Optional[int] = None,
@@ -70,9 +71,9 @@ def start_web_server_api(
     Triggers ``before_web_server_start`` and ``after_web_server_start`` plugin events.
 
     Args:
-        host (Optional[Union[str, List[str]]], optional): The host address(es)
-            to bind the web server to. Can be a single string or a list of strings.
-            If ``None``, defaults to the application's configured setting (typically "0.0.0.0").
+        host (Optional[str], optional): The host address
+            to bind the web server to.
+            If ``None``, defaults to the application's configured setting (typically "127.0.0.1").
             Defaults to ``None``.
         debug (bool, optional): If ``True``, starts the web server (Uvicorn) in
             debug mode (e.g., with auto-reload). Defaults to ``False``.
@@ -107,7 +108,7 @@ def start_web_server_api(
             manager = get_manager_instance(None)
         # --- Direct (Blocking) Mode ---
         if mode == "direct":
-            manager.start_web_ui_direct(app_context, host, debug, threads)
+            manager.start_web_ui_direct(app_context, host, port, debug, threads)
             return {
                 "status": "success",
                 "message": "Web server (direct mode) shut down.",
@@ -152,14 +153,9 @@ def start_web_server_api(
             # Construct the command to launch the new detached process.
             command = [str(expected_exe), "web", "start", "--mode", "direct"]
             hosts_to_add = []
-            if isinstance(host, str):
+            if host:
                 hosts_to_add.append(host)
-            elif isinstance(host, list):
-                hosts_to_add.extend(host)
 
-            for h in hosts_to_add:
-                if h:
-                    command.extend(["--host", str(h)])
             if debug:
                 command.append("--debug")
 

@@ -16,7 +16,8 @@ class WebProcessMixin:
     def start_web_ui_direct(
         self,
         app_context: AppContext,
-        host: Optional[Union[str, List[str]]] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
         debug: bool = False,
         threads: Optional[int] = None,
     ) -> None:
@@ -32,8 +33,7 @@ class WebProcessMixin:
             web server is shut down.
 
         Args:
-            host (Optional[Union[str, List[str]]]): The host address or list of
-                addresses for the web server to bind to. Passed directly to
+            host (Optional[str]): The host address for the web server to bind to. Passed directly to
                 :func:`~.web.app.run_web_server`. Defaults to ``None``.
             debug (bool): If ``True``, runs the underlying Uvicorn/FastAPI app
                 in debug mode (e.g., with auto-reload). Passed directly to
@@ -60,7 +60,13 @@ class WebProcessMixin:
                 run_web_server as run_bsm_web_application,
             )
 
-            run_bsm_web_application(app_context, host, debug, threads)
+            run_bsm_web_application(
+                app_context=app_context,
+                host=host,
+                port=port,
+                debug=debug,
+                threads=threads,
+            )
             logger.info("BSM: Web application (direct mode) shut down.")
         except (RuntimeError, ImportError) as e:
             logger.critical(

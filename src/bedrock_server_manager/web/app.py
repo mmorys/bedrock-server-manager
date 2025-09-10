@@ -80,12 +80,19 @@ def create_web_app(app_context: AppContext) -> FastAPI:
 
     @app.middleware("http")
     async def setup_check_middleware(request: Request, call_next):
-        if (
-            bcm_config.needs_setup(request.app.state.app_context)
-            and not request.url.path.startswith("/setup")
-            and not request.url.path.startswith("/static")
-            and not request.url.path.startswith("/favicon.ico")
-        ):
+        # Paths that should be accessible even if setup is not complete
+        allowed_paths = [
+            "/setup",
+            "/static",
+            "/favicon.ico",
+            "/auth/token",
+            "/docs",
+            "/openapi.json",
+        ]
+
+        if bcm_config.needs_setup(
+            request.app.state.app_context
+        ) and not any(request.url.path.startswith(p) for p in allowed_paths):
             return RedirectResponse(url="/setup")
 
         # Manually handle authentication to bypass it for static files
@@ -123,6 +130,7 @@ def create_web_app(app_context: AppContext) -> FastAPI:
     app.include_router(routers.main_router)
     app.include_router(routers.account_router)
     app.include_router(routers.audit_log_router)
+    app.include_router(routers.server_settings_router)
 
     # --- Dynamically include FastAPI routers from plugins ---
     if plugin_manager.plugin_fastapi_routers:

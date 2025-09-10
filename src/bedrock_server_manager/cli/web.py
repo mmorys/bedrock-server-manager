@@ -43,9 +43,16 @@ def web():
 @click.option(
     "-H",
     "--host",
-    "hosts",
-    multiple=True,
-    help="Host address to bind to. Use multiple times for multiple hosts.",
+    "host",
+    type=str,
+    help="Host address to bind to.",
+)
+@click.option(
+    "-p",
+    "--port",
+    "port",
+    type=int,
+    help="Port to bind to. Overrides the value in settings.",
 )
 @click.option(
     "-d",
@@ -62,7 +69,7 @@ def web():
     help="Run mode: 'direct' blocks the terminal, 'detached' runs in the background.",
 )
 @click.pass_context
-def start_web_server(ctx: click.Context, hosts: Tuple[str], debug: bool, mode: str):
+def start_web_server(ctx: click.Context, host: str, port: int, debug: bool, mode: str):
     """
     Starts the Bedrock Server Manager web UI.
 
@@ -83,11 +90,12 @@ def start_web_server(ctx: click.Context, hosts: Tuple[str], debug: bool, mode: s
         )
 
     try:
-        host_list = (
-            list(hosts) if hosts else None
-        )  # Pass None if no hosts are provided, API handles default
         response = web_api.start_web_server_api(
-            host=host_list, debug=debug, mode=mode, app_context=app_context
+            host=host,
+            port=port,
+            debug=debug,
+            mode=mode,
+            app_context=app_context,
         )
 
         # In 'direct' mode, start_web_server_api (which calls bsm.start_web_ui_direct)

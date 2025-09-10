@@ -5,15 +5,6 @@
 {# --- Page Title Block --- #}
 {% block title %}{{ super() }} - Select Addon: {{ server_name }}{% endblock %}
 
-{# --- Head Scripts Block --- #}
-{# Include JavaScript files needed for addon installation actions #}
-{% block head_scripts %}
-<script src="{{ request.url_for('static', path='js/utils.js') }}" defer></script>
-    {# content_management.js contains the triggerAddonInstall function #}
-<script src="{{ request.url_for('static', path='js/content_management.js') }}" defer></script>
-{% endblock %}
-
-
 {# --- Main Content Block --- #}
 {% block content %}
     {# Main heading for the page #}
@@ -31,7 +22,7 @@
     {# Server-side flash messages (handled by base.html) #}
 
     {# Section containing the addon selection list #}
-<section class="select-addon-section list-section">
+<section id="content-management-page" class="select-addon-section list-section" data-server-name="{{ server_name | e }}">
     {# Use list-section class #}
 
     {# Check if addon_files list (passed from route) is not empty #}
@@ -57,12 +48,10 @@
                     <td data-label="Addon File">{{ addon_file_path | basename }}</td>
                     {# Cell containing the install button #}
                     <td data-label="Action" style="text-align: center;">
-                        {# Button calls triggerAddonInstall JS function #}
                         <button type="button"
-                                class="action-button install-button" {# Add specific class if needed #}
-                                {# Pass button element, server name, and FULL addon path #}
-                                {# Escape path correctly for JS, handling backslashes #}
-                                onclick="triggerAddonInstall(this, '{{ server_name | e }}', '{{ addon_file_path | e | replace('\\', '\\\\') }}')">
+                                class="action-button install-button install-addon-btn"
+                                data-server-name="{{ server_name | e }}"
+                                data-addon-path="{{ addon_file_path | e | replace('\\', '\\\\') }}">
                             Install
                         </button>
                     </td>
@@ -94,7 +83,6 @@
 
 {% endblock %}
 
-{# --- Optional Body Scripts Block --- #}
 {% block body_scripts %}
-{# No page-specific JS usually needed here, actions are in onclick #}
+<script src="{{ request.url_for('static', path='js/content_management.js') }}" defer></script>
 {% endblock %}
