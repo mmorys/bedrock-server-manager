@@ -165,8 +165,8 @@ async def restart_server_route(
     tags=["Server Actions API"],
 )
 async def send_command_route(
-    server_name: str,
     payload: CommandPayload,
+    server_name: str = Depends(validate_server_exists),
     current_user: User = Depends(get_moderator_user),
     app_context: AppContext = Depends(get_app_context),
 ):
