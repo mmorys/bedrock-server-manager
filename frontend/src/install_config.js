@@ -66,7 +66,7 @@ export async function triggerInstallServer(buttonElement) {
 
   const requestBody = { server_name: serverName, server_version: serverVersion, overwrite: false };
   if (serverVersion.toUpperCase() === 'CUSTOM') {
-    requestBody.server_zip_path = document.getElementById('custom-zip-selector').value;
+    requestBody.server_zip_path = document.getElementById('custom-zip-path').value;
   }
 
   const initialResponse = await sendServerActionRequest(
@@ -252,25 +252,52 @@ export async function saveServiceSettings(buttonElement, serverName, currentOs, 
   }
 }
 
-export async function checkCustomVersion(version) {
+async function checkCustomVersion(version) {
   const customZipGroup = document.getElementById('custom-zip-selector-group');
+  const zipListContainer = document.getElementById('custom-zip-list');
+  const hiddenInput = document.getElementById('custom-zip-path');
+
   if (version.toUpperCase() === 'CUSTOM') {
     customZipGroup.style.display = 'block';
     const data = await sendServerActionRequest(null, '/api/downloads/list', 'GET', null, null, true);
-    const selector = document.getElementById('custom-zip-selector');
-    selector.innerHTML = '';
+    zipListContainer.innerHTML = '';
+    hiddenInput.value = '';
+
     if (data && data.custom_zips && data.custom_zips.length > 0) {
-      data.custom_zips.forEach((zip) => {
-        const option = document.createElement('option');
-        option.value = zip;
-        option.textContent = zip;
-        selector.appendChild(option);
+      data.custom_zips.forEach((zip, index) => {
+        const radioId = `custom-zip-${index}`;
+        const radioWrapper = document.createElement('div');
+        radioWrapper.classList.add('radio-item');
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.id = radioId;
+        input.name = 'custom-zip-selection';
+        input.value = zip;
+        input.addEventListener('change', () => {
+          hiddenInput.value = zip;
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = radioId;
+        label.textContent = zip;
+
+        radioWrapper.appendChild(input);
+        radioWrapper.appendChild(label);
+        zipListContainer.appendChild(radioWrapper);
+
+        // Pre-select the first item
+        if (index === 0) {
+          input.checked = true;
+          hiddenInput.value = zip;
+        }
       });
     } else {
-      selector.innerHTML = '<option disabled>No custom zips found</option>';
+      zipListContainer.innerHTML = '<p>No custom zips found in the downloads/custom directory.</p>';
     }
   } else {
     customZipGroup.style.display = 'none';
+    hiddenInput.value = '';
   }
 }
 
@@ -281,6 +308,13 @@ export function initializeInstallConfigPage() {
   const serverName = installConfigPage?.dataset.serverName;
   const isNewInstall = installConfigPage?.dataset.isNewInstall === 'true';
   const os = installConfigPage?.dataset.os;
+
+  const serverVersionInput = document.getElementById('install-server-version');
+  if (serverVersionInput) {
+    serverVersionInput.addEventListener('input', (e) => checkCustomVersion(e.target.value));
+    // Also check on initial load
+    checkCustomVersion(serverVersionInput.value);
+  }
 
   document
     .getElementById('install-server-btn')
