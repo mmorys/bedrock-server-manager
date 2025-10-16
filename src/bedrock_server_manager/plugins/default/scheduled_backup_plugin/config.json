@@ -1,0 +1,22 @@
+{
+  "name": "Scheduled Backup Plugin",
+  "description": "Automatically create and manage scheduled backups for Minecraft Bedrock servers",
+  "version": "1.0.0",
+  "author": "Bedrock Server Manager",
+  "enabled_by_default": false,
+  "category": "Backup",
+  "tags": ["backup", "automation", "schedule"],
+  "dependencies": [],
+  "settings": {
+    "max_concurrent_backups": {
+      "type": "integer",
+      "default": 1,
+      "description": "Maximum number of concurrent backup operations"
+    },
+    "default_retention_days": {
+      "type": "integer",
+      "default": 7,
+      "description": "Default number of days to keep backup files"
+    }
+  }
+}
