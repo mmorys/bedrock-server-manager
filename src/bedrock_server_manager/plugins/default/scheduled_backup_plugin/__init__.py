@@ -6,6 +6,8 @@ import os
 import asyncio
 import logging
 import threading
+import json
+import uuid
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -21,19 +23,24 @@ from bedrock_server_manager.web import get_admin_user
 
 # Schedule model for API requests and responses
 class ScheduleModel(BaseModel):
-    server_name: str = Field(..., description="Name of the server to backup")
+    id: Optional[str] = Field(None, description="Unique identifier for the schedule")
+    server_names: List[str] = Field(..., description="Names of the servers to backup")
     cron_expression: str = Field(..., description="Cron expression for scheduling")
     backup_type: str = Field(
         default="all", description="Type of backup: 'world', 'config', or 'all'"
     )
     enabled: bool = Field(default=True, description="Whether the schedule is enabled")
     name: str = Field(..., description="Name for this backup schedule")
+    created_at: Optional[str] = Field(None, description="When the schedule was created")
+    last_run: Optional[str] = Field(None, description="Last time the schedule ran")
+    next_run: Optional[str] = Field(None, description="Next time the schedule will run")
 
 
-# Schedule storage (in-memory for now, will be replaced with database)
+# Schedule storage
 schedules: Dict[str, Dict[str, Any]] = {}
 schedule_counter = 0
 scheduler_running = False
+SCHEDULES_FILE = Path(__file__).parent / "schedules.json"
 
 
 class ScheduledBackupPlugin(PluginBase):
@@ -43,6 +50,9 @@ class ScheduledBackupPlugin(PluginBase):
         """Initialize the plugin and start the scheduler."""
         self.router = APIRouter(tags=["Scheduled Backup Plugin"])
         self._define_routes()
+
+        # Load schedules from file
+        self._load_schedules()
 
         # Start background scheduler
         self._start_scheduler()
@@ -95,8 +105,11 @@ class ScheduledBackupPlugin(PluginBase):
                 "next_run": None,
             }
 
+            # Save schedules to file
+            self._save_schedules()
+
             self.logger.info(
-                f"Created new backup schedule: {schedule_id} for server {schedule.server_name}"
+                f"Created new backup schedule: {schedule_id} for servers {schedule.server_names}"
             )
             return schedules[schedule_id]
 
@@ -112,6 +125,9 @@ class ScheduledBackupPlugin(PluginBase):
             schedules[schedule_id].update(schedule.dict())
             schedules[schedule_id]["updated_at"] = datetime.now().isoformat()
 
+            # Save schedules to file
+            self._save_schedules()
+
             self.logger.info(f"Updated backup schedule: {schedule_id}")
             return schedules[schedule_id]
 
@@ -122,6 +138,10 @@ class ScheduledBackupPlugin(PluginBase):
                 raise HTTPException(status_code=404, detail="Schedule not found")
 
             del schedules[schedule_id]
+            
+            # Save schedules to file
+            self._save_schedules()
+            
             self.logger.info(f"Deleted backup schedule: {schedule_id}")
             return {"message": "Schedule deleted successfully"}
 
@@ -139,40 +159,58 @@ class ScheduledBackupPlugin(PluginBase):
 
             return {"message": "Backup execution started"}
 
+        @self.router.get("/api/scheduled_backup/servers")
+        async def get_servers():
+            """Get all available servers for scheduling backups."""
+            try:
+                # Get the list of servers using the available API function
+                result = self.api.get_all_servers_data()
+                
+                if result.get("status") == "success":
+                    # Return just the server names
+                    servers = [{"name": server["name"]} for server in result.get("servers", [])]
+                    return servers
+                else:
+                    raise Exception(result.get("message", "Failed to fetch servers"))
+            except Exception as e:
+                self.logger.error(f"Error fetching servers: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Error fetching servers: {str(e)}")
     async def _execute_backup(self, schedule: Dict[str, Any]):
-        """Execute a backup based on the schedule configuration."""
-        server_name = schedule["server_name"]
+        """Execute backups for all servers in the schedule."""
+        server_names = schedule["server_names"]
         backup_type = schedule["backup_type"]
 
-        try:
-            self.logger.info(
-                f"Starting backup for server '{server_name}', type: {backup_type}"
-            )
-
-            if backup_type == "world":
-                result = self.api.backup_world(server_name=server_name)
-            elif backup_type == "config":
-                result = self.api.backup_config_file(
-                    server_name=server_name, file_to_backup="server.properties"
-                )
-            else:  # "all"
-                result = self.api.backup_all(server_name=server_name)
-
-            if result.get("status") == "success":
+        for server_name in server_names:
+            try:
                 self.logger.info(
-                    f"Backup completed successfully for server '{server_name}'"
-                )
-                # Update last run time
-                schedule["last_run"] = datetime.now().isoformat()
-            else:
-                self.logger.error(
-                    f"Backup failed for server '{server_name}': {result.get('message', 'Unknown error')}"
+                    f"Starting backup for server '{server_name}', type: {backup_type}"
                 )
 
-        except Exception as e:
-            self.logger.error(
-                f"Error executing backup for server '{server_name}': {e}", exc_info=True
-            )
+                if backup_type == "world":
+                    result = self.api.backup_world(server_name=server_name)
+                elif backup_type == "config":
+                    result = self.api.backup_config_file(
+                        server_name=server_name, file_to_backup="server.properties"
+                    )
+                else:  # "all"
+                    result = self.api.backup_all(server_name=server_name)
+
+                if result.get("status") == "success":
+                    self.logger.info(
+                        f"Backup completed successfully for server '{server_name}'"
+                    )
+                else:
+                    self.logger.error(
+                        f"Backup failed for server '{server_name}': {result.get('message', 'Unknown error')}"
+                    )
+
+            except Exception as e:
+                self.logger.error(
+                    f"Error executing backup for server '{server_name}': {e}", exc_info=True
+                )
+
+        # Update last run time for the entire schedule
+        schedule["last_run"] = datetime.now().isoformat()
 
     def _calculate_next_run(self, cron_expression: str) -> Optional[str]:
         """Calculate the next run time based on a cron expression."""
@@ -242,8 +280,64 @@ class ScheduledBackupPlugin(PluginBase):
             self.scheduler_thread.join(timeout=5)
         self.logger.info("Scheduler stopped")
 
+    def _load_schedules(self):
+        """Load schedules from file if it exists."""
+        global schedule_counter
+        
+        try:
+            # Ensure the data directory exists
+            SCHEDULES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            
+            if SCHEDULES_FILE.exists():
+                with open(SCHEDULES_FILE, 'r') as f:
+                    data = json.load(f)
+                    
+                # Convert loaded data to the format expected by the plugin
+                for schedule_id, schedule_data in data.items():
+                    # Ensure all required fields are present
+                    if "id" not in schedule_data:
+                        schedule_data["id"] = schedule_id
+                        
+                    if "created_at" not in schedule_data:
+                        schedule_data["created_at"] = datetime.now().isoformat()
+                        
+                    schedules[schedule_id] = schedule_data
+                
+                # Find the highest schedule counter to avoid ID conflicts
+                for schedule_id in schedules:
+                    if schedule_id.startswith("schedule_"):
+                        try:
+                            num = int(schedule_id.split("_")[1])
+                            if num >= schedule_counter:
+                                schedule_counter = num + 1
+                        except (IndexError, ValueError):
+                            pass
+                            
+                self.logger.info(f"Loaded {len(schedules)} schedules from file")
+        except Exception as e:
+            self.logger.error(f"Error loading schedules from file: {e}", exc_info=True)
+            # Start with empty schedules if file loading fails
+            schedules.clear()
+            schedule_counter = 0
+
+    def _save_schedules(self):
+        """Save schedules to file."""
+        try:
+            # Create directory if it doesn't exist
+            SCHEDULES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(SCHEDULES_FILE, 'w') as f:
+                json.dump(schedules, f, indent=2)
+                
+            self.logger.debug("Schedules saved to file")
+        except Exception as e:
+            self.logger.error(f"Error saving schedules to file: {e}", exc_info=True)
+
     def on_unload(self):
         """Clean up when the plugin is unloaded."""
+        # Save schedules before unloading
+        self._save_schedules()
+        
         # Stop the scheduler
         self._stop_scheduler()
 

@@ -55,10 +55,11 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="serverName" class="form-label">Server:</label>
-                    <select id="serverName" name="server_name" required class="form-select">
-                        <!-- Server options will be populated here -->
-                    </select>
+                    <label class="form-label">Servers:</label>
+                    <div id="serverCheckboxes" class="checkbox-group">
+                        <!-- Server checkboxes will be populated here -->
+                    </div>
+                    <small class="form-help">Select one or more servers to backup</small>
                 </div>
                 
                 <div class="form-group">
@@ -103,27 +104,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const scheduleForm = document.getElementById('scheduleForm');
     const modalTitle = document.getElementById('modalTitle');
     const scheduleTable = document.getElementById('schedulesTable').getElementsByTagName('tbody')[0];
-    const serverSelect = document.getElementById('serverName');
+    const serverCheckboxesContainer = document.getElementById('serverCheckboxes');
     
     let schedules = [];
     let editingScheduleId = null;
+    let servers = [];
     
-    // Fetch servers and populate dropdown
+    // Fetch servers and populate checkboxes
     async function fetchServers() {
         try {
-            const response = await fetch('/api/servers');
-            const servers = await response.json();
+            const response = await fetch('/api/scheduled_backup/servers');
+            servers = await response.json();
             
-            serverSelect.innerHTML = '';
+            serverCheckboxesContainer.innerHTML = '';
             servers.forEach(server => {
-                const option = document.createElement('option');
-                option.value = server.name;
-                option.textContent = server.name;
-                serverSelect.appendChild(option);
+                const div = document.createElement('div');
+                div.className = 'checkbox-item';
+                
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `server_${server.name}`;
+                input.name = 'server_names';
+                input.value = server.name;
+                
+                const label = document.createElement('label');
+                label.htmlFor = `server_${server.name}`;
+                label.textContent = server.name;
+                
+                div.appendChild(input);
+                div.appendChild(label);
+                serverCheckboxesContainer.appendChild(div);
             });
         } catch (error) {
             console.error('Error fetching servers:', error);
-            serverSelect.innerHTML = '<option value="">Error loading servers</option>';
+            serverCheckboxesContainer.innerHTML = '<div class="text-center">Error loading servers</div>';
         }
     }
     
@@ -155,16 +169,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     ? '<span class="status-badge enabled">Enabled</span>'
                     : '<span class="status-badge disabled">Disabled</span>';
                 
+                // Format server names
+                const serverNamesText = schedule.server_names.length > 0 
+                    ? schedule.server_names.join(', ')
+                    : 'No servers';
+                
                 row.innerHTML = `
-                    <td>${schedule.name}</td>
-                    <td>${schedule.server_name}</td>
+                    <td data-schedule-id="${schedule.id}">${schedule.name}</td>
+                    <td>${serverNamesText}</td>
                     <td><code>${schedule.cron_expression}</code></td>
                     <td>${schedule.backup_type}</td>
                     ${statusBadge}
                     <td>${lastRunText}</td>
                     <td class="actions">
                         <button class="action-button secondary-button" onclick="editSchedule('${schedule.id}')">Edit</button>
-                        <button class="action-button danger-button" onclick="deleteSchedule('${schedule.id}')">Delete</button>
+                        <button class="action-button danger-button" onclick="deleteScheduleFromRow(this)">Delete</button>
                         <button class="action-button start-button" onclick="executeSchedule('${schedule.id}')">Run Now</button>
                     </td>
                 `;
@@ -201,9 +220,18 @@ document.addEventListener('DOMContentLoaded', function() {
     scheduleForm.onsubmit = async function(e) {
         e.preventDefault();
         
+        // Get selected server names
+        const serverCheckboxes = document.querySelectorAll('input[name="server_names"]:checked');
+        const selectedServers = Array.from(serverCheckboxes).map(cb => cb.value);
+        
+        if (selectedServers.length === 0) {
+            alert('Please select at least one server');
+            return;
+        }
+        
         const formData = {
             name: document.getElementById('scheduleName').value,
-            server_name: document.getElementById('serverName').value,
+            server_names: selectedServers,
             cron_expression: document.getElementById('cronExpression').value,
             backup_type: document.getElementById('backupType').value,
             enabled: document.getElementById('enabled').checked
@@ -212,12 +240,14 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             let response;
             if (editingScheduleId) {
+                console.log('Updating schedule with ID:', editingScheduleId);
                 response = await fetch(`/api/scheduled_backup/schedules/${editingScheduleId}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(formData)
                 });
             } else {
+                console.log('Creating new schedule');
                 response = await fetch('/api/scheduled_backup/schedules', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -226,72 +256,148 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             if (response.ok) {
+                console.log('Schedule saved successfully');
                 fetchSchedules();
                 modal.style.display = 'none';
             } else {
-                alert('Error saving schedule');
+                const errorData = await response.json();
+                console.error('Error saving schedule:', errorData);
+                alert('Error saving schedule: ' + (errorData.detail || 'Unknown error'));
             }
         } catch (error) {
             console.error('Error saving schedule:', error);
-            alert('Error saving schedule');
+            alert('Error saving schedule: ' + error.message);
         }
     }
     
     // Edit schedule
     window.editSchedule = function(scheduleId) {
+        console.log('Editing schedule with ID:', scheduleId);
+        
+        if (!scheduleId || scheduleId === 'null') {
+            console.error('Invalid schedule ID:', scheduleId);
+            alert('Error: Invalid schedule ID');
+            return;
+        }
+        
         editingScheduleId = scheduleId;
         const schedule = schedules.find(s => s.id === scheduleId);
         
         if (schedule) {
             modalTitle.textContent = 'Edit Schedule';
             document.getElementById('scheduleName').value = schedule.name;
-            document.getElementById('serverName').value = schedule.server_name;
             document.getElementById('cronExpression').value = schedule.cron_expression;
             document.getElementById('backupType').value = schedule.backup_type;
             document.getElementById('enabled').checked = schedule.enabled;
             
+            // Set checkboxes for servers
+            const serverCheckboxes = document.querySelectorAll('input[name="server_names"]');
+            serverCheckboxes.forEach(checkbox => {
+                checkbox.checked = schedule.server_names.includes(checkbox.value);
+            });
+            
             modal.style.display = 'block';
+        } else {
+            console.error('Schedule not found with ID:', scheduleId);
+            alert('Error: Schedule not found');
         }
     }
     
-    // Delete schedule
-    window.deleteSchedule = async function(scheduleId) {
-        if (!confirm('Are you sure you want to delete this schedule?')) {
+// Delete schedule
+window.deleteSchedule = async function(scheduleId) {
+    if (!scheduleId || scheduleId === 'null') {
+        console.error('Invalid schedule ID:', scheduleId);
+        alert('Error: Invalid schedule ID');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        console.log('Deleting schedule with ID:', scheduleId);
+        const response = await fetch(`/api/scheduled_backup/schedules/${scheduleId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            console.log('Schedule deleted successfully');
+            fetchSchedules();
+        } else {
+            const errorData = await response.json();
+            console.error('Error deleting schedule:', errorData);
+            alert('Error deleting schedule: ' + (errorData.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        alert('Error deleting schedule: ' + error.message);
+    }
+}
+
+// Delete schedule from button row (alternative method)
+window.deleteScheduleFromRow = async function(button) {
+    const row = button.closest('tr');
+    const scheduleIdCell = row.querySelector('td[data-schedule-id]');
+    
+    if (!scheduleIdCell || !scheduleIdCell.dataset.scheduleId) {
+        console.error('Schedule ID not found');
+        alert('Error: Could not find schedule to delete');
+        return;
+    }
+    
+    const scheduleId = scheduleIdCell.dataset.scheduleId;
+    
+    if (!confirm('Are you sure you want to delete this schedule?')) {
+        return;
+    }
+    
+    try {
+        console.log('Deleting schedule with ID:', scheduleId);
+        const response = await fetch(`/api/scheduled_backup/schedules/${scheduleId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            console.log('Schedule deleted successfully');
+            fetchSchedules();
+        } else {
+            const errorData = await response.json();
+            console.error('Error deleting schedule:', errorData);
+            alert('Error deleting schedule: ' + (errorData.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting schedule:', error);
+        alert('Error deleting schedule: ' + error.message);
+    }
+}
+    
+    // Execute schedule
+    window.executeSchedule = async function(scheduleId) {
+        if (!scheduleId || scheduleId === 'null') {
+            console.error('Invalid schedule ID:', scheduleId);
+            alert('Error: Invalid schedule ID');
             return;
         }
         
         try {
-            const response = await fetch(`/api/scheduled_backup/schedules/${scheduleId}`, {
-                method: 'DELETE'
-            });
-            
-            if (response.ok) {
-                fetchSchedules();
-            } else {
-                alert('Error deleting schedule');
-            }
-        } catch (error) {
-            console.error('Error deleting schedule:', error);
-            alert('Error deleting schedule');
-        }
-    }
-    
-    // Execute schedule
-    window.executeSchedule = async function(scheduleId) {
-        try {
+            console.log('Executing schedule with ID:', scheduleId);
             const response = await fetch(`/api/scheduled_backup/schedules/${scheduleId}/execute`, {
                 method: 'POST'
             });
             
             if (response.ok) {
+                console.log('Backup execution started successfully');
                 alert('Backup execution started');
                 fetchSchedules();
             } else {
-                alert('Error executing backup');
+                const errorData = await response.json();
+                console.error('Error executing backup:', errorData);
+                alert('Error executing backup: ' + (errorData.detail || 'Unknown error'));
             }
         } catch (error) {
             console.error('Error executing backup:', error);
-            alert('Error executing backup');
+            alert('Error executing backup: ' + error.message);
         }
     }
     
@@ -305,20 +411,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Modal styles */
+/* Modal styles - using theme variables from base.css */
+/* Modal styles are already defined in base.css using theme variables */
+/* These custom styles only add additional properties not in base.css */
 .modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.4);
+    z-index: 1000; /* Ensure it's above other content */
 }
 
 .modal-content {
-    background-color: #fefefe;
     margin: 10% auto;
     padding: 0;
     border-radius: 8px;
@@ -329,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .modal-header {
     padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -343,14 +443,10 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 .close:hover {
-    color: #000;
+    color: var(--text-color);
 }
 
-.modal-body {
-    padding: 20px;
-}
-
-/* Table styles */
+/* Table styles - using theme variables */
 .table-responsive {
     overflow-x: auto;
 }
@@ -359,21 +455,23 @@ table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 15px;
+    color: var(--text-color);
 }
 
 table th, table td {
     padding: 12px 15px;
     text-align: left;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-color);
 }
 
 table th {
-    background-color: #f5f5f5;
+    background-color: var(--container-background-color);
     font-weight: 600;
+    color: var(--text-color);
 }
 
 table tr:hover {
-    background-color: #f9f9f9;
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .status-badge {
@@ -417,6 +515,27 @@ table tr:hover {
     text-align: right;
 }
 
+/* Checkbox group styles */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+}
+
+.checkbox-item input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+.checkbox-item label {
+    cursor: pointer;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .modal-content {
@@ -431,6 +550,15 @@ table tr:hover {
     .actions button {
         padding: 5px 8px;
         font-size: 0.8em;
+    }
+    
+    .checkbox-group {
+        flex-direction: column;
+    }
+    
+    .checkbox-item {
+        margin-right: 0;
+        margin-bottom: 8px;
     }
 }
 </style>
